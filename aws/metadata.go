@@ -5,6 +5,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/client"
 	"github.com/aws/aws-sdk-go/service/ec2"
+    "github.com/aws/aws-sdk-go/aws/ec2metadata"
 )
 
 const autoScalingGroupNameTag = "aws:autoscaling:groupName"
@@ -14,6 +15,7 @@ var (
 )
 
 func GetAutoScalingGroupName(p client.ConfigProvider) (string, error) {
+
 	svc := ec2.New(p)
 
 	params := &ec2.DescribeTagsInput{
@@ -37,4 +39,9 @@ func GetAutoScalingGroupName(p client.ConfigProvider) (string, error) {
 	}
 
 	return aws.StringValue(resp.Tags[0].Value), nil
+}
+
+func RunningOnEc2(p client.ConfigProvider) bool {
+    svc := ec2metadata.New(p)
+    return svc.Available()
 }

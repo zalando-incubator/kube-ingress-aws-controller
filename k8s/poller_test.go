@@ -6,7 +6,7 @@ import (
 )
 
 func TestList(t *testing.T) {
-	list, err := List()
+	list, err := ListIngress()
 	if err != nil {
 		t.Fatal(err)
 	}

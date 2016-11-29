@@ -6,7 +6,7 @@ import (
 	"io/ioutil"
 )
 
-func List() (*IngressList, error) {
+func ListIngress() (*IngressList, error) {
 	kc, err := defaultKubeClient()
 	if err != nil {
 		return nil, err
