@@ -8,12 +8,14 @@ import (
 	"syscall"
 
 	"flag"
-	"time"
-
-	"github.com/aws/aws-sdk-go/aws/client"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/zalando-incubator/kube-ingress-aws-controller/aws"
-    "github.com/zalando-incubator/kube-ingress-aws-controller/k8s"
+)
+
+var (
+	autoScalingGroup string
+	apiServer        string
+	pollInterval uint
 )
 
 func waitForTerminationSignals(signals ...os.Signal) chan os.Signal {
@@ -24,36 +26,14 @@ func waitForTerminationSignals(signals ...os.Signal) chan os.Signal {
 	return c
 }
 
-func updateAwsFromIngress(p client.ConfigProvider, autoScalingGroupName string) {
-	for {
-		il, err := k8s.ListIngress()
-		if err != nil {
-			log.Println(err)
-		} else {
-            fmt.Println(il)
-        }
-
-		lbs, err := aws.GetLoadBalancers(p, autoScalingGroupName)
-		if err != nil {
-			log.Println(err)
-		} else {
-    		fmt.Println(lbs)
-        }
-		time.Sleep(time.Second * 30)
-	}
-}
-
-var (
-	autoScalingGroup string
-	apiServer        string
-)
-
 func loadEnviroment() {
 	flag.Usage = usage
 	flag.StringVar(&autoScalingGroup, "auto-scaling-group", "", "manually sets the auto scaling group name. "+
 		"if empty will try to resolve that using ec2 metadata")
 	flag.StringVar(&apiServer, "api-server", "http://127.0.0.1:8001", "sets the kubernetes api server base url. "+
 		"if empty will try to use the common proxy url http://127.0.0.1:8001")
+	flag.UintVar(&pollInterval, "poll-interval", 30, "sets the poll interval (in seconds) for ingress resources. "+
+		"Defaults to 30 seconds")
 	flag.Parse()
 
 	if autoScalingGroup == "" {
@@ -69,7 +49,6 @@ func usage() {
 }
 
 func main() {
-	//os.Setenv("AWS_SDK_LOAD_CONFIG", "true")
 	loadEnviroment()
 
 	session := session.Must(session.NewSession())
@@ -88,8 +67,8 @@ func main() {
 	}
 
 	log.Printf("using %q as the base auto scaling group\n", autoScalingGroup)
-	updateAwsFromIngress(session, autoScalingGroup)
+	go updateAwsFromIngress(session, autoScalingGroup, pollInterval)
 	<-waitForTerminationSignals(syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
 
-	log.Println("terminating kube-ingress-aws-controller")
+	fmt.Fprintf(os.Stderr, "terminating %s\n", os.Args[0])
 }
