@@ -1,2 +1,6 @@
 # Kubernetes Ingress AWS Controller
-This application runs inside a Kubernetes cluster monitoring changes to the Ingress resources and orchestrates AWS Load Balancers accordingly.
+
+**WARNING** This is a work in progress
+
+This application runs inside a Kubernetes cluster monitoring changes to the Ingress 
+resources and orchestrating AWS Load Balancers accordingly.

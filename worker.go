@@ -25,7 +25,7 @@ func startPolling(awsAdapter *aws.Adapter, apiServerBaseURL string, pollingInter
 						log.Println(err)
 						break
 					}
-					// TODO: attachLoadBalancerToAutoScalingGroup()
+					// TODO: attach LoadBalancer to AutoScalingGroup ?
 					log.Printf("successfully created ALB %q for certificate %q\n", lb.ARN(), missingARN)
 
 					if err := kubernetes.UpdateIngressLoaBalancer(kubernetesClient, ingresses, lb); err != nil {
