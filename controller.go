@@ -10,12 +10,14 @@ import (
 	"flag"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/zalando-incubator/kube-ingress-aws-controller/aws"
+	"strconv"
 )
 
 var (
-	autoScalingGroup string
-	apiServer        string
-	pollInterval uint
+	autoScalingGroupName string
+	securityGroupName    string
+	apiServerBaseURL     string
+	pollingInterval      uint
 )
 
 func waitForTerminationSignals(signals ...os.Signal) chan os.Signal {
@@ -26,19 +28,39 @@ func waitForTerminationSignals(signals ...os.Signal) chan os.Signal {
 	return c
 }
 
-func loadEnviroment() {
+func loadEnviroment() error {
 	flag.Usage = usage
-	flag.StringVar(&autoScalingGroup, "auto-scaling-group", "", "manually sets the auto scaling group name. "+
+	flag.StringVar(&autoScalingGroupName, "auto-scaling-group-name", "", "manually sets the auto scaling group name. "+
 		"if empty will try to resolve that using ec2 metadata")
-	flag.StringVar(&apiServer, "api-server", "http://127.0.0.1:8001", "sets the kubernetes api server base url. "+
+	flag.StringVar(&securityGroupName, "security-group-name", "", "sets the security group for the managed load balancers. "+
+		"if not specified the ASG tag `KubernestesCluster` is used to derive the SG as `<cluster>-worker-lb`")
+	flag.StringVar(&apiServerBaseURL, "api-server-base-url", "http://127.0.0.1:8001", "sets the kubernetes api server base url. "+
 		"if empty will try to use the common proxy url http://127.0.0.1:8001")
-	flag.UintVar(&pollInterval, "poll-interval", 30, "sets the poll interval (in seconds) for ingress resources. "+
+	flag.UintVar(&pollingInterval, "polling-interval", 30, "sets the polling interval (in seconds) for ingress resources. "+
 		"Defaults to 30 seconds")
 	flag.Parse()
 
-	if autoScalingGroup == "" {
-		autoScalingGroup = os.Getenv("AUTO-SCALING-GROUP")
+	if autoScalingGroupName == "" {
+		autoScalingGroupName = os.Getenv("AUTO_SCALING_GROUP_NAME")
 	}
+
+	if securityGroupName == "" {
+		securityGroupName = os.Getenv("SECURITY_GROUP_NAME")
+	}
+
+	if tmp, defined := os.LookupEnv("API_SERVER_BASE_URL"); defined {
+		apiServerBaseURL = tmp
+	}
+
+	if tmp, defined := os.LookupEnv("POLLING_INTERVAL"); defined {
+		interval, err := strconv.Atoi(tmp)
+		if err != nil {
+			return err
+		}
+		pollingInterval = uint(interval)
+	}
+
+	return nil
 }
 
 func usage() {
@@ -49,26 +71,29 @@ func usage() {
 }
 
 func main() {
-	loadEnviroment()
-
-	session := session.Must(session.NewSession())
-
+	log.Printf("starting %s", os.Args[0])
 	var err error
-	if autoScalingGroup == "" {
-		if aws.RunningOnEc2(session) {
-			autoScalingGroup, err = aws.GetAutoScalingGroupName(session)
-			if err != nil {
-				panic(err)
-			}
-		} else {
-			log.Println("not running on EC2. You have to specify the auto scaling group name.")
-			usage()
-		}
+	if err = loadEnviroment(); err != nil {
+		log.Fatal(err)
 	}
 
-	log.Printf("using %q as the base auto scaling group\n", autoScalingGroup)
-	go updateAwsFromIngress(session, autoScalingGroup, pollInterval)
+	session := session.Must(session.NewSession())
+	awsAdapter, err := aws.NewAdapter(session, autoScalingGroupName, securityGroupName)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	log.Println("controller manifest:")
+	log.Printf("\tKubernetes cluster: %s\n", awsAdapter.ClusterName())
+	log.Printf("\tcurrent vpc id: %s\n", awsAdapter.VpcID())
+	log.Printf("\tcurrent instance id: %s\n", awsAdapter.InstanceID())
+	log.Printf("\tauto scaling group name: %s\n", awsAdapter.AutoScalingGroupName())
+	log.Printf("\tsecurity group name: %s\n", awsAdapter.SecurityGroupID())
+	log.Printf("\tprivate subnet ids: %s\n", awsAdapter.PrivateSubnetIDs())
+	log.Printf("\tpublic subnet ids: %s\n", awsAdapter.PublicSubnetIDs())
+
+	go startPolling(awsAdapter, apiServerBaseURL, pollingInterval)
 	<-waitForTerminationSignals(syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
 
-	fmt.Fprintf(os.Stderr, "terminating %s\n", os.Args[0])
+	log.Printf("terminating %s\n", os.Args[0])
 }

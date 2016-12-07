@@ -1,30 +1,77 @@
 package main
 
 import (
-	"fmt"
 	"log"
 	"time"
 
-	"github.com/aws/aws-sdk-go/aws/client"
+	"fmt"
+
 	"github.com/zalando-incubator/kube-ingress-aws-controller/aws"
-	"github.com/zalando-incubator/kube-ingress-aws-controller/k8s"
+	"github.com/zalando-incubator/kube-ingress-aws-controller/kubernetes"
 )
 
-func updateAwsFromIngress(p client.ConfigProvider, autoScalingGroupName string, pollInterval uint) {
+func startPolling(awsAdapter *aws.Adapter, apiServerBaseURL string, pollingInterval uint) {
+	kubernetesClient := kubernetes.NewClient(apiServerBaseURL)
 	for {
-		il, err := k8s.ListIngress()
+		il, err := kubernetes.ListIngress(kubernetesClient)
 		if err != nil {
 			log.Println(err)
 		} else {
-			fmt.Println(il)
+			arns := flattenIngressByARN(il)
+			if missingARNs := filterExistingARNs(awsAdapter, arns); len(missingARNs) > 0 {
+				for missingARN, ingresses := range missingARNs {
+					lb, err := createMissingLoadBalancer(awsAdapter, missingARN)
+					if err != nil {
+						log.Println(err)
+						break
+					}
+					// TODO: attachLoadBalancerToAutoScalingGroup()
+					log.Printf("successfully created ALB %q for certificate %q\n", lb.ARN(), missingARN)
+
+					if err := kubernetes.UpdateIngressLoaBalancer(kubernetesClient, ingresses, lb); err != nil {
+						log.Println(err)
+					} else {
+						log.Printf("updated ingresses %v with DNS name %q\n", ingresses, lb.DNSName())
+					}
+				}
+			}
 		}
 
-		lbs, err := aws.GetLoadBalancers(p, autoScalingGroupName)
+		time.Sleep(time.Second * time.Duration(pollingInterval))
+	}
+}
+
+func flattenIngressByARN(il *kubernetes.IngressList) map[string][]kubernetes.Ingress {
+	uniqueARNs := make(map[string][]kubernetes.Ingress)
+	for _, ingress := range il.Items {
+		certificateARN := ingress.CertificateARN()
+		uniqueARNs[certificateARN] = append(uniqueARNs[certificateARN], ingress)
+	}
+	return uniqueARNs
+}
+
+func filterExistingARNs(awsAdapter *aws.Adapter, certificateARNs map[string][]kubernetes.Ingress) map[string][]kubernetes.Ingress {
+	missingARNs := make(map[string][]kubernetes.Ingress)
+	for certificateARN, ingresses := range certificateARNs {
+		lb, err := awsAdapter.FindLoadBalancerWithCertificateId(certificateARN)
 		if err != nil {
 			log.Println(err)
-		} else {
-			fmt.Println(lbs)
+			continue
 		}
-		time.Sleep(time.Second * time.Duration(pollInterval))
+		if lb != nil {
+			log.Printf("found existing ALB %q with certificate %q\n", lb.Name(), certificateARN)
+		} else {
+			missingARNs[certificateARN] = ingresses
+		}
 	}
+	return missingARNs
+}
+
+func createMissingLoadBalancer(awsAdapter *aws.Adapter, certificateARN string) (*aws.LoadBalancer, error) {
+	log.Printf("creating ALB for ARN %q\n", certificateARN)
+	lb, err := awsAdapter.CreateLoadBalancer(certificateARN)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create ALB for certificate %q. %v\n", certificateARN, err)
+	}
+	return lb, nil
 }

@@ -1,28 +1,66 @@
 package aws
 
 import (
+	"errors"
+	"fmt"
 	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/client"
 	"github.com/aws/aws-sdk-go/service/autoscaling"
+	"github.com/aws/aws-sdk-go/service/autoscaling/autoscalingiface"
 )
 
-func GetLoadBalancers(p client.ConfigProvider, autoScalingGroupName string) ([]string, error) {
-	svc := autoscaling.New(p)
+type autoScalingGroupDetails struct {
+	name string
+	arn  string
+	// Contains the ARNs of the target groups associated with the auto scaling group
+	targetGroups            []string
+	launchConfigurationName string
+	tags                    map[string]string
+}
 
-	params := &autoscaling.DescribeLoadBalancersInput{
-		AutoScalingGroupName: aws.String(autoScalingGroupName),
-		// max for classic - http://docs.aws.amazon.com/autoscaling/latest/userguide/as-account-limits.html
-		MaxRecords: aws.Int64(50),
+var (
+	ErrMissingAutoScalingGroupTag = errors.New(`instance is missing the "` + autoScalingGroupNameTag + `" tag`)
+)
+
+func getAutoScalingGroupByName(service autoscalingiface.AutoScalingAPI, autoScalingGroupName string) (*autoScalingGroupDetails, error) {
+	params := &autoscaling.DescribeAutoScalingGroupsInput{
+		AutoScalingGroupNames: []*string{
+			aws.String(autoScalingGroupName),
+		},
 	}
-	resp, err := svc.DescribeLoadBalancers(params)
+	resp, err := service.DescribeAutoScalingGroups(params)
 
 	if err != nil {
 		return nil, err
 	}
 
-	lbs := make([]string, len(resp.LoadBalancers))
-	for i, lb := range resp.LoadBalancers {
-		lbs[i] = aws.StringValue(lb.LoadBalancerName)
+	for _, g := range resp.AutoScalingGroups {
+		if aws.StringValue(g.AutoScalingGroupName) == autoScalingGroupName {
+			tags := make(map[string]string)
+			for _, td := range g.Tags {
+				tags[aws.StringValue(td.Key)] = aws.StringValue(td.Value)
+			}
+			return &autoScalingGroupDetails{
+				name: autoScalingGroupName,
+				arn:  aws.StringValue(g.AutoScalingGroupARN),
+				launchConfigurationName: aws.StringValue(g.LaunchConfigurationName),
+				targetGroups:            aws.StringValueSlice(g.TargetGroupARNs),
+				tags:                    tags,
+			}, nil
+		}
 	}
-	return lbs, nil
+
+	return nil, fmt.Errorf("auto scaling group %q not found", autoScalingGroupName)
+}
+
+func attachTargetGroupToAutoScalingGroup(svc autoscalingiface.AutoScalingAPI, targetGroupARNs []string, autoScalingGroupName string) error {
+	params := &autoscaling.AttachLoadBalancerTargetGroupsInput{
+		AutoScalingGroupName: aws.String(autoScalingGroupName),
+		TargetGroupARNs:      aws.StringSlice(targetGroupARNs),
+	}
+	_, err := svc.AttachLoadBalancerTargetGroups(params)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
