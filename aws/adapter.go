@@ -3,8 +3,6 @@ package aws
 import (
 	"fmt"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/aws/client"
 	"github.com/aws/aws-sdk-go/aws/ec2metadata"
 	"github.com/aws/aws-sdk-go/service/autoscaling"
@@ -13,7 +11,6 @@ import (
 	"github.com/aws/aws-sdk-go/service/ec2/ec2iface"
 	"github.com/aws/aws-sdk-go/service/elbv2"
 	"github.com/aws/aws-sdk-go/service/elbv2/elbv2iface"
-	"strings"
 )
 
 // An Adapter can be used to orchestrate and obtain information from Amazon Web Services
@@ -88,12 +85,12 @@ func (a *Adapter) ClusterName() string {
 
 // Returns a slice with the private subnet IDs discovered by the adapter
 func (a *Adapter) PrivateSubnetIDs() []string {
-	return getSubnetIds(a.manifest.privateSubnets)
+	return getSubnetIDs(a.manifest.privateSubnets)
 }
 
 // Returns a slice with the public subnet IDs discovered by the adapter
 func (a *Adapter) PublicSubnetIDs() []string {
-	return getSubnetIds(a.manifest.publicSubnets)
+	return getSubnetIDs(a.manifest.publicSubnets)
 }
 
 // Looks up for the first Application Load Balancer with, at least, 1 listener with the certificateArn
@@ -118,48 +115,16 @@ func (a *Adapter) CreateLoadBalancer(certificateARN string) (*LoadBalancer, erro
 		lb  *LoadBalancer
 		err error
 	)
-	//for {
+
 	lb, err = createLoadBalancer(a.elbv2, spec)
 	if err != nil {
-		//if missingSecurityGroup(err) {
-		//	if err := createSecurityGroup(a.ec2, a.VpcID(), a.SecurityGroupID()); err != nil {
-		//		return nil, err
-		//	}
-		//	continue
-		//}
 		return nil, err
 	}
-	//	break
-	//}
+
 	return lb, nil
 }
 
-func missingSecurityGroup(err error) bool {
-	if awserror, ok := err.(awserr.Error); ok {
-		return awserror.Code() == "ValidationError" && strings.HasPrefix(awserror.Message(), "Security group") &&
-			strings.HasSuffix(awserror.Message(), " is not valid")
-	}
-	return false
-}
-
-func createSecurityGroup(svc ec2iface.EC2API, vpcId string, securityGroupName string) (*securityGroupDetails, error) {
-	params := &ec2.CreateSecurityGroupInput{
-		VpcId:       aws.String(vpcId),
-		GroupName:   aws.String(securityGroupName),
-		Description: aws.String(securityGroupName),
-	}
-	resp, err := svc.CreateSecurityGroup(params)
-	if err != nil {
-		return nil, err
-	}
-
-	return &securityGroupDetails{
-		name: securityGroupName,
-		id:   aws.StringValue(resp.GroupId),
-	}, nil
-}
-
-func getSubnetIds(snds []*subnetDetails) []string {
+func getSubnetIDs(snds []*subnetDetails) []string {
 	ret := make([]string, len(snds))
 	for i, snd := range snds {
 		ret[i] = snd.id
