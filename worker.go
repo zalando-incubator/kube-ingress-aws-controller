@@ -53,13 +53,14 @@ func filterExistingARNs(awsAdapter *aws.Adapter, certificateARNs map[string][]ku
 	missingARNs := make(map[string][]kubernetes.Ingress)
 	for certificateARN, ingresses := range certificateARNs {
 		lb, err := awsAdapter.FindLoadBalancerWithCertificateID(certificateARN)
-		if err != nil {
+		if err != nil && err != aws.ErrLoadBalancerNotFound {
 			log.Println(err)
 			continue
 		}
 		if lb != nil {
 			log.Printf("found existing ALB %q with certificate %q\n", lb.Name(), certificateARN)
 		} else {
+			log.Printf("ALB with certificate %q not found\n", certificateARN)
 			missingARNs[certificateARN] = ingresses
 		}
 	}

@@ -41,6 +41,11 @@ type loadBalancerListener struct {
 
 const kubernetesCreatorTag = "kubernetes:application"
 
+var (
+	// ErrLoadBalancerNotFound is used to signal that a given load balancer was not found
+	ErrLoadBalancerNotFound = errors.New("load balancer not found")
+)
+
 func findLoadBalancersWithCertificateID(elbv2 elbv2iface.ELBV2API, certificateARN string) (*LoadBalancer, error) {
 	// TODO: paged results
 	resp, err := elbv2.DescribeLoadBalancers(nil)
@@ -73,7 +78,7 @@ func findLoadBalancersWithCertificateID(elbv2 elbv2iface.ELBV2API, certificateAR
 		}
 	}
 
-	return nil, fmt.Errorf("load balancer with certificate %q not found", certificateARN)
+	return nil, ErrLoadBalancerNotFound
 }
 
 func getListeners(alb elbv2iface.ELBV2API, loadBalancerARN string) ([]*elbv2.Listener, error) {
