@@ -8,16 +8,18 @@ import (
 	"syscall"
 
 	"flag"
+	"time"
+
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/zalando-incubator/kube-ingress-aws-controller/aws"
-	"strconv"
+	"github.com/zalando-incubator/kube-ingress-aws-controller/kubernetes"
 )
 
 var (
 	autoScalingGroupName string
 	securityGroupName    string
 	apiServerBaseURL     string
-	pollingInterval      uint
+	pollingInterval      time.Duration
 )
 
 func waitForTerminationSignals(signals ...os.Signal) chan os.Signal {
@@ -36,8 +38,8 @@ func loadEnviroment() error {
 		"if not specified the ASG tag `KubernestesCluster` is used to derive the SG as `<cluster>-worker-lb`")
 	flag.StringVar(&apiServerBaseURL, "api-server-base-url", "http://127.0.0.1:8001", "sets the kubernetes api server base url. "+
 		"if empty will try to use the common proxy url http://127.0.0.1:8001")
-	flag.UintVar(&pollingInterval, "polling-interval", 30, "sets the polling interval (in seconds) for ingress resources. "+
-		"Defaults to 30 seconds")
+	flag.DurationVar(&pollingInterval, "polling-interval", 30*time.Second, "sets the polling interval for ingress resources. "+
+		"The flag accepts a value acceptable to time.ParseDuration. Defaults to 30 seconds")
 	flag.Parse()
 
 	if autoScalingGroupName == "" {
@@ -53,11 +55,11 @@ func loadEnviroment() error {
 	}
 
 	if tmp, defined := os.LookupEnv("POLLING_INTERVAL"); defined {
-		interval, err := strconv.Atoi(tmp)
-		if err != nil {
+		interval, err := time.ParseDuration(tmp)
+		if err != nil || interval <= 0 {
 			return err
 		}
-		pollingInterval = uint(interval)
+		pollingInterval = interval
 	}
 
 	return nil
@@ -85,6 +87,7 @@ func main() {
 
 	log.Println("controller manifest:")
 	log.Printf("\tKubernetes cluster: %s\n", awsAdapter.ClusterName())
+	log.Printf("\tKubernetes API server: %s\n", apiServerBaseURL)
 	log.Printf("\tcurrent vpc id: %s\n", awsAdapter.VpcID())
 	log.Printf("\tcurrent instance id: %s\n", awsAdapter.InstanceID())
 	log.Printf("\tauto scaling group name: %s\n", awsAdapter.AutoScalingGroupName())
@@ -92,7 +95,8 @@ func main() {
 	log.Printf("\tprivate subnet ids: %s\n", awsAdapter.PrivateSubnetIDs())
 	log.Printf("\tpublic subnet ids: %s\n", awsAdapter.PublicSubnetIDs())
 
-	go startPolling(awsAdapter, apiServerBaseURL, pollingInterval)
+	kubernetesClient := kubernetes.NewClient(apiServerBaseURL)
+	go startPolling(awsAdapter, kubernetesClient, pollingInterval)
 	<-waitForTerminationSignals(syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
 
 	log.Printf("terminating %s\n", os.Args[0])

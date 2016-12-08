@@ -11,7 +11,7 @@ import (
 
 type instanceDetails struct {
 	id    string
-	vpcId string
+	vpcID string
 	tags  map[string]string
 }
 
@@ -45,7 +45,10 @@ const (
 	kubernetesClusterTag    = "KubernetesCluster"
 )
 
-var ErrSecurityGroupNotFound = errors.New("security group not found")
+var (
+	// ErrSecurityGroupNotFound is used to signal that a given security group couldn't be found
+	ErrSecurityGroupNotFound = errors.New("security group not found")
+)
 
 func getAutoScalingGroupName(instanceTags map[string]string) (string, error) {
 	if len(instanceTags) < 1 {
@@ -60,13 +63,13 @@ func getAutoScalingGroupName(instanceTags map[string]string) (string, error) {
 	return asg, nil
 }
 
-func getInstanceDetails(ec2Service ec2iface.EC2API, id string) (*instanceDetails, error) {
+func getInstanceDetails(ec2Service ec2iface.EC2API, instanceID string) (*instanceDetails, error) {
 	params := &ec2.DescribeInstancesInput{
 		Filters: []*ec2.Filter{
 			{
 				Name: aws.String("instance-id"),
 				Values: []*string{
-					aws.String(id),
+					aws.String(instanceID),
 				},
 			},
 		},
@@ -77,13 +80,13 @@ func getInstanceDetails(ec2Service ec2iface.EC2API, id string) (*instanceDetails
 	}
 
 	if len(resp.Reservations) < 1 || len(resp.Reservations[0].Instances) < 1 {
-		return nil, fmt.Errorf("unable to get details for instance %q", id)
+		return nil, fmt.Errorf("unable to get details for instance %q", instanceID)
 	}
 
 	i := resp.Reservations[0].Instances[0]
 	return &instanceDetails{
 		id:    aws.StringValue(i.InstanceId),
-		vpcId: aws.StringValue(i.VpcId),
+		vpcID: aws.StringValue(i.VpcId),
 		tags:  convertEc2Tags(i.Tags),
 	}, nil
 }
@@ -191,13 +194,13 @@ func isSubnetPublic(rt []*ec2.RouteTable, subnetID string) (bool, error) {
 	return false, nil
 }
 
-func getIntanceTags(ec2Service *ec2.EC2, id string) (map[string]string, error) {
+func getIntanceTags(ec2Service *ec2.EC2, instanceID string) (map[string]string, error) {
 	params := &ec2.DescribeTagsInput{
 		Filters: []*ec2.Filter{
 			{
 				Name: aws.String("resource-id"),
 				Values: []*string{
-					aws.String(id),
+					aws.String(instanceID),
 				},
 			},
 		},
@@ -257,10 +260,10 @@ func getSecurityGroupByName(svc ec2iface.EC2API, securityGroupName string) (*sec
 	}, nil
 }
 
-func createDefaultSecurityGroup(svc ec2iface.EC2API, securityGroupName string, vpcId string) (*securityGroupDetails, error) {
+func createDefaultSecurityGroup(svc ec2iface.EC2API, securityGroupName string, vpcID string) (*securityGroupDetails, error) {
 	params := &ec2.CreateSecurityGroupInput{
 		GroupName:   aws.String(securityGroupName),
-		VpcId:       aws.String(vpcId),
+		VpcId:       aws.String(vpcID),
 		Description: aws.String("Default security group for Kubernetes ALBs"),
 	}
 	resp, err := svc.CreateSecurityGroup(params)
@@ -279,9 +282,9 @@ func createDefaultSecurityGroup(svc ec2iface.EC2API, securityGroupName string, v
 	}, nil
 }
 
-func addDefaultIngressRuleToSecurityGroup(svc ec2iface.EC2API, securityGroupName string, securityGroupId *string) error {
+func addDefaultIngressRuleToSecurityGroup(svc ec2iface.EC2API, securityGroupName string, securityGroupID *string) error {
 	params := &ec2.AuthorizeSecurityGroupIngressInput{
-		GroupId:    securityGroupId,
+		GroupId:    securityGroupID,
 		GroupName:  aws.String(securityGroupName),
 		IpProtocol: aws.String("tcp"),
 		FromPort:   aws.Int64(443),

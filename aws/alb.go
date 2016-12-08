@@ -10,6 +10,7 @@ import (
 	"strings"
 )
 
+// LoadBalancer is a simple wrapper around an AWS Load Balancer details
 type LoadBalancer struct {
 	name     string
 	arn      string
@@ -17,14 +18,17 @@ type LoadBalancer struct {
 	listener *loadBalancerListener
 }
 
+// Name returns the load balancer friendly name
 func (lb *LoadBalancer) Name() string {
 	return lb.name
 }
 
+// ARN returns the load balancer ARN
 func (lb *LoadBalancer) ARN() string {
 	return lb.arn
 }
 
+// DNSName returns the FQDN for the load balancer. It's usually prefixed by its Name
 func (lb *LoadBalancer) DNSName() string {
 	return lb.dnsName
 }
@@ -37,7 +41,7 @@ type loadBalancerListener struct {
 
 const kubernetesCreatorTag = "kubernetes:application"
 
-func findLoadBalancersWithCertificateId(elbv2 elbv2iface.ELBV2API, certificateARN string) (*LoadBalancer, error) {
+func findLoadBalancersWithCertificateID(elbv2 elbv2iface.ELBV2API, certificateARN string) (*LoadBalancer, error) {
 	// TODO: paged results
 	resp, err := elbv2.DescribeLoadBalancers(nil)
 	if err != nil {
@@ -69,7 +73,7 @@ func findLoadBalancersWithCertificateId(elbv2 elbv2iface.ELBV2API, certificateAR
 		}
 	}
 
-	return nil, nil
+	return nil, fmt.Errorf("load balancer with certificate %q not found", certificateARN)
 }
 
 func getListeners(alb elbv2iface.ELBV2API, loadBalancerARN string) ([]*elbv2.Listener, error) {
@@ -96,13 +100,9 @@ type createLoadBalancerSpec struct {
 }
 
 func createLoadBalancer(alb elbv2iface.ELBV2API, spec *createLoadBalancerSpec) (*LoadBalancer, error) {
-	var name = spec.certificateARN
-	fields := strings.Split(spec.certificateARN, "/")
-	if len(fields) >= 2 {
-		name = strings.Replace(fields[1], "-", "", -1)
-	}
+	var name = normalizeLoadBalancerName(spec.certificateARN)
 	params := &elbv2.CreateLoadBalancerInput{
-		Name:    aws.String(name[:32]),
+		Name:    aws.String(name),
 		Subnets: aws.StringSlice(spec.subnets),
 		Scheme:  aws.String(spec.scheme),
 		SecurityGroups: []*string{
@@ -145,6 +145,17 @@ func createLoadBalancer(alb elbv2iface.ELBV2API, spec *createLoadBalancerSpec) (
 	}, nil
 }
 
+func normalizeLoadBalancerName(name string) string {
+	fields := strings.Split(name, "/")
+	if len(fields) >= 2 {
+		name = strings.Replace(fields[1], "-", "", -1)
+	}
+	if len(name) > 32 {
+		name = name[:32]
+	}
+	return name
+}
+
 func createListener(alb elbv2iface.ELBV2API, loadBalancerARN string, spec *createLoadBalancerSpec) (*loadBalancerListener, error) {
 	actions := make([]*elbv2.Action, len(spec.targetGroupARNs))
 	for i, tg := range spec.targetGroupARNs {
@@ -177,12 +188,12 @@ func createListener(alb elbv2iface.ELBV2API, loadBalancerARN string, spec *creat
 	}, nil
 }
 
-func createDefaultTargetGroup(alb elbv2iface.ELBV2API, clusterName string, vpcId string) ([]string, error) {
+func createDefaultTargetGroup(alb elbv2iface.ELBV2API, clusterName string, vpcID string) ([]string, error) {
 	params := &elbv2.CreateTargetGroupInput{
 		HealthCheckPath: aws.String("/healthz"),
 		Port:            aws.Int64(9990),
 		Protocol:        aws.String(elbv2.ProtocolEnumHttp),
-		VpcId:           aws.String(vpcId),
+		VpcId:           aws.String(vpcID),
 		Name:            aws.String(fmt.Sprintf("%s-worker-tg", clusterName)),
 	}
 	resp, err := alb.CreateTargetGroup(params)

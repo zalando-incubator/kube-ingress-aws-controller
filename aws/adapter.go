@@ -30,9 +30,9 @@ type manifest struct {
 	publicSubnets    []*subnetDetails
 }
 
-// Returns a new Adapter that can be used to orchestrate and obtain information from Amazon Web Services
+// NewAdapter returns a new Adapter that can be used to orchestrate and obtain information from Amazon Web Services
 // It accepts a manually set Auto Scaling Group name as an argument. If empty it will be discovered from the current node
-// It also accepts the security group ID tht should be used for newly created Load Balancers. If empty it will be derived
+// It also accepts the security group ID that should be used for newly created Load Balancers. If empty it will be derived
 // from the Kubernetes cluster the current node belongs to. For ex.: kube1-worker-lb for a k8s cluster named kube1.
 // Before returning there is a discovery process for VPC and EC2 details. If any of those critical steps fail
 // an appropriate error is returned
@@ -58,49 +58,49 @@ func NewAdapter(p client.ConfigProvider, autoScalingGroupName string, securityGr
 	return adapter, nil
 }
 
-// Returns the VPC ID the current node belongs to
+// VpcID returns the VPC ID the current node belongs to
 func (a *Adapter) VpcID() string {
-	return a.manifest.instance.vpcId
+	return a.manifest.instance.vpcID
 }
 
-// Returns the instance ID the current node is running on
+// InstanceID returns the instance ID the current node is running on
 func (a *Adapter) InstanceID() string {
 	return a.manifest.instance.id
 }
 
-// Returns the name of the Auto Scaling Group the current node belongs to
+// AutoScalingGroupName returns the name of the Auto Scaling Group the current node belongs to
 func (a *Adapter) AutoScalingGroupName() string {
 	return a.manifest.autoScalingGroup.name
 }
 
-// Returns the security group id that should be used to create Load Balancers
+// SecurityGroupID returns the security group ID that should be used to create Load Balancers
 func (a *Adapter) SecurityGroupID() string {
 	return a.manifest.securityGroup.id
 }
 
-// Returns the Kubernetes cluster name the current node belongs to
+// ClusterName returns the Kubernetes cluster name the current node belongs to
 func (a *Adapter) ClusterName() string {
 	return getClusterName(a.manifest.instance.tags)
 }
 
-// Returns a slice with the private subnet IDs discovered by the adapter
+// PrivateSubnetIDs returns a slice with the private subnet IDs discovered by the adapter
 func (a *Adapter) PrivateSubnetIDs() []string {
 	return getSubnetIDs(a.manifest.privateSubnets)
 }
 
-// Returns a slice with the public subnet IDs discovered by the adapter
+// PublicSubnetIDs returns a slice with the public subnet IDs discovered by the adapter
 func (a *Adapter) PublicSubnetIDs() []string {
 	return getSubnetIDs(a.manifest.publicSubnets)
 }
 
-// Looks up for the first Application Load Balancer with, at least, 1 listener with the certificateArn
-// Order is not guaranteed and depends only on the AWS SDK result order
-func (a *Adapter) FindLoadBalancerWithCertificateId(certificateARN string) (*LoadBalancer, error) {
-	return findLoadBalancersWithCertificateId(a.elbv2, certificateARN)
+// FindLoadBalancerWithCertificateID looks up for the first Application Load Balancer with, at least, 1 listener with
+// the certificateARN. Order is not guaranteed and depends only on the AWS SDK result order
+func (a *Adapter) FindLoadBalancerWithCertificateID(certificateARN string) (*LoadBalancer, error) {
+	return findLoadBalancersWithCertificateID(a.elbv2, certificateARN)
 }
 
-// Creates a new Application Load Balancer with an HTTPS listener using the certificate with the arn argument
-// It will forward all requests to the target group discovered by the Adapter
+// CreateLoadBalancer creates a new Application Load Balancer with an HTTPS listener using the certificate with the
+// certificateARN argument. It will forward all requests to the target group discovered by the Adapter
 func (a *Adapter) CreateLoadBalancer(certificateARN string) (*LoadBalancer, error) {
 	// only internet-facing for now. Maybe we need a separate SG for internal vs internet-facing
 	spec := &createLoadBalancerSpec{
@@ -135,11 +135,11 @@ func getSubnetIDs(snds []*subnetDetails) []string {
 func buildManifest(awsAdapter *Adapter, autoScalingGroupName string, securityGroupName string) (*manifest, error) {
 	var err error
 
-	myId, err := awsAdapter.ec2metadata.GetMetadata("instance-id")
+	myID, err := awsAdapter.ec2metadata.GetMetadata("instance-id")
 	if err != nil {
 		return nil, err
 	}
-	instanceDetails, err := getInstanceDetails(awsAdapter.ec2, myId)
+	instanceDetails, err := getInstanceDetails(awsAdapter.ec2, myID)
 	if err != nil {
 		return nil, err
 	}
@@ -159,7 +159,7 @@ func buildManifest(awsAdapter *Adapter, autoScalingGroupName string, securityGro
 
 	if len(autoScalingGroupDetails.targetGroups) < 1 {
 		targetGroups, err := createDefaultTargetGroup(awsAdapter.elbv2, clusterName,
-			instanceDetails.vpcId)
+			instanceDetails.vpcID)
 		if err != nil {
 			return nil, err
 		}
@@ -176,7 +176,7 @@ func buildManifest(awsAdapter *Adapter, autoScalingGroupName string, securityGro
 	securityGroupDetails, err = getSecurityGroupByName(awsAdapter.ec2, securityGroupName)
 	if err != nil {
 		if err == ErrSecurityGroupNotFound {
-			securityGroupDetails, err = createDefaultSecurityGroup(awsAdapter.ec2, securityGroupName, instanceDetails.vpcId)
+			securityGroupDetails, err = createDefaultSecurityGroup(awsAdapter.ec2, securityGroupName, instanceDetails.vpcID)
 			if err != nil {
 				return nil, err
 			}
@@ -185,13 +185,15 @@ func buildManifest(awsAdapter *Adapter, autoScalingGroupName string, securityGro
 		}
 	}
 
-	subnets, err := getSubnets(awsAdapter.ec2, instanceDetails.vpcId)
+	subnets, err := getSubnets(awsAdapter.ec2, instanceDetails.vpcID)
 	if err != nil {
 		return nil, err
 	}
 
-	priv := make([]*subnetDetails, 0)
-	pub := make([]*subnetDetails, 0)
+	var (
+		priv []*subnetDetails
+		pub  []*subnetDetails
+	)
 
 	for _, subnet := range subnets {
 		if subnet.public {

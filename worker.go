@@ -10,8 +10,7 @@ import (
 	"github.com/zalando-incubator/kube-ingress-aws-controller/kubernetes"
 )
 
-func startPolling(awsAdapter *aws.Adapter, apiServerBaseURL string, pollingInterval uint) {
-	kubernetesClient := kubernetes.NewClient(apiServerBaseURL)
+func startPolling(awsAdapter *aws.Adapter, kubernetesClient *kubernetes.Client, pollingInterval time.Duration) {
 	for {
 		il, err := kubernetes.ListIngress(kubernetesClient)
 		if err != nil {
@@ -37,7 +36,7 @@ func startPolling(awsAdapter *aws.Adapter, apiServerBaseURL string, pollingInter
 			}
 		}
 
-		time.Sleep(time.Second * time.Duration(pollingInterval))
+		time.Sleep(pollingInterval)
 	}
 }
 
@@ -53,7 +52,7 @@ func flattenIngressByARN(il *kubernetes.IngressList) map[string][]kubernetes.Ing
 func filterExistingARNs(awsAdapter *aws.Adapter, certificateARNs map[string][]kubernetes.Ingress) map[string][]kubernetes.Ingress {
 	missingARNs := make(map[string][]kubernetes.Ingress)
 	for certificateARN, ingresses := range certificateARNs {
-		lb, err := awsAdapter.FindLoadBalancerWithCertificateId(certificateARN)
+		lb, err := awsAdapter.FindLoadBalancerWithCertificateID(certificateARN)
 		if err != nil {
 			log.Println(err)
 			continue
