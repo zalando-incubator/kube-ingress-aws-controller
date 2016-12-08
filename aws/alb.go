@@ -46,7 +46,7 @@ var (
 	ErrLoadBalancerNotFound = errors.New("load balancer not found")
 )
 
-func findLoadBalancersWithCertificateID(elbv2 elbv2iface.ELBV2API, certificateARN string) (*LoadBalancer, error) {
+func findLoadBalancerWithCertificateID(elbv2 elbv2iface.ELBV2API, certificateARN string) (*LoadBalancer, error) {
 	// TODO: paged results
 	resp, err := elbv2.DescribeLoadBalancers(nil)
 	if err != nil {

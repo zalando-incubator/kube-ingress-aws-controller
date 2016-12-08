@@ -96,7 +96,7 @@ func (a *Adapter) PublicSubnetIDs() []string {
 // FindLoadBalancerWithCertificateID looks up for the first Application Load Balancer with, at least, 1 listener with
 // the certificateARN. Order is not guaranteed and depends only on the AWS SDK result order
 func (a *Adapter) FindLoadBalancerWithCertificateID(certificateARN string) (*LoadBalancer, error) {
-	return findLoadBalancersWithCertificateID(a.elbv2, certificateARN)
+	return findLoadBalancerWithCertificateID(a.elbv2, certificateARN)
 }
 
 // CreateLoadBalancer creates a new Application Load Balancer with an HTTPS listener using the certificate with the
