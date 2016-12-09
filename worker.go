@@ -12,39 +12,65 @@ import (
 
 func startPolling(awsAdapter *aws.Adapter, kubernetesClient *kubernetes.Client, pollingInterval time.Duration) {
 	for {
-		il, err := kubernetes.ListIngress(kubernetesClient)
-		if err != nil {
+		if err := doWork(awsAdapter, kubernetesClient); err != nil {
 			log.Println(err)
-		} else {
-			arns := flattenIngressByARN(il)
-			if missingARNs := filterExistingARNs(awsAdapter, arns); len(missingARNs) > 0 {
-				for missingARN, ingresses := range missingARNs {
-					lb, err := createMissingLoadBalancer(awsAdapter, missingARN)
-					if err != nil {
-						log.Println(err)
-						break
-					}
-					// TODO: attach LoadBalancer to AutoScalingGroup ?
-					log.Printf("successfully created ALB %q for certificate %q\n", lb.ARN(), missingARN)
-
-					if err := kubernetes.UpdateIngressLoaBalancer(kubernetesClient, ingresses, lb); err != nil {
-						log.Println(err)
-					} else {
-						log.Printf("updated ingresses %v with DNS name %q\n", ingresses, lb.DNSName())
-					}
-				}
-			}
 		}
-
 		time.Sleep(pollingInterval)
 	}
+}
+
+func doWork(awsAdapter *aws.Adapter, kubernetesClient *kubernetes.Client) error {
+	defer func() error {
+		if r := recover(); r != nil {
+			return r.(error)
+		}
+		return nil
+	}()
+
+	il, err := kubernetes.ListIngress(kubernetesClient)
+	if err != nil {
+		return err
+	}
+
+	uniqueARNs := flattenIngressByARN(il)
+	missingARNs := filterExistingARNs(awsAdapter, uniqueARNs)
+	for missingARN, ingresses := range missingARNs {
+		lb, err := createMissingLoadBalancer(awsAdapter, missingARN)
+		if err != nil {
+			log.Println(err)
+			continue
+		}
+		// TODO: attach LoadBalancer to AutoScalingGroup ?
+		log.Printf("successfully created ALB %q for certificate %q\n", lb.ARN(), missingARN)
+
+		if errors := kubernetes.UpdateIngressLoaBalancer(kubernetesClient, ingresses, lb.DNSName()); len(errors) > 0 {
+			if len(errors) == 1 {
+				log.Println(errors[0])
+			} else {
+				log.Println("Multiple errors occurred updating the Ingress resources:")
+				for _, err := range errors {
+					log.Printf("\t%v\n", err)
+				}
+			}
+		} else {
+			log.Printf("updated ingresses %v with DNS name %q\n", ingresses, lb.DNSName())
+		}
+	}
+
+	deleteOrphanedLoadBalancers(awsAdapter, il.Items)
+
+	return nil
 }
 
 func flattenIngressByARN(il *kubernetes.IngressList) map[string][]kubernetes.Ingress {
 	uniqueARNs := make(map[string][]kubernetes.Ingress)
 	for _, ingress := range il.Items {
 		certificateARN := ingress.CertificateARN()
-		uniqueARNs[certificateARN] = append(uniqueARNs[certificateARN], ingress)
+		if certificateARN != "" {
+			uniqueARNs[certificateARN] = append(uniqueARNs[certificateARN], ingress)
+		} else {
+			log.Printf("invalid/empty ARN for ingress %v\n", ingress)
+		}
 	}
 	return uniqueARNs
 }
@@ -74,4 +100,25 @@ func createMissingLoadBalancer(awsAdapter *aws.Adapter, certificateARN string) (
 		return nil, fmt.Errorf("failed to create ALB for certificate %q. %v\n", certificateARN, err)
 	}
 	return lb, nil
+}
+
+func deleteOrphanedLoadBalancers(awsAdapter *aws.Adapter, ingresses []kubernetes.Ingress) error {
+	lbs, err := awsAdapter.FindManagedLoadBalancers()
+	if err != nil {
+		return err
+	}
+
+	var certificateMap map[string]bool
+	for _, ingress := range ingresses {
+		certificateMap[ingress.CertificateARN()] = true
+	}
+
+	for _, lb := range lbs {
+		if _, has := certificateMap[lb.CertificateARN()]; !has {
+			if err := awsAdapter.DeleteLoadBalancer(lb.ARN()); err != nil {
+				log.Printf("failed to delete orphaned load balancer ARN %q\n", lb.ARN())
+			}
+		}
+	}
+	return nil
 }

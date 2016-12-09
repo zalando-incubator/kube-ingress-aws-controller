@@ -18,7 +18,7 @@ type autoScalingGroupDetails struct {
 }
 
 var (
-	// ErrMissingAutoScalingGroupTag is used to signal that the auto scaling group tag is not present in the list of tags
+	// ErrMissingAutoScalingGroupTag is used to signal that the auto scaling group tag is not present in the list of tags.
 	ErrMissingAutoScalingGroupTag = errors.New(`instance is missing the "` + autoScalingGroupNameTag + `" tag`)
 )
 

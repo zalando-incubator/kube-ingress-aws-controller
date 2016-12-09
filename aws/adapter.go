@@ -1,8 +1,7 @@
 package aws
 
 import (
-	"fmt"
-
+	"errors"
 	"github.com/aws/aws-sdk-go/aws/client"
 	"github.com/aws/aws-sdk-go/aws/ec2metadata"
 	"github.com/aws/aws-sdk-go/service/autoscaling"
@@ -13,7 +12,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/elbv2/elbv2iface"
 )
 
-// An Adapter can be used to orchestrate and obtain information from Amazon Web Services
+// An Adapter can be used to orchestrate and obtain information from Amazon Web Services.
 type Adapter struct {
 	ec2metadata *ec2metadata.EC2Metadata
 	ec2         ec2iface.EC2API
@@ -23,20 +22,29 @@ type Adapter struct {
 }
 
 type manifest struct {
-	securityGroup    *securityGroupDetails
-	instance         *instanceDetails
-	autoScalingGroup *autoScalingGroupDetails
-	privateSubnets   []*subnetDetails
-	publicSubnets    []*subnetDetails
+	targetGroupARN string
+	securityGroup  *securityGroupDetails
+	instance       *instanceDetails
+	privateSubnets []*subnetDetails
+	publicSubnets  []*subnetDetails
 }
 
-// NewAdapter returns a new Adapter that can be used to orchestrate and obtain information from Amazon Web Services
-// It accepts a manually set Auto Scaling Group name as an argument. If empty it will be discovered from the current node
-// It also accepts the security group ID that should be used for newly created Load Balancers. If empty it will be derived
-// from the Kubernetes cluster the current node belongs to. For ex.: kube1-worker-lb for a k8s cluster named kube1.
-// Before returning there is a discovery process for VPC and EC2 details. If any of those critical steps fail
-// an appropriate error is returned
-func NewAdapter(p client.ConfigProvider, autoScalingGroupName string, securityGroupName string) (*Adapter, error) {
+var (
+	// ErrSecurityGroupNotFound is used to signal that the required security group couldn't be found.
+	ErrMissingSecurityGroup = errors.New("required security group was not found")
+	// ErrTargetGroupNotFound is used to signal that the required target group couldn't be found.
+	ErrTargetGroupNotFound = errors.New("required target group was not found")
+	// ErrLoadBalancerNotFound is used to signal that a given load balancer was not found.
+	ErrLoadBalancerNotFound = errors.New("load balancer not found")
+	// ErrMissingNameTag is used to signal that the Name tag on a given resource is missing.
+	ErrMissingNameTag = errors.New("Name tag not found")
+)
+
+// NewAdapter returns a new Adapter that can be used to orchestrate and obtain information from Amazon Web Services.
+// Before returning there is a discovery process for VPC and EC2 details. It tries to find the TargetGroup and
+// Security Group that should be used for newly created LoadBalancers. If any of those critical steps fail
+// an appropriate error is returned.
+func NewAdapter(p client.ConfigProvider) (*Adapter, error) {
 	elbv2 := elbv2.New(p)
 	ec2 := ec2.New(p)
 	ec2metadata := ec2metadata.New(p)
@@ -49,7 +57,7 @@ func NewAdapter(p client.ConfigProvider, autoScalingGroupName string, securityGr
 		autoscaling: autoscaling,
 	}
 
-	manifest, err := buildManifest(adapter, autoScalingGroupName, securityGroupName)
+	manifest, err := buildManifest(adapter)
 	if err != nil {
 		return nil, err
 	}
@@ -58,58 +66,68 @@ func NewAdapter(p client.ConfigProvider, autoScalingGroupName string, securityGr
 	return adapter, nil
 }
 
-// VpcID returns the VPC ID the current node belongs to
+// TargetGroupARN returns the ARN of the TargetGroup that should be attached to newly created Load Balancers.
+func (a *Adapter) TargetGroupARN() string {
+	return a.manifest.targetGroupARN
+}
+
+// StackName returns the Name tag that all resources created by the same CloudFormation stack share. It's taken from
+// The current ec2 instance.
+func (a *Adapter) StackName() string {
+	return a.manifest.instance.name()
+}
+
+// VpcID returns the VPC ID the current node belongs to.
 func (a *Adapter) VpcID() string {
 	return a.manifest.instance.vpcID
 }
 
-// InstanceID returns the instance ID the current node is running on
+// InstanceID returns the instance ID the current node is running on.
 func (a *Adapter) InstanceID() string {
 	return a.manifest.instance.id
 }
 
-// AutoScalingGroupName returns the name of the Auto Scaling Group the current node belongs to
-func (a *Adapter) AutoScalingGroupName() string {
-	return a.manifest.autoScalingGroup.name
-}
-
-// SecurityGroupID returns the security group ID that should be used to create Load Balancers
+// SecurityGroupID returns the security group ID that should be used to create Load Balancers.
 func (a *Adapter) SecurityGroupID() string {
 	return a.manifest.securityGroup.id
 }
 
-// ClusterName returns the Kubernetes cluster name the current node belongs to
-func (a *Adapter) ClusterName() string {
-	return getClusterName(a.manifest.instance.tags)
-}
-
-// PrivateSubnetIDs returns a slice with the private subnet IDs discovered by the adapter
+// PrivateSubnetIDs returns a slice with the private subnet IDs discovered by the adapter.
 func (a *Adapter) PrivateSubnetIDs() []string {
 	return getSubnetIDs(a.manifest.privateSubnets)
 }
 
-// PublicSubnetIDs returns a slice with the public subnet IDs discovered by the adapter
+// PublicSubnetIDs returns a slice with the public subnet IDs discovered by the adapter.
 func (a *Adapter) PublicSubnetIDs() []string {
 	return getSubnetIDs(a.manifest.publicSubnets)
 }
 
 // FindLoadBalancerWithCertificateID looks up for the first Application Load Balancer with, at least, 1 listener with
-// the certificateARN. Order is not guaranteed and depends only on the AWS SDK result order
+// the certificateARN. Order is not guaranteed and depends only on the AWS SDK result order.
 func (a *Adapter) FindLoadBalancerWithCertificateID(certificateARN string) (*LoadBalancer, error) {
 	return findLoadBalancerWithCertificateID(a.elbv2, certificateARN)
 }
 
+// FindManagedLoadBalancers returns all ALBs containing the controller management tags for the current cluster.
+func (a *Adapter) FindManagedLoadBalancers() ([]*LoadBalancer, error) {
+	lbs, err := findManagedLoadBalancers(a.elbv2, a.StackName())
+	if err != nil {
+		return nil, err
+	}
+	return lbs, nil
+}
+
 // CreateLoadBalancer creates a new Application Load Balancer with an HTTPS listener using the certificate with the
-// certificateARN argument. It will forward all requests to the target group discovered by the Adapter
+// certificateARN argument. It will forward all requests to the target group discovered by the Adapter.
 func (a *Adapter) CreateLoadBalancer(certificateARN string) (*LoadBalancer, error) {
 	// only internet-facing for now. Maybe we need a separate SG for internal vs internet-facing
 	spec := &createLoadBalancerSpec{
 		scheme:          elbv2.LoadBalancerSchemeEnumInternetFacing,
 		certificateARN:  certificateARN,
 		securityGroupID: a.SecurityGroupID(),
-		clusterName:     a.ClusterName(),
+		stackName:       a.StackName(),
 		subnets:         a.PublicSubnetIDs(),
-		targetGroupARNs: a.manifest.autoScalingGroup.targetGroups,
+		targetGroupARN:  a.manifest.targetGroupARN,
 	}
 	var (
 		lb  *LoadBalancer
@@ -132,7 +150,7 @@ func getSubnetIDs(snds []*subnetDetails) []string {
 	return ret
 }
 
-func buildManifest(awsAdapter *Adapter, autoScalingGroupName string, securityGroupName string) (*manifest, error) {
+func buildManifest(awsAdapter *Adapter) (*manifest, error) {
 	var err error
 
 	myID, err := awsAdapter.ec2metadata.GetMetadata("instance-id")
@@ -143,46 +161,16 @@ func buildManifest(awsAdapter *Adapter, autoScalingGroupName string, securityGro
 	if err != nil {
 		return nil, err
 	}
-	clusterName := getClusterName(instanceDetails.tags)
+	stackName := instanceDetails.name()
 
-	if autoScalingGroupName == "" {
-		autoScalingGroupName, err = getAutoScalingGroupName(instanceDetails.tags)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	autoScalingGroupDetails, err := getAutoScalingGroupByName(awsAdapter.autoscaling, autoScalingGroupName)
+	securityGroupDetails, err := findSecurityGroupWithNameTag(awsAdapter.ec2, stackName)
 	if err != nil {
 		return nil, err
 	}
 
-	if len(autoScalingGroupDetails.targetGroups) < 1 {
-		targetGroups, err := createDefaultTargetGroup(awsAdapter.elbv2, clusterName,
-			instanceDetails.vpcID)
-		if err != nil {
-			return nil, err
-		}
-		if err := attachTargetGroupToAutoScalingGroup(awsAdapter.autoscaling, targetGroups, autoScalingGroupName); err != nil {
-			return nil, err
-		}
-		autoScalingGroupDetails.targetGroups = targetGroups
-	}
-
-	if securityGroupName == "" {
-		securityGroupName = fmt.Sprintf("%s-worker-lb", clusterName)
-	}
-	var securityGroupDetails *securityGroupDetails
-	securityGroupDetails, err = getSecurityGroupByName(awsAdapter.ec2, securityGroupName)
+	targetGroupARN, err := findTargetGroupWithNameTag(awsAdapter.elbv2, stackName)
 	if err != nil {
-		if err == ErrSecurityGroupNotFound {
-			securityGroupDetails, err = createDefaultSecurityGroup(awsAdapter.ec2, securityGroupName, instanceDetails.vpcID)
-			if err != nil {
-				return nil, err
-			}
-		} else {
-			return nil, err
-		}
+		return nil, err
 	}
 
 	subnets, err := getSubnets(awsAdapter.ec2, instanceDetails.vpcID)
@@ -204,10 +192,21 @@ func buildManifest(awsAdapter *Adapter, autoScalingGroupName string, securityGro
 	}
 
 	return &manifest{
-		instance:         instanceDetails,
-		autoScalingGroup: autoScalingGroupDetails,
-		securityGroup:    securityGroupDetails,
-		privateSubnets:   priv,
-		publicSubnets:    pub,
+		targetGroupARN: targetGroupARN,
+		securityGroup:  securityGroupDetails,
+		instance:       instanceDetails,
+		privateSubnets: priv,
+		publicSubnets:  pub,
 	}, nil
+}
+
+func (a *Adapter) DeleteLoadBalancer(loadBalancerARN string) error {
+	return deleteLoadBalancer(a.elbv2, loadBalancerARN)
+}
+
+func getNameTag(tags map[string]string) (string, error) {
+	if name, has := tags["Name"]; has {
+		return name, nil
+	}
+	return "<no name tag>", ErrMissingNameTag
 }

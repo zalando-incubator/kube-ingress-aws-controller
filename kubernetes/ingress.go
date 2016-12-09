@@ -5,11 +5,9 @@ import (
 	"fmt"
 	"io/ioutil"
 	"time"
-
-	"github.com/zalando-incubator/kube-ingress-aws-controller/aws"
 )
 
-// IngressList is used to deserialize Kubernete's API resources with the same name
+// IngressList is used to deserialize Kubernete's API resources with the same name.
 type IngressList struct {
 	Kind       string              `json:"kind"`
 	APIVersion string              `json:"apiVersion"`
@@ -17,7 +15,7 @@ type IngressList struct {
 	Items      []Ingress           `json:"items"`
 }
 
-// ListMeta is used to deserialize Kubernete's API resources with the same name
+// ListMeta is used to deserialize Kubernete's API resources with the same name.
 type listMeta struct {
 	Namespace   string                 `json:"namespace"`
 	Name        string                 `json:"name"`
@@ -30,7 +28,7 @@ type ingressListMetadata struct {
 	ResourceVersion string `json:"resourceVersion"`
 }
 
-// Ingress is used to deserialize Kubernete's API resources with the same name
+// Ingress is used to deserialize Kubernete's API resources with the same name.
 type Ingress struct {
 	Metadata listMeta               `json:"metadata"`
 	Spec     ingressSpec            `json:"spec"`
@@ -62,31 +60,24 @@ const (
 )
 
 // CertificateARN returns the AWS certificate (IAM or ACM) ARN found in the ingress resource metadata.
-// It returns an empty string if the annotation is missing
+// It returns an empty string if the annotation is missing.
 func (i *Ingress) CertificateARN() string {
 	return i.getMetadataString(ingressCertificateARNAnnotation, "")
 }
 
-// String returns a string representation of the Ingress resource
+// String returns a string representation of the Ingress resource.
 func (i Ingress) String() string {
 	return fmt.Sprintf("%s/%s", i.Metadata.Namespace, i.Metadata.Name)
 }
 
 func (i *Ingress) getMetadataString(key string, defaultValue string) string {
-	val, has := i.Metadata.Annotations[key]
-	if !has {
-		return defaultValue
+	if val, ok := i.Metadata.Annotations[key].(string); ok {
+		return val
 	}
-	ret, ok := val.(string)
-	if !ok {
-		return defaultValue
-	}
-	return ret
+	return defaultValue
 }
 
-const patchIngressesPayloadTemplate = `{"status":{"loadBalancer":{"ingress":[{"hostname":"%s"}]}}}`
-
-// ListIngress can be used to obtain the list of ingress resources for all namespaces
+// ListIngress can be used to obtain the list of ingress resources for all namespaces.
 func ListIngress(client *Client) (*IngressList, error) {
 	r, err := client.Get(ingressListResource)
 	if err != nil {
@@ -108,16 +99,30 @@ func ListIngress(client *Client) (*IngressList, error) {
 	return &result, nil
 }
 
-// UpdateIngressLoaBalancer can be used to update the loadBalancer object of an ingress resource using the lb DNS name
-func UpdateIngressLoaBalancer(client *Client, ingresses []Ingress, lb *aws.LoadBalancer) error {
-	payload := fmt.Sprintf(patchIngressesPayloadTemplate, lb.DNSName())
+// UpdateIngressLoaBalancer can be used to update the loadBalancer object of an ingress resource using the lb DNS name.
+func UpdateIngressLoaBalancer(client *Client, ingresses []Ingress, loadBalancerDNSName string) []error {
+	req := map[string]interface{}{
+		"status": map[string]interface{}{
+			"loadBalancer": map[string]interface{}{
+				"ingress": []map[string]string{
+					{"hostname": loadBalancerDNSName},
+				},
+			},
+		},
+	}
+	payload, err := json.Marshal(req)
+	if err != nil {
+		return []error{err}
+	}
+	var errors []error
 	for _, ingress := range ingresses {
 		resource := fmt.Sprintf(ingressPatchStatusResource, ingress.Metadata.Namespace, ingress.Metadata.Name)
 		r, err := client.Patch(resource, payload)
 		if err != nil {
-			return fmt.Errorf("failed to patch ingress %s/%s. %v", ingress.Metadata.Namespace, ingress.Metadata.Name, err)
+			errors = append(errors, fmt.Errorf("failed to patch ingress %s/%s. %v", ingress.Metadata.Namespace,
+				ingress.Metadata.Name, err))
 		}
 		r.Close() // discard response
 	}
-	return nil
+	return errors
 }

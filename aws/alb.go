@@ -1,7 +1,6 @@
 package aws
 
 import (
-	"fmt"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/elbv2"
 	"github.com/aws/aws-sdk-go/service/elbv2/elbv2iface"
@@ -10,7 +9,7 @@ import (
 	"strings"
 )
 
-// LoadBalancer is a simple wrapper around an AWS Load Balancer details
+// LoadBalancer is a simple wrapper around an AWS Load Balancer details.
 type LoadBalancer struct {
 	name     string
 	arn      string
@@ -18,19 +17,26 @@ type LoadBalancer struct {
 	listener *loadBalancerListener
 }
 
-// Name returns the load balancer friendly name
+// Name returns the load balancer friendly name.
 func (lb *LoadBalancer) Name() string {
 	return lb.name
 }
 
-// ARN returns the load balancer ARN
+// ARN returns the load balancer ARN.
 func (lb *LoadBalancer) ARN() string {
 	return lb.arn
 }
 
-// DNSName returns the FQDN for the load balancer. It's usually prefixed by its Name
+// DNSName returns the FQDN for the load balancer. It's usually prefixed by its Name.
 func (lb *LoadBalancer) DNSName() string {
 	return lb.dnsName
+}
+
+func (lb *LoadBalancer) CertificateARN() string {
+	if lb.listener == nil {
+		return ""
+	}
+	return lb.listener.certificateARN
 }
 
 type loadBalancerListener struct {
@@ -39,11 +45,10 @@ type loadBalancerListener struct {
 	certificateARN string
 }
 
-const kubernetesCreatorTag = "kubernetes:application"
-
-var (
-	// ErrLoadBalancerNotFound is used to signal that a given load balancer was not found
-	ErrLoadBalancerNotFound = errors.New("load balancer not found")
+const (
+	kubernetesCreatorTag   = "kubernetes:application"
+	kubernetesCreatorValue = "kube-ingress-aws-controller"
+	maxResourceNameLen     = 32
 )
 
 func findLoadBalancerWithCertificateID(elbv2 elbv2iface.ELBV2API, certificateARN string) (*LoadBalancer, error) {
@@ -100,8 +105,8 @@ type createLoadBalancerSpec struct {
 	subnets         []string
 	certificateARN  string
 	securityGroupID string
-	clusterName     string
-	targetGroupARNs []string
+	stackName       string
+	targetGroupARN  string
 }
 
 func createLoadBalancer(alb elbv2iface.ELBV2API, spec *createLoadBalancerSpec) (*LoadBalancer, error) {
@@ -115,12 +120,12 @@ func createLoadBalancer(alb elbv2iface.ELBV2API, spec *createLoadBalancerSpec) (
 		},
 		Tags: []*elbv2.Tag{
 			{
-				Key:   aws.String(kubernetesClusterTag),
-				Value: aws.String(spec.clusterName),
+				Key:   aws.String("Name"),
+				Value: aws.String(spec.stackName),
 			},
 			{
 				Key:   aws.String(kubernetesCreatorTag),
-				Value: aws.String("kube-ingress-aws-controller"),
+				Value: aws.String(kubernetesCreatorValue),
 			},
 		},
 	}
@@ -155,17 +160,13 @@ func normalizeLoadBalancerName(name string) string {
 	if len(fields) >= 2 {
 		name = strings.Replace(fields[1], "-", "", -1)
 	}
-	if len(name) > 32 {
-		name = name[:32]
+	if len(name) > maxResourceNameLen {
+		name = name[:maxResourceNameLen]
 	}
 	return name
 }
 
 func createListener(alb elbv2iface.ELBV2API, loadBalancerARN string, spec *createLoadBalancerSpec) (*loadBalancerListener, error) {
-	actions := make([]*elbv2.Action, len(spec.targetGroupARNs))
-	for i, tg := range spec.targetGroupARNs {
-		actions[i] = &elbv2.Action{TargetGroupArn: aws.String(tg), Type: aws.String(elbv2.ActionTypeEnumForward)}
-	}
 	params := &elbv2.CreateListenerInput{
 		Certificates: []*elbv2.Certificate{
 			{
@@ -175,7 +176,12 @@ func createListener(alb elbv2iface.ELBV2API, loadBalancerARN string, spec *creat
 		LoadBalancerArn: aws.String(loadBalancerARN),
 		Port:            aws.Int64(443),
 		Protocol:        aws.String(elbv2.ProtocolEnumHttps),
-		DefaultActions:  actions,
+		DefaultActions: []*elbv2.Action{
+			{
+				TargetGroupArn: aws.String(spec.targetGroupARN),
+				Type:           aws.String(elbv2.ActionTypeEnumForward),
+			},
+		},
 	}
 
 	resp, err := alb.CreateListener(params)
@@ -193,27 +199,116 @@ func createListener(alb elbv2iface.ELBV2API, loadBalancerARN string, spec *creat
 	}, nil
 }
 
-func createDefaultTargetGroup(alb elbv2iface.ELBV2API, clusterName string, vpcID string) ([]string, error) {
-	params := &elbv2.CreateTargetGroupInput{
-		HealthCheckPath: aws.String("/healthz"),
-		Port:            aws.Int64(9990),
-		Protocol:        aws.String(elbv2.ProtocolEnumHttp),
-		VpcId:           aws.String(vpcID),
-		Name:            aws.String(fmt.Sprintf("%s-worker-tg", clusterName)),
-	}
-	resp, err := alb.CreateTargetGroup(params)
+func findManagedLoadBalancers(svc elbv2iface.ELBV2API, clusterName string) ([]*LoadBalancer, error) {
+	resp, err := svc.DescribeLoadBalancers(nil)
 	if err != nil {
 		return nil, err
 	}
 
-	if len(resp.TargetGroups) < 1 {
-		return nil, errors.New("request to create default Target Group succeeded but returned no items")
+	loadBalancerARNs := make([]*string, len(resp.LoadBalancers))
+	for i, lb := range resp.LoadBalancers {
+		loadBalancerARNs[i] = lb.LoadBalancerArn
 	}
 
-	ret := make([]string, len(resp.TargetGroups))
+	params := &elbv2.DescribeTagsInput{ResourceArns: loadBalancerARNs}
+	r, err := svc.DescribeTags(params)
+	if err != nil {
+		return nil, err
+	}
+
+	var loadBalancers []*LoadBalancer
+	for _, td := range r.TagDescriptions {
+		tags := convertElbv2Tags(td.Tags)
+		if isManagedLoadBalancer(tags, clusterName) {
+			loadBalancerARN := aws.StringValue(td.ResourceArn)
+			listeners, err := getListeners(svc, loadBalancerARN)
+			if err != nil {
+				log.Printf("failed to describe listeners for load balancer ARN %q: %v\n", loadBalancerARN, err)
+				continue
+			}
+
+			listener, certARN := findFirstListenerWithAnyCertificate(listeners)
+			if len(listeners) < 1 {
+				log.Printf("load balancer ARN %q has no certificates\n", loadBalancerARN)
+				continue
+			}
+
+			loadBalancers = append(loadBalancers, &LoadBalancer{
+				arn: aws.StringValue(td.ResourceArn),
+				listener: &loadBalancerListener{
+					port:           aws.Int64Value(listener.Port),
+					arn:            aws.StringValue(listener.ListenerArn),
+					certificateARN: certARN,
+				},
+			})
+		}
+	}
+	return loadBalancers, err
+}
+
+func findFirstListenerWithAnyCertificate(listeners []*elbv2.Listener) (*elbv2.Listener, string) {
+	for _, l := range listeners {
+		for _, c := range l.Certificates {
+			if aws.StringValue(c.CertificateArn) != "" {
+				return l, aws.StringValue(c.CertificateArn)
+			}
+		}
+	}
+	return nil, ""
+}
+
+func isManagedLoadBalancer(tags map[string]string, stackName string) bool {
+	if tags[kubernetesCreatorTag] != kubernetesCreatorValue {
+		return false
+	}
+	if tags["Name"] != stackName {
+		return false
+	}
+	return true
+}
+
+func convertElbv2Tags(tags []*elbv2.Tag) map[string]string {
+	ret := make(map[string]string)
+	for _, tag := range tags {
+		ret[aws.StringValue(tag.Key)] = aws.StringValue(tag.Value)
+	}
+	return ret
+}
+
+func deleteLoadBalancer(svc elbv2iface.ELBV2API, loadBalancerARN string) error {
+	params := &elbv2.DeleteLoadBalancerInput{LoadBalancerArn: aws.String(loadBalancerARN)}
+	_, err := svc.DeleteLoadBalancer(params)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func findTargetGroupWithNameTag(svc elbv2iface.ELBV2API, nameTag string) (string, error) {
+	resp, err := svc.DescribeTargetGroups(nil)
+	if err != nil {
+		return "", err
+	}
+	targetGroupARNs := make([]*string, len(resp.TargetGroups))
 	for i, tg := range resp.TargetGroups {
-		ret[i] = aws.StringValue(tg.TargetGroupArn)
+		targetGroupARNs[i] = tg.TargetGroupArn
+	}
+	params := &elbv2.DescribeTagsInput{ResourceArns: targetGroupARNs}
+	r, err := svc.DescribeTags(params)
+	if err != nil {
+		return "", err
 	}
 
-	return ret, nil
+	for _, td := range r.TagDescriptions {
+		tags := convertElbv2Tags(td.Tags)
+		name, err := getNameTag(tags)
+		if err != nil {
+			log.Printf("target group %q couldn't be identified:%v\n", aws.StringValue(td.ResourceArn), err)
+			continue
+		}
+		if name == nameTag {
+			return aws.StringValue(td.ResourceArn), nil
+		}
+	}
+	return "", ErrTargetGroupNotFound
 }
