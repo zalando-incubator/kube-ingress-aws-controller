@@ -24,9 +24,7 @@ var (
 
 func waitForTerminationSignals(signals ...os.Signal) chan os.Signal {
 	c := make(chan os.Signal, 1)
-	for _, s := range signals {
-		signal.Notify(c, s)
-	}
+	signal.Notify(c, signals...)
 	return c
 }
 
@@ -97,7 +95,7 @@ func main() {
 
 	kubernetesClient := kubernetes.NewClient(apiServerBaseURL)
 	go startPolling(awsAdapter, kubernetesClient, pollingInterval)
-	<-waitForTerminationSignals(syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
+	<-waitForTerminationSignals(syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
 
 	log.Printf("terminating %s\n", os.Args[0])
 }
