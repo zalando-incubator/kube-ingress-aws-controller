@@ -22,11 +22,11 @@ type Adapter struct {
 }
 
 type manifest struct {
-	targetGroupARN string
-	securityGroup  *securityGroupDetails
-	instance       *instanceDetails
-	privateSubnets []*subnetDetails
-	publicSubnets  []*subnetDetails
+	securityGroup    *securityGroupDetails
+	instance         *instanceDetails
+	autoScalingGroup *autoScalingGroupDetails
+	privateSubnets   []*subnetDetails
+	publicSubnets    []*subnetDetails
 }
 
 var (
@@ -38,6 +38,8 @@ var (
 	ErrLoadBalancerNotFound = errors.New("load balancer not found")
 	// ErrMissingNameTag is used to signal that the Name tag on a given resource is missing.
 	ErrMissingNameTag = errors.New("Name tag not found")
+	// ErrNoSubnets is used to signal that no subnets were found in the current VPC
+	ErrNoSubnets = errors.New("unable to find VPC subnets")
 )
 
 // NewAdapter returns a new Adapter that can be used to orchestrate and obtain information from Amazon Web Services.
@@ -66,11 +68,6 @@ func NewAdapter(p client.ConfigProvider) (*Adapter, error) {
 	return adapter, nil
 }
 
-// TargetGroupARN returns the ARN of the TargetGroup that should be attached to newly created Load Balancers.
-func (a *Adapter) TargetGroupARN() string {
-	return a.manifest.targetGroupARN
-}
-
 // StackName returns the Name tag that all resources created by the same CloudFormation stack share. It's taken from
 // The current ec2 instance.
 func (a *Adapter) StackName() string {
@@ -85,6 +82,11 @@ func (a *Adapter) VpcID() string {
 // InstanceID returns the instance ID the current node is running on.
 func (a *Adapter) InstanceID() string {
 	return a.manifest.instance.id
+}
+
+// AutoScalingGroupName returns the name of the Auto Scaling Group the current node belongs to
+func (a *Adapter) AutoScalingGroupName() string {
+	return a.manifest.autoScalingGroup.name
 }
 
 // SecurityGroupID returns the security group ID that should be used to create Load Balancers.
@@ -127,7 +129,7 @@ func (a *Adapter) CreateLoadBalancer(certificateARN string) (*LoadBalancer, erro
 		securityGroupID: a.SecurityGroupID(),
 		stackName:       a.StackName(),
 		subnets:         a.PublicSubnetIDs(),
-		targetGroupARN:  a.manifest.targetGroupARN,
+		vpcID:           a.VpcID(),
 	}
 	var (
 		lb  *LoadBalancer
@@ -139,6 +141,10 @@ func (a *Adapter) CreateLoadBalancer(certificateARN string) (*LoadBalancer, erro
 		return nil, err
 	}
 
+	if err := attachTargetGroupToAutoScalingGroup(a.autoscaling, lb.listener.targetGroupARN, a.AutoScalingGroupName()); err != nil {
+		// TODO: delete previously created load balancer?
+		return nil, err
+	}
 	return lb, nil
 }
 
@@ -161,6 +167,16 @@ func buildManifest(awsAdapter *Adapter) (*manifest, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	autoScalingGroupName, err := getAutoScalingGroupName(instanceDetails.tags)
+	if err != nil {
+		return nil, err
+	}
+	autoScalingGroupDetails, err := getAutoScalingGroupByName(awsAdapter.autoscaling, autoScalingGroupName)
+	if err != nil {
+		return nil, err
+	}
+
 	stackName := instanceDetails.name()
 
 	securityGroupDetails, err := findSecurityGroupWithNameTag(awsAdapter.ec2, stackName)
@@ -168,14 +184,17 @@ func buildManifest(awsAdapter *Adapter) (*manifest, error) {
 		return nil, err
 	}
 
-	targetGroupARN, err := findTargetGroupWithNameTag(awsAdapter.elbv2, stackName)
-	if err != nil {
-		return nil, err
-	}
+	//targetGroupARN, err := findTargetGroupWithNameTag(awsAdapter.elbv2, stackName)
+	//if err != nil {
+	//	return nil, err
+	//}
 
 	subnets, err := getSubnets(awsAdapter.ec2, instanceDetails.vpcID)
 	if err != nil {
 		return nil, err
+	}
+	if len(subnets) == 0 {
+		return nil, ErrNoSubnets
 	}
 
 	var (
@@ -192,16 +211,33 @@ func buildManifest(awsAdapter *Adapter) (*manifest, error) {
 	}
 
 	return &manifest{
-		targetGroupARN: targetGroupARN,
-		securityGroup:  securityGroupDetails,
-		instance:       instanceDetails,
-		privateSubnets: priv,
-		publicSubnets:  pub,
+		securityGroup:    securityGroupDetails,
+		instance:         instanceDetails,
+		autoScalingGroup: autoScalingGroupDetails,
+		privateSubnets:   priv,
+		publicSubnets:    pub,
 	}, nil
 }
 
-func (a *Adapter) DeleteLoadBalancer(loadBalancerARN string) error {
-	return deleteLoadBalancer(a.elbv2, loadBalancerARN)
+func (a *Adapter) DeleteLoadBalancer(loadBalancer *LoadBalancer) error {
+	if err := deleteListener(a.elbv2, loadBalancer.listener.arn); err != nil {
+		return err
+	}
+
+	targetGroupARN := loadBalancer.listener.targetGroupARN
+	if err := detachTargetGroupFromAutoScalingGroup(a.autoscaling, loadBalancer.listener.targetGroupARN, a.manifest.autoScalingGroup.name); err != nil {
+		return err
+	}
+
+	if err := deleteTargetGroup(a.elbv2, targetGroupARN); err != nil {
+		return err
+	}
+
+	if err := deleteLoadBalancer(a.elbv2, loadBalancer.arn); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func getNameTag(tags map[string]string) (string, error) {

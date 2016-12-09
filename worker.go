@@ -22,6 +22,7 @@ func startPolling(awsAdapter *aws.Adapter, kubernetesClient *kubernetes.Client, 
 func doWork(awsAdapter *aws.Adapter, kubernetesClient *kubernetes.Client) error {
 	defer func() error {
 		if r := recover(); r != nil {
+			log.Println("shit has hit the fan:", r)
 			return r.(error)
 		}
 		return nil
@@ -31,6 +32,8 @@ func doWork(awsAdapter *aws.Adapter, kubernetesClient *kubernetes.Client) error 
 	if err != nil {
 		return err
 	}
+
+	log.Printf("found %d ingress resource(s)", len(il.Items))
 
 	uniqueARNs := flattenIngressByARN(il)
 	missingARNs := filterExistingARNs(awsAdapter, uniqueARNs)
@@ -57,7 +60,10 @@ func doWork(awsAdapter *aws.Adapter, kubernetesClient *kubernetes.Client) error 
 		}
 	}
 
-	deleteOrphanedLoadBalancers(awsAdapter, il.Items)
+	log.Println("checking for orphaned load balancers")
+	if err := deleteOrphanedLoadBalancers(awsAdapter, il.Items); err != nil {
+		log.Println("failed to delete orphaned load balancers", err)
+	}
 
 	return nil
 }
@@ -108,15 +114,17 @@ func deleteOrphanedLoadBalancers(awsAdapter *aws.Adapter, ingresses []kubernetes
 		return err
 	}
 
-	var certificateMap map[string]bool
+	certificateMap := make(map[string]bool)
 	for _, ingress := range ingresses {
 		certificateMap[ingress.CertificateARN()] = true
 	}
 
 	for _, lb := range lbs {
 		if _, has := certificateMap[lb.CertificateARN()]; !has {
-			if err := awsAdapter.DeleteLoadBalancer(lb.ARN()); err != nil {
-				log.Printf("failed to delete orphaned load balancer ARN %q\n", lb.ARN())
+			if err := awsAdapter.DeleteLoadBalancer(lb); err == nil {
+				log.Printf("deleted orphaned load balancer ARN %q\n", lb.ARN())
+			} else {
+				log.Printf("failed to delete orphaned load balancer ARN %q: %v\n", lb.ARN(), err)
 			}
 		}
 	}

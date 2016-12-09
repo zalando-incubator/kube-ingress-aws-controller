@@ -1,6 +1,7 @@
 package aws
 
 import (
+	"fmt"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/elbv2"
 	"github.com/aws/aws-sdk-go/service/elbv2/elbv2iface"
@@ -43,6 +44,7 @@ type loadBalancerListener struct {
 	port           int64
 	arn            string
 	certificateARN string
+	targetGroupARN string
 }
 
 const (
@@ -66,6 +68,9 @@ func findLoadBalancerWithCertificateID(elbv2 elbv2iface.ELBV2API, certificateARN
 			continue
 		}
 		for _, listener := range listeners {
+			if len(listener.DefaultActions) < 1 {
+				return nil, fmt.Errorf("load balancer %q doesn't have the default target group", lb.LoadBalancerName)
+			}
 			for _, cert := range listener.Certificates {
 				certARN := aws.StringValue(cert.CertificateArn)
 				if certARN == certificateARN {
@@ -76,6 +81,7 @@ func findLoadBalancerWithCertificateID(elbv2 elbv2iface.ELBV2API, certificateARN
 							port:           aws.Int64Value(listener.Port),
 							arn:            aws.StringValue(listener.ListenerArn),
 							certificateARN: certARN,
+							targetGroupARN: aws.StringValue(listener.DefaultActions[0].TargetGroupArn),
 						},
 					}, nil
 				}
@@ -106,10 +112,10 @@ type createLoadBalancerSpec struct {
 	certificateARN  string
 	securityGroupID string
 	stackName       string
-	targetGroupARN  string
+	vpcID           string
 }
 
-func createLoadBalancer(alb elbv2iface.ELBV2API, spec *createLoadBalancerSpec) (*LoadBalancer, error) {
+func createLoadBalancer(svc elbv2iface.ELBV2API, spec *createLoadBalancerSpec) (*LoadBalancer, error) {
 	var name = normalizeLoadBalancerName(spec.certificateARN)
 	params := &elbv2.CreateLoadBalancerInput{
 		Name:    aws.String(name),
@@ -129,7 +135,7 @@ func createLoadBalancer(alb elbv2iface.ELBV2API, spec *createLoadBalancerSpec) (
 			},
 		},
 	}
-	resp, err := alb.CreateLoadBalancer(params)
+	resp, err := svc.CreateLoadBalancer(params)
 
 	if err != nil {
 		return nil, err
@@ -141,7 +147,8 @@ func createLoadBalancer(alb elbv2iface.ELBV2API, spec *createLoadBalancerSpec) (
 
 	newLoadBalancer := resp.LoadBalancers[0]
 	loadBalancerARN := aws.StringValue(newLoadBalancer.LoadBalancerArn)
-	newListener, err := createListener(alb, loadBalancerARN, spec)
+	targetGroupARN, err := createDefaultTargetGroup(svc, name, spec.vpcID)
+	newListener, err := createListener(svc, loadBalancerARN, targetGroupARN, spec.certificateARN)
 	if err != nil {
 		// TODO: delete just created LB?
 		return nil, err
@@ -166,11 +173,31 @@ func normalizeLoadBalancerName(name string) string {
 	return name
 }
 
-func createListener(alb elbv2iface.ELBV2API, loadBalancerARN string, spec *createLoadBalancerSpec) (*loadBalancerListener, error) {
+func createDefaultTargetGroup(alb elbv2iface.ELBV2API, name string, vpcID string) (string, error) {
+	params := &elbv2.CreateTargetGroupInput{
+		HealthCheckPath: aws.String("/healthz"),
+		Port:            aws.Int64(9090),
+		Protocol:        aws.String(elbv2.ProtocolEnumHttp),
+		VpcId:           aws.String(vpcID),
+		Name:            aws.String(name),
+	}
+	resp, err := alb.CreateTargetGroup(params)
+	if err != nil {
+		return "", err
+	}
+
+	if len(resp.TargetGroups) < 1 {
+		return "", errors.New("request to create default Target Group succeeded but returned no items")
+	}
+
+	return aws.StringValue(resp.TargetGroups[0].TargetGroupArn), nil
+}
+
+func createListener(alb elbv2iface.ELBV2API, loadBalancerARN string, targetGroupARN string, certificateARN string) (*loadBalancerListener, error) {
 	params := &elbv2.CreateListenerInput{
 		Certificates: []*elbv2.Certificate{
 			{
-				CertificateArn: aws.String(spec.certificateARN),
+				CertificateArn: aws.String(certificateARN),
 			},
 		},
 		LoadBalancerArn: aws.String(loadBalancerARN),
@@ -178,7 +205,7 @@ func createListener(alb elbv2iface.ELBV2API, loadBalancerARN string, spec *creat
 		Protocol:        aws.String(elbv2.ProtocolEnumHttps),
 		DefaultActions: []*elbv2.Action{
 			{
-				TargetGroupArn: aws.String(spec.targetGroupARN),
+				TargetGroupArn: aws.String(targetGroupARN),
 				Type:           aws.String(elbv2.ActionTypeEnumForward),
 			},
 		},
@@ -195,7 +222,8 @@ func createListener(alb elbv2iface.ELBV2API, loadBalancerARN string, spec *creat
 	return &loadBalancerListener{
 		arn:            aws.StringValue(l.ListenerArn),
 		port:           aws.Int64Value(l.Port),
-		certificateARN: spec.certificateARN,
+		certificateARN: certificateARN,
+		targetGroupARN: targetGroupARN,
 	}, nil
 }
 
@@ -232,13 +260,17 @@ func findManagedLoadBalancers(svc elbv2iface.ELBV2API, clusterName string) ([]*L
 				log.Printf("load balancer ARN %q has no certificates\n", loadBalancerARN)
 				continue
 			}
-
+			if len(listener.DefaultActions) < 1 {
+				log.Printf("load balancer %q doesn't have the default target group", loadBalancerARN)
+				continue
+			}
 			loadBalancers = append(loadBalancers, &LoadBalancer{
 				arn: aws.StringValue(td.ResourceArn),
 				listener: &loadBalancerListener{
 					port:           aws.Int64Value(listener.Port),
 					arn:            aws.StringValue(listener.ListenerArn),
 					certificateARN: certARN,
+					targetGroupARN: aws.StringValue(listener.DefaultActions[0].TargetGroupArn),
 				},
 			})
 		}
@@ -284,31 +316,20 @@ func deleteLoadBalancer(svc elbv2iface.ELBV2API, loadBalancerARN string) error {
 	return nil
 }
 
-func findTargetGroupWithNameTag(svc elbv2iface.ELBV2API, nameTag string) (string, error) {
-	resp, err := svc.DescribeTargetGroups(nil)
+func deleteTargetGroup(svc elbv2iface.ELBV2API, targetGroupARN string) error {
+	params := &elbv2.DeleteTargetGroupInput{TargetGroupArn: aws.String(targetGroupARN)}
+	_, err := svc.DeleteTargetGroup(params)
 	if err != nil {
-		return "", err
+		return err
 	}
-	targetGroupARNs := make([]*string, len(resp.TargetGroups))
-	for i, tg := range resp.TargetGroups {
-		targetGroupARNs[i] = tg.TargetGroupArn
-	}
-	params := &elbv2.DescribeTagsInput{ResourceArns: targetGroupARNs}
-	r, err := svc.DescribeTags(params)
-	if err != nil {
-		return "", err
-	}
+	return nil
+}
 
-	for _, td := range r.TagDescriptions {
-		tags := convertElbv2Tags(td.Tags)
-		name, err := getNameTag(tags)
-		if err != nil {
-			log.Printf("target group %q couldn't be identified:%v\n", aws.StringValue(td.ResourceArn), err)
-			continue
-		}
-		if name == nameTag {
-			return aws.StringValue(td.ResourceArn), nil
-		}
+func deleteListener(svc elbv2iface.ELBV2API, listenerARN string) error {
+	params := &elbv2.DeleteListenerInput{ListenerArn: aws.String(listenerARN)}
+	_, err := svc.DeleteListener(params)
+	if err != nil {
+		return err
 	}
-	return "", ErrTargetGroupNotFound
+	return nil
 }

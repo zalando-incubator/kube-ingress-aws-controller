@@ -70,11 +70,11 @@ func main() {
 	}
 
 	log.Println("controller manifest:")
-	log.Printf("\tKubernetes API server: %s\n", apiServerBaseURL)
-	log.Printf("\tcurrent vpc id: %s\n", awsAdapter.VpcID())
-	log.Printf("\tcurrent instance id: %s\n", awsAdapter.InstanceID())
+	log.Printf("\tkubernetes API server: %s\n", apiServerBaseURL)
+	log.Printf("\tvpc id: %s\n", awsAdapter.VpcID())
+	log.Printf("\tinstance id: %s\n", awsAdapter.InstanceID())
+	log.Printf("\tauto scaling group name: %s\n", awsAdapter.AutoScalingGroupName())
 	log.Printf("\tsecurity group id: %s\n", awsAdapter.SecurityGroupID())
-	log.Printf("\ttarget group ARN: %s\n", awsAdapter.TargetGroupARN())
 	log.Printf("\tprivate subnet ids: %s\n", awsAdapter.PrivateSubnetIDs())
 	log.Printf("\tpublic subnet ids: %s\n", awsAdapter.PublicSubnetIDs())
 

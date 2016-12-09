@@ -47,7 +47,21 @@ func (sd *subnetDetails) Name() string {
 
 const (
 	autoScalingGroupNameTag = "aws:autoscaling:groupName"
+	runningState            = 16 // See github.com/aws/aws-sdk-go/service/ec2/api.go, type InstanceState
 )
+
+func getAutoScalingGroupName(instanceTags map[string]string) (string, error) {
+	if len(instanceTags) < 1 {
+		return "", ErrMissingAutoScalingGroupTag
+	}
+
+	asg, has := instanceTags[autoScalingGroupNameTag]
+	if !has || asg == "" {
+		return "", ErrMissingAutoScalingGroupTag
+	}
+
+	return asg, nil
+}
 
 func getInstanceDetails(ec2Service ec2iface.EC2API, instanceID string) (*instanceDetails, error) {
 	params := &ec2.DescribeInstancesInput{
@@ -70,6 +84,10 @@ func getInstanceDetails(ec2Service ec2iface.EC2API, instanceID string) (*instanc
 	}
 
 	i := resp.Reservations[0].Instances[0]
+	if aws.Int64Value(i.State.Code) != runningState {
+		return nil, fmt.Errorf("instance is in an invalid state: %s", aws.StringValue(i.State.Name))
+	}
+
 	return &instanceDetails{
 		id:    aws.StringValue(i.InstanceId),
 		vpcID: aws.StringValue(i.VpcId),
