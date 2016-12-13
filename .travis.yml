@@ -1,0 +1,12 @@
+dist: trusty
+
+os:
+  - linux
+
+language: go
+
+go:
+  - 1.7
+  - tip
+
+script: make test
