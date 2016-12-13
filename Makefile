@@ -11,7 +11,7 @@ SOURCES       = $(shell find . -name '*.go')
 DOCKERFILE    ?= Dockerfile
 GOPKGS        = $(shell go list ./... | grep -v /vendor/)
 BUILD_FLAGS   ?= -v
-LDFLAGS       ?= -X main.version=$(VERSION) -w -s
+LDFLAGS       ?= -X controller.version=$(VERSION) -w -s
 
 default: build.local
 
