@@ -176,7 +176,7 @@ func normalizeLoadBalancerName(name string) string {
 func createDefaultTargetGroup(alb elbv2iface.ELBV2API, name string, vpcID string) (string, error) {
 	params := &elbv2.CreateTargetGroupInput{
 		HealthCheckPath: aws.String("/healthz"),
-		Port:            aws.Int64(9090),
+		Port:            aws.Int64(9999),
 		Protocol:        aws.String(elbv2.ProtocolEnumHttp),
 		VpcId:           aws.String(vpcID),
 		Name:            aws.String(name),
