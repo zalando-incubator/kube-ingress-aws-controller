@@ -5,6 +5,6 @@ MAINTAINER Team Teapot @ Zalando SE <team-teapot@zalando.de>
 ADD scm-source.json /
 
 # add binary
-ADD build/linux/kube_ingress_aws_controller /
+ADD build/linux/kube-aws-ingress-controller /
 
-ENTRYPOINT ["/kube_ingress_aws_controller"]
+ENTRYPOINT ["/kube-aws-ingress-controller"]

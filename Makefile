@@ -1,6 +1,6 @@
 .PHONY: clean check build.local build.linux build.osx build.docker build.push
 
-BINARY        ?= kube_ingress_aws_controller
+BINARY        ?= kube-aws-ingress-controller
 VERSION       ?= $(shell git describe --tags --always --dirty)
 IMAGE         ?= registry-write.opensource.zalan.do/teapot/$(BINARY)
 TAG           ?= $(VERSION)
