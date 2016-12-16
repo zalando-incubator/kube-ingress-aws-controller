@@ -48,18 +48,14 @@ Application Load Balancers created by the controller have a custom Tag marking t
 
     `kubernetes:application: kube-ingress-aws-controller`
 
-They also share the "Name" tag as the other resources from the same CloudFormation stack. The load balancer names are
-derived from the UUIDs in the certificate ARNs. Due to the 32 characters limitation, dashes are stripped.
+They also share the "ClusterID" tag as the other resources from the same CloudFormation stack. The load balancer names
+are derived from a SHA1 hash of the certificate ARN, combined with a normalized version of the ClusterID.
+Due to the 32 characters limitation, it can be truncated.
  
 ### Deleting load balancers
 
 When the controller detects that a managed load balancer for the current cluster doesn't have a matching ingress 
 resource anymore, it deletes all the previously created resources.
-
-## Current limitations
-
-Due to the fact that the certificate ARN is used as the unique key to create some of the AWS resources, it's not 
-possible to use the same certificate across multiple Kubernetes clusters deployed on the same AWS account.
 
 
 
