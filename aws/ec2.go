@@ -18,8 +18,14 @@ func (id *instanceDetails) name() string {
 	if n, err := getNameTag(id.tags); err == nil {
 		return n
 	}
-	return "unknown instance"
+	return "unknowninstance"
+}
 
+func (id *instanceDetails) clusterID() string {
+	if clusterID, err := getTag(id.tags, clusterIDTag); err == nil {
+		return clusterID
+	}
+	return "unknown-cluster"
 }
 
 type subnetDetails struct {
@@ -42,7 +48,7 @@ func (sd *subnetDetails) Name() string {
 	if n, err := getNameTag(sd.tags); err == nil {
 		return n
 	}
-	return "unknown subnet"
+	return "unknown-subnet"
 }
 
 const (
