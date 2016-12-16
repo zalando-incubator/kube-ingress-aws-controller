@@ -1,13 +1,17 @@
 package aws
 
 import (
+	"crypto/sha1"
 	"fmt"
+	"log"
+	"regexp"
+	"strings"
+
+	"encoding/hex"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/elbv2"
 	"github.com/aws/aws-sdk-go/service/elbv2/elbv2iface"
 	"github.com/pkg/errors"
-	"log"
-	"strings"
 )
 
 // LoadBalancer is a simple wrapper around an AWS Load Balancer details.
@@ -50,7 +54,6 @@ type loadBalancerListener struct {
 const (
 	kubernetesCreatorTag   = "kubernetes:application"
 	kubernetesCreatorValue = "kube-ingress-aws-controller"
-	maxResourceNameLen     = 32
 )
 
 func findLoadBalancerWithCertificateID(elbv2 elbv2iface.ELBV2API, certificateARN string) (*LoadBalancer, error) {
@@ -75,8 +78,9 @@ func findLoadBalancerWithCertificateID(elbv2 elbv2iface.ELBV2API, certificateARN
 				certARN := aws.StringValue(cert.CertificateArn)
 				if certARN == certificateARN {
 					return &LoadBalancer{
-						name: aws.StringValue(lb.LoadBalancerName),
-						arn:  aws.StringValue(lb.LoadBalancerArn),
+						name:    aws.StringValue(lb.LoadBalancerName),
+						arn:     aws.StringValue(lb.LoadBalancerArn),
+						dnsName: aws.StringValue(lb.DNSName),
 						listener: &loadBalancerListener{
 							port:           aws.Int64Value(listener.Port),
 							arn:            aws.StringValue(listener.ListenerArn),
@@ -112,11 +116,18 @@ type createLoadBalancerSpec struct {
 	certificateARN  string
 	securityGroupID string
 	stackName       string
+	clusterID       string
 	vpcID           string
+	healthCheck     healthCheck
+}
+
+type healthCheck struct {
+	path string
+	port uint16
 }
 
 func createLoadBalancer(svc elbv2iface.ELBV2API, spec *createLoadBalancerSpec) (*LoadBalancer, error) {
-	var name = normalizeLoadBalancerName(spec.certificateARN)
+	var name = normalizeLoadBalancerName(spec.clusterID, spec.certificateARN)
 	params := &elbv2.CreateLoadBalancerInput{
 		Name:    aws.String(name),
 		Subnets: aws.StringSlice(spec.subnets),
@@ -126,8 +137,12 @@ func createLoadBalancer(svc elbv2iface.ELBV2API, spec *createLoadBalancerSpec) (
 		},
 		Tags: []*elbv2.Tag{
 			{
-				Key:   aws.String("Name"),
-				Value: aws.String(spec.stackName),
+				Key:   aws.String(nameTag),
+				Value: aws.String(name),
+			},
+			{
+				Key:   aws.String(clusterIDTag),
+				Value: aws.String(spec.clusterID),
 			},
 			{
 				Key:   aws.String(kubernetesCreatorTag),
@@ -147,7 +162,7 @@ func createLoadBalancer(svc elbv2iface.ELBV2API, spec *createLoadBalancerSpec) (
 
 	newLoadBalancer := resp.LoadBalancers[0]
 	loadBalancerARN := aws.StringValue(newLoadBalancer.LoadBalancerArn)
-	targetGroupARN, err := createDefaultTargetGroup(svc, name, spec.vpcID)
+	targetGroupARN, err := createDefaultTargetGroup(svc, name, spec.vpcID, spec.healthCheck)
 	newListener, err := createListener(svc, loadBalancerARN, targetGroupARN, spec.certificateARN)
 	if err != nil {
 		// TODO: delete just created LB?
@@ -162,21 +177,41 @@ func createLoadBalancer(svc elbv2iface.ELBV2API, spec *createLoadBalancerSpec) (
 	}, nil
 }
 
-func normalizeLoadBalancerName(name string) string {
-	fields := strings.Split(name, "/")
-	if len(fields) >= 2 {
-		name = strings.Replace(fields[1], "-", "", -1)
+// Hash ARN, keep last 7 hex chars
+// Prepend 24 chars from normalized ClusterID with a '-' in between
+// Normalization of ClusterID should replace all non valid chars
+// Valid sets: a-z,A-Z,0-9,-
+// Replacement char: -
+// Squeeze and strip from beginning and/or end
+var normalizationRegex = regexp.MustCompile("[^A-Za-z0-9-]+")
+
+const (
+	shortHashLen    = 7
+	maxClusterIDLen = 24
+)
+
+func normalizeLoadBalancerName(clusterID string, certificateARN string) string {
+	hasher := sha1.New()
+	hasher.Write([]byte(certificateARN))
+	hash := hex.EncodeToString(hasher.Sum(nil))
+	hashLen := len(hash)
+	if hashLen > shortHashLen {
+		hash = strings.ToLower(hash[hashLen-shortHashLen:])
 	}
-	if len(name) > maxResourceNameLen {
-		name = name[:maxResourceNameLen]
+
+	normalizedClusterID := normalizationRegex.ReplaceAllString(clusterID, "-")
+	lenClusterID := len(normalizedClusterID)
+	if lenClusterID > maxClusterIDLen {
+		normalizedClusterID = strings.TrimPrefix(normalizedClusterID[lenClusterID-maxClusterIDLen:], "-")
 	}
-	return name
+
+	return fmt.Sprintf("%s-%s", normalizedClusterID, hash)
 }
 
-func createDefaultTargetGroup(alb elbv2iface.ELBV2API, name string, vpcID string) (string, error) {
+func createDefaultTargetGroup(alb elbv2iface.ELBV2API, name string, vpcID string, hc healthCheck) (string, error) {
 	params := &elbv2.CreateTargetGroupInput{
-		HealthCheckPath: aws.String("/healthz"),
-		Port:            aws.Int64(9090),
+		HealthCheckPath: aws.String(hc.path),
+		Port:            aws.Int64(int64(hc.port)),
 		Protocol:        aws.String(elbv2.ProtocolEnumHttp),
 		VpcId:           aws.String(vpcID),
 		Name:            aws.String(name),
@@ -227,7 +262,7 @@ func createListener(alb elbv2iface.ELBV2API, loadBalancerARN string, targetGroup
 	}, nil
 }
 
-func findManagedLoadBalancers(svc elbv2iface.ELBV2API, clusterName string) ([]*LoadBalancer, error) {
+func findManagedLoadBalancers(svc elbv2iface.ELBV2API, clusterID string) ([]*LoadBalancer, error) {
 	resp, err := svc.DescribeLoadBalancers(nil)
 	if err != nil {
 		return nil, err
@@ -247,7 +282,7 @@ func findManagedLoadBalancers(svc elbv2iface.ELBV2API, clusterName string) ([]*L
 	var loadBalancers []*LoadBalancer
 	for _, td := range r.TagDescriptions {
 		tags := convertElbv2Tags(td.Tags)
-		if isManagedLoadBalancer(tags, clusterName) {
+		if isManagedLoadBalancer(tags, clusterID) {
 			loadBalancerARN := aws.StringValue(td.ResourceArn)
 			listeners, err := getListeners(svc, loadBalancerARN)
 			if err != nil {
@@ -289,11 +324,11 @@ func findFirstListenerWithAnyCertificate(listeners []*elbv2.Listener) (*elbv2.Li
 	return nil, ""
 }
 
-func isManagedLoadBalancer(tags map[string]string, stackName string) bool {
+func isManagedLoadBalancer(tags map[string]string, clusterID string) bool {
 	if tags[kubernetesCreatorTag] != kubernetesCreatorValue {
 		return false
 	}
-	if tags["Name"] != stackName {
+	if tags[clusterIDTag] != clusterID {
 		return false
 	}
 	return true

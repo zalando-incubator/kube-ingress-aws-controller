@@ -18,6 +18,8 @@ import (
 var (
 	apiServerBaseURL string
 	pollingInterval  time.Duration
+	healthCheckPath  string
+	healthCheckPort  uint
 )
 
 func waitForTerminationSignals(signals ...os.Signal) chan os.Signal {
@@ -32,6 +34,8 @@ func loadEnviroment() error {
 		"if empty will try to use the common proxy url http://127.0.0.1:8001")
 	flag.DurationVar(&pollingInterval, "polling-interval", 30*time.Second, "sets the polling interval for ingress resources. "+
 		"The flag accepts a value acceptable to time.ParseDuration. Defaults to 30 seconds")
+	flag.StringVar(&healthCheckPath, "health-check-path", "/kube-system/healthz", "sets the health check path for the created target groups")
+	flag.UintVar(&healthCheckPort, "health-check-port", 9999, "sets the health check port for the created target groups")
 	flag.Parse()
 
 	if tmp, defined := os.LookupEnv("API_SERVER_BASE_URL"); defined {
@@ -44,6 +48,10 @@ func loadEnviroment() error {
 			return err
 		}
 		pollingInterval = interval
+	}
+
+	if healthCheckPort == 0 || healthCheckPort > 1<<16-1 {
+		return fmt.Errorf("invalid health check port: %d. please use a valid IP port", healthCheckPort)
 	}
 
 	return nil
@@ -64,13 +72,14 @@ func main() {
 	}
 
 	session := session.Must(session.NewSession())
-	awsAdapter, err := aws.NewAdapter(session)
+	awsAdapter, err := aws.NewAdapter(session, healthCheckPath, uint16(healthCheckPort))
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	log.Println("controller manifest:")
 	log.Printf("\tkubernetes API server: %s\n", apiServerBaseURL)
+	log.Printf("\tCluster ID: %s\n", awsAdapter.ClusterID())
 	log.Printf("\tvpc id: %s\n", awsAdapter.VpcID())
 	log.Printf("\tinstance id: %s\n", awsAdapter.InstanceID())
 	log.Printf("\tauto scaling group name: %s\n", awsAdapter.AutoScalingGroupName())

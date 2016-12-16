@@ -14,11 +14,13 @@ import (
 
 // An Adapter can be used to orchestrate and obtain information from Amazon Web Services.
 type Adapter struct {
-	ec2metadata *ec2metadata.EC2Metadata
-	ec2         ec2iface.EC2API
-	elbv2       elbv2iface.ELBV2API
-	autoscaling autoscalingiface.AutoScalingAPI
-	manifest    *manifest
+	ec2metadata     *ec2metadata.EC2Metadata
+	ec2             ec2iface.EC2API
+	elbv2           elbv2iface.ELBV2API
+	autoscaling     autoscalingiface.AutoScalingAPI
+	manifest        *manifest
+	healthCheckPath string
+	healthCheckPort uint16
 }
 
 type manifest struct {
@@ -29,6 +31,11 @@ type manifest struct {
 	publicSubnets    []*subnetDetails
 }
 
+const (
+	clusterIDTag = "ClusterID"
+	nameTag      = "Name"
+)
+
 var (
 	// ErrSecurityGroupNotFound is used to signal that the required security group couldn't be found.
 	ErrMissingSecurityGroup = errors.New("required security group was not found")
@@ -38,6 +45,8 @@ var (
 	ErrLoadBalancerNotFound = errors.New("load balancer not found")
 	// ErrMissingNameTag is used to signal that the Name tag on a given resource is missing.
 	ErrMissingNameTag = errors.New("Name tag not found")
+	// ErrMissingTag is used to signal that a tag on a given resource is missing.
+	ErrMissingTag = errors.New("missing tag")
 	// ErrNoSubnets is used to signal that no subnets were found in the current VPC
 	ErrNoSubnets = errors.New("unable to find VPC subnets")
 )
@@ -46,17 +55,19 @@ var (
 // Before returning there is a discovery process for VPC and EC2 details. It tries to find the TargetGroup and
 // Security Group that should be used for newly created LoadBalancers. If any of those critical steps fail
 // an appropriate error is returned.
-func NewAdapter(p client.ConfigProvider) (*Adapter, error) {
+func NewAdapter(p client.ConfigProvider, healthCheckPath string, healthCheckPort uint16) (*Adapter, error) {
 	elbv2 := elbv2.New(p)
 	ec2 := ec2.New(p)
 	ec2metadata := ec2metadata.New(p)
 	autoscaling := autoscaling.New(p)
 
 	adapter := &Adapter{
-		elbv2:       elbv2,
-		ec2:         ec2,
-		ec2metadata: ec2metadata,
-		autoscaling: autoscaling,
+		elbv2:           elbv2,
+		ec2:             ec2,
+		ec2metadata:     ec2metadata,
+		autoscaling:     autoscaling,
+		healthCheckPath: healthCheckPath,
+		healthCheckPort: healthCheckPort,
 	}
 
 	manifest, err := buildManifest(adapter)
@@ -72,6 +83,12 @@ func NewAdapter(p client.ConfigProvider) (*Adapter, error) {
 // The current ec2 instance.
 func (a *Adapter) StackName() string {
 	return a.manifest.instance.name()
+}
+
+// StackName returns the ClusterID tag that all resources from the same Kubernetes cluster share. It's taken from
+// The current ec2 instance.
+func (a *Adapter) ClusterID() string {
+	return a.manifest.instance.clusterID()
 }
 
 // VpcID returns the VPC ID the current node belongs to.
@@ -112,7 +129,7 @@ func (a *Adapter) FindLoadBalancerWithCertificateID(certificateARN string) (*Loa
 
 // FindManagedLoadBalancers returns all ALBs containing the controller management tags for the current cluster.
 func (a *Adapter) FindManagedLoadBalancers() ([]*LoadBalancer, error) {
-	lbs, err := findManagedLoadBalancers(a.elbv2, a.StackName())
+	lbs, err := findManagedLoadBalancers(a.elbv2, a.ClusterID())
 	if err != nil {
 		return nil, err
 	}
@@ -130,6 +147,11 @@ func (a *Adapter) CreateLoadBalancer(certificateARN string) (*LoadBalancer, erro
 		stackName:       a.StackName(),
 		subnets:         a.PublicSubnetIDs(),
 		vpcID:           a.VpcID(),
+		clusterID:       a.ClusterID(),
+		healthCheck: healthCheck{
+			path: a.healthCheckPath,
+			port: a.healthCheckPort,
+		},
 	}
 	var (
 		lb  *LoadBalancer
@@ -241,8 +263,15 @@ func (a *Adapter) DeleteLoadBalancer(loadBalancer *LoadBalancer) error {
 }
 
 func getNameTag(tags map[string]string) (string, error) {
-	if name, has := tags["Name"]; has {
+	if name, err := getTag(tags, "Name"); err == nil {
 		return name, nil
 	}
 	return "<no name tag>", ErrMissingNameTag
+}
+
+func getTag(tags map[string]string, tagName string) (string, error) {
+	if name, has := tags[tagName]; has {
+		return name, nil
+	}
+	return "<missing tag>", ErrMissingTag
 }
