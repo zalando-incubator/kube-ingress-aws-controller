@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"encoding/hex"
+
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/elbv2"
 	"github.com/aws/aws-sdk-go/service/elbv2/elbv2iface"
@@ -56,44 +57,17 @@ const (
 	kubernetesCreatorValue = "kube-ingress-aws-controller"
 )
 
-func findLoadBalancerWithCertificateID(elbv2 elbv2iface.ELBV2API, certificateARN string) (*LoadBalancer, error) {
-	// TODO: paged results
-	resp, err := elbv2.DescribeLoadBalancers(nil)
+func findManagedLBWithCertificateID(elbv2 elbv2iface.ELBV2API, clusterID string, certificateARN string) (*LoadBalancer, error) {
+	lbs, err := findManagedLoadBalancers(elbv2, clusterID)
 	if err != nil {
 		return nil, err
 	}
-
-	// TODO: filter for ALBs with a given set of tags? For ex.: KubernetesCluster=foo
-	for _, lb := range resp.LoadBalancers {
-		listeners, err := getListeners(elbv2, aws.StringValue(lb.LoadBalancerArn))
-		if err != nil {
-			log.Printf("failed to describe listeners for load balancer %q: %v\n", lb.LoadBalancerName, err)
-			continue
-		}
-		for _, listener := range listeners {
-			if len(listener.DefaultActions) < 1 {
-				return nil, fmt.Errorf("load balancer %q doesn't have the default target group", lb.LoadBalancerName)
-			}
-			for _, cert := range listener.Certificates {
-				certARN := aws.StringValue(cert.CertificateArn)
-				if certARN == certificateARN {
-					return &LoadBalancer{
-						name:    aws.StringValue(lb.LoadBalancerName),
-						arn:     aws.StringValue(lb.LoadBalancerArn),
-						dnsName: aws.StringValue(lb.DNSName),
-						listener: &loadBalancerListener{
-							port:           aws.Int64Value(listener.Port),
-							arn:            aws.StringValue(listener.ListenerArn),
-							certificateARN: certARN,
-							targetGroupARN: aws.StringValue(listener.DefaultActions[0].TargetGroupArn),
-						},
-					}, nil
-				}
-			}
+	for _, lb := range lbs {
+		if lb.CertificateARN() == certificateARN {
+			return lb, nil
 		}
 	}
-
-	return nil, ErrLoadBalancerNotFound
+	return nil, nil
 }
 
 func getListeners(alb elbv2iface.ELBV2API, loadBalancerARN string) ([]*elbv2.Listener, error) {
@@ -280,34 +254,42 @@ func findManagedLoadBalancers(svc elbv2iface.ELBV2API, clusterID string) ([]*Loa
 	}
 
 	var loadBalancers []*LoadBalancer
-	for _, td := range r.TagDescriptions {
-		tags := convertElbv2Tags(td.Tags)
-		if isManagedLoadBalancer(tags, clusterID) {
-			loadBalancerARN := aws.StringValue(td.ResourceArn)
-			listeners, err := getListeners(svc, loadBalancerARN)
-			if err != nil {
-				log.Printf("failed to describe listeners for load balancer ARN %q: %v\n", loadBalancerARN, err)
-				continue
-			}
 
-			listener, certARN := findFirstListenerWithAnyCertificate(listeners)
-			if len(listeners) < 1 {
-				log.Printf("load balancer ARN %q has no certificates\n", loadBalancerARN)
-				continue
+	for _, lb := range resp.LoadBalancers {
+		for _, td := range r.TagDescriptions {
+			tags := convertElbv2Tags(td.Tags)
+			if isManagedLoadBalancer(tags, clusterID) {
+				loadBalancerARN := aws.StringValue(td.ResourceArn)
+				listeners, err := getListeners(svc, loadBalancerARN)
+				if err != nil {
+					log.Printf("failed to describe listeners for load balancer ARN %q: %v\n", loadBalancerARN, err)
+					continue
+				}
+
+				listener, certARN := findFirstListenerWithAnyCertificate(listeners)
+				if len(listeners) < 1 {
+					log.Printf("load balancer ARN %q has no certificates\n", loadBalancerARN)
+					continue
+				}
+				if len(listener.DefaultActions) < 1 {
+					log.Printf("load balancer %q doesn't have the default target group", loadBalancerARN)
+					continue
+				}
+				if aws.StringValue(lb.LoadBalancerArn) == aws.StringValue(td.ResourceArn) {
+					loadBalancers = append(loadBalancers, &LoadBalancer{
+						name:    aws.StringValue(lb.LoadBalancerName),
+						dnsName: aws.StringValue(lb.DNSName),
+						arn:     aws.StringValue(td.ResourceArn),
+						listener: &loadBalancerListener{
+							port:           aws.Int64Value(listener.Port),
+							arn:            aws.StringValue(listener.ListenerArn),
+							certificateARN: certARN,
+							targetGroupARN: aws.StringValue(listener.DefaultActions[0].TargetGroupArn),
+						},
+					})
+				}
+
 			}
-			if len(listener.DefaultActions) < 1 {
-				log.Printf("load balancer %q doesn't have the default target group", loadBalancerARN)
-				continue
-			}
-			loadBalancers = append(loadBalancers, &LoadBalancer{
-				arn: aws.StringValue(td.ResourceArn),
-				listener: &loadBalancerListener{
-					port:           aws.Int64Value(listener.Port),
-					arn:            aws.StringValue(listener.ListenerArn),
-					certificateARN: certARN,
-					targetGroupARN: aws.StringValue(listener.DefaultActions[0].TargetGroupArn),
-				},
-			})
 		}
 	}
 	return loadBalancers, err
