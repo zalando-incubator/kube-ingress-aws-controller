@@ -2,6 +2,7 @@ package aws
 
 import (
 	"errors"
+
 	"github.com/aws/aws-sdk-go/aws/client"
 	"github.com/aws/aws-sdk-go/aws/ec2metadata"
 	"github.com/aws/aws-sdk-go/service/autoscaling"
@@ -124,7 +125,7 @@ func (a *Adapter) PublicSubnetIDs() []string {
 // FindLoadBalancerWithCertificateID looks up for the first Application Load Balancer with, at least, 1 listener with
 // the certificateARN. Order is not guaranteed and depends only on the AWS SDK result order.
 func (a *Adapter) FindLoadBalancerWithCertificateID(certificateARN string) (*LoadBalancer, error) {
-	return findLoadBalancerWithCertificateID(a.elbv2, certificateARN)
+	return findManagedLBWithCertificateID(a.elbv2, a.ClusterID(), certificateARN)
 }
 
 // FindManagedLoadBalancers returns all ALBs containing the controller management tags for the current cluster.
