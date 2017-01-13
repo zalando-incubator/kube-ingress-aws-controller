@@ -242,6 +242,10 @@ func findManagedLoadBalancers(svc elbv2iface.ELBV2API, clusterID string) ([]*Loa
 		return nil, err
 	}
 
+	if len(resp.LoadBalancers) == 0 {
+		return nil, ErrLoadBalancerNotFound
+	}
+
 	loadBalancerARNs := make([]*string, len(resp.LoadBalancers))
 	for i, lb := range resp.LoadBalancers {
 		loadBalancerARNs[i] = lb.LoadBalancerArn
