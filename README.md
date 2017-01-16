@@ -1,13 +1,13 @@
 # Kubernetes Ingress Controller for AWS
 
-**WARNING** This is a work in progress **WARNING**
+**WARNING**: This is work in progress, it's only used in small production use cases and not battletested!
 
 This ingress controller runs inside a Kubernetes cluster monitoring changes to the Ingress resources and orchestrating 
 AWS Load Balancers accordingly.
 
-It should be deployed once per kubernetes cluster. It will use the EC2 instance metadata to find the CloudFormation
+It should be deployed once per Kubernetes cluster. It will use the EC2 instance metadata to find the CloudFormation
 stack it belongs to. This value is then used to discover the required AWS resources that are attached to each newly 
-created  Application Load Balancer.
+created Application Load Balancer.
 
 ## How it works
 
