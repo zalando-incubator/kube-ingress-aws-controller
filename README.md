@@ -1,6 +1,6 @@
 # Kubernetes Ingress Controller for AWS
 
-**WARNING**: This is work in progress, it's only only used in small production use cases and not battletested!
+**WARNING**: This is work in progress, it's only used in small production use cases and not battletested!
 
 This ingress controller runs inside a Kubernetes cluster monitoring changes to the Ingress resources and orchestrating 
 AWS Load Balancers accordingly.
