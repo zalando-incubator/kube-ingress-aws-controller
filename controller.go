@@ -10,7 +10,6 @@ import (
 	"flag"
 	"time"
 
-	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/zalando-incubator/kube-ingress-aws-controller/aws"
 	"github.com/zalando-incubator/kube-ingress-aws-controller/kubernetes"
 )
@@ -30,12 +29,14 @@ func waitForTerminationSignals(signals ...os.Signal) chan os.Signal {
 
 func loadEnviroment() error {
 	flag.Usage = usage
-	flag.StringVar(&apiServerBaseURL, "api-server-base-url", "http://127.0.0.1:8001", "sets the kubernetes api server base url. "+
-		"if empty will try to use the common proxy url http://127.0.0.1:8001")
-	flag.DurationVar(&pollingInterval, "polling-interval", 30*time.Second, "sets the polling interval for ingress resources. "+
-		"The flag accepts a value acceptable to time.ParseDuration. Defaults to 30 seconds")
-	flag.StringVar(&healthCheckPath, "health-check-path", "/kube-system/healthz", "sets the health check path for the created target groups")
-	flag.UintVar(&healthCheckPort, "health-check-port", 9999, "sets the health check port for the created target groups")
+	flag.StringVar(&apiServerBaseURL, "api-server-base-url", "", "sets the kubernetes api "+
+		"server base url. if empty will try to use the configuration from the running cluster")
+	flag.DurationVar(&pollingInterval, "polling-interval", 30*time.Second, "sets the polling interval for "+
+		"ingress resources. The flag accepts a value acceptable to time.ParseDuration. Defaults to 30 seconds")
+	flag.StringVar(&healthCheckPath, "health-check-path", "/kube-system/healthz", "sets the health check path "+
+		"for the created target groups")
+	flag.UintVar(&healthCheckPort, "health-check-port", 9999, "sets the health check port for the created "+
+		"target groups")
 	flag.Parse()
 
 	if tmp, defined := os.LookupEnv("API_SERVER_BASE_URL"); defined {
@@ -66,13 +67,30 @@ func usage() {
 
 func main() {
 	log.Printf("starting %s", os.Args[0])
-	var err error
+	var (
+		awsAdapter  *aws.Adapter
+		kubeAdapter *kubernetes.Adapter
+		kubeConfig  *kubernetes.Config
+		err         error
+	)
 	if err = loadEnviroment(); err != nil {
 		log.Fatal(err)
 	}
 
-	session := session.Must(session.NewSession())
-	awsAdapter, err := aws.NewAdapter(session, healthCheckPath, uint16(healthCheckPort))
+	awsAdapter, err = aws.NewAdapter(healthCheckPath, uint16(healthCheckPort))
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	if apiServerBaseURL == "" {
+		kubeConfig, err = kubernetes.InClusterConfig()
+		if err != nil {
+			log.Fatal(err)
+		}
+	} else {
+		kubeConfig = kubernetes.InsecureConfig(apiServerBaseURL)
+	}
+	kubeAdapter, err = kubernetes.NewAdapter(kubeConfig)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -87,8 +105,7 @@ func main() {
 	log.Printf("\tprivate subnet ids: %s\n", awsAdapter.PrivateSubnetIDs())
 	log.Printf("\tpublic subnet ids: %s\n", awsAdapter.PublicSubnetIDs())
 
-	kubernetesClient := kubernetes.NewClient(apiServerBaseURL)
-	go startPolling(awsAdapter, kubernetesClient, pollingInterval)
+	go startPolling(awsAdapter, kubeAdapter, pollingInterval)
 	<-waitForTerminationSignals(syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
 
 	log.Printf("terminating %s\n", os.Args[0])

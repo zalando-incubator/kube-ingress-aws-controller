@@ -5,6 +5,7 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws/client"
 	"github.com/aws/aws-sdk-go/aws/ec2metadata"
+	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/autoscaling"
 	"github.com/aws/aws-sdk-go/service/autoscaling/autoscalingiface"
 	"github.com/aws/aws-sdk-go/service/ec2"
@@ -40,8 +41,6 @@ const (
 var (
 	// ErrSecurityGroupNotFound is used to signal that the required security group couldn't be found.
 	ErrMissingSecurityGroup = errors.New("required security group was not found")
-	// ErrTargetGroupNotFound is used to signal that the required target group couldn't be found.
-	ErrTargetGroupNotFound = errors.New("required target group was not found")
 	// ErrLoadBalancerNotFound is used to signal that a given load balancer was not found.
 	ErrLoadBalancerNotFound = errors.New("load balancer not found")
 	// ErrMissingNameTag is used to signal that the Name tag on a given resource is missing.
@@ -50,34 +49,34 @@ var (
 	ErrMissingTag = errors.New("missing tag")
 	// ErrNoSubnets is used to signal that no subnets were found in the current VPC
 	ErrNoSubnets = errors.New("unable to find VPC subnets")
+	// ErrMissingAutoScalingGroupTag is used to signal that the auto scaling group tag is not present in the list of tags.
+	ErrMissingAutoScalingGroupTag = errors.New(`instance is missing the "` + autoScalingGroupNameTag + `" tag`)
 )
 
 // NewAdapter returns a new Adapter that can be used to orchestrate and obtain information from Amazon Web Services.
 // Before returning there is a discovery process for VPC and EC2 details. It tries to find the TargetGroup and
 // Security Group that should be used for newly created LoadBalancers. If any of those critical steps fail
 // an appropriate error is returned.
-func NewAdapter(p client.ConfigProvider, healthCheckPath string, healthCheckPort uint16) (*Adapter, error) {
-	elbv2 := elbv2.New(p)
-	ec2 := ec2.New(p)
-	ec2metadata := ec2metadata.New(p)
-	autoscaling := autoscaling.New(p)
+func NewAdapter(healthCheckPath string, healthCheckPort uint16) (*Adapter, error) {
+	p := session.Must(session.NewSession())
+	return newAdapterWithCfgProvider(p, healthCheckPath, healthCheckPort)
+}
 
-	adapter := &Adapter{
-		elbv2:           elbv2,
-		ec2:             ec2,
-		ec2metadata:     ec2metadata,
-		autoscaling:     autoscaling,
-		healthCheckPath: healthCheckPath,
-		healthCheckPort: healthCheckPort,
+func newAdapterWithCfgProvider(p client.ConfigProvider, path string, port uint16) (adapter *Adapter, err error) {
+	adapter = &Adapter{
+		elbv2:           elbv2.New(p),
+		ec2:             ec2.New(p),
+		ec2metadata:     ec2metadata.New(p),
+		autoscaling:     autoscaling.New(p),
+		healthCheckPath: path,
+		healthCheckPort: port,
 	}
 
-	manifest, err := buildManifest(adapter)
+	adapter.manifest, err = buildManifest(adapter)
 	if err != nil {
 		return nil, err
 	}
-	adapter.manifest = manifest
-
-	return adapter, nil
+	return
 }
 
 // StackName returns the Name tag that all resources created by the same CloudFormation stack share. It's taken from
@@ -206,11 +205,6 @@ func buildManifest(awsAdapter *Adapter) (*manifest, error) {
 	if err != nil {
 		return nil, err
 	}
-
-	//targetGroupARN, err := findTargetGroupWithNameTag(awsAdapter.elbv2, stackName)
-	//if err != nil {
-	//	return nil, err
-	//}
 
 	subnets, err := getSubnets(awsAdapter.ec2, instanceDetails.vpcID)
 	if err != nil {

@@ -46,10 +46,10 @@ only HTTPS traffic which is forwarded to each worker node in the cluster.
 
 Application Load Balancers created by the controller have a custom Tag marking them as managed load balancers:
 
-    `kubernetes:application: kube-ingress-aws-controller`
+    kubernetes:application: kube-ingress-aws-controller
 
 They also share the "ClusterID" tag as the other resources from the same CloudFormation stack. The load balancer names
-are derived from a SHA1 hash of the certificate ARN, combined with a normalized version of the ClusterID.
+are derived from a truncated SHA1 hash of the certificate ARN, combined with a normalized version of the ClusterID.
 Due to the 32 characters limitation, it can be truncated.
  
 ### Deleting load balancers

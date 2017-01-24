@@ -2,27 +2,75 @@ package kubernetes
 
 import (
 	"bytes"
+	"crypto/tls"
+	"crypto/x509"
 	"fmt"
 	"io"
 	"io/ioutil"
+	"net"
 	"net/http"
+	"time"
 )
 
-// Client wraps the strategies used to access a Kubernetes API server.
-// TODO: also allow cert based and bearer token auth
-type Client struct {
-	baseURL string
+type client interface {
+	get(string) (io.ReadCloser, error)
+	patch(string, []byte) (io.ReadCloser, error)
 }
 
-// NewClient returns a new simple client to a Kubernetes API server using only its base URL. It should be enough to
-// access an API endpoint via a proxy which takes care of all the authentication details, like `kubectl proxy`.
-func NewClient(baseURL string) *Client {
-	return &Client{baseURL: baseURL}
+type simpleClient struct {
+	cfg        *Config
+	httpClient *http.Client
 }
 
-// Get can be used for simple Kubernetes API requests that don't have any payload and require a simple GET.
-func (c *Client) Get(resource string) (io.ReadCloser, error) {
-	resp, err := http.Get(c.baseURL + resource)
+const defaultControllerUserAgent = "kube-ingress-aws-controller"
+
+func newSimpleClient(cfg *Config) (client, error) {
+	var (
+		tlsConfig *tls.Config
+		transport http.RoundTripper = http.DefaultTransport
+		c         *http.Client      = http.DefaultClient
+	)
+	if cfg.CAFile != "" {
+		fileData, err := ioutil.ReadFile(cfg.CAFile)
+		if err != nil {
+			return nil, err
+		}
+		certPool := x509.NewCertPool()
+		if !certPool.AppendCertsFromPEM(fileData) {
+			return nil, ErrInvalidCertificates
+		}
+
+		tlsConfig = &tls.Config{
+			MinVersion:         tls.VersionTLS12,
+			InsecureSkipVerify: cfg.Insecure,
+			RootCAs:            certPool,
+		}
+		transport = &http.Transport{
+			TLSHandshakeTimeout: 10 * time.Second,
+			TLSClientConfig:     tlsConfig,
+			Dial: (&net.Dialer{
+				Timeout:   30 * time.Second,
+				KeepAlive: 30 * time.Second,
+			}).Dial,
+		}
+	}
+
+	if transport != http.DefaultTransport {
+		c = &http.Client{Transport: transport}
+		if cfg.Timeout > 0 {
+			c.Timeout = cfg.Timeout
+		}
+	}
+
+	return &simpleClient{cfg: cfg, httpClient: c}, nil
+}
+
+func (c *simpleClient) get(resource string) (io.ReadCloser, error) {
+	req, err := c.createRequest("GET", resource, nil)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -38,15 +86,13 @@ func (c *Client) Get(resource string) (io.ReadCloser, error) {
 	return resp.Body, nil
 }
 
-// Patch can be used for more complex requests where a payload needs to follow a PATCH request.
-func (c *Client) Patch(resource string, payload []byte) (io.ReadCloser, error) {
-	urlStr := c.baseURL + resource
-	req, err := http.NewRequest("PATCH", urlStr, bytes.NewReader(payload))
+func (c *simpleClient) patch(resource string, payload []byte) (io.ReadCloser, error) {
+	req, err := c.createRequest("PATCH", resource, bytes.NewReader(payload))
 	if err != nil {
 		return nil, err
 	}
 	req.Header.Set("Content-Type", "application/strategic-merge-patch+json")
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -56,8 +102,25 @@ func (c *Client) Patch(resource string, payload []byte) (io.ReadCloser, error) {
 		if err == nil {
 			err = fmt.Errorf("unexpected status code (%s) for PATCH %q: %s", http.StatusText(resp.StatusCode), resource, b)
 		}
+
 		resp.Body.Close()
-		return nil, err
+		return ioutil.NopCloser(bytes.NewBuffer(b)), err
 	}
 	return resp.Body, nil
+}
+
+func (c *simpleClient) createRequest(method, resource string, body io.Reader) (*http.Request, error) {
+	urlStr := c.cfg.BaseURL + resource
+	req, err := http.NewRequest(method, urlStr, body)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("User-Agent", defaultControllerUserAgent)
+	if c.cfg.UserAgent != "" {
+		req.Header.Set("User-Agent", c.cfg.UserAgent)
+	}
+	if c.cfg.BearerToken != "" {
+		req.Header.Set("Authorization", "Bearer "+c.cfg.BearerToken)
+	}
+	return req, nil
 }

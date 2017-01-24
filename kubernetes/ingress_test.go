@@ -2,11 +2,60 @@ package kubernetes
 
 import (
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"reflect"
 	"testing"
+	"time"
 )
+
+func TestListIngresses(t *testing.T) {
+	testServer := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+		f, _ := os.Open("testdata/fixture01.json")
+		defer f.Close()
+		rw.WriteHeader(http.StatusOK)
+		io.Copy(rw, f)
+	}))
+	defer testServer.Close()
+	kubeClient, _ := newSimpleClient(&Config{BaseURL: testServer.URL})
+	want := newList(newIngress("fixture01", nil, "example.org", "fixture01"))
+	got, err := listIngress(kubeClient)
+	if err != nil {
+		t.Errorf("unexpected error from listIngresses: %v", err)
+	} else {
+		if !reflect.DeepEqual(got, want) {
+			t.Errorf("unexpected result from listIngresses. wanted %v, got %v", want, got)
+		}
+	}
+}
+
+func TestListIngressFailureScenarios(t *testing.T) {
+	for _, test := range []struct {
+		statusCode int
+		body       string
+	}{
+		{http.StatusInternalServerError, "{}"},
+		{http.StatusOK, "`"},
+	} {
+		t.Run(fmt.Sprintf("%v", test.statusCode), func(t *testing.T) {
+			testServer := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+				rw.WriteHeader(test.statusCode)
+				fmt.Fprintln(rw, test.body)
+			}))
+			defer testServer.Close()
+			cfg := &Config{BaseURL: testServer.URL}
+			kubeClient, _ := newSimpleClient(cfg)
+
+			_, err := listIngress(kubeClient)
+			if err == nil {
+				t.Error("expected an error but list ingress call succeeded")
+			}
+		})
+	}
+}
 
 func TestUpdateIngressLoaBalancer(t *testing.T) {
 	expectedContentType := map[string]bool{
@@ -37,17 +86,95 @@ func TestUpdateIngressLoaBalancer(t *testing.T) {
 		rw.WriteHeader(http.StatusOK)
 	}))
 	defer testServer.Close()
-	kubeClient := NewClient(testServer.URL)
-	ingresses := []Ingress{
-		{
-			Metadata: listMeta{
-				Namespace: "foo",
-				Name:      "bar",
-			},
+	cfg := &Config{BaseURL: testServer.URL}
+	kubeClient, _ := newSimpleClient(cfg)
+	ing := &ingress{
+		Metadata: ingressItemMetadata{
+			Namespace: "foo",
+			Name:      "bar",
 		},
 	}
 
-	if err := UpdateIngressLoaBalancer(kubeClient, ingresses, "example.org"); err != nil {
+	if err := updateIngressLoadBalancer(kubeClient, ing, "example.org"); err != nil {
 		t.Error("unexpected result from update call:", err)
 	}
+}
+
+func TestUpdateIngressFailureScenarios(t *testing.T) {
+	testServer := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+		rw.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer testServer.Close()
+	cfg := &Config{BaseURL: testServer.URL}
+	kubeClient, _ := newSimpleClient(cfg)
+	for _, test := range []struct {
+		ing *ingress
+	}{
+		{newIngress("foo", nil, "example.com", "")},
+		{newIngress("foo", nil, "example.org", "")},
+	} {
+		arn := test.ing.getAnnotationsString(ingressCertificateARNAnnotation, "<missing>")
+		t.Run(fmt.Sprintf("%v/%v", test.ing.Status.LoadBalancer.Ingress[0].Hostname, arn), func(t *testing.T) {
+			err := updateIngressLoadBalancer(kubeClient, test.ing, "example.com")
+			if err == nil {
+				t.Error("expected an error but update ingress call succeeded")
+			}
+		})
+	}
+}
+
+func TestAnnotationsFallback(t *testing.T) {
+	have := &ingress{Metadata: ingressItemMetadata{Annotations: map[string]interface{}{"foo": "bar"}}}
+	for _, test := range []struct {
+		key      string
+		fallback string
+		want     string
+	}{
+		{"foo", "zbr", "bar"},
+		{"missing", "fallback", "fallback"},
+	} {
+		t.Run(fmt.Sprintf("%s/%s/%s", test.key, test.want, test.fallback), func(t *testing.T) {
+			if got := have.getAnnotationsString(test.key, test.fallback); got != test.want {
+				t.Errorf("unexpected metadata value. wanted %q, got %q", test.want, got)
+			}
+
+		})
+	}
+}
+
+func newList(ingresses ...*ingress) *ingressList {
+	ret := ingressList{
+		APIVersion: "extensions/v1beta1",
+		Kind:       "IngressList",
+		Metadata: ingressListMetadata{
+			SelfLink:        "/apis/extensions/v1beta1/ingresses",
+			ResourceVersion: "42",
+		},
+		Items: ingresses,
+	}
+	return &ret
+}
+
+func newIngress(name string, annotations map[string]interface{}, hostname string, arn string) *ingress {
+	ret := ingress{
+		Metadata: ingressItemMetadata{
+			Name:              name,
+			Namespace:         "default",
+			Annotations:       annotations,
+			ResourceVersion:   "42",
+			SelfLink:          "/apis/extensions/v1beta1/namespaces/default/ingresses/" + name,
+			Generation:        1,
+			UID:               name,
+			CreationTimestamp: time.Date(2016, 11, 29, 14, 53, 42, 0, time.UTC),
+		},
+	}
+	if arn != "" {
+		ret.Metadata.Annotations = map[string]interface{}{ingressCertificateARNAnnotation: arn}
+	}
+	if hostname != "" {
+		ret.Status.LoadBalancer = ingressLoadBalancerStatus{
+			Ingress: []ingressLoadBalancer{{Hostname: hostname}},
+		}
+	}
+	return &ret
 }

@@ -10,16 +10,16 @@ import (
 	"github.com/zalando-incubator/kube-ingress-aws-controller/kubernetes"
 )
 
-func startPolling(awsAdapter *aws.Adapter, kubernetesClient *kubernetes.Client, pollingInterval time.Duration) {
+func startPolling(awsAdapter *aws.Adapter, kubeAdapter *kubernetes.Adapter, pollingInterval time.Duration) {
 	for {
-		if err := doWork(awsAdapter, kubernetesClient); err != nil {
+		if err := doWork(awsAdapter, kubeAdapter); err != nil {
 			log.Println(err)
 		}
 		time.Sleep(pollingInterval)
 	}
 }
 
-func doWork(awsAdapter *aws.Adapter, kubernetesClient *kubernetes.Client) error {
+func doWork(awsAdapter *aws.Adapter, kubeAdapter *kubernetes.Adapter) error {
 	defer func() error {
 		if r := recover(); r != nil {
 			log.Println("shit has hit the fan:", r)
@@ -28,14 +28,14 @@ func doWork(awsAdapter *aws.Adapter, kubernetesClient *kubernetes.Client) error 
 		return nil
 	}()
 
-	il, err := kubernetes.ListIngress(kubernetesClient)
+	ingresses, err := kubeAdapter.ListIngress()
 	if err != nil {
 		return err
 	}
 
-	log.Printf("found %d ingress resource(s)", len(il.Items))
+	log.Printf("found %d ingress resource(s)", len(ingresses))
 
-	uniqueARNs := flattenIngressByARN(il)
+	uniqueARNs := flattenIngressByARN(ingresses)
 	missingARNs, existingARNs := filterExistingARNs(awsAdapter, uniqueARNs)
 	for missingARN, ingresses := range missingARNs {
 		lb, err := createMissingLoadBalancer(awsAdapter, missingARN)
@@ -45,24 +45,24 @@ func doWork(awsAdapter *aws.Adapter, kubernetesClient *kubernetes.Client) error 
 		}
 		log.Printf("successfully created ALB %q for certificate %q\n", lb.ARN(), missingARN)
 
-		updateIngresses(kubernetesClient, ingresses, lb.DNSName())
+		updateIngresses(kubeAdapter, ingresses, lb.DNSName())
 	}
 
 	for existingARN, lb := range existingARNs {
 		ingresses := uniqueARNs[existingARN]
-		updateIngresses(kubernetesClient, ingresses, lb.DNSName())
+		updateIngresses(kubeAdapter, ingresses, lb.DNSName())
 	}
 
-	if err := deleteOrphanedLoadBalancers(awsAdapter, il.Items); err != nil {
+	if err := deleteOrphanedLoadBalancers(awsAdapter, ingresses); err != nil {
 		log.Println("failed to delete orphaned load balancers", err)
 	}
 
 	return nil
 }
 
-func flattenIngressByARN(il *kubernetes.IngressList) map[string][]kubernetes.Ingress {
-	uniqueARNs := make(map[string][]kubernetes.Ingress)
-	for _, ingress := range il.Items {
+func flattenIngressByARN(ingresses []*kubernetes.Ingress) map[string][]*kubernetes.Ingress {
+	uniqueARNs := make(map[string][]*kubernetes.Ingress)
+	for _, ingress := range ingresses {
 		certificateARN := ingress.CertificateARN()
 		if certificateARN != "" {
 			uniqueARNs[certificateARN] = append(uniqueARNs[certificateARN], ingress)
@@ -73,8 +73,8 @@ func flattenIngressByARN(il *kubernetes.IngressList) map[string][]kubernetes.Ing
 	return uniqueARNs
 }
 
-func filterExistingARNs(awsAdapter *aws.Adapter, certificateARNs map[string][]kubernetes.Ingress) (map[string][]kubernetes.Ingress, map[string]*aws.LoadBalancer) {
-	missingARNs := make(map[string][]kubernetes.Ingress)
+func filterExistingARNs(awsAdapter *aws.Adapter, certificateARNs map[string][]*kubernetes.Ingress) (map[string][]*kubernetes.Ingress, map[string]*aws.LoadBalancer) {
+	missingARNs := make(map[string][]*kubernetes.Ingress)
 	existingARNs := make(map[string]*aws.LoadBalancer)
 	for certificateARN, ingresses := range certificateARNs {
 		lb, err := awsAdapter.FindLoadBalancerWithCertificateID(certificateARN)
@@ -103,22 +103,17 @@ func createMissingLoadBalancer(awsAdapter *aws.Adapter, certificateARN string) (
 	return lb, nil
 }
 
-func updateIngresses(kubernetesClient *kubernetes.Client, ingresses []kubernetes.Ingress, dnsName string) {
-	errors := kubernetes.UpdateIngressLoaBalancer(kubernetesClient, ingresses, dnsName)
-	errCount := len(errors)
-	if errCount > 0 {
-		if errCount == 1 {
-			log.Println(errors[0])
+func updateIngresses(kubeAdapter *kubernetes.Adapter, ingresses []*kubernetes.Ingress, dnsName string) {
+	for _, ingress := range ingresses {
+		if err := kubeAdapter.UpdateIngressLoadBalancer(ingress, dnsName); err != nil {
+			log.Println(err)
 		} else {
-			log.Println("multiple errors occurred updating the Ingress resources:")
-			for _, err := range errors {
-				log.Printf("\t%v\n", err)
-			}
+			log.Printf("updated ingress %v with DNS name %q\n", ingress, dnsName)
 		}
 	}
 }
 
-func deleteOrphanedLoadBalancers(awsAdapter *aws.Adapter, ingresses []kubernetes.Ingress) error {
+func deleteOrphanedLoadBalancers(awsAdapter *aws.Adapter, ingresses []*kubernetes.Ingress) error {
 	lbs, err := awsAdapter.FindManagedLoadBalancers()
 	if err != nil {
 		return err

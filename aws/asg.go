@@ -1,7 +1,6 @@
 package aws
 
 import (
-	"errors"
 	"fmt"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/autoscaling"
@@ -16,11 +15,6 @@ type autoScalingGroupDetails struct {
 	launchConfigurationName string
 	tags                    map[string]string
 }
-
-var (
-	// ErrMissingAutoScalingGroupTag is used to signal that the auto scaling group tag is not present in the list of tags.
-	ErrMissingAutoScalingGroupTag = errors.New(`instance is missing the "` + autoScalingGroupNameTag + `" tag`)
-)
 
 func getAutoScalingGroupByName(service autoscalingiface.AutoScalingAPI, autoScalingGroupName string) (*autoScalingGroupDetails, error) {
 	params := &autoscaling.DescribeAutoScalingGroupsInput{
