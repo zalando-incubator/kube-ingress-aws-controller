@@ -29,7 +29,7 @@ func waitForTerminationSignals(signals ...os.Signal) chan os.Signal {
 
 func loadEnviroment() error {
 	flag.Usage = usage
-	flag.StringVar(&apiServerBaseURL, "api-server-base-url", "http://127.0.0.1:8001", "sets the kubernetes api "+
+	flag.StringVar(&apiServerBaseURL, "api-server-base-url", "", "sets the kubernetes api "+
 		"server base url. if empty will try to use the configuration from the running cluster")
 	flag.DurationVar(&pollingInterval, "polling-interval", 30*time.Second, "sets the polling interval for "+
 		"ingress resources. The flag accepts a value acceptable to time.ParseDuration. Defaults to 30 seconds")
@@ -87,10 +87,8 @@ func main() {
 		if err != nil {
 			log.Fatal(err)
 		}
-		//kubeAdapter, err = kubernetes.NewAdapter(kubernetes.InClusterConfig())
 	} else {
 		kubeConfig = kubernetes.InsecureConfig(apiServerBaseURL)
-		//kubeAdapter, err = kubernetes.NewAdapterWithConfig(kubernetes.InsecureConfig(apiServerBaseURL))
 	}
 	kubeAdapter, err = kubernetes.NewAdapter(kubeConfig)
 	if err != nil {
