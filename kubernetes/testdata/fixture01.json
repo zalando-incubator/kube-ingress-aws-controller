@@ -1,0 +1,31 @@
+{
+  "kind": "IngressList",
+  "apiVersion": "extensions/v1beta1",
+  "metadata": {
+    "selfLink": "/apis/extensions/v1beta1/ingresses",
+    "resourceVersion": "42"
+  },
+  "items": [
+    {
+      "metadata": {
+        "name": "fixture01",
+        "namespace": "default",
+        "selfLink": "/apis/extensions/v1beta1/namespaces/default/ingresses/fixture01",
+        "uid": "fixture01",
+        "resourceVersion": "42",
+        "generation": 1,
+        "creationTimestamp": "2016-11-29T14:53:42Z",
+        "annotations": {
+          "zalando.org/aws-load-balancer-ssl-cert": "fixture01"
+        }
+      },
+      "status": {
+        "loadBalancer": {
+          "ingress": [
+            {"hostname": "example.org"}
+          ]
+        }
+      }
+    }
+  ]
+}

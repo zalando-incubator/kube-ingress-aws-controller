@@ -1,6 +1,7 @@
 package kubernetes
 
 import (
+	"crypto/tls"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -8,6 +9,7 @@ import (
 	"net/http/httptest"
 	"reflect"
 	"testing"
+	"time"
 )
 
 func TestClientGet(t *testing.T) {
@@ -44,8 +46,9 @@ func TestClientGet(t *testing.T) {
 			if baseURL == "" {
 				baseURL = server.URL
 			}
-			c := NewClient(baseURL)
-			r, err := c.Get(test.resource)
+			cfg := &Config{BaseURL: baseURL}
+			c, _ := newSimpleClient(cfg)
+			r, err := c.get(test.resource)
 			if err != nil && !test.wantError {
 				t.Error("got unexpected error", err)
 			}
@@ -109,8 +112,9 @@ func TestClientPatch(t *testing.T) {
 			if baseURL == "" {
 				baseURL = server.URL
 			}
-			c := NewClient(baseURL)
-			r, err := c.Patch(test.resource, test.payload)
+			cfg := &Config{BaseURL: baseURL}
+			c, _ := newSimpleClient(cfg)
+			r, err := c.patch(test.resource, test.payload)
 			if err != nil && !test.wantError {
 				t.Error("got unexpected error", err)
 			}
@@ -126,5 +130,52 @@ func TestClientPatch(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestTLS(t *testing.T) {
+	handler := func(w http.ResponseWriter, r *http.Request) {
+		token := r.Header.Get("Authorization")
+		if token != "Bearer: foo" {
+			t.Errorf(`wrong auth bearer token. wanted "Bearer: foo" but got %q`, token)
+		}
+		buf, err := ioutil.ReadAll(r.Body)
+		if err != nil {
+			t.Error(err)
+		}
+		if string(buf) != "bar" {
+			t.Errorf(`unexpected request body. wanted "bar" but got %q`, string(buf))
+		}
+		w.WriteHeader(http.StatusOK)
+		io.Copy(w, r.Body)
+	}
+	cert, err := tls.LoadX509KeyPair("testdata/cert.pem", "testdata/key.pem")
+	if err != nil {
+		t.Error(err)
+	}
+	certs := []tls.Certificate{cert}
+	server := httptest.NewUnstartedServer(http.HandlerFunc(handler))
+	server.TLS = &tls.Config{Certificates: certs}
+	server.StartTLS()
+	defer server.Close()
+
+	cfg := &Config{
+		BaseURL:         server.URL,
+		UserAgent:       "kube-ingress-aws-controller",
+		BearerToken:     "foo",
+		TLSClientConfig: TLSClientConfig{CAFile: "testdata/cert.pem"},
+		Timeout:         50 * time.Millisecond,
+	}
+
+	c, err := newSimpleClient(cfg)
+	if err != nil {
+		t.Error(err)
+	}
+
+	r, err := c.patch("/foo", []byte("bar"))
+	if err != nil {
+		t.Error(err)
+	} else {
+		defer r.Close()
 	}
 }

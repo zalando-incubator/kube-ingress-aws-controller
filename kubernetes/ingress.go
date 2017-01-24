@@ -4,24 +4,20 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"time"
 )
 
-// IngressList is used to deserialize Kubernete's API resources with the same name.
-type IngressList struct {
+type ingressList struct {
 	Kind       string              `json:"kind"`
 	APIVersion string              `json:"apiVersion"`
 	Metadata   ingressListMetadata `json:"metadata"`
-	Items      []Ingress           `json:"items"`
+	Items      []*ingress          `json:"items"`
 }
 
-// ListMeta is used to deserialize Kubernete's API resources with the same name.
-type listMeta struct {
-	Namespace   string                 `json:"namespace"`
-	Name        string                 `json:"name"`
-	UID         string                 `json:"uid"`
-	Annotations map[string]interface{} `json:"annotations"`
+type ingress struct {
+	Metadata ingressItemMetadata `json:"metadata"`
+	Spec     ingressSpec         `json:"spec"`
+	Status   ingressStatus       `json:"status"`
 }
 
 type ingressListMetadata struct {
@@ -29,15 +25,11 @@ type ingressListMetadata struct {
 	ResourceVersion string `json:"resourceVersion"`
 }
 
-// Ingress is used to deserialize Kubernete's API resources with the same name.
-type Ingress struct {
-	Metadata listMeta      `json:"metadata"`
-	Spec     ingressSpec   `json:"spec"`
-	Status   ingressStatus `json:"status"`
-}
-
 type ingressItemMetadata struct {
-	listMeta
+	Namespace         string                 `json:"namespace"`
+	Name              string                 `json:"name"`
+	UID               string                 `json:"uid"`
+	Annotations       map[string]interface{} `json:"annotations"`
 	SelfLink          string                 `json:"selfLink"`
 	ResourceVersion   string                 `json:"resourceVersion"`
 	Generation        int                    `json:"generation"`
@@ -55,14 +47,14 @@ type ingressItemRule struct {
 }
 
 type ingressStatus struct {
-	LoadBalancer loadBalancerStatus `json:"loadBalancer"`
+	LoadBalancer ingressLoadBalancerStatus `json:"loadBalancer"`
 }
 
-type loadBalancerStatus struct {
-	Ingress []loadBalancerIngress `json:"ingress"`
+type ingressLoadBalancerStatus struct {
+	Ingress []ingressLoadBalancer `json:"ingress"`
 }
 
-type loadBalancerIngress struct {
+type ingressLoadBalancer struct {
 	Hostname string `json:"hostname"`
 }
 
@@ -72,36 +64,15 @@ const (
 	ingressCertificateARNAnnotation = "zalando.org/aws-load-balancer-ssl-cert"
 )
 
-// CertificateARN returns the AWS certificate (IAM or ACM) ARN found in the ingress resource metadata.
-// It returns an empty string if the annotation is missing.
-func (i *Ingress) CertificateARN() string {
-	return i.getMetadataString(ingressCertificateARNAnnotation, "")
-}
-
-// String returns a string representation of the Ingress resource.
-func (i Ingress) String() string {
-	return fmt.Sprintf("%s/%s", i.Metadata.Namespace, i.Metadata.Name)
-}
-
-// Hostname returns the DNS hostname already associated with the ingress. If not currently associated with any
-// load balancer the result is an empty string
-func (i *Ingress) Hostname() string {
-	if len(i.Status.LoadBalancer.Ingress) < 1 {
-		return ""
-	}
-	return i.Status.LoadBalancer.Ingress[0].Hostname
-}
-
-func (i *Ingress) getMetadataString(key string, defaultValue string) string {
+func (i *ingress) getAnnotationsString(key string, defaultValue string) string {
 	if val, ok := i.Metadata.Annotations[key].(string); ok {
 		return val
 	}
 	return defaultValue
 }
 
-// ListIngress can be used to obtain the list of ingress resources for all namespaces.
-func ListIngress(client *Client) (*IngressList, error) {
-	r, err := client.Get(ingressListResource)
+func listIngress(c client) (*ingressList, error) {
+	r, err := c.get(ingressListResource)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get ingress list: %v", err)
 	}
@@ -113,7 +84,7 @@ func ListIngress(client *Client) (*IngressList, error) {
 		return nil, err
 	}
 
-	var result IngressList
+	var result ingressList
 	if err := json.Unmarshal(b, &result); err != nil {
 		return nil, err
 	}
@@ -125,39 +96,32 @@ type patchIngressStatus struct {
 	Status ingressStatus `json:"status"`
 }
 
-// UpdateIngressLoaBalancer can be used to update the loadBalancer object of an ingress resource using the lb DNS name.
-func UpdateIngressLoaBalancer(client *Client, ingresses []Ingress, loadBalancerDNSName string) []error {
+func updateIngressLoadBalancer(c client, i *ingress, newHostName string) error {
+	ns, name := i.Metadata.Namespace, i.Metadata.Name
+	for _, ingressLb := range i.Status.LoadBalancer.Ingress {
+		if ingressLb.Hostname == newHostName {
+			return ErrUpdateNotNeeded
+		}
+	}
+
 	patchStatus := patchIngressStatus{
 		Status: ingressStatus{
-			LoadBalancer: loadBalancerStatus{
-				Ingress: []loadBalancerIngress{
-					{Hostname: loadBalancerDNSName},
-				},
+			LoadBalancer: ingressLoadBalancerStatus{
+				Ingress: []ingressLoadBalancer{{Hostname: newHostName}},
 			},
 		},
 	}
 
-	var errors []error
-	for _, ingress := range ingresses {
-		ns, name := ingress.Metadata.Namespace, ingress.Metadata.Name
-		hostname := ingress.Hostname()
-		if hostname == loadBalancerDNSName {
-			log.Printf("ingress %v already has hostname %q. skipping update", ingress, hostname)
-			continue
-		}
-		resource := fmt.Sprintf(ingressPatchStatusResource, ns, name)
-		payload, err := json.Marshal(patchStatus)
-		if err != nil {
-			return []error{err}
-		}
-
-		r, err := client.Patch(resource, payload)
-		if err != nil {
-			errors = append(errors, fmt.Errorf("failed to patch ingress %s/%s = %q. %v", ns, name, hostname, err))
-		} else {
-			log.Printf("updated ingress %v with DNS name %q\n", ingress, loadBalancerDNSName)
-		}
-		r.Close() // discard response
+	resource := fmt.Sprintf(ingressPatchStatusResource, ns, name)
+	payload, err := json.Marshal(patchStatus)
+	if err != nil {
+		return err
 	}
-	return errors
+
+	r, err := c.patch(resource, payload)
+	if err != nil {
+		return fmt.Errorf("failed to patch ingress %s/%s = %q: %v", ns, name, newHostName, err)
+	}
+	defer r.Close()
+	return nil
 }
