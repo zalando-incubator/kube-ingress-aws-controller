@@ -136,7 +136,7 @@ func TestClientPatch(t *testing.T) {
 func TestTLS(t *testing.T) {
 	handler := func(w http.ResponseWriter, r *http.Request) {
 		token := r.Header.Get("Authorization")
-		if token != "Bearer: foo" {
+		if token != "Bearer foo" {
 			t.Errorf(`wrong auth bearer token. wanted "Bearer: foo" but got %q`, token)
 		}
 		buf, err := ioutil.ReadAll(r.Body)

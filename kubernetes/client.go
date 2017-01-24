@@ -120,7 +120,7 @@ func (c *simpleClient) createRequest(method, resource string, body io.Reader) (*
 		req.Header.Set("User-Agent", c.cfg.UserAgent)
 	}
 	if c.cfg.BearerToken != "" {
-		req.Header.Set("Authorization", "Bearer: "+c.cfg.BearerToken)
+		req.Header.Set("Authorization", "Bearer "+c.cfg.BearerToken)
 	}
 	return req, nil
 }
