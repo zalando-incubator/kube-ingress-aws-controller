@@ -33,6 +33,8 @@ type manifest struct {
 	publicSubnets    []*subnetDetails
 }
 
+type configProviderFunc func() client.ConfigProvider
+
 const (
 	clusterIDTag = "ClusterID"
 	nameTag      = "Name"
@@ -51,25 +53,29 @@ var (
 	ErrNoSubnets = errors.New("unable to find VPC subnets")
 	// ErrMissingAutoScalingGroupTag is used to signal that the auto scaling group tag is not present in the list of tags.
 	ErrMissingAutoScalingGroupTag = errors.New(`instance is missing the "` + autoScalingGroupNameTag + `" tag`)
+	// ErrNoRunningInstances is used to signal that no instances were found in the running state
+	ErrNoRunningInstances = errors.New("no reservations or instances in the running state matched the DescribeInstances request")
 )
+
+var configProvider = defaultConfigProvider
+
+func defaultConfigProvider() client.ConfigProvider {
+	return session.Must(session.NewSession())
+}
 
 // NewAdapter returns a new Adapter that can be used to orchestrate and obtain information from Amazon Web Services.
 // Before returning there is a discovery process for VPC and EC2 details. It tries to find the TargetGroup and
 // Security Group that should be used for newly created LoadBalancers. If any of those critical steps fail
 // an appropriate error is returned.
-func NewAdapter(healthCheckPath string, healthCheckPort uint16) (*Adapter, error) {
-	p := session.Must(session.NewSession())
-	return newAdapterWithCfgProvider(p, healthCheckPath, healthCheckPort)
-}
-
-func newAdapterWithCfgProvider(p client.ConfigProvider, path string, port uint16) (adapter *Adapter, err error) {
+func NewAdapter(healthCheckPath string, healthCheckPort uint16) (adapter *Adapter, err error) {
+	p := configProvider()
 	adapter = &Adapter{
 		elbv2:           elbv2.New(p),
 		ec2:             ec2.New(p),
 		ec2metadata:     ec2metadata.New(p),
 		autoscaling:     autoscaling.New(p),
-		healthCheckPath: path,
-		healthCheckPort: port,
+		healthCheckPath: healthCheckPath,
+		healthCheckPort: healthCheckPort,
 	}
 
 	adapter.manifest, err = buildManifest(adapter)
@@ -258,7 +264,7 @@ func (a *Adapter) DeleteLoadBalancer(loadBalancer *LoadBalancer) error {
 }
 
 func getNameTag(tags map[string]string) (string, error) {
-	if name, err := getTag(tags, "Name"); err == nil {
+	if name, err := getTag(tags, nameTag); err == nil {
 		return name, nil
 	}
 	return "<no name tag>", ErrMissingNameTag

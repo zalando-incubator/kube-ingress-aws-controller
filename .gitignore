@@ -30,3 +30,5 @@ _testmain.go
 /scm-source.json
 build/
 Dockerfile.upstream
+/.GOPATH
+/bin
