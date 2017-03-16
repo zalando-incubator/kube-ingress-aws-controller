@@ -2,11 +2,12 @@ package aws
 
 import (
 	"fmt"
-	"github.com/aws/aws-sdk-go/service/elbv2"
-	"github.com/aws/aws-sdk-go/service/elbv2/elbv2iface"
-	"github.com/jtblin/aws-mock-metadata/Godeps/_workspace/src/github.com/aws/aws-sdk-go/aws"
 	"reflect"
 	"testing"
+
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/service/elbv2"
+	"github.com/aws/aws-sdk-go/service/elbv2/elbv2iface"
 )
 
 func mockSpec(name, certARN, clusterID string) createLoadBalancerSpec {
