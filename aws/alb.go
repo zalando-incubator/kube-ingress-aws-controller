@@ -39,7 +39,7 @@ func (lb *LoadBalancer) DNSName() string {
 }
 
 func (lb *LoadBalancer) CertificateARN() string {
-	if lb.listeners == nil && lb.listeners.https != nil {
+	if lb.listeners == nil || lb.listeners.https == nil {
 		return ""
 	}
 	return lb.listeners.https.certificateARN
