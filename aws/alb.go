@@ -17,10 +17,10 @@ import (
 
 // LoadBalancer is a simple wrapper around an AWS Load Balancer details.
 type LoadBalancer struct {
-	name     string
-	arn      string
-	dnsName  string
-	listener *loadBalancerListener
+	name      string
+	arn       string
+	dnsName   string
+	listeners *loadBalancerListeners
 }
 
 // Name returns the load balancer friendly name.
@@ -39,17 +39,22 @@ func (lb *LoadBalancer) DNSName() string {
 }
 
 func (lb *LoadBalancer) CertificateARN() string {
-	if lb.listener == nil {
+	if lb.listeners == nil || lb.listeners.https == nil {
 		return ""
 	}
-	return lb.listener.certificateARN
+	return lb.listeners.https.certificateARN
+}
+
+type loadBalancerListeners struct {
+	http           *loadBalancerListener
+	https          *loadBalancerListener
+	targetGroupARN string
 }
 
 type loadBalancerListener struct {
 	port           int64
 	arn            string
 	certificateARN string
-	targetGroupARN string
 }
 
 const (
@@ -137,17 +142,26 @@ func createLoadBalancer(svc elbv2iface.ELBV2API, spec *createLoadBalancerSpec) (
 	newLoadBalancer := resp.LoadBalancers[0]
 	loadBalancerARN := aws.StringValue(newLoadBalancer.LoadBalancerArn)
 	targetGroupARN, err := createDefaultTargetGroup(svc, name, spec.vpcID, spec.healthCheck)
-	newListener, err := createListener(svc, loadBalancerARN, targetGroupARN, spec.certificateARN)
+	newHTTPSListener, err := createListener(svc, loadBalancerARN, targetGroupARN, 443, elbv2.ProtocolEnumHttps, spec.certificateARN)
+	if err != nil {
+		// TODO: delete just created LB?
+		return nil, err
+	}
+	newHTTPListener, err := createListener(svc, loadBalancerARN, targetGroupARN, 80, elbv2.ProtocolEnumHttp, "")
 	if err != nil {
 		// TODO: delete just created LB?
 		return nil, err
 	}
 
 	return &LoadBalancer{
-		arn:      loadBalancerARN,
-		name:     name,
-		dnsName:  aws.StringValue(newLoadBalancer.DNSName),
-		listener: newListener,
+		arn:     loadBalancerARN,
+		name:    name,
+		dnsName: aws.StringValue(newLoadBalancer.DNSName),
+		listeners: &loadBalancerListeners{
+			https:          newHTTPSListener,
+			http:           newHTTPListener,
+			targetGroupARN: targetGroupARN,
+		},
 	}, nil
 }
 
@@ -202,16 +216,22 @@ func createDefaultTargetGroup(alb elbv2iface.ELBV2API, name string, vpcID string
 	return aws.StringValue(resp.TargetGroups[0].TargetGroupArn), nil
 }
 
-func createListener(alb elbv2iface.ELBV2API, loadBalancerARN string, targetGroupARN string, certificateARN string) (*loadBalancerListener, error) {
-	params := &elbv2.CreateListenerInput{
-		Certificates: []*elbv2.Certificate{
+func createListener(alb elbv2iface.ELBV2API, loadBalancerARN string, targetGroupARN string, port int64, protocol string, certificateARN string) (*loadBalancerListener, error) {
+	var certificates []*elbv2.Certificate
+
+	if protocol == elbv2.ProtocolEnumHttps {
+		certificates = []*elbv2.Certificate{
 			{
 				CertificateArn: aws.String(certificateARN),
 			},
-		},
+		}
+	}
+
+	params := &elbv2.CreateListenerInput{
+		Certificates:    certificates,
 		LoadBalancerArn: aws.String(loadBalancerARN),
-		Port:            aws.Int64(443),
-		Protocol:        aws.String(elbv2.ProtocolEnumHttps),
+		Port:            aws.Int64(port),
+		Protocol:        aws.String(protocol),
 		DefaultActions: []*elbv2.Action{
 			{
 				TargetGroupArn: aws.String(targetGroupARN),
@@ -232,7 +252,6 @@ func createListener(alb elbv2iface.ELBV2API, loadBalancerARN string, targetGroup
 		arn:            aws.StringValue(l.ListenerArn),
 		port:           aws.Int64Value(l.Port),
 		certificateARN: certificateARN,
-		targetGroupARN: targetGroupARN,
 	}, nil
 }
 
@@ -284,10 +303,12 @@ func findManagedLoadBalancers(svc elbv2iface.ELBV2API, clusterID string) ([]*Loa
 						name:    aws.StringValue(lb.LoadBalancerName),
 						dnsName: aws.StringValue(lb.DNSName),
 						arn:     aws.StringValue(td.ResourceArn),
-						listener: &loadBalancerListener{
-							port:           aws.Int64Value(listener.Port),
-							arn:            aws.StringValue(listener.ListenerArn),
-							certificateARN: certARN,
+						listeners: &loadBalancerListeners{
+							https: &loadBalancerListener{
+								port:           aws.Int64Value(listener.Port),
+								arn:            aws.StringValue(listener.ListenerArn),
+								certificateARN: certARN,
+							},
 							targetGroupARN: aws.StringValue(listener.DefaultActions[0].TargetGroupArn),
 						},
 					})
