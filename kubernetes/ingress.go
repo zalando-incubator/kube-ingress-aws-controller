@@ -61,6 +61,7 @@ type ingressLoadBalancer struct {
 const (
 	ingressListResource             = "/apis/extensions/v1beta1/ingresses"
 	ingressPatchStatusResource      = "/apis/extensions/v1beta1/namespaces/%s/ingresses/%s/status"
+	ingressPatchResource            = "/apis/extensions/v1beta1/namespaces/%s/ingresses/%s"
 	ingressCertificateARNAnnotation = "zalando.org/aws-load-balancer-ssl-cert"
 )
 
@@ -121,6 +122,31 @@ func updateIngressLoadBalancer(c client, i *ingress, newHostName string) error {
 	r, err := c.patch(resource, payload)
 	if err != nil {
 		return fmt.Errorf("failed to patch ingress %s/%s = %q: %v", ns, name, newHostName, err)
+	}
+	defer r.Close()
+	return nil
+}
+
+func updateIngressARN(c client, i *ingress, arn string) error {
+	ns, name := i.Metadata.Namespace, i.Metadata.Name
+
+	patchMetadataARN := ingress{
+		Metadata: ingressItemMetadata{
+			Annotations: map[string]interface{}{
+				ingressCertificateARNAnnotation: arn,
+			},
+		},
+	}
+
+	resource := fmt.Sprintf(ingressPatchResource, ns, name)
+	payload, err := json.Marshal(patchMetadataARN)
+	if err != nil {
+		return err
+	}
+
+	r, err := c.patch(resource, payload)
+	if err != nil {
+		return fmt.Errorf("failed to patch ingress %s/%s = %q: %v", ns, name, arn, err)
 	}
 	defer r.Close()
 	return nil

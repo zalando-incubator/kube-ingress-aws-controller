@@ -16,6 +16,9 @@ var (
 	// ErrInvalidIngressUpdateParams is returned when a request to update ingress resources has an empty DNS name
 	// or doesn't specify any ingress resources
 	ErrInvalidIngressUpdateParams = errors.New("invalid ingress update parameters")
+	// ErrInvalidIngressUpdateARNParams is returned when a request to update ingress resources has an empty ARN
+	// or doesn't specify any ingress resources
+	ErrInvalidIngressUpdateARNParams = errors.New("invalid ingress updateARN parameters")
 	// ErrUpdateNotNeeded is returned when an ingress update call doesn't require an update due to already having
 	// the desired hostname
 	ErrUpdateNotNeeded = errors.New("update to ingress resource not needed")
@@ -26,11 +29,12 @@ var (
 	ErrInvalidCertificates = errors.New("invalid CA certificates")
 )
 
+// Ingress
 type Ingress struct {
 	certificateARN string
 	namespace      string
 	name           string
-	hostName       string
+	hostName       string // limitation: 1 Ingress --- 1 hostName
 }
 
 // CertificateARN returns the AWS certificate (IAM or ACM) ARN found in the ingress resource metadata.
@@ -49,6 +53,21 @@ func (i *Ingress) Hostname() string {
 	return i.hostName
 }
 
+// SetCertificateARN sets Ingress.certificateARN to the arn as specified.
+func (i *Ingress) SetCertificateARN(arn string) {
+	i.certificateARN = arn
+}
+
+// newIngressFromKube has the kubernetes ingress as input parameter
+// and finds the first matching LB hostname for it and creates an
+// Ingress object as response.
+//
+// TODO: fix limitation
+//
+// limitation:
+//
+//    1 ingress --- n Host
+//    1 Ingress --- 1 hostName
 func newIngressFromKube(kubeIngress *ingress) *Ingress {
 	var host string
 	for _, ingressLoadBalancer := range kubeIngress.Status.LoadBalancer.Ingress {
@@ -99,13 +118,13 @@ func NewAdapter(config *Config) (*Adapter, error) {
 
 // ListIngress can be used to obtain the list of ingress resources for all namespaces.
 func (a *Adapter) ListIngress() ([]*Ingress, error) {
-	il, err := listIngress(a.kubeClient)
+	il, err := listIngress(a.kubeClient) // Kubernetes ingress
 	if err != nil {
 		return nil, err
 	}
 	ret := make([]*Ingress, len(il.Items))
 	for i, ingress := range il.Items {
-		ret[i] = newIngressFromKube(ingress)
+		ret[i] = newIngressFromKube(ingress) // simplified Ingress
 	}
 	return ret, nil
 }
@@ -118,4 +137,14 @@ func (a *Adapter) UpdateIngressLoadBalancer(ingress *Ingress, loadBalancerDNSNam
 	}
 
 	return updateIngressLoadBalancer(a.kubeClient, newIngressForKube(ingress), loadBalancerDNSName)
+}
+
+// UpdateIngressARN can be used to update the ARN of the Kubernetes
+// ingress object to the ARN of the Ingress object.
+func (a *Adapter) UpdateIngressARN(ingress *Ingress) error {
+	if ingress == nil || ingress.CertificateARN() == "" {
+		return ErrInvalidIngressUpdateARNParams
+	}
+
+	return updateIngressARN(a.kubeClient, newIngressForKube(ingress), ingress.CertificateARN())
 }
