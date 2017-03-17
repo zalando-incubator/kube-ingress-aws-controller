@@ -164,7 +164,7 @@ func TestTLS(t *testing.T) {
 		UserAgent:       "kube-ingress-aws-controller",
 		BearerToken:     "foo",
 		TLSClientConfig: TLSClientConfig{CAFile: "testdata/cert.pem"},
-		Timeout:         50 * time.Millisecond,
+		Timeout:         5 * time.Second,
 	}
 
 	c, err := newSimpleClient(cfg)

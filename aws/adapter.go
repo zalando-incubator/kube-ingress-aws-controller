@@ -169,7 +169,7 @@ func (a *Adapter) CreateLoadBalancer(certificateARN string) (*LoadBalancer, erro
 		return nil, err
 	}
 
-	if err := attachTargetGroupToAutoScalingGroup(a.autoscaling, lb.listener.targetGroupARN, a.AutoScalingGroupName()); err != nil {
+	if err := attachTargetGroupToAutoScalingGroup(a.autoscaling, lb.listeners.targetGroupARN, a.AutoScalingGroupName()); err != nil {
 		// TODO: delete previously created load balancer?
 		return nil, err
 	}
@@ -243,13 +243,25 @@ func buildManifest(awsAdapter *Adapter) (*manifest, error) {
 }
 
 func (a *Adapter) DeleteLoadBalancer(loadBalancer *LoadBalancer) error {
-	if err := deleteListener(a.elbv2, loadBalancer.listener.arn); err != nil {
-		return err
+	targetGroupARN := loadBalancer.listeners.targetGroupARN
+	if loadBalancer.listeners.https != nil {
+		if err := deleteListener(a.elbv2, loadBalancer.listeners.https.arn); err != nil {
+			return err
+		}
+
+		if err := detachTargetGroupFromAutoScalingGroup(a.autoscaling, targetGroupARN, a.manifest.autoScalingGroup.name); err != nil {
+			return err
+		}
 	}
 
-	targetGroupARN := loadBalancer.listener.targetGroupARN
-	if err := detachTargetGroupFromAutoScalingGroup(a.autoscaling, loadBalancer.listener.targetGroupARN, a.manifest.autoScalingGroup.name); err != nil {
-		return err
+	if loadBalancer.listeners.http != nil {
+		if err := deleteListener(a.elbv2, loadBalancer.listeners.http.arn); err != nil {
+			return err
+		}
+
+		if err := detachTargetGroupFromAutoScalingGroup(a.autoscaling, targetGroupARN, a.manifest.autoScalingGroup.name); err != nil {
+			return err
+		}
 	}
 
 	if err := deleteTargetGroup(a.elbv2, targetGroupARN); err != nil {
