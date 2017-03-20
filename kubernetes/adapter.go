@@ -3,6 +3,7 @@ package kubernetes
 import (
 	"errors"
 	"fmt"
+	"log"
 )
 
 type Adapter struct {
@@ -35,6 +36,7 @@ type Ingress struct {
 	namespace      string
 	name           string
 	hostName       string // limitation: 1 Ingress --- 1 hostName
+	ruleHostname   string
 }
 
 // CertificateARN returns the AWS certificate (IAM or ACM) ARN found in the ingress resource metadata.
@@ -45,12 +47,19 @@ func (i *Ingress) CertificateARN() string {
 
 // String returns a string representation of the Ingress instance containing the namespace and the resource name.
 func (i *Ingress) String() string {
-	return fmt.Sprintf("%s/%s", i.namespace, i.name)
+	return fmt.Sprintf("%s/%s -> %s", i.namespace, i.name, i.ruleHostname)
 }
 
-// Hostname returns the DNS hostname associated with the ingress
+// Hostname returns the DNS LoadBalancer hostname associated with the
+// ingress got from Kubernetes Status
 func (i *Ingress) Hostname() string {
 	return i.hostName
+}
+
+// CertHostname returns the DNS hostname associated with the ingress
+// got from Kubernetes Spec
+func (i *Ingress) CertHostname() string {
+	return i.ruleHostname
 }
 
 // SetCertificateARN sets Ingress.certificateARN to the arn as specified.
@@ -69,10 +78,18 @@ func (i *Ingress) SetCertificateARN(arn string) {
 //    1 ingress --- n Host
 //    1 Ingress --- 1 hostName
 func newIngressFromKube(kubeIngress *ingress) *Ingress {
-	var host string
+	var host, certHostname string
 	for _, ingressLoadBalancer := range kubeIngress.Status.LoadBalancer.Ingress {
 		if ingressLoadBalancer.Hostname != "" {
 			host = ingressLoadBalancer.Hostname
+			break
+		}
+	}
+
+	for _, rule := range kubeIngress.Spec.Rules {
+		log.Printf("TRACE: ingress spec rule: %+v", rule)
+		if rule.Host != "" {
+			certHostname = rule.Host
 			break
 		}
 	}
@@ -82,6 +99,7 @@ func newIngressFromKube(kubeIngress *ingress) *Ingress {
 		namespace:      kubeIngress.Metadata.Namespace,
 		name:           kubeIngress.Metadata.Name,
 		hostName:       host,
+		ruleHostname:   certHostname,
 	}
 }
 
@@ -99,6 +117,18 @@ func newIngressForKube(i *Ingress) *ingress {
 				Ingress: []ingressLoadBalancer{
 					{Hostname: i.hostName},
 				},
+			},
+		},
+	}
+}
+
+func newIngressMetadataForKube(i *Ingress) *ingress {
+	return &ingress{
+		Metadata: ingressItemMetadata{
+			Namespace: i.namespace,
+			Name:      i.name,
+			Annotations: map[string]interface{}{
+				ingressCertificateARNAnnotation: i.certificateARN,
 			},
 		},
 	}
@@ -133,6 +163,7 @@ func (a *Adapter) ListIngress() ([]*Ingress, error) {
 // the hostname property with the provided load balancer DNS name.
 func (a *Adapter) UpdateIngressLoadBalancer(ingress *Ingress, loadBalancerDNSName string) error {
 	if ingress == nil || loadBalancerDNSName == "" {
+		log.Printf("TRACE: UpdateIngressLoadBalancer invalid params")
 		return ErrInvalidIngressUpdateParams
 	}
 
@@ -143,8 +174,9 @@ func (a *Adapter) UpdateIngressLoadBalancer(ingress *Ingress, loadBalancerDNSNam
 // ingress object to the ARN of the Ingress object.
 func (a *Adapter) UpdateIngressARN(ingress *Ingress) error {
 	if ingress == nil || ingress.CertificateARN() == "" {
+		log.Printf("TRACE: UpdateIngressARN invalid params")
 		return ErrInvalidIngressUpdateARNParams
 	}
 
-	return updateIngressARN(a.kubeClient, newIngressForKube(ingress), ingress.CertificateARN())
+	return updateIngressARN(a.kubeClient, newIngressMetadataForKube(ingress), ingress.CertificateARN())
 }

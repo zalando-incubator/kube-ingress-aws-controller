@@ -8,6 +8,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws/ec2metadata"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/acm"
+	"github.com/aws/aws-sdk-go/service/acm/acmiface"
 	"github.com/aws/aws-sdk-go/service/autoscaling"
 	"github.com/aws/aws-sdk-go/service/autoscaling/autoscalingiface"
 	"github.com/aws/aws-sdk-go/service/ec2"
@@ -25,7 +26,7 @@ type Adapter struct {
 	manifest        *manifest
 	healthCheckPath string
 	healthCheckPort uint16
-	acm             *acm.ACM
+	acm             acmiface.ACMAPI
 }
 
 type manifest struct {

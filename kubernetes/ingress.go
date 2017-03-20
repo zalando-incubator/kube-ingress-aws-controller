@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"time"
 )
 
@@ -34,7 +35,7 @@ type ingressItemMetadata struct {
 	ResourceVersion   string                 `json:"resourceVersion"`
 	Generation        int                    `json:"generation"`
 	CreationTimestamp time.Time              `json:"creationTimestamp"`
-	DeletionTimestamp time.Time              `json:"deletionTimestamp"`
+	DeletionTimestamp time.Time              `json:"deletionTimestamp,omitempty"`
 	Labels            map[string]interface{} `json:"labels"`
 }
 
@@ -127,22 +128,32 @@ func updateIngressLoadBalancer(c client, i *ingress, newHostName string) error {
 	return nil
 }
 
+type patchIngressMetadata struct {
+	Metadata ingressItemMetadata `json:"metadata"`
+}
+
 func updateIngressARN(c client, i *ingress, arn string) error {
 	ns, name := i.Metadata.Namespace, i.Metadata.Name
 
-	patchMetadataARN := ingress{
-		Metadata: ingressItemMetadata{
-			Annotations: map[string]interface{}{
-				ingressCertificateARNAnnotation: arn,
-			},
-		},
-	}
+	// Does not work because of "deletionTimestamp" is present
+	// patchMetadataARN := patchIngressMetadata{
+	// 	Metadata: ingressItemMetadata{
+	// 		Name:      i.Metadata.Name,
+	// 		Namespace: i.Metadata.Namespace,
+	// 		Annotations: map[string]interface{}{
+	// 			ingressCertificateARNAnnotation: arn,
+	// 		},
+	// 	},
+	// }
+	payload := []byte(fmt.Sprintf(`{ "metadata": { "name": "%s", "namespace": "%s", "annotations": { "zalando.org/aws-load-balancer-ssl-cert": "%s"}}}`, name, ns, arn))
 
 	resource := fmt.Sprintf(ingressPatchResource, ns, name)
-	payload, err := json.Marshal(patchMetadataARN)
-	if err != nil {
-		return err
-	}
+	// payload, err := json.Marshal(patchMetadataARN)
+	// if err != nil {
+	// 	return err
+	// }
+
+	log.Printf("sent PATCH body: %v", string(payload))
 
 	r, err := c.patch(resource, payload)
 	if err != nil {
