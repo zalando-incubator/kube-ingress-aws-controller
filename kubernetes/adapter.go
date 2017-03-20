@@ -29,7 +29,7 @@ var (
 	ErrInvalidCertificates = errors.New("invalid CA certificates")
 )
 
-// Ingress
+// Ingress is the ingress-controller's business object
 type Ingress struct {
 	certificateARN string
 	namespace      string
