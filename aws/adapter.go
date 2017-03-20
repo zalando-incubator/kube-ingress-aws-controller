@@ -242,20 +242,16 @@ func (a *Adapter) DeleteLoadBalancer(loadBalancer *LoadBalancer) error {
 		if err := deleteListener(a.elbv2, loadBalancer.listeners.https.arn); err != nil {
 			return err
 		}
-
-		if err := detachTargetGroupFromAutoScalingGroup(a.autoscaling, targetGroupARN, a.manifest.autoScalingGroup.name); err != nil {
-			return err
-		}
 	}
 
 	if loadBalancer.listeners.http != nil {
 		if err := deleteListener(a.elbv2, loadBalancer.listeners.http.arn); err != nil {
 			return err
 		}
+	}
 
-		if err := detachTargetGroupFromAutoScalingGroup(a.autoscaling, targetGroupARN, a.manifest.autoScalingGroup.name); err != nil {
-			return err
-		}
+	if err := detachTargetGroupFromAutoScalingGroup(a.autoscaling, targetGroupARN, a.manifest.autoScalingGroup.name); err != nil {
+		return err
 	}
 
 	if err := deleteTargetGroup(a.elbv2, targetGroupARN); err != nil {
