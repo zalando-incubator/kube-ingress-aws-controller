@@ -64,17 +64,22 @@ func doWork(awsAdapter *aws.Adapter, kubeAdapter *kubernetes.Adapter) error {
 	// the same DomainName and SubjectAlternativeNames.
 
 	uniqueARNs := flattenIngressByARN(ingresses)
-
+	log.Printf("TRACE1: %d uniqueARNs: %+v", len(uniqueARNs), uniqueARNs)
 	// all ingresses with Ingress.certificateARN == "" should get lookuped their cert
 	setCertARNsForIngress(uniqueARNs[""], acmCerts)
 	newFlattenedArns := flattenIngressByARN(uniqueARNs[""])
 	// delete all Ingress that we did not found a cert for
 	if ingressesWithoutCert, ok := newFlattenedArns[""]; ok {
+		log.Printf("TRACE: found empty string in newFlattenedArns")
 		for _, i := range ingressesWithoutCert {
 			log.Printf("No matching ACM certificate found ingress: %s and hostname: %s", i, i.CertHostname())
 		}
 		delete(newFlattenedArns, "")
 	}
+	if _, ok := newFlattenedArns[""]; ok {
+		log.Printf("TRACE: empty string in newFlattenedArns should be deleted")
+	}
+
 	log.Printf("found %d ingress resource(s), that had not a certificate ARN", len(ingresses))
 	log.Printf("TRACE: ingress resource(s) after setCertARNsForIngress: %+v", ingresses)
 	for _, ingress := range ingresses {
@@ -84,6 +89,8 @@ func doWork(awsAdapter *aws.Adapter, kubeAdapter *kubernetes.Adapter) error {
 		}
 	}
 
+	log.Printf("TRACE2: %d uniqueARNs: %+v", len(uniqueARNs), uniqueARNs)
+
 	// merge with uniquARNs
 	for k, v := range newFlattenedArns {
 		if _, ok := uniqueARNs[k]; !ok {
@@ -92,8 +99,8 @@ func doWork(awsAdapter *aws.Adapter, kubeAdapter *kubernetes.Adapter) error {
 		}
 		uniqueARNs[k] = append(uniqueARNs[k], v...)
 	}
-
-	log.Printf("TRACE: uniqueARNs: %+v", uniqueARNs)
+	delete(uniqueARNs, "")
+	log.Printf("TRACE3: %d uniqueARNs: %+v", len(uniqueARNs), uniqueARNs)
 
 	// TODO: does not work as I expected
 	missingARNs, existingARNs := filterExistingARNs(awsAdapter, uniqueARNs) // create ingress
