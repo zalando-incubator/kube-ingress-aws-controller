@@ -2,11 +2,8 @@ package aws
 
 import (
 	"errors"
-	"log"
-	"sync"
 	"time"
 
-	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/client"
 	"github.com/aws/aws-sdk-go/aws/ec2metadata"
 	"github.com/aws/aws-sdk-go/aws/session"
@@ -30,6 +27,7 @@ type Adapter struct {
 	healthCheckPath string
 	healthCheckPort uint16
 	acm             acmiface.ACMAPI
+	cc              *certificateCache
 }
 
 type manifest struct {
@@ -43,6 +41,8 @@ type manifest struct {
 const (
 	clusterIDTag = "ClusterID"
 	nameTag      = "Name"
+	// GLOB is used in Glob() and corresponds to the X509 CN/AlternateName wildcard char
+	GLOB = "*"
 )
 
 var (
@@ -58,6 +58,8 @@ var (
 	ErrNoSubnets = errors.New("unable to find VPC subnets")
 	// ErrMissingAutoScalingGroupTag is used to signal that the auto scaling group tag is not present in the list of tags.
 	ErrMissingAutoScalingGroupTag = errors.New(`instance is missing the "` + autoScalingGroupNameTag + `" tag`)
+	// ErrNoMatchingCertificateFound is used if there is no matching ACM certificate found
+	ErrNoMatchingCertificateFound = errors.New("skipper-ingress-controller: no matching ACM certificate found")
 )
 
 // NewAdapter returns a new Adapter that can be used to orchestrate and obtain information from Amazon Web Services.
@@ -78,6 +80,7 @@ func newAdapterWithCfgProvider(p client.ConfigProvider, path string, port uint16
 		healthCheckPath: path,
 		healthCheckPort: port,
 		acm:             acm.New(p),
+		cc:              adapter.NewAcm(certUpdateInterval),
 	}
 
 	adapter.manifest, err = buildManifest(adapter)
@@ -85,8 +88,21 @@ func newAdapterWithCfgProvider(p client.ConfigProvider, path string, port uint16
 		return nil, err
 	}
 
-	adapter.initCertCache(certUpdateInterval)
 	return
+}
+
+func (a *Adapter) NewAcm(certUpdateInterval time.Duration) *certificateCache {
+	cc := NewCertCache(a.acm)
+	cc.InitCertCache(certUpdateInterval)
+	return cc
+}
+
+func (a *Adapter) GetCerts() []*acm.CertificateDetail {
+	return a.cc.GetCachedCerts()
+}
+
+func (a *Adapter) FindBestMatchingCertifcate(certs []*acm.CertificateDetail, hostname string) (*acm.CertificateDetail, error) {
+	return FindBestMatchingCertifcate(certs, hostname)
 }
 
 // StackName returns the Name tag that all resources created by the same CloudFormation stack share. It's taken from
@@ -178,109 +194,6 @@ func (a *Adapter) CreateLoadBalancer(certificateARN string) (*LoadBalancer, erro
 		return nil, err
 	}
 	return lb, nil
-}
-
-type certificateCache struct {
-	sync.Mutex
-	acmCertSummary []*acm.CertificateSummary
-	acmCertDetail  []*acm.CertificateDetail
-}
-
-var cc *certificateCache
-
-func newCertCache() *certificateCache {
-	return &certificateCache{
-		acmCertSummary: make([]*acm.CertificateSummary, 0),
-		acmCertDetail:  make([]*acm.CertificateDetail, 0),
-	}
-}
-
-func (a *Adapter) initCertCache(certUpdateInterval time.Duration) {
-	cc = newCertCache()
-	go func() {
-		for {
-			log.Println("update cert cache")
-			a.updateCertCache()
-			time.Sleep(certUpdateInterval)
-		}
-	}()
-
-}
-
-// TODO(sszuecs): make it successfull when we get AWS rateLimited
-func (a *Adapter) updateCertCache() {
-	certList, err := a.GetCerts()
-	if err != nil {
-		log.Printf("Could not update certificate cache, caused by: %v", err)
-		return
-	}
-
-	certDetails := make([]*acm.CertificateDetail, len(certList), len(certList))
-	for idx, o := range certList {
-		certInput := &acm.DescribeCertificateInput{CertificateArn: o.CertificateArn}
-		certDetail, err := a.acm.DescribeCertificate(certInput)
-		if err != nil {
-			log.Printf("Could not get certificate details from AWS for ARN: %s, caused by: %v", o.CertificateArn, err)
-			return
-		}
-		certDetails[idx] = certDetail.Certificate
-	}
-
-	cc.Lock()
-	cc.acmCertSummary = certList
-	cc.acmCertDetail = certDetails
-	cc.Unlock()
-}
-
-// GetCachedCerts returns a copy of the cached acm Certifcates
-// filtered by CertificateStatuses
-// https://docs.aws.amazon.com/acm/latest/APIReference/API_ListCertificates.html#API_ListCertificates_RequestSyntax
-// no locking is required to access certs.
-func (a *Adapter) GetCachedCerts() []*acm.CertificateDetail {
-	cc.Lock()
-	result := cc.acmCertDetail[:]
-	cc.Unlock()
-	return result
-}
-
-// GetCerts returns a list of acm Certifcates filtered by
-// CertificateStatuses
-// https://docs.aws.amazon.com/acm/latest/APIReference/API_ListCertificates.html#API_ListCertificates_RequestSyntax
-func (a *Adapter) GetCerts() ([]*acm.CertificateSummary, error) {
-	maxItems := aws.Int64(10)
-
-	params := &acm.ListCertificatesInput{
-		CertificateStatuses: []*string{
-			aws.String("ISSUED"), // Required
-		},
-		MaxItems: maxItems,
-	}
-	resp, err := a.acm.ListCertificates(params)
-	if err != nil {
-		return nil, err
-	}
-	certList := resp.CertificateSummaryList
-
-	// more certs if NextToken set in response, use pagination to get more
-	for resp.NextToken != nil {
-		params = &acm.ListCertificatesInput{
-			CertificateStatuses: []*string{
-				aws.String("ISSUED"),
-			},
-			MaxItems:  maxItems,
-			NextToken: resp.NextToken,
-		}
-		resp, err = a.acm.ListCertificates(params)
-		if err != nil {
-			return nil, err
-		}
-
-		for _, cert := range resp.CertificateSummaryList {
-			certList = append(certList, cert)
-		}
-	}
-
-	return certList, nil
 }
 
 func getSubnetIDs(snds []*subnetDetails) []string {

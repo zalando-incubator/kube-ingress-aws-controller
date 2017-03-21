@@ -1,9 +1,7 @@
 package main
 
 import (
-	"errors"
 	"log"
-	"strings"
 	"time"
 
 	"fmt"
@@ -12,16 +10,6 @@ import (
 	"github.com/aws/aws-sdk-go/service/acm"
 	"github.com/zalando-incubator/kube-ingress-aws-controller/aws"
 	"github.com/zalando-incubator/kube-ingress-aws-controller/kubernetes"
-)
-
-const (
-	// GLOB is used in Glob() and corresponds to the X509 CN/AlternateName wildcard char
-	GLOB = "*"
-)
-
-var (
-	// ErrNoMatchingCertificateFound is used if there is no matching ACM certificate found
-	ErrNoMatchingCertificateFound = errors.New("skipper-ingress-controller: no matching ACM certificate found")
 )
 
 func startPolling(awsAdapter *aws.Adapter, kubeAdapter *kubernetes.Adapter, pollingInterval time.Duration) {
@@ -49,7 +37,7 @@ func doWork(awsAdapter *aws.Adapter, kubeAdapter *kubernetes.Adapter) error {
 	log.Printf("found %d ingress resource(s)", len(ingresses))
 	log.Printf("TRACE: ingress resource(s): %+v", ingresses)
 
-	acmCerts := awsAdapter.GetCachedCerts()
+	acmCerts := awsAdapter.GetCerts()
 
 	log.Printf("found %d ACM certificates", len(acmCerts))
 	log.Printf("TRACE: CERTS: %+v", acmCerts) // TODO(sszuecss): drop this
@@ -63,7 +51,7 @@ func doWork(awsAdapter *aws.Adapter, kubeAdapter *kubernetes.Adapter) error {
 	uniqueARNs := flattenIngressByARN(ingresses)
 	log.Printf("TRACE1: %d uniqueARNs: %+v", len(uniqueARNs), uniqueARNs)
 	// all ingresses with Ingress.certificateARN == "" should get lookuped their cert
-	setCertARNsForIngress(uniqueARNs[""], acmCerts)
+	setCertARNsForIngress(awsAdapter, uniqueARNs[""], acmCerts)
 	newFlattenedArns := flattenIngressByARN(uniqueARNs[""])
 	// delete all Ingress that we did not found a cert for
 	if ingressesWithoutCert, ok := newFlattenedArns[""]; ok {
@@ -125,9 +113,9 @@ func doWork(awsAdapter *aws.Adapter, kubeAdapter *kubernetes.Adapter) error {
 	return nil
 }
 
-func setCertARNsForIngress(ingresses []*kubernetes.Ingress, certs []*acm.CertificateDetail) error {
+func setCertARNsForIngress(awsAdapter *aws.Adapter, ingresses []*kubernetes.Ingress, certs []*acm.CertificateDetail) error {
 	for _, ing := range ingresses {
-		acmCert, err := FindBestMatchingCertifcate(certs, ing.CertHostname())
+		acmCert, err := awsAdapter.FindBestMatchingCertifcate(certs, ing.CertHostname())
 		if err != nil {
 			log.Printf("No matching Certificate found for hostname: %s", ing.CertHostname())
 			continue
@@ -216,77 +204,4 @@ func deleteOrphanedLoadBalancers(awsAdapter *aws.Adapter, ingresses []*kubernete
 		}
 	}
 	return nil
-}
-
-// FindBestMatchingCertifcate get all ACM certifcates and use a suffix
-// search best match opertion in order to find the best matching
-// certifcate ARN.
-func FindBestMatchingCertifcate(certs []*acm.CertificateDetail, hostname string) (*acm.CertificateDetail, error) {
-	candidates := map[int]*acm.CertificateDetail{}
-	longestGlob := -1
-
-	for _, cert := range certs {
-		if Glob(awssdk.StringValue(cert.DomainName), hostname) {
-			l := len(awssdk.StringValue(cert.DomainName))
-			if longestGlob < l {
-				longestGlob = l
-				candidates[l] = cert
-			} else if longestGlob == l {
-				// TODO: check cert details https://github.bus.zalan.do/teapot/issues/issues/315
-
-			}
-		}
-	}
-
-	if longestGlob == -1 {
-		return nil, ErrNoMatchingCertificateFound
-	}
-	return candidates[longestGlob], nil
-}
-
-// modified version of https://github.com/ryanuber/go-glob/blob/master/glob.go (MIT licensed)
-func Glob(pattern, subj string) bool {
-	// Empty pattern can only match empty subject
-	if pattern == "" {
-		return subj == pattern
-	}
-
-	// If the pattern _is_ a glob, it matches everything
-	if pattern == GLOB {
-		return true
-	}
-
-	parts := strings.Split(pattern, GLOB)
-
-	if len(parts) == 1 {
-		// No globs in pattern, so test for equality
-		return subj == pattern
-	}
-
-	leadingGlob := strings.HasPrefix(pattern, GLOB)
-	end := len(parts) - 1
-
-	// Go over the leading parts and ensure they match.
-	for i := 0; i < end; i++ {
-		idx := strings.Index(subj, parts[i])
-
-		switch i {
-		case 0:
-			// Check the first section. Requires special handling.
-			if !leadingGlob && idx != 0 {
-				return false
-			}
-		default:
-			// Check that the middle parts match.
-			if idx < 0 {
-				return false
-			}
-		}
-
-		// Trim evaluated text from subj as we loop over the pattern.
-		subj = subj[idx+len(parts[i]):]
-	}
-
-	// Reached the last section. Requires special handling.
-	return strings.HasSuffix(subj, parts[end])
 }
