@@ -61,6 +61,8 @@ type loadBalancerListener struct {
 const (
 	kubernetesCreatorTag   = "kubernetes:application"
 	kubernetesCreatorValue = "kube-ingress-aws-controller"
+	httpListenerPort       = 80
+	httpsListenerPort      = 443
 )
 
 func findManagedLBWithCertificateID(elbv2 elbv2iface.ELBV2API, clusterID string, certificateARN string) (*LoadBalancer, error) {
@@ -135,12 +137,12 @@ func createLoadBalancer(svc elbv2iface.ELBV2API, spec *createLoadBalancerSpec) (
 		return nil, err
 	}
   
-	newHTTPSListener, err := createListener(svc, loadBalancerARN, targetGroupARN, 443, elbv2.ProtocolEnumHttps, spec.certificateARN)
+	newHTTPSListener, err := createListener(svc, loadBalancerARN, targetGroupARN, httpsListenerPort, elbv2.ProtocolEnumHttps, spec.certificateARN)
 	if err != nil {
 		return nil, err
 	}
-  
-	newHTTPListener, err := createListener(svc, loadBalancerARN, targetGroupARN, 80, elbv2.ProtocolEnumHttp, "")
+
+  newHTTPListener, err := createListener(svc, loadBalancerARN, targetGroupARN, httpListenerPort, elbv2.ProtocolEnumHttp, "")
 	if err != nil {
 		return nil, err
 	}
@@ -301,8 +303,9 @@ func findManagedLoadBalancers(svc elbv2iface.ELBV2API, clusterID string) ([]*Loa
 					log.Printf("load balancer %q doesn't have the default target group", loadBalancerARN)
 					continue
 				}
+
 				if aws.StringValue(lb.LoadBalancerArn) == loadBalancerARN {
-					loadBalancers = append(loadBalancers, &LoadBalancer{
+					lb := &LoadBalancer{
 						name:    aws.StringValue(lb.LoadBalancerName),
 						dnsName: aws.StringValue(lb.DNSName),
 						arn:     aws.StringValue(td.ResourceArn),
@@ -314,9 +317,18 @@ func findManagedLoadBalancers(svc elbv2iface.ELBV2API, clusterID string) ([]*Loa
 							},
 							targetGroupARN: aws.StringValue(listener.DefaultActions[0].TargetGroupArn),
 						},
-					})
-				}
+					}
 
+					httpListener := findHTTPListener(listeners)
+					if httpListener != nil {
+						lb.listeners.http = &loadBalancerListener{
+							port: aws.Int64Value(httpListener.Port),
+							arn:  aws.StringValue(httpListener.ListenerArn),
+						}
+					}
+
+					loadBalancers = append(loadBalancers, lb)
+				}
 			}
 		}
 	}
@@ -344,6 +356,17 @@ func findFirstListenerWithAnyCertificate(listeners []*elbv2.Listener) (*elbv2.Li
 		}
 	}
 	return nil, ""
+}
+
+// finds HTTP listener from a list of listeners based on port and protocol.
+func findHTTPListener(listeners []*elbv2.Listener) *elbv2.Listener {
+	for _, l := range listeners {
+		if aws.Int64Value(l.Port) == httpListenerPort &&
+			aws.StringValue(l.Protocol) == elbv2.ProtocolEnumHttp {
+			return l
+		}
+	}
+	return nil
 }
 
 func isManagedLoadBalancer(tags map[string]string, clusterID string) bool {
