@@ -15,10 +15,11 @@ import (
 )
 
 var (
-	apiServerBaseURL string
-	pollingInterval  time.Duration
-	healthCheckPath  string
-	healthCheckPort  uint
+	apiServerBaseURL    string
+	pollingInterval     time.Duration
+	certPollingInterval time.Duration
+	healthCheckPath     string
+	healthCheckPort     uint
 )
 
 func waitForTerminationSignals(signals ...os.Signal) chan os.Signal {
@@ -33,6 +34,8 @@ func loadEnviroment() error {
 		"server base url. if empty will try to use the configuration from the running cluster")
 	flag.DurationVar(&pollingInterval, "polling-interval", 30*time.Second, "sets the polling interval for "+
 		"ingress resources. The flag accepts a value acceptable to time.ParseDuration. Defaults to 30 seconds")
+	flag.DurationVar(&certPollingInterval, "cert-polling-interval", 30*time.Minute, "sets the polling interval for "+
+		"ACM resources. The flag accepts a value acceptable to time.ParseDuration. Defaults to 30 minutes")
 	flag.StringVar(&healthCheckPath, "health-check-path", "/kube-system/healthz", "sets the health check path "+
 		"for the created target groups")
 	flag.UintVar(&healthCheckPort, "health-check-port", 9999, "sets the health check port for the created "+
@@ -49,6 +52,14 @@ func loadEnviroment() error {
 			return err
 		}
 		pollingInterval = interval
+	}
+
+	if tmp, defined := os.LookupEnv("CERT_POLLING_INTERVAL"); defined {
+		interval, err := time.ParseDuration(tmp)
+		if err != nil || interval <= 0 {
+			return err
+		}
+		certPollingInterval = interval
 	}
 
 	if healthCheckPort == 0 || healthCheckPort > 1<<16-1 {
@@ -77,7 +88,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	awsAdapter, err = aws.NewAdapter(healthCheckPath, uint16(healthCheckPort))
+	awsAdapter, err = aws.NewAdapter(healthCheckPath, uint16(healthCheckPort), certPollingInterval)
 	if err != nil {
 		log.Fatal(err)
 	}

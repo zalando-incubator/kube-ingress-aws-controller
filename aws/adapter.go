@@ -64,12 +64,12 @@ var (
 // Before returning there is a discovery process for VPC and EC2 details. It tries to find the TargetGroup and
 // Security Group that should be used for newly created LoadBalancers. If any of those critical steps fail
 // an appropriate error is returned.
-func NewAdapter(healthCheckPath string, healthCheckPort uint16) (*Adapter, error) {
+func NewAdapter(healthCheckPath string, healthCheckPort uint16, certUpdateInterval time.Duration) (*Adapter, error) {
 	p := session.Must(session.NewSession())
-	return newAdapterWithCfgProvider(p, healthCheckPath, healthCheckPort)
+	return newAdapterWithCfgProvider(p, healthCheckPath, healthCheckPort, certUpdateInterval)
 }
 
-func newAdapterWithCfgProvider(p client.ConfigProvider, path string, port uint16) (adapter *Adapter, err error) {
+func newAdapterWithCfgProvider(p client.ConfigProvider, path string, port uint16, certUpdateInterval time.Duration) (adapter *Adapter, err error) {
 	adapter = &Adapter{
 		elbv2:           elbv2.New(p),
 		ec2:             ec2.New(p),
@@ -85,7 +85,7 @@ func newAdapterWithCfgProvider(p client.ConfigProvider, path string, port uint16
 		return nil, err
 	}
 
-	adapter.initCertCache()
+	adapter.initCertCache(certUpdateInterval)
 	return
 }
 
@@ -193,13 +193,13 @@ func newCertCache() *certificateCache {
 	}
 }
 
-func (a *Adapter) initCertCache() {
+func (a *Adapter) initCertCache(certUpdateInterval time.Duration) {
 	cc = newCertCache()
 	go func() {
 		for {
 			log.Println("update cert cache")
 			a.updateCertCache()
-			time.Sleep(60 * time.Minute)
+			time.Sleep(certUpdateInterval)
 		}
 	}()
 
@@ -208,7 +208,7 @@ func (a *Adapter) initCertCache() {
 func (a *Adapter) updateCertCache() {
 	c, err := a.GetCerts()
 	if err != nil {
-		log.Printf("Could not upda Certificate Cache, caused by: %v", err)
+		log.Printf("Could not update Certificate Cache, caused by: %v", err)
 		return
 	}
 	cc.Lock()
