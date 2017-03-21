@@ -2,6 +2,9 @@ package aws
 
 import (
 	"errors"
+	"log"
+	"sync"
+	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/client"
@@ -81,6 +84,8 @@ func newAdapterWithCfgProvider(p client.ConfigProvider, path string, port uint16
 	if err != nil {
 		return nil, err
 	}
+
+	adapter.initCertCache()
 	return
 }
 
@@ -173,6 +178,53 @@ func (a *Adapter) CreateLoadBalancer(certificateARN string) (*LoadBalancer, erro
 		return nil, err
 	}
 	return lb, nil
+}
+
+type certificateCache struct {
+	sync.Mutex
+	acmCerts []*acm.CertificateSummary
+}
+
+var cc *certificateCache
+
+func newCertCache() *certificateCache {
+	return &certificateCache{
+		acmCerts: make([]*acm.CertificateSummary, 0),
+	}
+}
+
+func (a *Adapter) initCertCache() {
+	cc = newCertCache()
+	go func() {
+		for {
+			log.Println("update cert cache")
+			a.updateCertCache()
+			time.Sleep(60 * time.Minute)
+		}
+	}()
+
+}
+
+func (a *Adapter) updateCertCache() {
+	c, err := a.GetCerts()
+	if err != nil {
+		log.Printf("Could not upda Certificate Cache, caused by: %v", err)
+		return
+	}
+	cc.Lock()
+	cc.acmCerts = c
+	cc.Unlock()
+}
+
+// GetCachedCerts returns a copy of the cached acm Certifcates
+// filtered by CertificateStatuses
+// https://docs.aws.amazon.com/acm/latest/APIReference/API_ListCertificates.html#API_ListCertificates_RequestSyntax
+// no locking is required to access certs.
+func (a *Adapter) GetCachedCerts() []*acm.CertificateSummary {
+	cc.Lock()
+	result := cc.acmCerts[:]
+	cc.Unlock()
+	return result
 }
 
 // GetCerts returns a list of acm Certifcates filtered by
