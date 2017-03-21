@@ -49,13 +49,10 @@ func doWork(awsAdapter *aws.Adapter, kubeAdapter *kubernetes.Adapter) error {
 	log.Printf("found %d ingress resource(s)", len(ingresses))
 	log.Printf("TRACE: ingress resource(s): %+v", ingresses)
 
-	// TODO(sszuecs): this should be called once a Duration async to safe AWS API calls
-	acmCerts, err := awsAdapter.GetCerts()
-	if err != nil {
-		return err
-	}
+	acmCerts := awsAdapter.GetCachedCerts()
+
 	log.Printf("found %d ACM certificates", len(acmCerts))
-	log.Printf("TRACE: CERTS: %+v", acmCerts)
+	log.Printf("TRACE: CERTS: %+v", acmCerts) // TODO(sszuecss): drop this
 	// TODO(sszuecs): ACM certificates can not be safely
 	// updated. We have to get CertificateDetail
 	// https://github.com/aws/aws-sdk-go/blob/master/service/acm/api.go#L947-L1040
@@ -128,13 +125,14 @@ func doWork(awsAdapter *aws.Adapter, kubeAdapter *kubernetes.Adapter) error {
 	return nil
 }
 
-func setCertARNsForIngress(ingresses []*kubernetes.Ingress, certs []*acm.CertificateSummary) error {
+func setCertARNsForIngress(ingresses []*kubernetes.Ingress, certs []*acm.CertificateDetail) error {
 	for _, ing := range ingresses {
 		acmCert, err := FindBestMatchingCertifcate(certs, ing.CertHostname())
 		if err != nil {
 			log.Printf("No matching Certificate found for hostname: %s", ing.CertHostname())
 			continue
 		}
+		// TODO(sszuecs): drop %+v
 		log.Printf("Found best matching cert for %s: %+v, ARN: %s", ing.CertHostname(), acmCert, awssdk.StringValue(acmCert.CertificateArn))
 		ing.SetCertificateARN(awssdk.StringValue(acmCert.CertificateArn))
 	}
@@ -223,8 +221,8 @@ func deleteOrphanedLoadBalancers(awsAdapter *aws.Adapter, ingresses []*kubernete
 // FindBestMatchingCertifcate get all ACM certifcates and use a suffix
 // search best match opertion in order to find the best matching
 // certifcate ARN.
-func FindBestMatchingCertifcate(certs []*acm.CertificateSummary, hostname string) (*acm.CertificateSummary, error) {
-	candidates := map[int]*acm.CertificateSummary{}
+func FindBestMatchingCertifcate(certs []*acm.CertificateDetail, hostname string) (*acm.CertificateDetail, error) {
+	candidates := map[int]*acm.CertificateDetail{}
 	longestGlob := -1
 
 	for _, cert := range certs {
@@ -233,6 +231,9 @@ func FindBestMatchingCertifcate(certs []*acm.CertificateSummary, hostname string
 			if longestGlob < l {
 				longestGlob = l
 				candidates[l] = cert
+			} else if longestGlob == l {
+				// TODO: check cert details https://github.bus.zalan.do/teapot/issues/issues/315
+
 			}
 		}
 	}

@@ -182,14 +182,16 @@ func (a *Adapter) CreateLoadBalancer(certificateARN string) (*LoadBalancer, erro
 
 type certificateCache struct {
 	sync.Mutex
-	acmCerts []*acm.CertificateSummary
+	acmCertSummary []*acm.CertificateSummary
+	acmCertDetail  []*acm.CertificateDetail
 }
 
 var cc *certificateCache
 
 func newCertCache() *certificateCache {
 	return &certificateCache{
-		acmCerts: make([]*acm.CertificateSummary, 0),
+		acmCertSummary: make([]*acm.CertificateSummary, 0),
+		acmCertDetail:  make([]*acm.CertificateDetail, 0),
 	}
 }
 
@@ -205,14 +207,28 @@ func (a *Adapter) initCertCache(certUpdateInterval time.Duration) {
 
 }
 
+// TODO(sszuecs): make it successfull when we get AWS rateLimited
 func (a *Adapter) updateCertCache() {
-	c, err := a.GetCerts()
+	certList, err := a.GetCerts()
 	if err != nil {
-		log.Printf("Could not update Certificate Cache, caused by: %v", err)
+		log.Printf("Could not update certificate cache, caused by: %v", err)
 		return
 	}
+
+	certDetails := make([]*acm.CertificateDetail, len(certList), len(certList))
+	for idx, o := range certList {
+		certInput := &acm.DescribeCertificateInput{CertificateArn: o.CertificateArn}
+		certDetail, err := a.acm.DescribeCertificate(certInput)
+		if err != nil {
+			log.Printf("Could not get certificate details from AWS for ARN: %s, caused by: %v", o.CertificateArn, err)
+			return
+		}
+		certDetails[idx] = certDetail.Certificate
+	}
+
 	cc.Lock()
-	cc.acmCerts = c
+	cc.acmCertSummary = certList
+	cc.acmCertDetail = certDetails
 	cc.Unlock()
 }
 
@@ -220,9 +236,9 @@ func (a *Adapter) updateCertCache() {
 // filtered by CertificateStatuses
 // https://docs.aws.amazon.com/acm/latest/APIReference/API_ListCertificates.html#API_ListCertificates_RequestSyntax
 // no locking is required to access certs.
-func (a *Adapter) GetCachedCerts() []*acm.CertificateSummary {
+func (a *Adapter) GetCachedCerts() []*acm.CertificateDetail {
 	cc.Lock()
-	result := cc.acmCerts[:]
+	result := cc.acmCertDetail[:]
 	cc.Unlock()
 	return result
 }
