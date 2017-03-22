@@ -116,19 +116,29 @@ func (cc *certificateCache) GetCerts() ([]*acm.CertificateSummary, error) {
 // FindBestMatchingCertifcate get all ACM certifcates and use a suffix
 // search best match opertion in order to find the best matching
 // certifcate ARN.
+//
+// We don't need to validate the Revocation here, because we only pull
+// ISSUED certificates.
 func FindBestMatchingCertifcate(certs []*acm.CertificateDetail, hostname string) (*acm.CertificateDetail, error) {
 	candidates := map[int]*acm.CertificateDetail{}
 	longestGlob := -1
 
 	for _, cert := range certs {
-		if Glob(aws.StringValue(cert.DomainName), hostname) {
-			l := len(aws.StringValue(cert.DomainName))
-			if longestGlob < l {
-				longestGlob = l
-				candidates[l] = cert
-			} else if longestGlob == l {
-				// TODO: check cert details https://github.bus.zalan.do/teapot/issues/issues/315
+		// ignore invalid timeframes
+		if cert.NotAfter.Unix() <= time.Now().Unix() || time.Now().Unix() <= cert.NotBefore.Unix() {
+			continue
+		}
+		altNames := append(cert.SubjectAlternativeNames, cert.DomainName)
+		for _, altName := range altNames {
+			if Glob(aws.StringValue(altName), hostname) {
+				l := len(aws.StringValue(altName))
+				if longestGlob < l {
+					longestGlob = l
+					candidates[l] = cert
+				} else if longestGlob == l {
+					// TODO: check cert details https://github.bus.zalan.do/teapot/issues/issues/315
 
+				}
 			}
 		}
 	}
