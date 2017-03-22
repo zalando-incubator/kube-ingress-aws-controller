@@ -196,7 +196,7 @@ func deleteOrphanedLoadBalancers(awsAdapter *aws.Adapter, ingresses []*kubernete
 		if _, has := certificateMap[lb.CertificateARN()]; !has {
 			// schedule delete if not already done
 			if !lb.IsDeleteDeleteScheduled() {
-				lb.ScheduleDelete(7 * 24 * time.Hour)
+				lb.ScheduleDelete(2 * 24 * time.Hour)
 				continue
 			}
 			// do not delete as long as the time is not over
