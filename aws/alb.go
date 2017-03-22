@@ -22,7 +22,7 @@ type LoadBalancer struct {
 	arn            string
 	dnsName        string
 	listeners      *loadBalancerListeners
-	scheduleDelete *time.Time
+	scheduleDelete time.Time
 }
 
 // Name returns the load balancer friendly name.
@@ -41,17 +41,17 @@ func (lb *LoadBalancer) DNSName() string {
 }
 
 func (lb *LoadBalancer) IsDeleteDeleteScheduled() bool {
-	return lb.scheduleDelete != nil && *lb.scheduleDelete != time.Time{}
+	return lb.scheduleDelete != time.Time{}
 }
 
 // ScheduleDelete sets the time to schedule to now + given duration
-func (lb *LoadBalancer) ScheduleDelete(d *time.Duration) {
+func (lb *LoadBalancer) ScheduleDelete(d time.Duration) {
 	lb.scheduleDelete = time.Now().Add(d)
 }
 
 // GetScheduleDelete returns the time after when you are allowed to
 // delete this LoadBalancer
-func (lb *LoadBalancer) GetScheduleDelete() *time.Time {
+func (lb *LoadBalancer) GetScheduleDelete() time.Time {
 	return lb.scheduleDelete
 }
 
