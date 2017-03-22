@@ -38,22 +38,8 @@ func doWork(awsAdapter *aws.Adapter, kubeAdapter *kubernetes.Adapter) error {
 	log.Printf("TRACE: ingress resource(s): %+v", ingresses)
 
 	acmCerts := awsAdapter.GetCerts()
-
 	log.Printf("found %d ACM certificates", len(acmCerts))
-	log.Printf("TRACE: CERTS: %+v", acmCerts) // TODO(sszuecss): drop this
-	// TODO(sszuecs): ACM certificates can not be safely
-	// updated. We have to get CertificateDetail
-	// https://github.com/aws/aws-sdk-go/blob/master/service/acm/api.go#L947-L1040
-	// in order to get NotAfter, NotBefore and RevokedAt time.Time
-	// for a certificate and filter out older certificates with
-	// the same DomainName and SubjectAlternativeNames.
 
-	// TODO(sszuecs): this should be called once a Duration async to safe AWS API calls
-	acmCerts, err := awsAdapter.GetCerts()
-	if err != nil {
-		return err
-	}
-	log.Printf("found %d ACM certificates", len(acmCerts))
 	// TODO(sszuecs): ACM certificates can not be safely
 	// updated. We have to get CertificateDetail
 	// https://github.com/aws/aws-sdk-go/blob/master/service/acm/api.go#L947-L1040
