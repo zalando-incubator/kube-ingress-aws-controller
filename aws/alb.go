@@ -6,6 +6,7 @@ import (
 	"log"
 	"regexp"
 	"strings"
+	"time"
 
 	"encoding/hex"
 
@@ -17,10 +18,11 @@ import (
 
 // LoadBalancer is a simple wrapper around an AWS Load Balancer details.
 type LoadBalancer struct {
-	name      string
-	arn       string
-	dnsName   string
-	listeners *loadBalancerListeners
+	name           string
+	arn            string
+	dnsName        string
+	listeners      *loadBalancerListeners
+	scheduleDelete *time.Time
 }
 
 // Name returns the load balancer friendly name.
@@ -36,6 +38,21 @@ func (lb *LoadBalancer) ARN() string {
 // DNSName returns the FQDN for the load balancer. It's usually prefixed by its Name.
 func (lb *LoadBalancer) DNSName() string {
 	return lb.dnsName
+}
+
+func (lb *LoadBalancer) IsDeleteDeleteScheduled() bool {
+	return lb.scheduleDelete != nil && *lb.scheduleDelete != time.Time{}
+}
+
+// ScheduleDelete sets the time to schedule to now + given duration
+func (lb *LoadBalancer) ScheduleDelete(d *time.Duration) {
+	lb.scheduleDelete = time.Now().Add(d)
+}
+
+// GetScheduleDelete returns the time after when you are allowed to
+// delete this LoadBalancer
+func (lb *LoadBalancer) GetScheduleDelete() *time.Time {
+	return lb.scheduleDelete
 }
 
 func (lb *LoadBalancer) CertificateARN() string {

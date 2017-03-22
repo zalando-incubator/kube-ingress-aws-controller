@@ -194,6 +194,16 @@ func deleteOrphanedLoadBalancers(awsAdapter *aws.Adapter, ingresses []*kubernete
 
 	for _, lb := range lbs {
 		if _, has := certificateMap[lb.CertificateARN()]; !has {
+			// schedule delete if not already done
+			if !lb.IsDeleteDeleteScheduled() {
+				lb.ScheduleDelete(7 * 24 * time.Hour)
+				continue
+			}
+			// do not delete as long as the time is not over
+			if lb.GetScheduleDelete().Unix() < time.Now().Unix() {
+				continue
+			}
+
 			if err := awsAdapter.DeleteLoadBalancer(lb); err == nil {
 				log.Printf("deleted orphaned load balancer ARN %q\n", lb.ARN())
 			} else {
