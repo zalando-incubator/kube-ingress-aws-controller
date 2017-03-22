@@ -35,8 +35,8 @@ type Ingress struct {
 	certificateARN string
 	namespace      string
 	name           string
-	hostName       string // limitation: 1 Ingress --- 1 hostName
-	ruleHostname   string
+	hostName       string // status: limitation: 1 Ingress --- 1 hostName
+	ruleHostname   string // spec: limitation: 1 Ingress --- 1 ruleHostName
 }
 
 // CertificateARN returns the AWS certificate (IAM or ACM) ARN found in the ingress resource metadata.

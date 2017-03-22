@@ -4,6 +4,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/client"
 	"github.com/aws/aws-sdk-go/aws/ec2metadata"
 	"github.com/aws/aws-sdk-go/aws/session"
@@ -28,6 +29,7 @@ type Adapter struct {
 	healthCheckPort uint16
 	acm             acmiface.ACMAPI
 	cc              *certificateCache
+	acm             *acm.ACM
 }
 
 type manifest struct {
@@ -194,6 +196,46 @@ func (a *Adapter) CreateLoadBalancer(certificateARN string) (*LoadBalancer, erro
 		return nil, err
 	}
 	return lb, nil
+}
+
+// GetCerts returns a list of acm Certifcates filtered by
+// CertificateStatuses
+// https://docs.aws.amazon.com/acm/latest/APIReference/API_ListCertificates.html#API_ListCertificates_RequestSyntax
+func (a *Adapter) GetCerts() ([]*acm.CertificateSummary, error) {
+	maxItems := aws.Int64(10)
+
+	params := &acm.ListCertificatesInput{
+		CertificateStatuses: []*string{
+			aws.String("ISSUED"), // Required
+		},
+		MaxItems: maxItems,
+	}
+	resp, err := a.acm.ListCertificates(params)
+	if err != nil {
+		return nil, err
+	}
+	certList := resp.CertificateSummaryList
+
+	// more certs if NextToken set in response, use pagination to get more
+	for resp.NextToken != nil {
+		params = &acm.ListCertificatesInput{
+			CertificateStatuses: []*string{
+				aws.String("ISSUED"),
+			},
+			MaxItems:  maxItems,
+			NextToken: resp.NextToken,
+		}
+		resp, err = a.acm.ListCertificates(params)
+		if err != nil {
+			return nil, err
+		}
+
+		for _, cert := range resp.CertificateSummaryList {
+			certList = append(certList, cert)
+		}
+	}
+
+	return certList, nil
 }
 
 func getSubnetIDs(snds []*subnetDetails) []string {

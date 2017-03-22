@@ -145,6 +145,7 @@ func updateIngressARN(c client, i *ingress, arn string) error {
 	// 		},
 	// 	},
 	// }
+	// we have to create a manual patch, because it will fail otherwise (deleteTimeStamp will be 0, but is not allowed to be set on non DELETE requests)
 	payload := []byte(fmt.Sprintf(`{ "metadata": { "name": "%s", "namespace": "%s", "annotations": { "zalando.org/aws-load-balancer-ssl-cert": "%s"}}}`, name, ns, arn))
 
 	resource := fmt.Sprintf(ingressPatchResource, ns, name)
