@@ -115,7 +115,7 @@ func setCertARNsForIngress(awsAdapter *aws.Adapter, ingresses []*kubernetes.Ingr
 	for _, ing := range ingresses {
 		acmCert, err := awsAdapter.FindBestMatchingCertifcate(certs, ing.CertHostname())
 		if err != nil {
-			log.Printf("No matching Certificate found for hostname: %s", ing.CertHostname())
+			log.Printf("No valid Certificate found: %v", err)
 			continue
 		}
 		// TODO(sszuecs): drop %+v
