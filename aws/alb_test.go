@@ -73,7 +73,7 @@ func TestCreateLoadBalancer(t *testing.T) {
 				createListener:     R(mockCLOutput("foo"), nil),
 			},
 			mockLoadBalancer("bar-f398861", "fake-lb-arn", "domain.com",
-				mockListener(443, "crap", "fake-cert-arn", "fake-tg-arn")),
+				mockListeners("fake-tg-arn", nil, mockListener(443, "crap", "fake-cert-arn"))),
 			false,
 		},
 		{
@@ -187,11 +187,15 @@ func TestFindingManagedLoadBalancers(t *testing.T) {
 						clusterIDTag:         "fake-cluster-id",
 					},
 				}), nil),
-				describeListeners: R(mockDLOutput(443, "fake-arn", "fake-tg-arn", "cert-arn"), nil),
+				describeListeners: R(mockDLOutput("fake-tg-arn",
+					listenerMock{80, "fake-arn-http", ""},
+					listenerMock{443, "fake-arn-https", "cert-arn"}), nil),
 			},
 			"fake-cluster-id", "cert-arn",
 			mockLoadBalancer("fake-name", "fake-lb-arn", "foo.bar",
-				mockListener(443, "fake-arn", "cert-arn", "fake-tg-arn")),
+				mockListeners("fake-tg-arn",
+					mockListener(80, "fake-arn-http", ""),
+					mockListener(443, "fake-arn-https", "cert-arn"))),
 			false,
 		},
 		{
@@ -229,7 +233,7 @@ func TestFindingManagedLoadBalancers(t *testing.T) {
 			false,
 		},
 		{
-			"no-secure-listeners",
+			"no-matching-listeners",
 			elbv2APIOutputs{
 				describeLoadBalancers: R(mockDLBOutput(lbMock{"fake-name", "fake-lb-arn", "foo.bar"}), nil),
 				describeTags: R(mockDTOutput(awsTags{
@@ -238,7 +242,7 @@ func TestFindingManagedLoadBalancers(t *testing.T) {
 						clusterIDTag:         "fake-cluster-id",
 					},
 				}), nil),
-				describeListeners: R(mockDLOutput(80, "fake-arn", "fake-tg-arn", ""), nil),
+				describeListeners: R(mockDLOutput("fake-tg-arn", listenerMock{80, "fake-arn", ""}), nil),
 			},
 			"fake-cluster-id", "cert-arn",
 			nil,
@@ -254,7 +258,7 @@ func TestFindingManagedLoadBalancers(t *testing.T) {
 						clusterIDTag:         "fake-cluster-id",
 					},
 				}), nil),
-				describeListeners: R(mockDLOutput(443, "fake-arn", "", "cert-arn"), nil),
+				describeListeners: R(mockDLOutput("", listenerMock{443, "fake-arn", "cert-arn"}), nil),
 			},
 			"fake-cluster-id", "cert-arn",
 			nil,
@@ -273,7 +277,7 @@ func TestFindingManagedLoadBalancers(t *testing.T) {
 					t.Fatal("unexpected error:", err)
 				}
 				if !reflect.DeepEqual(test.want, got) {
-					t.Errorf("unexpected result: %v != %v", *got.listener, *test.want.listener)
+					t.Errorf("unexpected result: %v != %v", *got.listeners, *test.want.listeners)
 				}
 			}
 		})
@@ -290,20 +294,26 @@ func TestFindingListeners(t *testing.T) {
 		{"nil-listeners", nil, nil, ""},
 		{
 			"single-listener",
-			mockElbv2Listeners(443, "", "", "foo"),
-			mockElbv2Listeners(443, "", "", "foo")[0],
+			[]*elbv2.Listener{mockElbv2Listener("", listenerMock{443, "", "foo"})},
+			mockElbv2Listener("", listenerMock{443, "", "foo"}),
 			"foo",
 		},
 		{
 			"multiple-cert-listeners",
-			mockElbv2Listeners(443, "", "", "foo", "bar"),
-			mockElbv2Listeners(443, "", "", "foo")[0],
+			[]*elbv2.Listener{
+				mockElbv2Listener("", listenerMock{443, "", "foo"}),
+				mockElbv2Listener("", listenerMock{443, "", "bar"}),
+			},
+			mockElbv2Listener("", listenerMock{443, "", "foo"}),
 			"foo",
 		},
 		{
 			"multiple-mixed-listeners",
-			mockElbv2Listeners(443, "", "", "", "bar"),
-			mockElbv2Listeners(443, "", "", "bar")[0],
+			[]*elbv2.Listener{
+				mockElbv2Listener("", listenerMock{80, "", ""}),
+				mockElbv2Listener("", listenerMock{443, "", "bar"}),
+			},
+			mockElbv2Listener("", listenerMock{443, "", "foo"}),
 			"bar",
 		},
 	} {

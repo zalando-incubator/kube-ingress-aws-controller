@@ -151,45 +151,58 @@ func mockDTOutput(resourceTags awsTags) *elbv2.DescribeTagsOutput {
 	return res
 }
 
-func mockDLOutput(port int64, arn, targetGroupARN string, arns ...string) *elbv2.DescribeListenersOutput {
-	return &elbv2.DescribeListenersOutput{Listeners: mockElbv2Listeners(port, arn, targetGroupARN, arns...)}
+type listenerMock struct {
+	port    int64
+	arn     string
+	certARN string
 }
 
-func mockLoadBalancer(name, arn, dnsName string, listener *loadBalancerListener) *LoadBalancer {
+func mockDLOutput(targetGroupARN string, mocks ...listenerMock) *elbv2.DescribeListenersOutput {
+	listeners := make([]*elbv2.Listener, len(mocks))
+	for i, mock := range mocks {
+		listeners[i] = mockElbv2Listener(targetGroupARN, mock)
+	}
+	return &elbv2.DescribeListenersOutput{Listeners: listeners}
+}
+
+func mockLoadBalancer(name, arn, dnsName string, listeners *loadBalancerListeners) *LoadBalancer {
 	return &LoadBalancer{
-		name:     name,
-		arn:      arn,
-		dnsName:  dnsName,
-		listener: listener,
+		name:      name,
+		arn:       arn,
+		dnsName:   dnsName,
+		listeners: listeners,
 	}
 }
 
-func mockListener(port int64, arn, certificateARN, targetGroupARN string) *loadBalancerListener {
-	return &loadBalancerListener{
-		port:           port,
-		arn:            arn,
-		certificateARN: certificateARN,
+func mockListeners(targetGroupARN string, http *loadBalancerListener, https *loadBalancerListener) *loadBalancerListeners {
+	return &loadBalancerListeners{
+		http:           http,
+		https:          https,
 		targetGroupARN: targetGroupARN,
 	}
 }
 
-func mockElbv2Listeners(port int64, listenerARN, targetGroupARN string, arns ...string) []*elbv2.Listener {
-	listeners := make([]*elbv2.Listener, len(arns))
-	for i, arn := range arns {
-		certs := make([]*elbv2.Certificate, 0)
-		if arn != "" {
-			certs = append(certs, &elbv2.Certificate{CertificateArn: aws.String(arn)})
-		}
-		actions := make([]*elbv2.Action, 0)
-		if targetGroupARN != "" {
-			actions = append(actions, &elbv2.Action{TargetGroupArn: aws.String(targetGroupARN)})
-		}
-		listeners[i] = &elbv2.Listener{
-			Certificates:   certs,
-			Port:           aws.Int64(port),
-			ListenerArn:    aws.String(listenerARN),
-			DefaultActions: actions,
-		}
+func mockListener(port int64, arn, certificateARN string) *loadBalancerListener {
+	return &loadBalancerListener{
+		port:           port,
+		arn:            arn,
+		certificateARN: certificateARN,
 	}
-	return listeners
+}
+
+func mockElbv2Listener(targetGroupARN string, mock listenerMock) *elbv2.Listener {
+	certs := make([]*elbv2.Certificate, 0)
+	if mock.certARN != "" {
+		certs = append(certs, &elbv2.Certificate{CertificateArn: aws.String(mock.certARN)})
+	}
+	actions := make([]*elbv2.Action, 0)
+	if targetGroupARN != "" {
+		actions = append(actions, &elbv2.Action{TargetGroupArn: aws.String(targetGroupARN)})
+	}
+	return &elbv2.Listener{
+		Certificates:   certs,
+		Port:           aws.Int64(mock.port),
+		ListenerArn:    aws.String(mock.arn),
+		DefaultActions: actions,
+	}
 }

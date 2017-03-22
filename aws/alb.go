@@ -136,13 +136,13 @@ func createLoadBalancer(svc elbv2iface.ELBV2API, spec *createLoadBalancerSpec) (
 	if err != nil {
 		return nil, err
 	}
-  
+
 	newHTTPSListener, err := createListener(svc, loadBalancerARN, targetGroupARN, httpsListenerPort, elbv2.ProtocolEnumHttps, spec.certificateARN)
 	if err != nil {
 		return nil, err
 	}
 
-  newHTTPListener, err := createListener(svc, loadBalancerARN, targetGroupARN, httpListenerPort, elbv2.ProtocolEnumHttp, "")
+	newHTTPListener, err := createListener(svc, loadBalancerARN, targetGroupARN, httpListenerPort, elbv2.ProtocolEnumHttp, "")
 	if err != nil {
 		return nil, err
 	}
