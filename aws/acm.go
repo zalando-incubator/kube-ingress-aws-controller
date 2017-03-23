@@ -134,9 +134,8 @@ func FindBestMatchingCertifcate(certs []*acm.CertificateDetail, hostname string)
 		}
 		altNames := append(cert.SubjectAlternativeNames, cert.DomainName)
 
-		// TODO: check cert details https://github.bus.zalan.do/teapot/issues/issues/315
 		for _, altName := range altNames {
-			if Glob(aws.StringValue(altName), hostname) {
+			if prefixGlob(aws.StringValue(altName), hostname) {
 				l := len(aws.StringValue(altName))
 
 				switch {
@@ -186,9 +185,7 @@ func FindBestMatchingCertifcate(certs []*acm.CertificateDetail, hostname string)
 	return candidate, nil
 }
 
-// TODO(sszuecs): Check if submatch does not work: *.foo.org does not match baz.bar.foo.org
-// modified version of https://github.com/ryanuber/go-glob/blob/master/glob.go (MIT licensed)
-func Glob(pattern, subj string) bool {
+func prefixGlob(pattern, subj string) bool {
 	// Empty pattern can only match empty subject
 	if pattern == "" {
 		return subj == pattern
@@ -199,37 +196,14 @@ func Glob(pattern, subj string) bool {
 		return true
 	}
 
-	parts := strings.Split(pattern, GLOB)
+	leadingGlob := strings.HasPrefix(pattern, GLOB)
 
-	if len(parts) == 1 {
+	if !leadingGlob {
 		// No globs in pattern, so test for equality
 		return subj == pattern
 	}
 
-	leadingGlob := strings.HasPrefix(pattern, GLOB)
-	end := len(parts) - 1
-
-	// Go over the leading parts and ensure they match.
-	for i := 0; i < end; i++ {
-		idx := strings.Index(subj, parts[i])
-
-		switch i {
-		case 0:
-			// Check the first section. Requires special handling.
-			if !leadingGlob && idx != 0 {
-				return false
-			}
-		default:
-			// Check that the middle parts match.
-			if idx < 0 {
-				return false
-			}
-		}
-
-		// Trim evaluated text from subj as we loop over the pattern.
-		subj = subj[idx+len(parts[i]):]
-	}
-
-	// Reached the last section. Requires special handling.
-	return strings.HasSuffix(subj, parts[end])
+	pat := string(pattern[1:])
+	trimmedSubj := strings.TrimSuffix(subj, pat)
+	return !strings.Contains(trimmedSubj, ".")
 }

@@ -287,3 +287,52 @@ func TestFindBestMatchingCertifcate(t *testing.T) {
 	}
 
 }
+
+func TestGlob(t *testing.T) {
+	for _, ti := range []struct {
+		msg     string
+		pattern string
+		subj    string
+		expect  bool
+	}{
+		{
+			msg:     "Not found exact match",
+			pattern: "www.foo.org",
+			subj:    "www.foo.org",
+			expect:  true,
+		}, {
+			msg:     "Not found simple glob",
+			pattern: "*",
+			subj:    "www.foo.org",
+			expect:  true,
+		}, {
+			msg:     "Not found simple match",
+			pattern: "*.foo.org",
+			subj:    "www.foo.org",
+			expect:  true,
+		}, {
+			msg:     "Found wrong simple match prefix",
+			pattern: "www.foo.org",
+			subj:    "wwww.foo.org",
+			expect:  false,
+		}, {
+			msg:     "Found wrong simple match suffix",
+			pattern: "www.foo.org",
+			subj:    "www.foo.orgg",
+			expect:  false,
+		}, {
+			msg:     "Found wrong complex match",
+			pattern: "*.foo.org",
+			subj:    "www.baz.foo.org",
+			expect:  false,
+		},
+	} {
+		t.Run(ti.msg, func(t *testing.T) {
+			if prefixGlob(ti.pattern, ti.subj) != ti.expect {
+				t.Errorf("%s: for pattern: %s and subj: %s, expected %v", ti.msg, ti.pattern, ti.subj, ti.expect)
+			}
+
+		})
+	}
+
+}
