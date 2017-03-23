@@ -192,8 +192,10 @@ func mockListener(port int64, arn, certificateARN string) *loadBalancerListener 
 
 func mockElbv2Listener(targetGroupARN string, mock listenerMock) *elbv2.Listener {
 	certs := make([]*elbv2.Certificate, 0)
+	var proto string = elbv2.ProtocolEnumHttp
 	if mock.certARN != "" {
 		certs = append(certs, &elbv2.Certificate{CertificateArn: aws.String(mock.certARN)})
+		proto = elbv2.ProtocolEnumHttps
 	}
 	actions := make([]*elbv2.Action, 0)
 	if targetGroupARN != "" {
@@ -203,6 +205,7 @@ func mockElbv2Listener(targetGroupARN string, mock listenerMock) *elbv2.Listener
 		Certificates:   certs,
 		Port:           aws.Int64(mock.port),
 		ListenerArn:    aws.String(mock.arn),
+		Protocol:       aws.String(proto),
 		DefaultActions: actions,
 	}
 }

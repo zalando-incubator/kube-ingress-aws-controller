@@ -311,10 +311,10 @@ func TestFindingListeners(t *testing.T) {
 			"multiple-mixed-listeners",
 			[]*elbv2.Listener{
 				mockElbv2Listener("", listenerMock{80, "", ""}),
-				mockElbv2Listener("", listenerMock{443, "", "bar"}),
+				mockElbv2Listener("", listenerMock{443, "", "foo"}),
 			},
 			mockElbv2Listener("", listenerMock{443, "", "foo"}),
-			"bar",
+			"foo",
 		},
 	} {
 		t.Run(fmt.Sprintf("%v", test.name), func(t *testing.T) {
