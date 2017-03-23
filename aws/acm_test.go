@@ -42,7 +42,7 @@ func TestFindBestMatchingCertifcate(t *testing.T) {
 
 	now := time.Now()
 	before := now.Add(-time.Hour * 24 * 7)
-	after := now.Add(time.Hour * 24 * 7)
+	after := now.Add(time.Hour*24*7 + 1)
 
 	// simple cert
 	validCert := createDummyCertificatDetail(validHostname, []string{}, before, after)
@@ -61,6 +61,26 @@ func TestFindBestMatchingCertifcate(t *testing.T) {
 	invalidTimeCert1 := createDummyCertificatDetail(domain, []string{}, after, before)
 	invalidTimeCert2 := createDummyCertificatDetail(domain, []string{}, after, after)
 	invalidTimeCert3 := createDummyCertificatDetail(domain, []string{}, before, before)
+
+	// tricky times with multiple valid certs
+	validCertForOneDay := createDummyCertificatDetail(validHostname, []string{}, before, now.Add(time.Hour*24))
+	validCertForSixDays := createDummyCertificatDetail(validHostname, []string{}, before, now.Add(time.Hour*24*6))
+	validCertForTenDays := createDummyCertificatDetail(validHostname, []string{}, before, now.Add(time.Hour*24*6))
+	validCertForOneYear := createDummyCertificatDetail(validHostname, []string{}, before, now.Add(time.Hour*24*365))
+	validCertSinceOneDay := createDummyCertificatDetail(validHostname, []string{}, now.Add(-time.Hour*24), after)
+	validCertSinceSixDays := createDummyCertificatDetail(validHostname, []string{}, now.Add(-time.Hour*24*6), after)
+	validCertSinceOneYear := createDummyCertificatDetail(validHostname, []string{}, now.Add(-time.Hour*24*365), after)
+	validCertForOneYearSinceOneDay := createDummyCertificatDetail(validHostname, []string{}, now.Add(-time.Hour*24), now.Add(time.Hour*24*365))
+	validCertForOneYearSinceSixDays := createDummyCertificatDetail(validHostname, []string{}, now.Add(-time.Hour*24*6), now.Add(time.Hour*24*365))
+	validCertForOneYearSinceOneYear := createDummyCertificatDetail(validHostname, []string{}, now.Add(-time.Hour*24*365), now.Add(time.Hour*24*365))
+
+	validCertFor6dUntill1y := createDummyCertificatDetail(validHostname, []string{}, now.Add(-time.Hour*24*6), now.Add(time.Hour*24*365))
+	validCertFor6dUntill6d := createDummyCertificatDetail(validHostname, []string{}, now.Add(-time.Hour*24*6), now.Add(time.Hour*24*6))
+	validCertFor6dUntill10d := createDummyCertificatDetail(validHostname, []string{}, now.Add(-time.Hour*24*6), now.Add(time.Hour*24*10))
+	validCertFor1dUntill6d := createDummyCertificatDetail(validHostname, []string{}, now.Add(-time.Hour*24*1), now.Add(time.Hour*24*6))
+	validCertFor1dUntill7d1sLess := createDummyCertificatDetail(validHostname, []string{}, now.Add(-time.Hour*24*1), now.Add(time.Hour*24*7-time.Second*1))
+	validCertFor1dUntill7d1s := createDummyCertificatDetail(validHostname, []string{}, now.Add(-time.Hour*24*1), now.Add(time.Hour*24*7+time.Second*1))
+	validCertFor1dUntill10d := createDummyCertificatDetail(validHostname, []string{}, now.Add(-time.Hour*24*1), now.Add(time.Hour*24*10))
 
 	for _, ti := range []struct {
 		msg       string
@@ -171,6 +191,91 @@ func TestFindBestMatchingCertifcate(t *testing.T) {
 			cert:      []*acm.CertificateDetail{invalidTimeCert3},
 			expect:    nil,
 			condition: certInvalidMatchFunction,
+		}, {
+			msg:       "Not found best match tricky cert NotAfter 1 day compared to 6 days",
+			hostname:  validHostname,
+			cert:      []*acm.CertificateDetail{validCertForOneDay, validCertForSixDays},
+			expect:    validCertForSixDays,
+			condition: certValidMatchFunction,
+		}, {
+			msg:       "Not found best match tricky cert NotAfter 365 days compared to 1 day",
+			hostname:  validHostname,
+			cert:      []*acm.CertificateDetail{validCertForOneYear, validCertForOneDay},
+			expect:    validCertForOneYear,
+			condition: certValidMatchFunction,
+		}, {
+			msg:       "Not found best match tricky cert NotAfter 365 days compared to 6 day",
+			hostname:  validHostname,
+			cert:      []*acm.CertificateDetail{validCertForOneYear, validCertForSixDays},
+			expect:    validCertForOneYear,
+			condition: certValidMatchFunction,
+		}, {
+			msg:       "Not found best match tricky cert NotAfter 365 days compared to 10 day",
+			hostname:  validHostname,
+			cert:      []*acm.CertificateDetail{validCertForTenDays, validCertForOneYear},
+			expect:    validCertForOneYear,
+			condition: certValidMatchFunction,
+		}, {
+			msg:       "Not found best match (newest first) tricky cert NotBefore 6 days compared to 1 day",
+			hostname:  validHostname,
+			cert:      []*acm.CertificateDetail{validCertSinceOneDay, validCertSinceSixDays}, // FIXME: this is by order
+			expect:    validCertSinceOneDay,
+			condition: certValidMatchFunction,
+		}, {
+			msg:       "Not found best match (newest first) tricky cert NotBefore 6 days compared to 365 days",
+			hostname:  validHostname,
+			cert:      []*acm.CertificateDetail{validCertSinceSixDays, validCertSinceOneYear},
+			expect:    validCertSinceSixDays,
+			condition: certValidMatchFunction,
+		}, {
+			msg:       "Not found best match (newest first) tricky cert NotBefore 6 days compared to 365 days another order by cert",
+			hostname:  validHostname,
+			cert:      []*acm.CertificateDetail{validCertSinceOneYear, validCertSinceSixDays},
+			expect:    validCertSinceSixDays,
+			condition: certValidMatchFunction,
+		}, {
+			msg:       "Not found best match (newest first) tricky cert NotBefore 1 days compared to 365 days and both valid for 1 year",
+			hostname:  validHostname,
+			cert:      []*acm.CertificateDetail{validCertForOneYearSinceOneDay, validCertForOneYearSinceOneYear},
+			expect:    validCertForOneYearSinceOneDay,
+			condition: certValidMatchFunction,
+		}, {
+			msg:       "Not found best match (newest first) tricky cert NotBefore 6 days compared to 365 days and both valid for 1 year",
+			hostname:  validHostname,
+			cert:      []*acm.CertificateDetail{validCertForOneYearSinceOneYear, validCertForOneYearSinceSixDays},
+			expect:    validCertForOneYearSinceSixDays,
+			condition: certValidMatchFunction,
+		}, {
+			msg:       "Not found best match (newest first) tricky cert NotBefore/NotAfter 6d/1y compared to 1d/10d",
+			hostname:  validHostname,
+			cert:      []*acm.CertificateDetail{validCertFor6dUntill1y, validCertFor1dUntill10d},
+			expect:    validCertFor1dUntill10d,
+			condition: certValidMatchFunction,
+		}, {
+			msg:       "Not found best match (newer first) tricky cert NotBefore/NotAfter 1d/7d1s compared to 6d/10d",
+			hostname:  validHostname,
+			cert:      []*acm.CertificateDetail{validCertFor1dUntill7d1s, validCertFor6dUntill10d},
+			expect:    validCertFor1dUntill7d1s,
+			condition: certValidMatchFunction,
+		}, {
+			msg:       "Not found best match (longer first) tricky cert NotBefore/NotAfter 6d/6d compared to 6d/1y",
+			hostname:  validHostname,
+			cert:      []*acm.CertificateDetail{validCertFor6dUntill6d, validCertForOneYearSinceSixDays},
+			expect:    validCertForOneYearSinceSixDays,
+			condition: certValidMatchFunction,
+		}, {
+			msg:       "Not found best match (longer first) tricky cert NotBefore/NotAfter 1d/6d compared to 6d/10d",
+			hostname:  validHostname,
+			cert:      []*acm.CertificateDetail{validCertFor1dUntill6d, validCertFor6dUntill10d},
+			expect:    validCertFor6dUntill10d,
+			condition: certValidMatchFunction,
+		}, {
+			// TODO
+			msg:       "Not found best match (longer first) tricky cert NotBefore/NotAfter 6d/10d compared to 1d/7d-1s",
+			hostname:  validHostname,
+			cert:      []*acm.CertificateDetail{validCertFor6dUntill10d, validCertFor1dUntill7d1sLess},
+			expect:    validCertFor6dUntill10d,
+			condition: certValidMatchFunction,
 		},
 	} {
 		t.Run(ti.msg, func(t *testing.T) {

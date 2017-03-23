@@ -120,35 +120,73 @@ func (cc *certificateCache) GetCerts() ([]*acm.CertificateSummary, error) {
 // We don't need to validate the Revocation here, because we only pull
 // ISSUED certificates.
 func FindBestMatchingCertifcate(certs []*acm.CertificateDetail, hostname string) (*acm.CertificateDetail, error) {
-	candidates := map[int]*acm.CertificateDetail{}
-	longestGlob := -1
+	candidate := &acm.CertificateDetail{}
+	longestMatch := -1
+	sevenDaysInSec := int64(7 * 24 * 3600)
 
 	for _, cert := range certs {
+		now := time.Now().Unix()
+		notAfter := cert.NotAfter.Unix()
+		notBefore := cert.NotBefore.Unix()
 		// ignore invalid timeframes
-		if cert.NotAfter.Unix() <= time.Now().Unix() || time.Now().Unix() <= cert.NotBefore.Unix() {
+		if notAfter <= now || now <= notBefore {
 			continue
 		}
 		altNames := append(cert.SubjectAlternativeNames, cert.DomainName)
+
+		// TODO: check cert details https://github.bus.zalan.do/teapot/issues/issues/315
 		for _, altName := range altNames {
 			if Glob(aws.StringValue(altName), hostname) {
 				l := len(aws.StringValue(altName))
-				if longestGlob < l {
-					longestGlob = l
-					candidates[l] = cert
-				} else if longestGlob == l {
-					// TODO: check cert details https://github.bus.zalan.do/teapot/issues/issues/315
 
+				switch {
+				case longestMatch < 0:
+					// first matching found
+					longestMatch = l
+					candidate = cert
+				case longestMatch < l:
+					if notBefore < now && now < notAfter-sevenDaysInSec {
+						// more specific valid cert found: *.example.org -> foo.example.org
+						longestMatch = l
+						candidate = cert
+					}
+				case longestMatch == l:
+					if notBefore > candidate.NotBefore.Unix() && notAfter-sevenDaysInSec >= now {
+						// cert is newer than curBestCert and is not invalid in 7 days
+						longestMatch = l
+						candidate = cert
+					} else if notBefore == candidate.NotBefore.Unix() && notAfter >= candidate.NotAfter.Unix() {
+						// cert has the same issue date, but is longer valid
+						longestMatch = l
+						candidate = cert
+					} else if notBefore < candidate.NotBefore.Unix() &&
+						candidate.NotAfter.Unix()-sevenDaysInSec < now &&
+						notAfter > candidate.NotAfter.Unix() {
+						// cert is older than curBestCert but curBestCert is invalid in 7 days and cert is longer valid
+						longestMatch = l
+						candidate = cert
+					}
+				case longestMatch > l:
+					if candidate.NotAfter.Unix()-sevenDaysInSec < now &&
+						now < candidate.NotBefore.Unix() &&
+						notBefore < now &&
+						now < notAfter-sevenDaysInSec {
+						// foo.example.org -> *.example.org degradation when NotAfter requires a downgrade
+						longestMatch = l
+						candidate = cert
+					}
 				}
 			}
 		}
 	}
 
-	if longestGlob == -1 {
+	if longestMatch == -1 {
 		return nil, ErrNoMatchingCertificateFound
 	}
-	return candidates[longestGlob], nil
+	return candidate, nil
 }
 
+// TODO(sszuecs): Check if submatch does not work: *.foo.org does not match baz.bar.foo.org
 // modified version of https://github.com/ryanuber/go-glob/blob/master/glob.go (MIT licensed)
 func Glob(pattern, subj string) bool {
 	// Empty pattern can only match empty subject
