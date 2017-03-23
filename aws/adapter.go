@@ -80,8 +80,9 @@ func newAdapterWithCfgProvider(p client.ConfigProvider, path string, port uint16
 		healthCheckPath: path,
 		healthCheckPort: port,
 		acm:             acm.New(p),
-		cc:              adapter.NewAcm(certUpdateInterval),
+		cc:              nil,
 	}
+	adapter.cc = adapter.NewAcm(certUpdateInterval)
 
 	adapter.manifest, err = buildManifest(adapter)
 	if err != nil {
