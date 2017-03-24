@@ -6,7 +6,6 @@ import (
 
 	"fmt"
 
-	awssdk "github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/acm"
 	"github.com/zalando-incubator/kube-ingress-aws-controller/aws"
 	"github.com/zalando-incubator/kube-ingress-aws-controller/kubernetes"
@@ -30,65 +29,18 @@ func doWork(awsAdapter *aws.Adapter, kubeAdapter *kubernetes.Adapter) error {
 		return nil
 	}()
 
-	ingresses, err := kubeAdapter.ListIngress() // default if not set: Ingress.certificateARN = ""
+	ingresses, err := kubeAdapter.ListIngress()
 	if err != nil {
 		return err
 	}
 	log.Printf("found %d ingress resource(s)", len(ingresses))
-	log.Printf("TRACE: ingress resource(s): %+v", ingresses)
 
 	acmCerts := awsAdapter.GetCerts()
 	log.Printf("found %d ACM certificates", len(acmCerts))
 
-	// TODO(sszuecs): ACM certificates can not be safely
-	// updated. We have to get CertificateDetail
-	// https://github.com/aws/aws-sdk-go/blob/master/service/acm/api.go#L947-L1040
-	// in order to get NotAfter, NotBefore and RevokedAt time.Time
-	// for a certificate and filter out older certificates with
-	// the same DomainName and SubjectAlternativeNames.
-
-	uniqueARNs := flattenIngressByARN(ingresses)
-	log.Printf("TRACE1: %d uniqueARNs: %+v", len(uniqueARNs), uniqueARNs)
-	// all ingresses with Ingress.certificateARN == "" should get lookuped their cert
-	setCertARNsForIngress(awsAdapter, uniqueARNs[""], acmCerts)
-	newFlattenedArns := flattenIngressByARN(uniqueARNs[""])
-	// delete all Ingress that we did not found a cert for
-	if ingressesWithoutCert, ok := newFlattenedArns[""]; ok {
-		log.Printf("TRACE: found empty string in newFlattenedArns")
-		for _, i := range ingressesWithoutCert {
-			log.Printf("No matching ACM certificate found ingress: %s and hostname: %s", i, i.CertHostname())
-		}
-		delete(newFlattenedArns, "")
-	}
-	if _, ok := newFlattenedArns[""]; ok {
-		log.Printf("TRACE: empty string in newFlattenedArns should be deleted")
-	}
-
-	log.Printf("found %d ingress resource(s), that had not a certificate ARN", len(ingresses))
-	log.Printf("TRACE: ingress resource(s) after setCertARNsForIngress: %+v", ingresses)
-	for _, ingress := range ingresses {
-		err := kubeAdapter.UpdateIngressARN(ingress)
-		if err != nil {
-			log.Printf("Could not update Kubernetes ingress to set CertARN annotation: %v", err)
-		}
-	}
-
-	log.Printf("TRACE2: %d uniqueARNs: %+v", len(uniqueARNs), uniqueARNs)
-
-	// merge with uniquARNs
-	for k, v := range newFlattenedArns {
-		if _, ok := uniqueARNs[k]; !ok {
-			// case new key -> create
-			uniqueARNs[k] = make([]*kubernetes.Ingress, 0, 1)
-		}
-		uniqueARNs[k] = append(uniqueARNs[k], v...)
-	}
-	delete(uniqueARNs, "")
-	log.Printf("TRACE3: %d uniqueARNs: %+v", len(uniqueARNs), uniqueARNs)
-
-	missingARNs, existingARNs := filterExistingARNs(awsAdapter, uniqueARNs) // create ingress
+	uniqueARNs := ingressByCertArn(awsAdapter, ingresses, acmCerts)
+	missingARNs, existingARNs := filterExistingARNs(awsAdapter, uniqueARNs)
 	for missingARN, ingresses := range missingARNs {
-		log.Printf("TRACE: createMissingLoadBalancer missingARNs: %+v, ingresses: %+v", missingARN, ingresses)
 		lb, err := createMissingLoadBalancer(awsAdapter, missingARN)
 		if err != nil {
 			log.Println(err)
@@ -111,42 +63,41 @@ func doWork(awsAdapter *aws.Adapter, kubeAdapter *kubernetes.Adapter) error {
 	return nil
 }
 
-func setCertARNsForIngress(awsAdapter *aws.Adapter, ingresses []*kubernetes.Ingress, certs []*acm.CertificateDetail) error {
-	for _, ing := range ingresses {
-		acmCert, err := awsAdapter.FindBestMatchingCertifcate(certs, ing.CertHostname())
-		if err != nil {
-			log.Printf("No valid Certificate found: %v", err)
-			continue
-		}
-		// TODO(sszuecs): drop %+v
-		log.Printf("Found best matching cert for %s: %+v, ARN: %s", ing.CertHostname(), acmCert, awssdk.StringValue(acmCert.CertificateArn))
-		ing.SetCertificateARN(awssdk.StringValue(acmCert.CertificateArn))
-	}
-
-	return nil
-}
-
-// assumption
-//     1 ALB --- 1 cert ---< n ingress
-// response {certARN1: []Ingress, ..}
-func flattenIngressByARN(ingresses []*kubernetes.Ingress) map[string][]*kubernetes.Ingress {
+func ingressByCertArn(awsAdapter *aws.Adapteringresses, ingresses []*kubernetes.Ingress, acmCerts []*acm.CertificateDetail) map[string][]*kubernetes.Ingress {
 	uniqueARNs := make(map[string][]*kubernetes.Ingress)
 	for _, ingress := range ingresses {
 		certificateARN := ingress.CertificateARN()
-		uniqueARNs[certificateARN] = append(uniqueARNs[certificateARN], ingress)
+		if certificateARN != "" {
+			uniqueARNs[certificateARN] = append(uniqueARNs[certificateARN], ingress)
+		} else {
+			log.Printf("Using autopilot mode for empty certificate ARN for ingress %v\n", ingress)
+			if err := setCertARNsForIngress(awsAdapter, ingress, acmCerts); err {
+				log.Printf("No valid Certificate found for %v: %v", ingress.CertHostname(), err)
+			}
+		}
 	}
 	return uniqueARNs
+}
+
+func setCertARNsForIngress(awsAdapter *aws.Adapter, ingress *kubernetes.Ingress, acmCerts []*acm.CertificateDetail) error {
+	acmCert, err := awsAdapter.FindBestMatchingCertifcate(acmCerts, ingress.CertHostname())
+	if err != nil {
+		return err
+	}
+	// TODO(sszuecs): drop %+v before PR
+	log.Printf("Found best matching cert for %s: %+v, ARN: %s", inggress.CertHostname(), acmCert, awssdk.StringValue(acmCert.CertificateArn))
+	ingress.SetCertificateARN(awssdk.StringValue(acmCert.CertificateArn))
+
+	return nil
 }
 
 func filterExistingARNs(awsAdapter *aws.Adapter, certificateARNs map[string][]*kubernetes.Ingress) (map[string][]*kubernetes.Ingress, map[string]*aws.LoadBalancer) {
 	missingARNs := make(map[string][]*kubernetes.Ingress)
 	existingARNs := make(map[string]*aws.LoadBalancer)
 	for certificateARN, ingresses := range certificateARNs {
-		log.Printf("TRACE: filterExistingARNs certARN: %+v", certificateARN)
 		lb, err := awsAdapter.FindLoadBalancerWithCertificateID(certificateARN)
-		log.Printf("TRACE: awsAdapter.FindLoadBalancerWithCertificateID returned: %v/%v", lb, err)
 		if err != nil && err != aws.ErrLoadBalancerNotFound {
-			log.Println("ERR:", err)
+			log.Println(err)
 			continue
 		}
 		if lb != nil {
@@ -165,16 +116,15 @@ func createMissingLoadBalancer(awsAdapter *aws.Adapter, certificateARN string) (
 
 	lb, err := awsAdapter.CreateLoadBalancer(certificateARN)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create ALB for certificate %q: %v", certificateARN, err)
+		return nil, fmt.Errorf("failed to create ALB for certificate %q. %v\n", certificateARN, err)
 	}
 	return lb, nil
 }
 
-// updateIngresses updates the status part in the Kubernetes ingress object
 func updateIngresses(kubeAdapter *kubernetes.Adapter, ingresses []*kubernetes.Ingress, dnsName string) {
 	for _, ingress := range ingresses {
 		if err := kubeAdapter.UpdateIngressLoadBalancer(ingress, dnsName); err != nil {
-			log.Println("failed to update ingress LB:", err)
+			log.Println(err)
 		} else {
 			log.Printf("updated ingress %v with DNS name %q\n", ingress, dnsName)
 		}
