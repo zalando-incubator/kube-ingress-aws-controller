@@ -41,8 +41,6 @@ type manifest struct {
 const (
 	clusterIDTag = "ClusterID"
 	nameTag      = "Name"
-	// GLOB is used in Glob() and corresponds to the X509 CN/AlternateName wildcard char
-	GLOB = "*"
 )
 
 var (
@@ -59,7 +57,7 @@ var (
 	// ErrMissingAutoScalingGroupTag is used to signal that the auto scaling group tag is not present in the list of tags.
 	ErrMissingAutoScalingGroupTag = errors.New(`instance is missing the "` + autoScalingGroupNameTag + `" tag`)
 	// ErrNoMatchingCertificateFound is used if there is no matching ACM certificate found
-	ErrNoMatchingCertificateFound = errors.New("skipper-ingress-controller: no matching ACM certificate found")
+	ErrNoMatchingCertificateFound = errors.New("no matching ACM certificate found")
 )
 
 // NewAdapter returns a new Adapter that can be used to orchestrate and obtain information from Amazon Web Services.

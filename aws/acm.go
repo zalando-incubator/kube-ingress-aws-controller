@@ -11,6 +11,8 @@ import (
 	"github.com/aws/aws-sdk-go/service/acm/acmiface"
 )
 
+const glob = "*"
+
 type certificateCache struct {
 	sync.Mutex
 	acmClient      acmiface.ACMAPI
@@ -194,11 +196,11 @@ func prefixGlob(pattern, subj string) bool {
 	}
 
 	// If the pattern _is_ a glob, it matches everything
-	if pattern == GLOB {
+	if pattern == glob {
 		return true
 	}
 
-	leadingGlob := strings.HasPrefix(pattern, GLOB)
+	leadingGlob := strings.HasPrefix(pattern, glob)
 
 	if !leadingGlob {
 		// No globs in pattern, so test for equality

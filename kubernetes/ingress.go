@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"time"
 )
 
@@ -35,7 +34,7 @@ type ingressItemMetadata struct {
 	ResourceVersion   string                 `json:"resourceVersion"`
 	Generation        int                    `json:"generation"`
 	CreationTimestamp time.Time              `json:"creationTimestamp"`
-	DeletionTimestamp time.Time              `json:"deletionTimestamp,omitempty"`
+	DeletionTimestamp time.Time              `json:"deletionTimestamp"`
 	Labels            map[string]interface{} `json:"labels"`
 }
 
@@ -62,7 +61,6 @@ type ingressLoadBalancer struct {
 const (
 	ingressListResource             = "/apis/extensions/v1beta1/ingresses"
 	ingressPatchStatusResource      = "/apis/extensions/v1beta1/namespaces/%s/ingresses/%s/status"
-	ingressPatchResource            = "/apis/extensions/v1beta1/namespaces/%s/ingresses/%s"
 	ingressCertificateARNAnnotation = "zalando.org/aws-load-balancer-ssl-cert"
 )
 
@@ -123,42 +121,6 @@ func updateIngressLoadBalancer(c client, i *ingress, newHostName string) error {
 	r, err := c.patch(resource, payload)
 	if err != nil {
 		return fmt.Errorf("failed to patch ingress %s/%s = %q: %v", ns, name, newHostName, err)
-	}
-	defer r.Close()
-	return nil
-}
-
-type patchIngressMetadata struct {
-	Metadata ingressItemMetadata `json:"metadata"`
-}
-
-func updateIngressARN(c client, i *ingress, arn string) error {
-	ns, name := i.Metadata.Namespace, i.Metadata.Name
-
-	// Does not work because of "deletionTimestamp" is present
-	// patchMetadataARN := patchIngressMetadata{
-	// 	Metadata: ingressItemMetadata{
-	// 		Name:      i.Metadata.Name,
-	// 		Namespace: i.Metadata.Namespace,
-	// 		Annotations: map[string]interface{}{
-	// 			ingressCertificateARNAnnotation: arn,
-	// 		},
-	// 	},
-	// }
-	// we have to create a manual patch, because it will fail otherwise (deleteTimeStamp will be 0, but is not allowed to be set on non DELETE requests)
-	payload := []byte(fmt.Sprintf(`{ "metadata": { "name": "%s", "namespace": "%s", "annotations": { "zalando.org/aws-load-balancer-ssl-cert": "%s"}}}`, name, ns, arn))
-
-	resource := fmt.Sprintf(ingressPatchResource, ns, name)
-	// payload, err := json.Marshal(patchMetadataARN)
-	// if err != nil {
-	// 	return err
-	// }
-
-	log.Printf("sent PATCH body: %v", string(payload))
-
-	r, err := c.patch(resource, payload)
-	if err != nil {
-		return fmt.Errorf("failed to patch ingress %s/%s = %q: %v", ns, name, arn, err)
 	}
 	defer r.Close()
 	return nil
