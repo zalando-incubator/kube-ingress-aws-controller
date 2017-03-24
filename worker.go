@@ -6,6 +6,7 @@ import (
 
 	"fmt"
 
+	awssdk "github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/acm"
 	"github.com/zalando-incubator/kube-ingress-aws-controller/aws"
 	"github.com/zalando-incubator/kube-ingress-aws-controller/kubernetes"
@@ -63,32 +64,33 @@ func doWork(awsAdapter *aws.Adapter, kubeAdapter *kubernetes.Adapter) error {
 	return nil
 }
 
-func ingressByCertArn(awsAdapter *aws.Adapteringresses, ingresses []*kubernetes.Ingress, acmCerts []*acm.CertificateDetail) map[string][]*kubernetes.Ingress {
+func ingressByCertArn(awsAdapter *aws.Adapter, ingresses []*kubernetes.Ingress, acmCerts []*acm.CertificateDetail) map[string][]*kubernetes.Ingress {
 	uniqueARNs := make(map[string][]*kubernetes.Ingress)
 	for _, ingress := range ingresses {
 		certificateARN := ingress.CertificateARN()
 		if certificateARN != "" {
 			uniqueARNs[certificateARN] = append(uniqueARNs[certificateARN], ingress)
 		} else {
-			log.Printf("Using autopilot mode for empty certificate ARN for ingress %v\n", ingress)
-			if err := setCertARNsForIngress(awsAdapter, ingress, acmCerts); err {
+			arn, err := findCertARNForIngress(awsAdapter, ingress, acmCerts)
+			if err != nil {
 				log.Printf("No valid Certificate found for %v: %v", ingress.CertHostname(), err)
+				continue
 			}
+			log.Printf("Using autopilot mode for ingress %v, with cert: %v\n", ingress, arn)
+			uniqueARNs[arn] = append(uniqueARNs[arn], ingress)
 		}
 	}
 	return uniqueARNs
 }
 
-func setCertARNsForIngress(awsAdapter *aws.Adapter, ingress *kubernetes.Ingress, acmCerts []*acm.CertificateDetail) error {
+func findCertARNForIngress(awsAdapter *aws.Adapter, ingress *kubernetes.Ingress, acmCerts []*acm.CertificateDetail) (string, error) {
 	acmCert, err := awsAdapter.FindBestMatchingCertifcate(acmCerts, ingress.CertHostname())
 	if err != nil {
-		return err
+		return "", err
 	}
-	// TODO(sszuecs): drop %+v before PR
-	log.Printf("Found best matching cert for %s: %+v, ARN: %s", inggress.CertHostname(), acmCert, awssdk.StringValue(acmCert.CertificateArn))
 	ingress.SetCertificateARN(awssdk.StringValue(acmCert.CertificateArn))
 
-	return nil
+	return awssdk.StringValue(acmCert.CertificateArn), nil
 }
 
 func filterExistingARNs(awsAdapter *aws.Adapter, certificateARNs map[string][]*kubernetes.Ingress) (map[string][]*kubernetes.Ingress, map[string]*aws.LoadBalancer) {
