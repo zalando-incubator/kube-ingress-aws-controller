@@ -37,9 +37,11 @@ func (cc *certificateCache) InitCertCache(certUpdateInterval time.Duration) {
 
 }
 
-// TODO(sszuecs): make it successfull when we get AWS rateLimited
+// updateCertCache will only update the current certificateCache if
+// all calls to AWS API were successfull and not rateLimited for
+// example
 func (cc *certificateCache) updateCertCache() {
-	certList, err := cc.GetCerts()
+	certList, err := cc.ListCerts()
 	if err != nil {
 		log.Printf("Could not update certificate cache, caused by: %v", err)
 		return
@@ -62,10 +64,10 @@ func (cc *certificateCache) updateCertCache() {
 	cc.Unlock()
 }
 
-// GetCachedCerts returns a copy of the cached acm Certifcates
+// GetCachedCerts returns a copy of the cached acm CertifcateDetail slice
+// https://docs.aws.amazon.com/acm/latest/APIReference/API_ListCertificates.html#API_ListCertificates_RequestSyntax
 // filtered by CertificateStatuses
 // https://docs.aws.amazon.com/acm/latest/APIReference/API_ListCertificates.html#API_ListCertificates_RequestSyntax
-// no locking is required to access certs.
 func (cc *certificateCache) GetCachedCerts() []*acm.CertificateDetail {
 	cc.Lock()
 	result := cc.acmCertDetail[:]
@@ -73,10 +75,10 @@ func (cc *certificateCache) GetCachedCerts() []*acm.CertificateDetail {
 	return result
 }
 
-// GetCerts returns a list of acm Certifcates filtered by
+// LsitCerts returns a list of acm Certifcates filtered by
 // CertificateStatuses
 // https://docs.aws.amazon.com/acm/latest/APIReference/API_ListCertificates.html#API_ListCertificates_RequestSyntax
-func (cc *certificateCache) GetCerts() ([]*acm.CertificateSummary, error) {
+func (cc *certificateCache) ListCerts() ([]*acm.CertificateSummary, error) {
 	maxItems := aws.Int64(10)
 
 	params := &acm.ListCertificatesInput{

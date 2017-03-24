@@ -270,7 +270,6 @@ func TestFindBestMatchingCertifcate(t *testing.T) {
 			expect:    validCertFor6dUntill10d,
 			condition: certValidMatchFunction,
 		}, {
-			// TODO
 			msg:       "Not found best match (longer first) tricky cert NotBefore/NotAfter 6d/10d compared to 1d/7d-1s",
 			hostname:  validHostname,
 			cert:      []*acm.CertificateDetail{validCertFor6dUntill10d, validCertFor1dUntill7d1sLess},
