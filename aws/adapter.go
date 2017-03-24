@@ -82,7 +82,6 @@ func NewAdapter(healthCheckPath string, healthCheckPort uint16, certUpdateInterv
 		ec2metadata:     ec2metadata.New(p),
 		autoscaling:     autoscaling.New(p),
 		acm:             acm.New(p),
-		cc:              nil,
 		healthCheckPath: healthCheckPath,
 		healthCheckPort: healthCheckPort,
 	}
@@ -102,11 +101,11 @@ func (a *Adapter) NewAcm(certUpdateInterval time.Duration) *certificateCache {
 	return cc
 }
 
-func (a *Adapter) GetCerts() []*acm.CertificateDetail {
+func (a *Adapter) GetCerts() []*CertDetail {
 	return a.cc.GetCachedCerts()
 }
 
-func (a *Adapter) FindBestMatchingCertificate(certs []*acm.CertificateDetail, hostname string) (*acm.CertificateDetail, error) {
+func (a *Adapter) FindBestMatchingCertificate(certs []*CertDetail, hostname string) (*CertDetail, error) {
 	return FindBestMatchingCertificate(certs, hostname)
 }
 

@@ -11,6 +11,27 @@ import (
 	"github.com/aws/aws-sdk-go/service/acm/acmiface"
 )
 
+// CertDetail is the business object for Certificates
+type CertDetail struct {
+	Arn       string
+	AltNames  []string
+	NotBefore time.Time
+	NotAfter  time.Time
+}
+
+func newCertDetail(acmDetail *acm.CertificateDetail) *CertDetail {
+	var altNames []string
+	for _, alt := range acmDetail.SubjectAlternativeNames {
+		altNames = append(altNames, aws.StringValue(alt))
+	}
+	return &CertDetail{
+		Arn:       aws.StringValue(acmDetail.CertificateArn),
+		AltNames:  append(altNames, aws.StringValue(acmDetail.DomainName)),
+		NotBefore: aws.TimeValue(acmDetail.NotBefore),
+		NotAfter:  aws.TimeValue(acmDetail.NotAfter),
+	}
+}
+
 const glob = "*"
 
 type certificateCache struct {
@@ -43,7 +64,7 @@ func (cc *certificateCache) InitCertCache(certUpdateInterval time.Duration) {
 // all calls to AWS API were successfull and not rateLimited for
 // example
 func (cc *certificateCache) updateCertCache() {
-	certList, err := cc.ListCerts()
+	certList, err := cc.listCerts()
 	if err != nil {
 		log.Printf("Could not update certificate cache, caused by: %v", err)
 		return
@@ -70,17 +91,22 @@ func (cc *certificateCache) updateCertCache() {
 // https://docs.aws.amazon.com/acm/latest/APIReference/API_ListCertificates.html#API_ListCertificates_RequestSyntax
 // filtered by CertificateStatuses
 // https://docs.aws.amazon.com/acm/latest/APIReference/API_ListCertificates.html#API_ListCertificates_RequestSyntax
-func (cc *certificateCache) GetCachedCerts() []*acm.CertificateDetail {
+func (cc *certificateCache) GetCachedCerts() []*CertDetail {
 	cc.Lock()
-	result := cc.acmCertDetail[:]
+	copy := cc.acmCertDetail[:]
 	cc.Unlock()
+	result := make([]*CertDetail, 0, 1)
+	for _, c := range copy {
+		result = append(result, newCertDetail(c))
+	}
+
 	return result
 }
 
 // LsitCerts returns a list of acm Certificates filtered by
 // CertificateStatuses
 // https://docs.aws.amazon.com/acm/latest/APIReference/API_ListCertificates.html#API_ListCertificates_RequestSyntax
-func (cc *certificateCache) ListCerts() ([]*acm.CertificateSummary, error) {
+func (cc *certificateCache) listCerts() ([]*acm.CertificateSummary, error) {
 	maxItems := aws.Int64(10)
 
 	params := &acm.ListCertificatesInput{
@@ -123,24 +149,24 @@ func (cc *certificateCache) ListCerts() ([]*acm.CertificateSummary, error) {
 //
 // We don't need to validate the Revocation here, because we only pull
 // ISSUED certificates.
-func FindBestMatchingCertificate(certs []*acm.CertificateDetail, hostname string) (*acm.CertificateDetail, error) {
-	candidate := &acm.CertificateDetail{}
+func FindBestMatchingCertificate(certs []*CertDetail, hostname string) (*CertDetail, error) {
+	candidate := &CertDetail{}
 	longestMatch := -1
-	sevenDaysInSec := int64(7 * 24 * 3600)
+	now := time.Now()
+	minValidPeriod := 7 * 24 * time.Hour
 
 	for _, cert := range certs {
-		now := time.Now().Unix()
-		notAfter := cert.NotAfter.Unix()
-		notBefore := cert.NotBefore.Unix()
+		notAfter := cert.NotAfter
+		notBefore := cert.NotBefore
+
 		// ignore invalid timeframes
-		if notAfter <= now || now <= notBefore {
+		if now.After(notAfter) || now.Before(notBefore) {
 			continue
 		}
-		altNames := append(cert.SubjectAlternativeNames, cert.DomainName)
 
-		for _, altName := range altNames {
-			if prefixGlob(aws.StringValue(altName), hostname) {
-				l := len(aws.StringValue(altName))
+		for _, altName := range cert.AltNames {
+			if prefixGlob(altName, hostname) {
+				l := len(altName)
 
 				switch {
 				case longestMatch < 0:
@@ -148,32 +174,34 @@ func FindBestMatchingCertificate(certs []*acm.CertificateDetail, hostname string
 					longestMatch = l
 					candidate = cert
 				case longestMatch < l:
-					if notBefore < now && now < notAfter-sevenDaysInSec {
+					if notBefore.Before(now) && notAfter.Add(-minValidPeriod).After(now) {
 						// more specific valid cert found: *.example.org -> foo.example.org
 						longestMatch = l
 						candidate = cert
 					}
 				case longestMatch == l:
-					if notBefore > candidate.NotBefore.Unix() && notAfter-sevenDaysInSec >= now {
+					log.Printf("%v > %v && !%v < %v", notBefore, candidate.NotBefore, notAfter.Add(-minValidPeriod), now)
+					if notBefore.After(candidate.NotBefore) &&
+						!notAfter.Add(-minValidPeriod).Before(now) {
 						// cert is newer than curBestCert and is not invalid in 7 days
 						longestMatch = l
 						candidate = cert
-					} else if notBefore == candidate.NotBefore.Unix() && notAfter >= candidate.NotAfter.Unix() {
+					} else if notBefore.Equal(candidate.NotBefore) && !candidate.NotAfter.After(notAfter) {
 						// cert has the same issue date, but is longer valid
 						longestMatch = l
 						candidate = cert
-					} else if notBefore < candidate.NotBefore.Unix() &&
-						candidate.NotAfter.Unix()-sevenDaysInSec < now &&
-						notAfter > candidate.NotAfter.Unix() {
+					} else if notBefore.Before(candidate.NotBefore) &&
+						candidate.NotAfter.Add(-minValidPeriod).Before(now) &&
+						notAfter.After(candidate.NotAfter) {
 						// cert is older than curBestCert but curBestCert is invalid in 7 days and cert is longer valid
 						longestMatch = l
 						candidate = cert
 					}
 				case longestMatch > l:
-					if candidate.NotAfter.Unix()-sevenDaysInSec < now &&
-						now < candidate.NotBefore.Unix() &&
-						notBefore < now &&
-						now < notAfter-sevenDaysInSec {
+					if candidate.NotAfter.Add(-minValidPeriod).Before(now) &&
+						now.Before(candidate.NotBefore) &&
+						notBefore.Before(now) &&
+						now.Before(notAfter.Add(-minValidPeriod)) {
 						// foo.example.org -> *.example.org degradation when NotAfter requires a downgrade
 						longestMatch = l
 						candidate = cert

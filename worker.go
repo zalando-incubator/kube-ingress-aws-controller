@@ -6,8 +6,6 @@ import (
 
 	"fmt"
 
-	awssdk "github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/service/acm"
 	"github.com/zalando-incubator/kube-ingress-aws-controller/aws"
 	"github.com/zalando-incubator/kube-ingress-aws-controller/kubernetes"
 )
@@ -64,7 +62,7 @@ func doWork(awsAdapter *aws.Adapter, kubeAdapter *kubernetes.Adapter) error {
 	return nil
 }
 
-func ingressByCertArn(awsAdapter *aws.Adapter, ingresses []*kubernetes.Ingress, acmCerts []*acm.CertificateDetail) map[string][]*kubernetes.Ingress {
+func ingressByCertArn(awsAdapter *aws.Adapter, ingresses []*kubernetes.Ingress, acmCerts []*aws.CertDetail) map[string][]*kubernetes.Ingress {
 	uniqueARNs := make(map[string][]*kubernetes.Ingress)
 	for _, ingress := range ingresses {
 		certificateARN := ingress.CertificateARN()
@@ -83,14 +81,14 @@ func ingressByCertArn(awsAdapter *aws.Adapter, ingresses []*kubernetes.Ingress, 
 	return uniqueARNs
 }
 
-func findCertARNForIngress(awsAdapter *aws.Adapter, ingress *kubernetes.Ingress, acmCerts []*acm.CertificateDetail) (string, error) {
+func findCertARNForIngress(awsAdapter *aws.Adapter, ingress *kubernetes.Ingress, acmCerts []*aws.CertDetail) (string, error) {
 	acmCert, err := awsAdapter.FindBestMatchingCertificate(acmCerts, ingress.CertHostname())
 	if err != nil {
 		return "", err
 	}
-	ingress.SetCertificateARN(awssdk.StringValue(acmCert.CertificateArn))
+	ingress.SetCertificateARN(acmCert.Arn)
 
-	return awssdk.StringValue(acmCert.CertificateArn), nil
+	return acmCert.Arn, nil
 }
 
 func filterExistingARNs(awsAdapter *aws.Adapter, certificateARNs map[string][]*kubernetes.Ingress) (map[string][]*kubernetes.Ingress, map[string]*aws.LoadBalancer) {
