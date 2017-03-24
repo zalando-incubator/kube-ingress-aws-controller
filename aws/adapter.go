@@ -95,7 +95,7 @@ func NewAdapter(healthCheckPath string, healthCheckPort uint16, certUpdateInterv
 		return nil, err
 	}
 
-	return
+	return adapter, nil
 }
 
 func (a *Adapter) NewAcm(certUpdateInterval time.Duration) *certificateCache {
