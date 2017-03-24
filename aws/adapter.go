@@ -81,7 +81,7 @@ func NewAdapter(healthCheckPath string, healthCheckPort uint16, certUpdateInterv
 		ec2:             ec2.New(p),
 		ec2metadata:     ec2metadata.New(p),
 		autoscaling:     autoscaling.New(p),
-    acm:             acm.New(p),
+		acm:             acm.New(p),
 		cc:              nil,
 		healthCheckPath: path,
 		healthCheckPort: port,
