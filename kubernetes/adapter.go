@@ -46,7 +46,7 @@ func (i *Ingress) CertificateARN() string {
 
 // String returns a string representation of the Ingress instance containing the namespace and the resource name.
 func (i *Ingress) String() string {
-	return fmt.Sprintf("%s/%s -> %s", i.namespace, i.name, i.certHostname)
+	return fmt.Sprintf("%s/%s", i.namespace, i.name)
 }
 
 // Hostname returns the DNS LoadBalancer hostname associated with the
