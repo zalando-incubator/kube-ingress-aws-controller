@@ -9,10 +9,11 @@ import (
 
 	"encoding/hex"
 
+	"encoding/binary"
+	"errors"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/elbv2"
 	"github.com/aws/aws-sdk-go/service/elbv2/elbv2iface"
-	"github.com/pkg/errors"
 )
 
 // LoadBalancer is a simple wrapper around an AWS Load Balancer details.
@@ -77,19 +78,6 @@ func findManagedLBWithCertificateID(elbv2 elbv2iface.ELBV2API, clusterID string,
 	return nil, nil
 }
 
-func getListeners(alb elbv2iface.ELBV2API, loadBalancerARN string) ([]*elbv2.Listener, error) {
-	// TODO: paged results
-	params := &elbv2.DescribeListenersInput{
-		LoadBalancerArn: aws.String(loadBalancerARN),
-	}
-	resp, err := alb.DescribeListeners(params)
-
-	if err != nil {
-		return nil, err
-	}
-	return resp.Listeners, nil
-}
-
 type createLoadBalancerSpec struct {
 	name            string
 	scheme          string
@@ -143,15 +131,19 @@ func createLoadBalancer(svc elbv2iface.ELBV2API, spec *createLoadBalancerSpec) (
 
 	newLoadBalancer := resp.LoadBalancers[0]
 	loadBalancerARN := aws.StringValue(newLoadBalancer.LoadBalancerArn)
+	// TODO: if any of the following fail, should we delete the just created LB?
 	targetGroupARN, err := createDefaultTargetGroup(svc, name, spec.vpcID, spec.healthCheck)
-	newHTTPSListener, err := createListener(svc, loadBalancerARN, targetGroupARN, httpsListenerPort, elbv2.ProtocolEnumHttps, spec.certificateARN)
 	if err != nil {
-		// TODO: delete just created LB?
 		return nil, err
 	}
+
+	newHTTPSListener, err := createListener(svc, loadBalancerARN, targetGroupARN, httpsListenerPort, elbv2.ProtocolEnumHttps, spec.certificateARN)
+	if err != nil {
+		return nil, err
+	}
+
 	newHTTPListener, err := createListener(svc, loadBalancerARN, targetGroupARN, httpListenerPort, elbv2.ProtocolEnumHttp, "")
 	if err != nil {
-		// TODO: delete just created LB?
 		return nil, err
 	}
 
@@ -173,26 +165,37 @@ func createLoadBalancer(svc elbv2iface.ELBV2API, spec *createLoadBalancerSpec) (
 // Valid sets: a-z,A-Z,0-9,-
 // Replacement char: -
 // Squeeze and strip from beginning and/or end
-var normalizationRegex = regexp.MustCompile("[^A-Za-z0-9-]+")
+var (
+	normalizationRegex = regexp.MustCompile("[^A-Za-z0-9-]+")
+	squeezeDashesRegex = regexp.MustCompile("[-]{2,}")
+)
 
 const (
 	shortHashLen    = 7
 	maxClusterIDLen = 24
 )
 
+const emptyARN = 0xBADA55
+
 func normalizeLoadBalancerName(clusterID string, certificateARN string) string {
 	hasher := sha1.New()
-	hasher.Write([]byte(certificateARN))
-	hash := hex.EncodeToString(hasher.Sum(nil))
+	if certificateARN == "" {
+		binary.Write(hasher, binary.BigEndian, emptyARN)
+	} else {
+		hasher.Write([]byte(certificateARN))
+	}
+	hash := strings.ToLower(hex.EncodeToString(hasher.Sum(nil)))
 	hashLen := len(hash)
 	if hashLen > shortHashLen {
-		hash = strings.ToLower(hash[hashLen-shortHashLen:])
+		hash = hash[hashLen-shortHashLen:]
 	}
 
-	normalizedClusterID := normalizationRegex.ReplaceAllString(clusterID, "-")
+	normalizedClusterID := squeezeDashesRegex.ReplaceAllString(
+		normalizationRegex.ReplaceAllString(clusterID, "-"), "-")
 	lenClusterID := len(normalizedClusterID)
+	normalizedClusterID = strings.Trim(normalizedClusterID, "-")
 	if lenClusterID > maxClusterIDLen {
-		normalizedClusterID = strings.TrimPrefix(normalizedClusterID[lenClusterID-maxClusterIDLen:], "-")
+		normalizedClusterID = normalizedClusterID[lenClusterID-maxClusterIDLen:]
 	}
 
 	return fmt.Sprintf("%s-%s", normalizedClusterID, hash)
@@ -292,7 +295,7 @@ func findManagedLoadBalancers(svc elbv2iface.ELBV2API, clusterID string) ([]*Loa
 				}
 
 				listener, certARN := findFirstListenerWithAnyCertificate(listeners)
-				if len(listeners) < 1 {
+				if listener == nil {
 					log.Printf("load balancer ARN %q has no certificates\n", loadBalancerARN)
 					continue
 				}
@@ -300,7 +303,8 @@ func findManagedLoadBalancers(svc elbv2iface.ELBV2API, clusterID string) ([]*Loa
 					log.Printf("load balancer %q doesn't have the default target group", loadBalancerARN)
 					continue
 				}
-				if aws.StringValue(lb.LoadBalancerArn) == aws.StringValue(td.ResourceArn) {
+
+				if aws.StringValue(lb.LoadBalancerArn) == loadBalancerARN {
 					lb := &LoadBalancer{
 						name:    aws.StringValue(lb.LoadBalancerName),
 						dnsName: aws.StringValue(lb.DNSName),
@@ -331,11 +335,23 @@ func findManagedLoadBalancers(svc elbv2iface.ELBV2API, clusterID string) ([]*Loa
 	return loadBalancers, err
 }
 
+func getListeners(alb elbv2iface.ELBV2API, loadBalancerARN string) ([]*elbv2.Listener, error) {
+	// TODO: paged results
+	params := &elbv2.DescribeListenersInput{
+		LoadBalancerArn: aws.String(loadBalancerARN),
+	}
+	resp, err := alb.DescribeListeners(params)
+	if err != nil {
+		return nil, err
+	}
+	return resp.Listeners, nil
+}
+
 func findFirstListenerWithAnyCertificate(listeners []*elbv2.Listener) (*elbv2.Listener, string) {
 	for _, l := range listeners {
 		for _, c := range l.Certificates {
-			if aws.StringValue(c.CertificateArn) != "" {
-				return l, aws.StringValue(c.CertificateArn)
+			if arn := aws.StringValue(c.CertificateArn); arn != "" {
+				return l, arn
 			}
 		}
 	}

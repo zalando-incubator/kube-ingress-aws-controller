@@ -8,6 +8,18 @@ import (
 	"strings"
 )
 
+const (
+	defaultInstanceName     = "unknown-instance"
+	defaultClusterID        = "unknown-cluster"
+	autoScalingGroupNameTag = "aws:autoscaling:groupName"
+	runningState            = 16 // See https://github.com/aws/aws-sdk-go/blob/master/service/ec2/api.go, type InstanceState
+)
+
+type securityGroupDetails struct {
+	name string
+	id   string
+}
+
 type instanceDetails struct {
 	id    string
 	vpcID string
@@ -18,14 +30,14 @@ func (id *instanceDetails) name() string {
 	if n, err := getNameTag(id.tags); err == nil {
 		return n
 	}
-	return "unknowninstance"
+	return defaultInstanceName
 }
 
 func (id *instanceDetails) clusterID() string {
 	if clusterID, err := getTag(id.tags, clusterIDTag); err == nil {
 		return clusterID
 	}
-	return "unknown-cluster"
+	return defaultClusterID
 }
 
 type subnetDetails struct {
@@ -33,11 +45,6 @@ type subnetDetails struct {
 	availabilityZone string
 	tags             map[string]string
 	public           bool
-}
-
-type securityGroupDetails struct {
-	name string
-	id   string
 }
 
 func (sd *subnetDetails) String() string {
@@ -50,11 +57,6 @@ func (sd *subnetDetails) Name() string {
 	}
 	return "unknown-subnet"
 }
-
-const (
-	autoScalingGroupNameTag = "aws:autoscaling:groupName"
-	runningState            = 16 // See github.com/aws/aws-sdk-go/service/ec2/api.go, type InstanceState
-)
 
 func getAutoScalingGroupName(instanceTags map[string]string) (string, error) {
 	if len(instanceTags) < 1 {
@@ -81,17 +83,13 @@ func getInstanceDetails(ec2Service ec2iface.EC2API, instanceID string) (*instanc
 		},
 	}
 	resp, err := ec2Service.DescribeInstances(params)
+	if err != nil || resp == nil {
+		return nil, fmt.Errorf("unable to get details for instance %q: %v", instanceID, err)
+	}
+
+	i, err := findFirstRunningInstance(resp)
 	if err != nil {
-		return nil, err
-	}
-
-	if len(resp.Reservations) < 1 || len(resp.Reservations[0].Instances) < 1 {
-		return nil, fmt.Errorf("unable to get details for instance %q", instanceID)
-	}
-
-	i := resp.Reservations[0].Instances[0]
-	if aws.Int64Value(i.State.Code) != runningState {
-		return nil, fmt.Errorf("instance is in an invalid state: %s", aws.StringValue(i.State.Name))
+		return nil, fmt.Errorf("unable to find instance %q: %v", instanceID, err)
 	}
 
 	return &instanceDetails{
@@ -99,6 +97,19 @@ func getInstanceDetails(ec2Service ec2iface.EC2API, instanceID string) (*instanc
 		vpcID: aws.StringValue(i.VpcId),
 		tags:  convertEc2Tags(i.Tags),
 	}, nil
+}
+
+func findFirstRunningInstance(resp *ec2.DescribeInstancesOutput) (*ec2.Instance, error) {
+	for _, reservation := range resp.Reservations {
+		for _, instance := range reservation.Instances {
+			// The low byte represents the state. The high byte is an opaque internal value
+			// and should be ignored.
+			if aws.Int64Value(instance.State.Code)&0xff == runningState {
+				return instance, nil
+			}
+		}
+	}
+	return nil, ErrNoRunningInstances
 }
 
 func getSubnets(svc ec2iface.EC2API, vpcID string) ([]*subnetDetails, error) {
@@ -141,6 +152,14 @@ func getSubnets(svc ec2iface.EC2API, vpcID string) ([]*subnetDetails, error) {
 
 }
 
+func convertEc2Tags(instanceTags []*ec2.Tag) map[string]string {
+	tags := make(map[string]string, len(instanceTags))
+	for _, tagDescription := range instanceTags {
+		tags[aws.StringValue(tagDescription.Key)] = aws.StringValue(tagDescription.Value)
+	}
+	return tags
+}
+
 func getRouteTables(svc ec2iface.EC2API, vpcID string) ([]*ec2.RouteTable, error) {
 	params := &ec2.DescribeRouteTablesInput{
 		Filters: []*ec2.Filter{
@@ -177,7 +196,7 @@ func isSubnetPublic(rt []*ec2.RouteTable, subnetID string) (bool, error) {
 		// associated with the VPC's main routing table.
 		for _, table := range rt {
 			for _, assoc := range table.Associations {
-				if aws.BoolValue(assoc.Main) == true {
+				if aws.BoolValue(assoc.Main) {
 					subnetTable = table
 					break
 				}
@@ -202,14 +221,6 @@ func isSubnetPublic(rt []*ec2.RouteTable, subnetID string) (bool, error) {
 	}
 
 	return false, nil
-}
-
-func convertEc2Tags(instanceTags []*ec2.Tag) map[string]string {
-	tags := make(map[string]string, len(instanceTags))
-	for _, tagDescription := range instanceTags {
-		tags[aws.StringValue(tagDescription.Key)] = aws.StringValue(tagDescription.Value)
-	}
-	return tags
 }
 
 func findSecurityGroupWithNameTag(svc ec2iface.EC2API, nameTag string) (*securityGroupDetails, error) {
