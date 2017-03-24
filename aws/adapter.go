@@ -74,7 +74,7 @@ func defaultConfigProvider() client.ConfigProvider {
 // Before returning there is a discovery process for VPC and EC2 details. It tries to find the TargetGroup and
 // Security Group that should be used for newly created LoadBalancers. If any of those critical steps fail
 // an appropriate error is returned.
-func NewAdapter(healthCheckPath string, healthCheckPort uint16, certUpdateInterval time.Duration) (*Adapter, error) {
+func NewAdapter(healthCheckPath string, healthCheckPort uint16, certUpdateInterval time.Duration) (adapter *Adapter, err error) {
 	p := configProvider()
 	adapter = &Adapter{
 		elbv2:           elbv2.New(p),
@@ -83,8 +83,6 @@ func NewAdapter(healthCheckPath string, healthCheckPort uint16, certUpdateInterv
 		autoscaling:     autoscaling.New(p),
 		acm:             acm.New(p),
 		cc:              nil,
-		healthCheckPath: path,
-		healthCheckPort: port,
 		healthCheckPath: healthCheckPath,
 		healthCheckPort: healthCheckPort,
 	}
@@ -95,7 +93,7 @@ func NewAdapter(healthCheckPath string, healthCheckPort uint16, certUpdateInterv
 		return nil, err
 	}
 
-	return adapter, nil
+	return
 }
 
 func (a *Adapter) NewAcm(certUpdateInterval time.Duration) *certificateCache {
