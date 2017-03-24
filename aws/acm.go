@@ -66,7 +66,7 @@ func (cc *certificateCache) updateCertCache() {
 	cc.Unlock()
 }
 
-// GetCachedCerts returns a copy of the cached acm CertifcateDetail slice
+// GetCachedCerts returns a copy of the cached acm CertificateDetail slice
 // https://docs.aws.amazon.com/acm/latest/APIReference/API_ListCertificates.html#API_ListCertificates_RequestSyntax
 // filtered by CertificateStatuses
 // https://docs.aws.amazon.com/acm/latest/APIReference/API_ListCertificates.html#API_ListCertificates_RequestSyntax
@@ -77,7 +77,7 @@ func (cc *certificateCache) GetCachedCerts() []*acm.CertificateDetail {
 	return result
 }
 
-// LsitCerts returns a list of acm Certifcates filtered by
+// LsitCerts returns a list of acm Certificates filtered by
 // CertificateStatuses
 // https://docs.aws.amazon.com/acm/latest/APIReference/API_ListCertificates.html#API_ListCertificates_RequestSyntax
 func (cc *certificateCache) ListCerts() ([]*acm.CertificateSummary, error) {
@@ -117,13 +117,13 @@ func (cc *certificateCache) ListCerts() ([]*acm.CertificateSummary, error) {
 	return certList, nil
 }
 
-// FindBestMatchingCertifcate get all ACM certifcates and use a suffix
-// search best match opertion in order to find the best matching
-// certifcate ARN.
+// FindBestMatchingCertificate get all ACM certificates and use a suffix
+// search best match operation in order to find the best matching
+// certificate ARN.
 //
 // We don't need to validate the Revocation here, because we only pull
 // ISSUED certificates.
-func FindBestMatchingCertifcate(certs []*acm.CertificateDetail, hostname string) (*acm.CertificateDetail, error) {
+func FindBestMatchingCertificate(certs []*acm.CertificateDetail, hostname string) (*acm.CertificateDetail, error) {
 	candidate := &acm.CertificateDetail{}
 	longestMatch := -1
 	sevenDaysInSec := int64(7 * 24 * 3600)

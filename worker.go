@@ -84,7 +84,7 @@ func ingressByCertArn(awsAdapter *aws.Adapter, ingresses []*kubernetes.Ingress, 
 }
 
 func findCertARNForIngress(awsAdapter *aws.Adapter, ingress *kubernetes.Ingress, acmCerts []*acm.CertificateDetail) (string, error) {
-	acmCert, err := awsAdapter.FindBestMatchingCertifcate(acmCerts, ingress.CertHostname())
+	acmCert, err := awsAdapter.FindBestMatchingCertificate(acmCerts, ingress.CertHostname())
 	if err != nil {
 		return "", err
 	}

@@ -106,8 +106,8 @@ func (a *Adapter) GetCerts() []*acm.CertificateDetail {
 	return a.cc.GetCachedCerts()
 }
 
-func (a *Adapter) FindBestMatchingCertifcate(certs []*acm.CertificateDetail, hostname string) (*acm.CertificateDetail, error) {
-	return FindBestMatchingCertifcate(certs, hostname)
+func (a *Adapter) FindBestMatchingCertificate(certs []*acm.CertificateDetail, hostname string) (*acm.CertificateDetail, error) {
+	return FindBestMatchingCertificate(certs, hostname)
 }
 
 // StackName returns the Name tag that all resources created by the same CloudFormation stack share. It's taken from

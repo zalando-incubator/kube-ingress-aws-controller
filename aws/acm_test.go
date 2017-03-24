@@ -32,7 +32,7 @@ func certInvalidMatchFunction(err error, expect, c *acm.CertificateDetail) bool 
 	return err == nil && c == expect
 }
 
-func TestFindBestMatchingCertifcate(t *testing.T) {
+func TestFindBestMatchingCertificate(t *testing.T) {
 	domain := "example.org"
 	wildcardDomain := "*." + domain
 	invalidDomain := "invalid.org"
@@ -278,7 +278,7 @@ func TestFindBestMatchingCertifcate(t *testing.T) {
 		},
 	} {
 		t.Run(ti.msg, func(t *testing.T) {
-			if c, err := FindBestMatchingCertifcate(ti.cert, ti.hostname); ti.condition(err, c, ti.expect) {
+			if c, err := FindBestMatchingCertificate(ti.cert, ti.hostname); ti.condition(err, c, ti.expect) {
 				t.Errorf("%s: for host: %s expected %v, got %v, err: %v", ti.msg, ti.hostname, ti.expect, c, err)
 			}
 
