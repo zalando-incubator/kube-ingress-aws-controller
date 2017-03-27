@@ -97,6 +97,13 @@ Additionally to the ingress controller, we use [skipper](https://github.com/zala
 
 You can deploy `skipper` as a `DaemonSet` using [this yaml](deploy/skipper.yaml).
 
+To deploy the two, you can execute the following commands: 
+
+```
+kubectl apply -f deploy/ingress-controller.yaml
+kubectl apply -f deploy/skipper.yaml
+```
+
 To complete the setup, some additional regarding security groups and IAM roles are needed and are described in the following document: [requirements](deploy/requirements.md).
 
 ### DNS 
