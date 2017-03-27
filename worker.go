@@ -32,10 +32,12 @@ func doWork(awsAdapter *aws.Adapter, kubeAdapter *kubernetes.Adapter) error {
 	if err != nil {
 		return err
 	}
-
 	log.Printf("found %d ingress resource(s)", len(ingresses))
 
-	uniqueARNs := flattenIngressByARN(ingresses)
+	acmCerts := awsAdapter.GetCerts()
+	log.Printf("found %d ACM certificates", len(acmCerts))
+
+	uniqueARNs := ingressByCertArn(awsAdapter, ingresses, acmCerts)
 	missingARNs, existingARNs := filterExistingARNs(awsAdapter, uniqueARNs)
 	for missingARN, ingresses := range missingARNs {
 		lb, err := createMissingLoadBalancer(awsAdapter, missingARN)
@@ -60,17 +62,33 @@ func doWork(awsAdapter *aws.Adapter, kubeAdapter *kubernetes.Adapter) error {
 	return nil
 }
 
-func flattenIngressByARN(ingresses []*kubernetes.Ingress) map[string][]*kubernetes.Ingress {
+func ingressByCertArn(awsAdapter *aws.Adapter, ingresses []*kubernetes.Ingress, acmCerts []*aws.CertDetail) map[string][]*kubernetes.Ingress {
 	uniqueARNs := make(map[string][]*kubernetes.Ingress)
 	for _, ingress := range ingresses {
 		certificateARN := ingress.CertificateARN()
 		if certificateARN != "" {
 			uniqueARNs[certificateARN] = append(uniqueARNs[certificateARN], ingress)
 		} else {
-			log.Printf("invalid/empty certificate ARN for ingress %v\n", ingress)
+			arn, err := findCertARNForIngress(awsAdapter, ingress, acmCerts)
+			if err != nil {
+				log.Printf("No valid Certificate found for %v: %v", ingress.CertHostname(), err)
+				continue
+			}
+			log.Printf("using autopilot mode for ingress %v", ingress)
+			uniqueARNs[arn] = append(uniqueARNs[arn], ingress)
 		}
 	}
 	return uniqueARNs
+}
+
+func findCertARNForIngress(awsAdapter *aws.Adapter, ingress *kubernetes.Ingress, acmCerts []*aws.CertDetail) (string, error) {
+	acmCert, err := awsAdapter.FindBestMatchingCertificate(acmCerts, ingress.CertHostname())
+	if err != nil {
+		return "", err
+	}
+	ingress.SetCertificateARN(acmCert.Arn)
+
+	return acmCert.Arn, nil
 }
 
 func filterExistingARNs(awsAdapter *aws.Adapter, certificateARNs map[string][]*kubernetes.Ingress) (map[string][]*kubernetes.Ingress, map[string]*aws.LoadBalancer) {

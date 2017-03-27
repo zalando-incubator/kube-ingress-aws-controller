@@ -16,6 +16,9 @@ var (
 	// ErrInvalidIngressUpdateParams is returned when a request to update ingress resources has an empty DNS name
 	// or doesn't specify any ingress resources
 	ErrInvalidIngressUpdateParams = errors.New("invalid ingress update parameters")
+	// ErrInvalidIngressUpdateARNParams is returned when a request to update ingress resources has an empty ARN
+	// or doesn't specify any ingress resources
+	ErrInvalidIngressUpdateARNParams = errors.New("invalid ingress updateARN parameters")
 	// ErrUpdateNotNeeded is returned when an ingress update call doesn't require an update due to already having
 	// the desired hostname
 	ErrUpdateNotNeeded = errors.New("update to ingress resource not needed")
@@ -26,11 +29,13 @@ var (
 	ErrInvalidCertificates = errors.New("invalid CA certificates")
 )
 
+// Ingress is the ingress-controller's business object
 type Ingress struct {
 	certificateARN string
 	namespace      string
 	name           string
 	hostName       string
+	certHostname   string
 }
 
 // CertificateARN returns the AWS certificate (IAM or ACM) ARN found in the ingress resource metadata.
@@ -44,16 +49,35 @@ func (i *Ingress) String() string {
 	return fmt.Sprintf("%s/%s", i.namespace, i.name)
 }
 
-// Hostname returns the DNS hostname associated with the ingress
+// Hostname returns the DNS LoadBalancer hostname associated with the
+// ingress gotten from Kubernetes Status
 func (i *Ingress) Hostname() string {
 	return i.hostName
 }
 
+// CertHostname returns the DNS hostname associated with the ingress
+// gotten from Kubernetes Spec
+func (i *Ingress) CertHostname() string {
+	return i.certHostname
+}
+
+// SetCertificateARN sets Ingress.certificateARN to the arn as specified.
+func (i *Ingress) SetCertificateARN(arn string) {
+	i.certificateARN = arn
+}
+
 func newIngressFromKube(kubeIngress *ingress) *Ingress {
-	var host string
+	var host, certHostname string
 	for _, ingressLoadBalancer := range kubeIngress.Status.LoadBalancer.Ingress {
 		if ingressLoadBalancer.Hostname != "" {
 			host = ingressLoadBalancer.Hostname
+			break
+		}
+	}
+
+	for _, rule := range kubeIngress.Spec.Rules {
+		if rule.Host != "" {
+			certHostname = rule.Host
 			break
 		}
 	}
@@ -63,6 +87,7 @@ func newIngressFromKube(kubeIngress *ingress) *Ingress {
 		namespace:      kubeIngress.Metadata.Namespace,
 		name:           kubeIngress.Metadata.Name,
 		hostName:       host,
+		certHostname:   certHostname,
 	}
 }
 

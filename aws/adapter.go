@@ -2,10 +2,14 @@ package aws
 
 import (
 	"errors"
+	"time"
 
+	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/client"
 	"github.com/aws/aws-sdk-go/aws/ec2metadata"
 	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/acm"
+	"github.com/aws/aws-sdk-go/service/acm/acmiface"
 	"github.com/aws/aws-sdk-go/service/autoscaling"
 	"github.com/aws/aws-sdk-go/service/autoscaling/autoscalingiface"
 	"github.com/aws/aws-sdk-go/service/ec2"
@@ -16,13 +20,15 @@ import (
 
 // An Adapter can be used to orchestrate and obtain information from Amazon Web Services.
 type Adapter struct {
-	ec2metadata     *ec2metadata.EC2Metadata
-	ec2             ec2iface.EC2API
-	elbv2           elbv2iface.ELBV2API
-	autoscaling     autoscalingiface.AutoScalingAPI
-	manifest        *manifest
-	healthCheckPath string
-	healthCheckPort uint16
+	ec2metadata        *ec2metadata.EC2Metadata
+	ec2                ec2iface.EC2API
+	elbv2              elbv2iface.ELBV2API
+	autoscaling        autoscalingiface.AutoScalingAPI
+	manifest           *manifest
+	healthCheckPath    string
+	healthCheckPort    uint16
+	acm                acmiface.ACMAPI
+	certUpdateInterval time.Duration
 }
 
 type manifest struct {
@@ -31,6 +37,7 @@ type manifest struct {
 	autoScalingGroup *autoScalingGroupDetails
 	privateSubnets   []*subnetDetails
 	publicSubnets    []*subnetDetails
+	certificateCache *certificateCache
 }
 
 type configProviderFunc func() client.ConfigProvider
@@ -41,7 +48,7 @@ const (
 )
 
 var (
-	// ErrSecurityGroupNotFound is used to signal that the required security group couldn't be found.
+	// ErrMissingSecurityGroup is used to signal that the required security group couldn't be found.
 	ErrMissingSecurityGroup = errors.New("required security group was not found")
 	// ErrLoadBalancerNotFound is used to signal that a given load balancer was not found.
 	ErrLoadBalancerNotFound = errors.New("load balancer not found")
@@ -53,6 +60,8 @@ var (
 	ErrNoSubnets = errors.New("unable to find VPC subnets")
 	// ErrMissingAutoScalingGroupTag is used to signal that the auto scaling group tag is not present in the list of tags.
 	ErrMissingAutoScalingGroupTag = errors.New(`instance is missing the "` + autoScalingGroupNameTag + `" tag`)
+	// ErrNoMatchingCertificateFound is used if there is no matching ACM certificate found
+	ErrNoMatchingCertificateFound = errors.New("no matching ACM certificate found")
 	// ErrNoRunningInstances is used to signal that no instances were found in the running state
 	ErrNoRunningInstances = errors.New("no reservations or instances in the running state matched the DescribeInstances request")
 )
@@ -60,29 +69,53 @@ var (
 var configProvider = defaultConfigProvider
 
 func defaultConfigProvider() client.ConfigProvider {
-	return session.Must(session.NewSession())
+	return session.Must(session.NewSession(aws.NewConfig().WithMaxRetries(3)))
 }
 
 // NewAdapter returns a new Adapter that can be used to orchestrate and obtain information from Amazon Web Services.
 // Before returning there is a discovery process for VPC and EC2 details. It tries to find the TargetGroup and
 // Security Group that should be used for newly created LoadBalancers. If any of those critical steps fail
 // an appropriate error is returned.
-func NewAdapter(healthCheckPath string, healthCheckPort uint16) (adapter *Adapter, err error) {
+func NewAdapter(healthCheckPath string, healthCheckPort uint16, certUpdateInterval time.Duration) (adapter *Adapter, err error) {
 	p := configProvider()
 	adapter = &Adapter{
-		elbv2:           elbv2.New(p),
-		ec2:             ec2.New(p),
-		ec2metadata:     ec2metadata.New(p),
-		autoscaling:     autoscaling.New(p),
-		healthCheckPath: healthCheckPath,
-		healthCheckPort: healthCheckPort,
+		elbv2:              elbv2.New(p),
+		ec2:                ec2.New(p),
+		ec2metadata:        ec2metadata.New(p),
+		autoscaling:        autoscaling.New(p),
+		acm:                acm.New(p),
+		healthCheckPath:    healthCheckPath,
+		healthCheckPort:    healthCheckPort,
+		certUpdateInterval: certUpdateInterval,
 	}
 
 	adapter.manifest, err = buildManifest(adapter)
 	if err != nil {
 		return nil, err
 	}
+
 	return
+}
+
+func (a *Adapter) newAcm() *certificateCache {
+	cc := newCertCache(a.acm)
+	return cc
+}
+
+// GetCerts returns the list of certificates. It's taken from a
+// cache. Right now only ACM certifcates are supported.
+func (a *Adapter) GetCerts() []*CertDetail {
+	return a.manifest.certificateCache.GetCachedCerts()
+}
+
+// FindBestMatchingCertificate returns the best matching certificate
+// dependent on string match (required), NotBefore and NotAfter
+// attributes of certificates. If there are more than one equally
+// matching certifactes are found, then the best is most of the time
+// the newest certificate, such that you can update and revoke your
+// certificates.
+func (a *Adapter) FindBestMatchingCertificate(certs []*CertDetail, hostname string) (*CertDetail, error) {
+	return FindBestMatchingCertificate(certs, hostname)
 }
 
 // StackName returns the Name tag that all resources created by the same CloudFormation stack share. It's taken from
@@ -233,12 +266,19 @@ func buildManifest(awsAdapter *Adapter) (*manifest, error) {
 		}
 	}
 
+	cc := awsAdapter.newAcm()
+	if err := cc.updateCertCache(); err != nil {
+		return nil, err
+	}
+	cc.backgroundCertCacheUpdate(awsAdapter.certUpdateInterval)
+
 	return &manifest{
 		securityGroup:    securityGroupDetails,
 		instance:         instanceDetails,
 		autoScalingGroup: autoScalingGroupDetails,
 		privateSubnets:   priv,
 		publicSubnets:    pub,
+		certificateCache: cc,
 	}, nil
 }
 
