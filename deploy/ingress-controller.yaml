@@ -1,0 +1,24 @@
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: app-ingress-controller
+  namespace: kube-system
+  labels:
+    application: app-ingress-controller
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      application: app-ingress-controller
+  template:
+    metadata:
+      labels:
+        application: app-ingress-controller
+    spec:
+      containers:
+      - name: controller
+        image: registry.opensource.zalan.do/teapot/kube-aws-ingress-controller:latest
+        env:
+        - name: AWS_REGION
+          value: $YOUR_REGION
