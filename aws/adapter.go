@@ -85,7 +85,7 @@ func NewAdapter(healthCheckPath string, healthCheckPort uint16, certUpdateInterv
 		healthCheckPath: healthCheckPath,
 		healthCheckPort: healthCheckPort,
 	}
-	adapter.cc = adapter.NewAcm(certUpdateInterval)
+	adapter.cc = adapter.newAcm(certUpdateInterval)
 
 	adapter.manifest, err = buildManifest(adapter)
 	if err != nil {
@@ -95,9 +95,9 @@ func NewAdapter(healthCheckPath string, healthCheckPort uint16, certUpdateInterv
 	return
 }
 
-func (a *Adapter) NewAcm(certUpdateInterval time.Duration) *certificateCache {
-	cc := NewCertCache(a.acm)
-	cc.InitCertCache(certUpdateInterval)
+func (a *Adapter) newAcm(certUpdateInterval time.Duration) *certificateCache {
+	cc := newCertCache(a.acm)
+	cc.initCertCache(certUpdateInterval)
 	return cc
 }
 

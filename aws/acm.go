@@ -41,7 +41,7 @@ type certificateCache struct {
 	acmCertDetail  []*acm.CertificateDetail
 }
 
-func NewCertCache(acmClient acmiface.ACMAPI) *certificateCache {
+func newCertCache(acmClient acmiface.ACMAPI) *certificateCache {
 	return &certificateCache{
 		acmClient:      acmClient,
 		acmCertSummary: make([]*acm.CertificateSummary, 0),
@@ -49,7 +49,7 @@ func NewCertCache(acmClient acmiface.ACMAPI) *certificateCache {
 	}
 }
 
-func (cc *certificateCache) InitCertCache(certUpdateInterval time.Duration) {
+func (cc *certificateCache) initCertCache(certUpdateInterval time.Duration) {
 	go func() {
 		for {
 			log.Println("update cert cache")
