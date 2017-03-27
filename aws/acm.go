@@ -115,40 +115,20 @@ func (cc *certificateCache) GetCachedCerts() []*CertDetail {
 // CertificateStatuses
 // https://docs.aws.amazon.com/acm/latest/APIReference/API_ListCertificates.html#API_ListCertificates_RequestSyntax
 func (cc *certificateCache) listCerts() ([]*acm.CertificateSummary, error) {
-	maxItems := aws.Int64(10)
-
+	certList := make([]*acm.CertificateSummary, 0)
 	params := &acm.ListCertificatesInput{
 		CertificateStatuses: []*string{
 			aws.String("ISSUED"), // Required
 		},
-		MaxItems: maxItems,
 	}
-	resp, err := cc.acmClient.ListCertificates(params)
-	if err != nil {
-		return nil, err
-	}
-	certList := resp.CertificateSummaryList
-
-	// more certs if NextToken set in response, use pagination to get more
-	for resp.NextToken != nil {
-		params = &acm.ListCertificatesInput{
-			CertificateStatuses: []*string{
-				aws.String("ISSUED"),
-			},
-			MaxItems:  maxItems,
-			NextToken: resp.NextToken,
-		}
-		resp, err = cc.acmClient.ListCertificates(params)
-		if err != nil {
-			return nil, err
-		}
-
-		for _, cert := range resp.CertificateSummaryList {
+	err := cc.acmClient.ListCertificatesPages(params, func(page *acm.ListCertificatesOutput, lastPage bool) bool {
+		for _, cert := range page.CertificateSummaryList {
 			certList = append(certList, cert)
 		}
-	}
+		return lastPage
+	})
 
-	return certList, nil
+	return certList, err
 }
 
 // FindBestMatchingCertificate get all ACM certificates and use a suffix
