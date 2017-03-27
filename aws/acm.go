@@ -125,7 +125,7 @@ func (cc *certificateCache) listCerts() ([]*acm.CertificateSummary, error) {
 		for _, cert := range page.CertificateSummaryList {
 			certList = append(certList, cert)
 		}
-		return lastPage
+		return true // never stop iterator
 	})
 
 	return certList, err
