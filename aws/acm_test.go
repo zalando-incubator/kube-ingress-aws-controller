@@ -35,7 +35,7 @@ func TestFindBestMatchingCertificate(t *testing.T) {
 
 	now := time.Now()
 	before := now.Add(-time.Hour * 24 * 7)
-	after := now.Add(time.Hour*24*7 + 1)
+	after := now.Add(time.Hour*24*7 + 1*time.Second)
 	dummyArn := "DUMMY"
 
 	// simple cert

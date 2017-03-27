@@ -180,7 +180,6 @@ func FindBestMatchingCertificate(certs []*CertDetail, hostname string) (*CertDet
 						candidate = cert
 					}
 				case longestMatch == l:
-					log.Printf("%v > %v && !%v < %v", notBefore, candidate.NotBefore, notAfter.Add(-minValidPeriod), now)
 					if notBefore.After(candidate.NotBefore) &&
 						!notAfter.Add(-minValidPeriod).Before(now) {
 						// cert is newer than curBestCert and is not invalid in 7 days
