@@ -32,7 +32,12 @@ func newCertDetail(acmDetail *acm.CertificateDetail) *CertDetail {
 	}
 }
 
-const glob = "*"
+const (
+	// minimal timeperiod for the NotAfter attribute of a Cert to be in the future
+	minimalCertValidityPeriod = 7 * 24 * time.Hour
+	// used as wildcard char in Cert Hostname/AltName matches
+	glob = "*"
+)
 
 type certificateCache struct {
 	sync.Mutex
@@ -153,7 +158,6 @@ func FindBestMatchingCertificate(certs []*CertDetail, hostname string) (*CertDet
 	candidate := &CertDetail{}
 	longestMatch := -1
 	now := time.Now()
-	minValidPeriod := 7 * 24 * time.Hour
 
 	for _, cert := range certs {
 		notAfter := cert.NotAfter
@@ -174,14 +178,14 @@ func FindBestMatchingCertificate(certs []*CertDetail, hostname string) (*CertDet
 					longestMatch = l
 					candidate = cert
 				case longestMatch < l:
-					if notBefore.Before(now) && notAfter.Add(-minValidPeriod).After(now) {
+					if notBefore.Before(now) && notAfter.Add(-minimalCertValidityPeriod).After(now) {
 						// more specific valid cert found: *.example.org -> foo.example.org
 						longestMatch = l
 						candidate = cert
 					}
 				case longestMatch == l:
 					if notBefore.After(candidate.NotBefore) &&
-						!notAfter.Add(-minValidPeriod).Before(now) {
+						!notAfter.Add(-minimalCertValidityPeriod).Before(now) {
 						// cert is newer than curBestCert and is not invalid in 7 days
 						longestMatch = l
 						candidate = cert
@@ -190,17 +194,17 @@ func FindBestMatchingCertificate(certs []*CertDetail, hostname string) (*CertDet
 						longestMatch = l
 						candidate = cert
 					} else if notBefore.Before(candidate.NotBefore) &&
-						candidate.NotAfter.Add(-minValidPeriod).Before(now) &&
+						candidate.NotAfter.Add(-minimalCertValidityPeriod).Before(now) &&
 						notAfter.After(candidate.NotAfter) {
 						// cert is older than curBestCert but curBestCert is invalid in 7 days and cert is longer valid
 						longestMatch = l
 						candidate = cert
 					}
 				case longestMatch > l:
-					if candidate.NotAfter.Add(-minValidPeriod).Before(now) &&
+					if candidate.NotAfter.Add(-minimalCertValidityPeriod).Before(now) &&
 						now.Before(candidate.NotBefore) &&
 						notBefore.Before(now) &&
-						now.Before(notAfter.Add(-minValidPeriod)) {
+						now.Before(notAfter.Add(-minimalCertValidityPeriod)) {
 						// foo.example.org -> *.example.org degradation when NotAfter requires a downgrade
 						longestMatch = l
 						candidate = cert
