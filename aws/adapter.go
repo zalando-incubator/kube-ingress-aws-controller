@@ -19,15 +19,15 @@ import (
 
 // An Adapter can be used to orchestrate and obtain information from Amazon Web Services.
 type Adapter struct {
-	ec2metadata     *ec2metadata.EC2Metadata
-	ec2             ec2iface.EC2API
-	elbv2           elbv2iface.ELBV2API
-	autoscaling     autoscalingiface.AutoScalingAPI
-	manifest        *manifest
-	healthCheckPath string
-	healthCheckPort uint16
-	acm             acmiface.ACMAPI
-	cc              *certificateCache
+	ec2metadata        *ec2metadata.EC2Metadata
+	ec2                ec2iface.EC2API
+	elbv2              elbv2iface.ELBV2API
+	autoscaling        autoscalingiface.AutoScalingAPI
+	manifest           *manifest
+	healthCheckPath    string
+	healthCheckPort    uint16
+	acm                acmiface.ACMAPI
+	certUpdateInterval time.Duration
 }
 
 type manifest struct {
@@ -36,6 +36,7 @@ type manifest struct {
 	autoScalingGroup *autoScalingGroupDetails
 	privateSubnets   []*subnetDetails
 	publicSubnets    []*subnetDetails
+	certificateCache *certificateCache
 }
 
 type configProviderFunc func() client.ConfigProvider
@@ -77,15 +78,15 @@ func defaultConfigProvider() client.ConfigProvider {
 func NewAdapter(healthCheckPath string, healthCheckPort uint16, certUpdateInterval time.Duration) (adapter *Adapter, err error) {
 	p := configProvider()
 	adapter = &Adapter{
-		elbv2:           elbv2.New(p),
-		ec2:             ec2.New(p),
-		ec2metadata:     ec2metadata.New(p),
-		autoscaling:     autoscaling.New(p),
-		acm:             acm.New(p),
-		healthCheckPath: healthCheckPath,
-		healthCheckPort: healthCheckPort,
+		elbv2:              elbv2.New(p),
+		ec2:                ec2.New(p),
+		ec2metadata:        ec2metadata.New(p),
+		autoscaling:        autoscaling.New(p),
+		acm:                acm.New(p),
+		healthCheckPath:    healthCheckPath,
+		healthCheckPort:    healthCheckPort,
+		certUpdateInterval: certUpdateInterval,
 	}
-	adapter.cc = adapter.newAcm(certUpdateInterval)
 
 	adapter.manifest, err = buildManifest(adapter)
 	if err != nil {
@@ -95,14 +96,13 @@ func NewAdapter(healthCheckPath string, healthCheckPort uint16, certUpdateInterv
 	return
 }
 
-func (a *Adapter) newAcm(certUpdateInterval time.Duration) *certificateCache {
+func (a *Adapter) newAcm() *certificateCache {
 	cc := newCertCache(a.acm)
-	cc.initCertCache(certUpdateInterval)
 	return cc
 }
 
 func (a *Adapter) GetCerts() []*CertDetail {
-	return a.cc.GetCachedCerts()
+	return a.manifest.certificateCache.GetCachedCerts()
 }
 
 func (a *Adapter) FindBestMatchingCertificate(certs []*CertDetail, hostname string) (*CertDetail, error) {
@@ -257,12 +257,19 @@ func buildManifest(awsAdapter *Adapter) (*manifest, error) {
 		}
 	}
 
+	cc := awsAdapter.newAcm()
+	if err := cc.updateCertCache(); err != nil {
+		return nil, err
+	}
+	cc.backgroundCertCacheUpdate(awsAdapter.certUpdateInterval)
+
 	return &manifest{
 		securityGroup:    securityGroupDetails,
 		instance:         instanceDetails,
 		autoScalingGroup: autoScalingGroupDetails,
 		privateSubnets:   priv,
 		publicSubnets:    pub,
+		certificateCache: cc,
 	}, nil
 }
 

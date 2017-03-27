@@ -54,12 +54,15 @@ func newCertCache(acmClient acmiface.ACMAPI) *certificateCache {
 	}
 }
 
-func (cc *certificateCache) initCertCache(certUpdateInterval time.Duration) {
+func (cc *certificateCache) backgroundCertCacheUpdate(certUpdateInterval time.Duration) {
 	go func() {
 		for {
-			log.Println("update cert cache")
-			cc.updateCertCache()
 			time.Sleep(certUpdateInterval)
+			if err := cc.updateCertCache(); err != nil {
+				log.Printf("Cert cache update failed, caused by: %v", err)
+			} else {
+				log.Println("Successfully updated cert cache")
+			}
 		}
 	}()
 
@@ -67,12 +70,12 @@ func (cc *certificateCache) initCertCache(certUpdateInterval time.Duration) {
 
 // updateCertCache will only update the current certificateCache if
 // all calls to AWS API were successfull and not rateLimited for
-// example
-func (cc *certificateCache) updateCertCache() {
+// example. In case it could not update the certificateCache it will
+// return the orginal error.
+func (cc *certificateCache) updateCertCache() error {
 	certList, err := cc.listCerts()
 	if err != nil {
-		log.Printf("Could not update certificate cache, caused by: %v", err)
-		return
+		return err
 	}
 
 	certDetails := make([]*acm.CertificateDetail, len(certList), len(certList))
@@ -80,8 +83,7 @@ func (cc *certificateCache) updateCertCache() {
 		certInput := &acm.DescribeCertificateInput{CertificateArn: o.CertificateArn}
 		certDetail, err := cc.acmClient.DescribeCertificate(certInput)
 		if err != nil {
-			log.Printf("Could not get certificate details from AWS for ARN: %s, caused by: %v", o.CertificateArn, err)
-			return
+			return err
 		}
 		certDetails[idx] = certDetail.Certificate
 	}
@@ -90,6 +92,7 @@ func (cc *certificateCache) updateCertCache() {
 	cc.acmCertSummary = certList
 	cc.acmCertDetail = certDetails
 	cc.Unlock()
+	return nil
 }
 
 // GetCachedCerts returns a copy of the cached acm CertificateDetail slice
