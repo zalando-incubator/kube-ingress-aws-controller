@@ -48,7 +48,7 @@ const (
 )
 
 var (
-	// ErrSecurityGroupNotFound is used to signal that the required security group couldn't be found.
+	// ErrMissingSecurityGroup is used to signal that the required security group couldn't be found.
 	ErrMissingSecurityGroup = errors.New("required security group was not found")
 	// ErrLoadBalancerNotFound is used to signal that a given load balancer was not found.
 	ErrLoadBalancerNotFound = errors.New("load balancer not found")
@@ -102,10 +102,18 @@ func (a *Adapter) newAcm() *certificateCache {
 	return cc
 }
 
+// GetCerts returns the list of certificates. It's taken from a
+// cache. Right now only ACM certifcates are supported.
 func (a *Adapter) GetCerts() []*CertDetail {
 	return a.manifest.certificateCache.GetCachedCerts()
 }
 
+// FindBestMatchingCertificate returns the best matching certificate
+// dependent on string match (required), NotBefore and NotAfter
+// attributes of certificates. If there are more than one equally
+// matching certifactes are found, then the best is most of the time
+// the newest certificate, such that you can update and revoke your
+// certificates.
 func (a *Adapter) FindBestMatchingCertificate(certs []*CertDetail, hostname string) (*CertDetail, error) {
 	return FindBestMatchingCertificate(certs, hostname)
 }

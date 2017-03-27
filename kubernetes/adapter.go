@@ -50,13 +50,13 @@ func (i *Ingress) String() string {
 }
 
 // Hostname returns the DNS LoadBalancer hostname associated with the
-// ingress got from Kubernetes Status
+// ingress gotten from Kubernetes Status
 func (i *Ingress) Hostname() string {
 	return i.hostName
 }
 
 // CertHostname returns the DNS hostname associated with the ingress
-// got from Kubernetes Spec
+// gotten from Kubernetes Spec
 func (i *Ingress) CertHostname() string {
 	return i.certHostname
 }
