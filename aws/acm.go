@@ -153,43 +153,43 @@ func FindBestMatchingCertificate(certs []*CertDetail, hostname string) (*CertDet
 
 		for _, altName := range cert.AltNames {
 			if prefixGlob(altName, hostname) {
-				l := len(altName)
+				nameLength := len(altName)
 
 				switch {
 				case longestMatch < 0:
 					// first matching found
-					longestMatch = l
+					longestMatch = nameLength
 					candidate = cert
-				case longestMatch < l:
+				case longestMatch < nameLength:
 					if notBefore.Before(now) && notAfter.Add(-minimalCertValidityPeriod).After(now) {
 						// more specific valid cert found: *.example.org -> foo.example.org
-						longestMatch = l
+						longestMatch = nameLength
 						candidate = cert
 					}
-				case longestMatch == l:
+				case longestMatch == nameLength:
 					if notBefore.After(candidate.NotBefore) &&
 						!notAfter.Add(-minimalCertValidityPeriod).Before(now) {
 						// cert is newer than curBestCert and is not invalid in 7 days
-						longestMatch = l
+						longestMatch = nameLength
 						candidate = cert
 					} else if notBefore.Equal(candidate.NotBefore) && !candidate.NotAfter.After(notAfter) {
 						// cert has the same issue date, but is longer valid
-						longestMatch = l
+						longestMatch = nameLength
 						candidate = cert
 					} else if notBefore.Before(candidate.NotBefore) &&
 						candidate.NotAfter.Add(-minimalCertValidityPeriod).Before(now) &&
 						notAfter.After(candidate.NotAfter) {
 						// cert is older than curBestCert but curBestCert is invalid in 7 days and cert is longer valid
-						longestMatch = l
+						longestMatch = nameLength
 						candidate = cert
 					}
-				case longestMatch > l:
+				case longestMatch > nameLength:
 					if candidate.NotAfter.Add(-minimalCertValidityPeriod).Before(now) &&
 						now.Before(candidate.NotBefore) &&
 						notBefore.Before(now) &&
 						now.Before(notAfter.Add(-minimalCertValidityPeriod)) {
 						// foo.example.org -> *.example.org degradation when NotAfter requires a downgrade
-						longestMatch = l
+						longestMatch = nameLength
 						candidate = cert
 					}
 				}
