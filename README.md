@@ -88,7 +88,7 @@ To create a docker image, you can execute `make build.docker` instead.
 
 ## Deploy
 
-To deploy the ingress controller, you can use the following yaml as descriptor, after replacing the placeholders:
+To deploy the ingress controller, you can use the following yaml as descriptor, after replacing the placeholder for the region:
 
 ```
 apiVersion: extensions/v1beta1
@@ -110,10 +110,66 @@ spec:
     spec:
       containers:
       - name: controller
-        image: $YOUR_IMAGE
+        image: registry.opensource.zalan.do/teapot/kube-aws-ingress-controller:latest
         env:
         - name: AWS_REGION
           value: $YOUR_REGION
+```
+
+The image used can be customized, we provide `registry.opensource.zalan.do/teapot/kube-aws-ingress-controller:latest` as a public usable docker image built from this codebase.
+
+Additionally to the ingress controller, we use [skipper](https://github.com/zalando/skipper) to route the traffic to the application, in a setup that follows what is described [here](https://kubernetes-on-aws.readthedocs.io/en/latest/user-guide/ingress.html).
+
+We deploy `skipper` as a `DaemonSet` using the following yaml: 
+
+```
+apiVersion: extensions/v1beta1
+kind: DaemonSet
+metadata:
+  name: skipper-ingress
+  namespace: kube-system
+  labels:
+    application: skipper-ingress
+    version: v0.9.19
+    component: ingress
+  annotations:
+    daemonset.kubernetes.io/strategyType: RollingUpdate
+    daemonset.kubernetes.io/maxUnavailable: "1"
+spec:
+  selector:
+    matchLabels:
+      application: skipper-ingress
+  template:
+    metadata:
+      name: skipper-ingress
+      labels:
+        application: skipper-ingress
+        version: v0.9.19
+        component: ingress
+    spec:
+      hostNetwork: true
+      containers:
+      - name: skipper-ingress
+        image: registry.opensource.zalan.do/teapot/skipper:v0.9.19
+        ports:
+        - name: ingress-port
+          containerPort: 9999
+          hostPort: 9999
+        args:
+          - "skipper"
+          - "-application-log-level=DEBUG"
+          - "-kubernetes"
+          - "-kubernetes-in-cluster"
+          - "-address=:9999"
+          - "-proxy-preserve-host"
+          - "-serve-host-metrics"
+        resources:
+          limits:
+            cpu: 200m
+            memory: 200Mi
+          requests:
+            cpu: 25m
+            memory: 25Mi
 ```
 
 ## Contributing
