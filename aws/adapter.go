@@ -4,6 +4,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/client"
 	"github.com/aws/aws-sdk-go/aws/ec2metadata"
 	"github.com/aws/aws-sdk-go/aws/session"
@@ -68,7 +69,7 @@ var (
 var configProvider = defaultConfigProvider
 
 func defaultConfigProvider() client.ConfigProvider {
-	return session.Must(session.NewSession())
+	return session.Must(session.NewSession(aws.NewConfig().WithMaxRetries(3)))
 }
 
 // NewAdapter returns a new Adapter that can be used to orchestrate and obtain information from Amazon Web Services.
