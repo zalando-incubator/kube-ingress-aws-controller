@@ -89,18 +89,25 @@ To create a docker image, you can execute `make build.docker` instead.
 
 ## Deploy
 
-To deploy the ingress controller, you can use [this yaml](deploy/ingress-controller.yaml) as descriptor, after replacing the placeholder for the region.
+To deploy the ingress controller, you can use [this yaml](deploy/ingress-controller.yaml) as descriptor.
 
 The image used can be customized, we provide `registry.opensource.zalan.do/teapot/kube-aws-ingress-controller:latest` as a public usable docker image built from this codebase.
 
-Additionally to the ingress controller, we use [skipper](https://github.com/zalando/skipper) to route the traffic to the application, in a setup that follows what is described [here](https://kubernetes-on-aws.readthedocs.io/en/latest/user-guide/ingress.html). 
-
-You can deploy `skipper` as a `DaemonSet` using [this yaml](deploy/skipper.yaml).
-
-To deploy the two, you can execute the following commands: 
+You can deploy it by executing the following command, after replacing the placeholder for the region: 
 
 ```
 kubectl apply -f deploy/ingress-controller.yaml
+```
+
+## Trying it out
+
+The Ingress Controller responsibility is limited to managing load balancers as described above. To have a fully functional setup, additionally to the ingress controller, you can use [skipper](https://github.com/zalando/skipper) to route the traffic to the application. The setup follows what described [here](https://kubernetes-on-aws.readthedocs.io/en/latest/user-guide/ingress.html).
+
+You can deploy `skipper` as a `DaemonSet` using [this yaml](deploy/skipper.yaml).
+
+To deploy it, you can execute the following commands:
+
+```
 kubectl apply -f deploy/skipper.yaml
 ```
 
