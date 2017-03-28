@@ -62,7 +62,7 @@ spec:
 
 The Application Load Balancer that will be created by the controller, will have both an HTTP listener and an HTTPS listener. The latter, will use the automatically selected certificate.
 
-Alternatively, you can specify the Amazon Resource Name (ARN) of the desired certificate can be specified with an annotation like in the following example:
+Alternatively, you can specify the Amazon Resource Name (ARN) of the desired certificate with an annotation like in the following example:
 
 ```
 apiVersion: extensions/v1beta1
