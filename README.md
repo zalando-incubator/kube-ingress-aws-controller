@@ -84,7 +84,7 @@ resource anymore, it deletes all the previously created resources.
 
 ## Building
 
-This project provides a `Makefile` that can be used to build a binary or to build a docker image for it. To build a binary for your current operating system, it is enough to run `make` or `make build.linux` to build an image for Linux. 
+This project provides a `Makefile` that can be used to build a binary or to build a docker image for it. To build a binary for your current operating system, it is enough to run `make` or `make build.linux` to build a binary for Linux. 
 To create a docker image, you can execute `make build.docker` instead. 
 
 ## Deploy
