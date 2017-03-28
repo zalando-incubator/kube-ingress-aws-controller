@@ -1,36 +1,48 @@
 # Kubernetes Ingress Controller for AWS
 
-**WARNING**: This is work in progress, it's only used in small production use cases and not battletested!
+This is an ingress controller for [Kubernetes](http://kubernetes.io/), the open-source container deployment, scaling, and management system. This controller, which is currently under active development, runs inside a Kubernetes cluster to monitor changes to your ingress resources and orchestrate [AWS Load Balancers](https://aws.amazon.com/elasticloadbalancing/) accordingly.
 
-This ingress controller runs inside a Kubernetes cluster monitoring changes to the Ingress resources and orchestrating 
-AWS Load Balancers accordingly.
+kube-ingress-aws-controller uses your EC2 instance metadata to find the CloudFormation stack that it belongs to, and then uses this information to discover the required AWS resources that are attached to each newly created [Application Load Balancer](https://aws.amazon.com/elasticloadbalancing/applicationloadbalancer/).
 
-It will use the EC2 instance metadata to find the CloudFormation
-stack it belongs to which is then used to discover the required AWS resources that are attached to each newly created Application Load Balancer.
+## Development Status
 
-## How it works
+kube-ingress-aws-controller is a work in progress. As of March 2017 it's being used only in small production use cases at [Zalando](https://www.zalando.de/), and is not yet battle-tested. However, we are actively seeking people to try it out and share feedback so we can make it better. We are also eager to bring new contributors on board; see our contributor guidelines here.
 
-The controller continuously polls the API server checking for ingress resources. For each cycle it creates load balancers for new
-ingress resources and deletes the load balancers for ingress resources that were also deleted.
-The controller *will not* manage the security groups required to allow access from the internet to the load balancers as it assumes that their lifecycle is external to the controller itself. Please refer to the [Deploy](#deploy) section for complete instructions on how to use it.
+## Why We Created This
+
+The project maintainers are building an infrastructure that runs [Kubernetes on top of AWS](https://github.com/zalando-incubator/kubernetes-on-aws) at large-scale (for nearly 200 delivery teams), and with automation. As such, we're creating our own tooling to support this new infrastructure. We couldn't find an existing ingress controller that operates like this one, so we created one ourselves.
+
+We're using this ingress controller with [Skipper](http://github.com/zalando/skipper), an HTTP router that Zalando has used in production for more than a year as part of its front-end microservices architecture. Skipper's also open source, and you're free to use it, but you can use another ingress of your choosing along with this controller.
+
+## Quickstart
+
+### Deploying the Controller
+Please refer to the [Deploy](#deploy) section for complete instructions.
+
+## How This Controller Works
+
+The controller continuously polls the API server checking for ingress resources. It runs an infinite loop and for each cycle it creates load balancers for new
+ingress resources and deletes the load balancers for ingress resources that do not exist anymore.
+
+The controller *will not* manage the security groups required to allow access from the internet to the load balancers as it assumes that their lifecycle is external to the controller itself.
 
 ### Discovery
 
-On startup it discovers the AWS resources relevant for the controller operations:
+On startup the controller discovers the AWS resources relevant for the controller operations:
  
 1. The AutoScalingGroup
 
-    Simple lookup of the ASG which name matches the "aws:autoscaling:groupName" tag from the EC2 instance running the
+    Simple lookup of the Autoscaling Group which name matches the "aws:autoscaling:groupName" tag from the EC2 instance running the
     controller.
 
 2. The Security Group
 
-    Lookup of the "Name" tag matching the stack for the controller node and the tag "aws:cloudformation:logical-id"
+    Lookup of the "Name" tag of the Security Group matching the stack for the controller node and the tag "aws:cloudformation:logical-id"
     matching the value "IngressLoadBalancerSecurityGroup"
 
-### Creating load balancers
+### Creating Load Balancers
 
-When the controller learns about new ingress resources it uses the host specified to automatically determine the most specific certificate to use. 
+When the controller learns about new ingress resources, it uses the host specified in it to automatically determine the most specific certificate to use.
 An example ingress is the following:
 
 ```
@@ -48,9 +60,9 @@ spec:
           servicePort: main-port
 ```
 
-The Application Load Balancer that will be created, will have both an HTTP listener and an HTTPS listener. The latter, will use the automatically selected certificate.
+The Application Load Balancer that will be created by the controller, will have both an HTTP listener and an HTTPS listener. The latter, will use the automatically selected certificate.
 
-Alternatively, the ARN of the desired certificate can be specified with an annotation like in the following example: 
+Alternatively, you can specify the Amazon Resource Name of the desired certificate can be specified with an annotation like in the following example:
 
 ```
 apiVersion: extensions/v1beta1
@@ -69,7 +81,7 @@ spec:
           servicePort: main-port
 ```
 
-Application Load Balancers created by the controller have a custom Tag marking them as managed load balancers:
+Application Load Balancers created by the controller have a custom Tag marking them as managed load balancers to differentiate them from other load balancers. The tag looks like the following:
 
     kubernetes:application: kube-ingress-aws-controller
 
@@ -84,14 +96,21 @@ resource anymore, it deletes all the previously created resources.
 
 ## Building
 
-This project provides a `Makefile` that can be used to build a binary or to build a docker image for it. To build a binary for your current operating system, it is enough to run `make` or `make build.linux` to build a binary for Linux. 
-To create a docker image, you can execute `make build.docker` instead. 
+This project provides a `Makefile` that can be used to build either a binary or to build a docker image for it.
+
+### Building a Binary
+
+To build a binary for your current operating system, it is enough to run `make` or `make build.linux` to build a binary for Linux.
+
+### Building a Docker Image
+
+To create a docker image, you can execute `make build.docker` instead. You can then push your docker image to the docker registry of your choice.
 
 ## Deploy
 
 To deploy the ingress controller, you can use [this yaml](deploy/ingress-controller.yaml) as descriptor.
 
-The image used can be customized, we provide `registry.opensource.zalan.do/teapot/kube-aws-ingress-controller:latest` as a public usable docker image built from this codebase.
+The image used in the yaml can be customized, we provide `registry.opensource.zalan.do/teapot/kube-aws-ingress-controller:latest` as a public usable docker image built from this codebase.
 
 You can deploy it by executing the following command, after replacing the placeholder for the region: 
 
