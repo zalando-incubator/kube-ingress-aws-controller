@@ -6,6 +6,7 @@ import (
 
 	"fmt"
 
+	"github.com/pkg/errors"
 	"github.com/zalando-incubator/kube-ingress-aws-controller/aws"
 	"github.com/zalando-incubator/kube-ingress-aws-controller/kubernetes"
 )
@@ -22,7 +23,7 @@ func startPolling(awsAdapter *aws.Adapter, kubeAdapter *kubernetes.Adapter, poll
 func doWork(awsAdapter *aws.Adapter, kubeAdapter *kubernetes.Adapter) error {
 	defer func() error {
 		if r := recover(); r != nil {
-			log.Println("shit has hit the fan:", r)
+			log.Println("shit has hit the fan:", errors.Wrap(r))
 			return r.(error)
 		}
 		return nil
