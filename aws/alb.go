@@ -11,6 +11,7 @@ import (
 
 	"encoding/binary"
 	"errors"
+
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/elbv2"
 	"github.com/aws/aws-sdk-go/service/elbv2/elbv2iface"
@@ -193,10 +194,10 @@ func normalizeLoadBalancerName(clusterID string, certificateARN string) string {
 	normalizedClusterID := squeezeDashesRegex.ReplaceAllString(
 		normalizationRegex.ReplaceAllString(clusterID, "-"), "-")
 	lenClusterID := len(normalizedClusterID)
-	normalizedClusterID = strings.Trim(normalizedClusterID, "-")
 	if lenClusterID > maxClusterIDLen {
 		normalizedClusterID = normalizedClusterID[lenClusterID-maxClusterIDLen:]
 	}
+	normalizedClusterID = strings.Trim(normalizedClusterID, "-")
 
 	return fmt.Sprintf("%s-%s", normalizedClusterID, hash)
 }
