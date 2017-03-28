@@ -45,6 +45,7 @@ func TestNormalization(t *testing.T) {
 		{"foo bar baz zbr", "bar", "foo-bar-baz-zbr-1f01f4d"},
 		{"very long cluster id needs to be truncated", "bar", "id-needs-to-be-truncated-1f01f4d"},
 		{"-no---need---to---truncate-", "", "no-need-to-truncate-fd80709"},
+		{"aws:170858875137:eu-central-1:kube-aws-test-ingctl001", "arn:aws:acm:eu-central-1:123456789012:certificate/f4bd7ed6-bf23-11e6-8db1-ef7ba1500c61", "kube-aws-test-ingctl001-7cf27d0"},
 	} {
 		t.Run(fmt.Sprintf("%s", test.want), func(t *testing.T) {
 			got := normalizeLoadBalancerName(test.clusterID, test.arn)
