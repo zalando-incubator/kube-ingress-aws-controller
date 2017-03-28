@@ -6,7 +6,7 @@ kube-ingress-aws-controller uses your EC2 instance metadata to find the CloudFor
 
 ## Development Status
 
-kube-ingress-aws-controller is a work in progress. As of March 2017 it's being used only in small production use cases at [Zalando](https://www.zalando.de/), and is not yet battle-tested. However, we are actively seeking people to try it out and share feedback so we can make it better. We are also eager to bring new contributors on board; see our contributor guidelines here.
+kube-ingress-aws-controller is a work in progress. As of March 2017 it's being used only in small production use cases at [Zalando](https://tech.zalando.com/), and is not yet battle-tested. However, we are actively seeking people to try it out and share feedback so we can make it better. We are also eager to bring new contributors on board; see our contributor guidelines here.
 
 ## Why We Created This
 
@@ -29,7 +29,7 @@ The controller *will not* manage the security groups required to allow access fr
 ### Discovery
 
 On startup the controller discovers the AWS resources relevant for the controller operations:
- 
+
 1. The AutoScalingGroup
 
     Simple lookup of the Autoscaling Group which name matches the "aws:autoscaling:groupName" tag from the EC2 instance running the
@@ -62,7 +62,7 @@ spec:
 
 The Application Load Balancer that will be created by the controller, will have both an HTTP listener and an HTTPS listener. The latter, will use the automatically selected certificate.
 
-Alternatively, you can specify the Amazon Resource Name of the desired certificate can be specified with an annotation like in the following example:
+Alternatively, you can specify the Amazon Resource Name (ARN) of the desired certificate can be specified with an annotation like in the following example:
 
 ```
 apiVersion: extensions/v1beta1
@@ -88,10 +88,10 @@ Application Load Balancers created by the controller have a custom Tag marking t
 They also share the "ClusterID" tag as the other resources from the same CloudFormation stack. The load balancer names
 are derived from a truncated SHA1 hash of the certificate ARN, combined with a normalized version of the ClusterID.
 Due to the 32 characters limitation, it can be truncated.
- 
+
 ### Deleting load balancers
 
-When the controller detects that a managed load balancer for the current cluster doesn't have a matching ingress 
+When the controller detects that a managed load balancer for the current cluster doesn't have a matching ingress
 resource anymore, it deletes all the previously created resources.
 
 ## Building
@@ -112,7 +112,7 @@ To deploy the ingress controller, you can use [this yaml](deploy/ingress-control
 
 The image used in the yaml can be customized, we provide `registry.opensource.zalan.do/teapot/kube-aws-ingress-controller:latest` as a public usable docker image built from this codebase.
 
-You can deploy it by executing the following command, after replacing the placeholder for the region: 
+You can deploy it by executing the following command, after replacing the placeholder for the region:
 
 ```
 kubectl apply -f deploy/ingress-controller.yaml
@@ -132,17 +132,17 @@ kubectl apply -f deploy/skipper.yaml
 
 To complete the setup, some additional regarding security groups and IAM roles are needed and are described in the following document: [requirements](deploy/requirements.md).
 
-### DNS 
+### DNS
 
-While not strictly necessary for the `Kubernetes Ingress Controller` to work, to have convenient DNS names for your application, you can use [mate](https://github.com/zalando-incubator/mate). 
+While not strictly necessary for the `Kubernetes Ingress Controller` to work, to have convenient DNS names for your application, you can use [mate](https://github.com/zalando-incubator/mate).
 
 NOTE: `mate` will soon be replaced by a new Kubernetes incubator project, [external-dns](https://github.com/kubernetes-incubator/external-dns).
 
 ## Contributing
 
-We welcome your contributions, ideas and bug reports via issues and pull requests. Please open an issue first to discuss possible problems and features. 
+We welcome your contributions, ideas and bug reports via issues and pull requests. Please open an issue first to discuss possible problems and features.
 
-## Contact 
+## Contact
 
 You can contact the maintainers of the project via email at the address contained in the [MAINTAINERS file](MAINTAINERS).
 
