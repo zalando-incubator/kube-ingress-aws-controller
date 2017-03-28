@@ -177,6 +177,18 @@
 			"revisionTime": "2016-12-12T22:05:20Z"
 		},
 		{
+			"checksumSHA1": "iZwFeUHpehkIRTnJW15F0U+vXy4=",
+			"path": "github.com/aws/aws-sdk-go/service/iam",
+			"revision": "d5fd6983e17a1644149fb634fdcf69bd03cb8b21",
+			"revisionTime": "2016-12-12T22:05:20Z"
+		},
+		{
+			"checksumSHA1": "FCH2QiKhcSRzVpC4yKZGS8rmt+M=",
+			"path": "github.com/aws/aws-sdk-go/service/iam/iamiface",
+			"revision": "d5fd6983e17a1644149fb634fdcf69bd03cb8b21",
+			"revisionTime": "2016-12-12T22:05:20Z"
+		},
+		{
 			"checksumSHA1": "Y14Bai6CkzS0FI97MtC5XjQt8Iw=",
 			"path": "github.com/aws/aws-sdk-go/service/sts",
 			"revision": "d5fd6983e17a1644149fb634fdcf69bd03cb8b21",
