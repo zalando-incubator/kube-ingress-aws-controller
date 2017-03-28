@@ -24,7 +24,7 @@ var (
 	ErrUpdateNotNeeded = errors.New("update to ingress resource not needed")
 	// ErrInvalidConfiguration is returned when the Kubernetes configuration is missing required attributes
 	ErrInvalidConfiguration = errors.New("invalid Kubernetes Adapter configuration")
-	// ErrInvalidCertificate is returned when the CA certificates required to communicate with the
+	// ErrInvalidCertificates is returned when the CA certificates required to communicate with the
 	// API server are invalid
 	ErrInvalidCertificates = errors.New("invalid CA certificates")
 )
