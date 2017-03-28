@@ -1,6 +1,8 @@
 package aws
 
 import (
+	"crypto/x509"
+	"encoding/pem"
 	"log"
 	"strings"
 	"sync"
@@ -9,6 +11,8 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/acm"
 	"github.com/aws/aws-sdk-go/service/acm/acmiface"
+	"github.com/aws/aws-sdk-go/service/iam"
+	"github.com/aws/aws-sdk-go/service/iam/iamiface"
 )
 
 // CertDetail is the business object for Certificates
@@ -32,6 +36,25 @@ func newCertDetail(acmDetail *acm.CertificateDetail) *CertDetail {
 	}
 }
 
+func newIAMCertDetail(iamCertDetail *iam.ServerCertificate) *CertDetail {
+	block, _ := pem.Decode([]byte(*iamCertDetail.CertificateBody))
+	if block == nil {
+		log.Println("failed to parse certificate PEM")
+		return nil
+	}
+	cert, err := x509.ParseCertificate(block.Bytes)
+	if err != nil {
+		log.Println(err)
+		return nil
+	}
+	return &CertDetail{
+		Arn:       aws.StringValue(iamCertDetail.ServerCertificateMetadata.Arn),
+		AltNames:  append(cert.DNSNames, cert.Subject.CommonName),
+		NotBefore: cert.NotBefore,
+		NotAfter:  cert.NotAfter,
+	}
+}
+
 const (
 	// minimal timeperiod for the NotAfter attribute of a Cert to be in the future
 	minimalCertValidityPeriod = 7 * 24 * time.Hour
@@ -44,25 +67,41 @@ type certificateCache struct {
 	acmClient      acmiface.ACMAPI
 	acmCertSummary []*acm.CertificateSummary
 	acmCertDetail  []*acm.CertificateDetail
+	iamClient      iamiface.IAMAPI
+	iamCertSummary []*iam.ServerCertificateMetadata
+	iamCertDetail  []*iam.ServerCertificate
 }
 
-func newCertCache(acmClient acmiface.ACMAPI) *certificateCache {
+func newCertCache(acmClient acmiface.ACMAPI, iamClient iamiface.IAMAPI) *certificateCache {
 	return &certificateCache{
 		acmClient:      acmClient,
 		acmCertSummary: make([]*acm.CertificateSummary, 0),
 		acmCertDetail:  make([]*acm.CertificateDetail, 0),
+		iamClient:      iamClient,
+		iamCertSummary: make([]*iam.ServerCertificateMetadata, 0),
+		iamCertDetail:  make([]*iam.ServerCertificate, 0),
 	}
 }
 
 func (cc *certificateCache) backgroundCertCacheUpdate(certUpdateInterval time.Duration) {
 	go func() {
 		for {
-			time.Sleep(certUpdateInterval)
 			if err := cc.updateCertCache(); err != nil {
 				log.Printf("Cert cache update failed, caused by: %v", err)
 			} else {
 				log.Println("Successfully updated cert cache")
 			}
+			time.Sleep(certUpdateInterval)
+		}
+	}()
+	go func() {
+		for {
+			if err := cc.updateIAMCertCache(); err != nil {
+				log.Printf("IAM Cert cache update failed, caused by: %v", err)
+			} else {
+				log.Println("Successfully updated IAM cert cache")
+			}
+			time.Sleep(certUpdateInterval)
 		}
 	}()
 
@@ -95,6 +134,33 @@ func (cc *certificateCache) updateCertCache() error {
 	return nil
 }
 
+// updateIAMCertCache will only update the current certificateCache if
+// all calls to AWS API were successfull and not rateLimited for
+// example. In case it could not update the certificateCache it will
+// return the orginal error.
+func (cc *certificateCache) updateIAMCertCache() error {
+	certList, err := cc.listIAMCerts()
+	if err != nil {
+		return err
+	}
+
+	certDetails := make([]*iam.ServerCertificate, len(certList), len(certList))
+	for idx, o := range certList {
+		certInput := &iam.GetServerCertificateInput{ServerCertificateName: o.ServerCertificateName}
+		certDetail, err := cc.iamClient.GetServerCertificate(certInput)
+		if err != nil {
+			return err
+		}
+		certDetails[idx] = certDetail.ServerCertificate
+	}
+
+	cc.Lock()
+	cc.iamCertSummary = certList
+	cc.iamCertDetail = certDetails
+	cc.Unlock()
+	return nil
+}
+
 // GetCachedCerts returns a copy of the cached acm CertificateDetail slice
 // https://docs.aws.amazon.com/acm/latest/APIReference/API_ListCertificates.html#API_ListCertificates_RequestSyntax
 // filtered by CertificateStatuses
@@ -102,16 +168,20 @@ func (cc *certificateCache) updateCertCache() error {
 func (cc *certificateCache) GetCachedCerts() []*CertDetail {
 	cc.Lock()
 	copy := cc.acmCertDetail[:]
+	copyIAM := cc.iamCertDetail[:]
 	cc.Unlock()
 	result := make([]*CertDetail, 0, 1)
 	for _, c := range copy {
 		result = append(result, newCertDetail(c))
 	}
+	for _, i := range copyIAM {
+		result = append(result, newIAMCertDetail(i))
+	}
 
 	return result
 }
 
-// LsitCerts returns a list of acm Certificates filtered by
+// listCerts returns a list of acm Certificates filtered by
 // CertificateStatuses
 // https://docs.aws.amazon.com/acm/latest/APIReference/API_ListCertificates.html#API_ListCertificates_RequestSyntax
 func (cc *certificateCache) listCerts() ([]*acm.CertificateSummary, error) {
@@ -128,6 +198,22 @@ func (cc *certificateCache) listCerts() ([]*acm.CertificateSummary, error) {
 		return true // never stop iterator
 	})
 
+	return certList, err
+}
+
+// listIAMCerts returns a list of iam certificates filtered by Path / for all ELB/ELBv2 certificate
+// https://docs.aws.amazon.com/IAM/latest/APIReference/API_ListServerCertificates.html#API_ListServerCertificates_RequestParameters
+func (cc *certificateCache) listIAMCerts() ([]*iam.ServerCertificateMetadata, error) {
+	certList := make([]*iam.ServerCertificateMetadata, 0)
+	params := &iam.ListServerCertificatesInput{
+		PathPrefix: aws.String("/"),
+	}
+	err := cc.iamClient.ListServerCertificatesPages(params, func(p *iam.ListServerCertificatesOutput, lastPage bool) bool {
+		for _, cert := range p.ServerCertificateMetadataList {
+			certList = append(certList, cert)
+		}
+		return true
+	})
 	return certList, err
 }
 
