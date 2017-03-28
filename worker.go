@@ -23,7 +23,7 @@ func startPolling(awsAdapter *aws.Adapter, kubeAdapter *kubernetes.Adapter, poll
 func doWork(awsAdapter *aws.Adapter, kubeAdapter *kubernetes.Adapter) error {
 	defer func() error {
 		if r := recover(); r != nil {
-			log.Println("shit has hit the fan:", errors.Wrap(r))
+			log.Println("shit has hit the fan:", errors.Wrap(r.(error), "panic caused by"))
 			return r.(error)
 		}
 		return nil
