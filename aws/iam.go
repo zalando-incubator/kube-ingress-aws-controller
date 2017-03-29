@@ -15,34 +15,38 @@ type iamCertificateProvider struct {
 }
 
 func newIAMCertProvider(api iamiface.IAMAPI) CertificatesProvider {
-	return iamCertificateProvider{api: api}
+	return &iamCertificateProvider{api: api}
 }
 
-func (p iamCertificateProvider) GetCertificates() ([]*CertDetail, error) {
-	certList, err := p.listCerts()
+func (p *iamCertificateProvider) GetCertificates() ([]*CertDetail, error) {
+	certList, err := listCertsFromIAM(p.api)
 	if err != nil {
 		return nil, err
 	}
 	list := make([]*CertDetail, 0)
 	for _, o := range certList {
 		certInput := &iam.GetServerCertificateInput{ServerCertificateName: o.ServerCertificateName}
-		certDetail, err := p.api.GetServerCertificate(certInput)
+		cert, err := p.api.GetServerCertificate(certInput)
 		if err != nil {
 			return nil, err
 		}
-		list = append(list, p.newCertDetail(certDetail.ServerCertificate))
+		certDetail := certDetailFromIAM(cert.ServerCertificate)
+		if certDetail != nil {
+			list = append(list, certDetail)
+
+		}
 	}
 	return list, nil
 }
 
 // listCerts returns a list of iam certificates filtered by Path / for all ELB/ELBv2 certificate
 // https://docs.aws.amazon.com/IAM/latest/APIReference/API_ListServerCertificates.html#API_ListServerCertificates_RequestParameters
-func (p iamCertificateProvider) listCerts() ([]*iam.ServerCertificateMetadata, error) {
+func listCertsFromIAM(api iamiface.IAMAPI) ([]*iam.ServerCertificateMetadata, error) {
 	certList := make([]*iam.ServerCertificateMetadata, 0)
 	params := &iam.ListServerCertificatesInput{
 		PathPrefix: aws.String("/"),
 	}
-	err := p.api.ListServerCertificatesPages(params, func(p *iam.ListServerCertificatesOutput, lastPage bool) bool {
+	err := api.ListServerCertificatesPages(params, func(p *iam.ListServerCertificatesOutput, lastPage bool) bool {
 		for _, cert := range p.ServerCertificateMetadataList {
 			certList = append(certList, cert)
 		}
@@ -51,7 +55,7 @@ func (p iamCertificateProvider) listCerts() ([]*iam.ServerCertificateMetadata, e
 	return certList, err
 }
 
-func (p iamCertificateProvider) newCertDetail(iamCertDetail *iam.ServerCertificate) *CertDetail {
+func certDetailFromIAM(iamCertDetail *iam.ServerCertificate) *CertDetail {
 	block, _ := pem.Decode([]byte(*iamCertDetail.CertificateBody))
 	if block == nil {
 		log.Println("failed to parse certificate PEM")
@@ -62,9 +66,14 @@ func (p iamCertificateProvider) newCertDetail(iamCertDetail *iam.ServerCertifica
 		log.Println(err)
 		return nil
 	}
+	dnsNames := make([]string, 0)
+	dnsNames = append(dnsNames, cert.DNSNames...)
+	if cert.Subject.CommonName != "" {
+		dnsNames = append(dnsNames, cert.Subject.CommonName)
+	}
 	return &CertDetail{
 		Arn:       aws.StringValue(iamCertDetail.ServerCertificateMetadata.Arn),
-		AltNames:  append(cert.DNSNames, cert.Subject.CommonName),
+		AltNames:  dnsNames,
 		NotBefore: cert.NotBefore,
 		NotAfter:  cert.NotAfter,
 	}
