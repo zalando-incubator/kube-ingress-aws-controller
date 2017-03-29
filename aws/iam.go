@@ -4,49 +4,45 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"log"
-	"sync"
 
 	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/client"
 	"github.com/aws/aws-sdk-go/service/iam"
 	"github.com/aws/aws-sdk-go/service/iam/iamiface"
 )
 
-type iamClient struct {
-	c iamiface.IAMAPI
+type iamCertificateProvider struct {
+	api iamiface.IAMAPI
 }
 
-func newIAMClient(p client.ConfigProvider) *iamClient {
-	return &iamClient{c: iam.New(p)}
+func newIAMCertProvider(api iamiface.IAMAPI) CertificatesProvider {
+	return iamCertificateProvider{api: api}
 }
 
-func (c *iamClient) updateCerts(list []*CertDetail, errReturn *error, wg *sync.WaitGroup) {
-	defer wg.Done()
-	certList, err := c.listCerts()
+func (p iamCertificateProvider) GetCertificates() ([]*CertDetail, error) {
+	certList, err := p.listCerts()
 	if err != nil {
-		errReturn = &err
-		return
+		return nil, err
 	}
-
+	list := make([]*CertDetail, 0)
 	for _, o := range certList {
 		certInput := &iam.GetServerCertificateInput{ServerCertificateName: o.ServerCertificateName}
-		certDetail, err := c.c.GetServerCertificate(certInput)
+		certDetail, err := p.api.GetServerCertificate(certInput)
 		if err != nil {
-			errReturn = &err
-			return
+			return nil, err
 		}
-		list = append(list, c.newCertDetail(certDetail.ServerCertificate))
+		list = append(list, p.newCertDetail(certDetail.ServerCertificate))
 	}
+	return list, nil
 }
 
 // listCerts returns a list of iam certificates filtered by Path / for all ELB/ELBv2 certificate
 // https://docs.aws.amazon.com/IAM/latest/APIReference/API_ListServerCertificates.html#API_ListServerCertificates_RequestParameters
-func (c *iamClient) listCerts() ([]*iam.ServerCertificateMetadata, error) {
+func (p iamCertificateProvider) listCerts() ([]*iam.ServerCertificateMetadata, error) {
 	certList := make([]*iam.ServerCertificateMetadata, 0)
 	params := &iam.ListServerCertificatesInput{
 		PathPrefix: aws.String("/"),
 	}
-	err := c.c.ListServerCertificatesPages(params, func(p *iam.ListServerCertificatesOutput, lastPage bool) bool {
+	err := p.api.ListServerCertificatesPages(params, func(p *iam.ListServerCertificatesOutput, lastPage bool) bool {
 		for _, cert := range p.ServerCertificateMetadataList {
 			certList = append(certList, cert)
 		}
@@ -55,7 +51,7 @@ func (c *iamClient) listCerts() ([]*iam.ServerCertificateMetadata, error) {
 	return certList, err
 }
 
-func (c *iamClient) newCertDetail(iamCertDetail *iam.ServerCertificate) *CertDetail {
+func (p iamCertificateProvider) newCertDetail(iamCertDetail *iam.ServerCertificate) *CertDetail {
 	block, _ := pem.Decode([]byte(*iamCertDetail.CertificateBody))
 	if block == nil {
 		log.Println("failed to parse certificate PEM")

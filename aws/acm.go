@@ -1,52 +1,47 @@
 package aws
 
 import (
-	"sync"
-
 	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/client"
 	"github.com/aws/aws-sdk-go/service/acm"
 	"github.com/aws/aws-sdk-go/service/acm/acmiface"
 )
 
-type acmClient struct {
-	c acmiface.ACMAPI
+type acmCertificateProvider struct {
+	api acmiface.ACMAPI
 }
 
-func newACMClient(p client.ConfigProvider) *acmClient {
-	return &acmClient{c: acm.New(p)}
+func newACMCertProvider(api acmiface.ACMAPI) CertificatesProvider {
+	return acmCertificateProvider{api: api}
 }
 
-func (c *acmClient) updateCerts(list []*CertDetail, errReturn *error, wg *sync.WaitGroup) {
-	defer wg.Done()
-	certList, err := c.listCerts()
+func (p acmCertificateProvider) GetCertificates() ([]*CertDetail, error) {
+	certList, err := p.listCerts()
 	if err != nil {
-		errReturn = &err
-		return
+		return nil, err
 	}
-
+	list := make([]*CertDetail, 0)
 	for _, o := range certList {
 		certInput := &acm.DescribeCertificateInput{CertificateArn: o.CertificateArn}
-		certDetail, err := c.c.DescribeCertificate(certInput)
+		certDetail, err := p.api.DescribeCertificate(certInput)
 		if err != nil {
-			errReturn = &err
-			return
+			return nil, err
 		}
-		list = append(list, c.newCertDetail(certDetail.Certificate))
+		list = append(list, p.newCertDetail(certDetail.Certificate))
 	}
+	return list, nil
 }
 
 // listCerts returns a list of acm Certificates filtered by
 // CertificateStatuses
 // https://docs.aws.amazon.com/acm/latest/APIReference/API_ListCertificates.html#API_ListCertificates_RequestSyntax
-func (c *acmClient) listCerts() ([]*acm.CertificateSummary, error) {
+func (p acmCertificateProvider) listCerts() ([]*acm.CertificateSummary, error) {
 	certList := make([]*acm.CertificateSummary, 0)
 	params := &acm.ListCertificatesInput{
 		CertificateStatuses: []*string{
 			aws.String("ISSUED"), // Required
 		},
 	}
-	err := c.c.ListCertificatesPages(params, func(page *acm.ListCertificatesOutput, lastPage bool) bool {
+	err := p.api.ListCertificatesPages(params, func(page *acm.ListCertificatesOutput, lastPage bool) bool {
 		for _, cert := range page.CertificateSummaryList {
 			certList = append(certList, cert)
 		}
@@ -55,7 +50,7 @@ func (c *acmClient) listCerts() ([]*acm.CertificateSummary, error) {
 	return certList, err
 }
 
-func (c *acmClient) newCertDetail(acmDetail *acm.CertificateDetail) *CertDetail {
+func (p acmCertificateProvider) newCertDetail(acmDetail *acm.CertificateDetail) *CertDetail {
 	var altNames []string
 	for _, alt := range acmDetail.SubjectAlternativeNames {
 		altNames = append(altNames, aws.StringValue(alt))

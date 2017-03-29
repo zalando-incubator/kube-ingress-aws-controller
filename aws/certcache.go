@@ -1,13 +1,10 @@
 package aws
 
 import (
-	"fmt"
 	"log"
 	"strings"
 	"sync"
 	"time"
-
-	"github.com/aws/aws-sdk-go/aws/client"
 )
 
 const (
@@ -25,19 +22,27 @@ type CertDetail struct {
 	NotAfter  time.Time
 }
 
-type certificateCache struct {
-	sync.Mutex
-	certDetails []*CertDetail
-	iamClient   *iamClient
-	acmClient   *acmClient
+// CertificatesProvider interface for Certificate Provider like local, AWS IAM or AWS ACM
+type CertificatesProvider interface {
+	GetCertificates() ([]*CertDetail, error)
 }
 
-func newCertCache(p client.ConfigProvider) *certificateCache {
+type certificateCache struct {
+	sync.Mutex
+	providers   []CertificatesProvider
+	certDetails []*CertDetail
+}
+
+func newCertCache(providers ...CertificatesProvider) *certificateCache {
 	return &certificateCache{
-		acmClient:   newACMClient(p),
-		iamClient:   newIAMClient(p),
+		providers:   providers,
 		certDetails: make([]*CertDetail, 0),
 	}
+}
+
+type certProviderWrapper struct {
+	certs []*CertDetail
+	err   error
 }
 
 // updateCertCache will only update the current certificateCache if
@@ -45,25 +50,27 @@ func newCertCache(p client.ConfigProvider) *certificateCache {
 // example. In case it could not update the certificateCache it will
 // return the orginal error.
 func (cc *certificateCache) updateCertCache() error {
-	iamList := make([]*CertDetail, 0)
-	acmList := make([]*CertDetail, 0)
-	var iamError *error
-	var acmError *error
 	var wg sync.WaitGroup
-	wg.Add(1)
-	cc.iamClient.updateCerts(iamList, iamError, &wg)
-	wg.Add(1)
-	cc.acmClient.updateCerts(acmList, acmError, &wg)
-	wg.Wait()
-
-	if iamError != nil {
-		return fmt.Errorf("Error in the IAM worker: %s", *iamError)
+	ch := make(chan certProviderWrapper, len(cc.providers))
+	wg.Add(len(cc.providers))
+	for _, cp := range cc.providers {
+		go func(provider CertificatesProvider) {
+			res, err := provider.GetCertificates()
+			ch <- certProviderWrapper{certs: res, err: err}
+			wg.Done()
+		}(cp)
 	}
-	if acmError != nil {
-		return fmt.Errorf("Error in the ACM worker: %s", *acmError)
+	wg.Wait()
+	close(ch)
+	newList := make([]*CertDetail, 0)
+	for providerResponse := range ch {
+		if providerResponse.err != nil {
+			return providerResponse.err
+		}
+		newList = append(newList, providerResponse.certs...)
 	}
 	cc.Lock()
-	cc.certDetails = append(iamList, acmList...)
+	cc.certDetails = newList
 	cc.Unlock()
 	return nil
 }
