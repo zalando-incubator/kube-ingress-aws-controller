@@ -14,31 +14,28 @@ func newACMCertProvider(api acmiface.ACMAPI) CertificatesProvider {
 	return &acmCertificateProvider{api: api}
 }
 
+// GetCertificates returns a list of ACM certificates
 func (p *acmCertificateProvider) GetCertificates() ([]*CertDetail, error) {
 	certList, err := listCertsFromACM(p.api)
 	if err != nil {
 		return nil, err
 	}
-	list := make([]*CertDetail, 0)
+	result := make([]*CertDetail, 0)
 	for _, o := range certList {
-		certInput := &acm.DescribeCertificateInput{CertificateArn: o.CertificateArn}
-		certDetail, err := p.api.DescribeCertificate(certInput)
+		certDetail, err := getACMCertDetails(p.api, aws.StringValue(o.CertificateArn))
 		if err != nil {
 			return nil, err
 		}
-		list = append(list, certDetailFromACM(certDetail.Certificate))
+		result = append(result, certDetail)
 	}
-	return list, nil
+	return result, nil
 }
 
-// listCerts returns a list of acm Certificates filtered by
-// CertificateStatuses
-// https://docs.aws.amazon.com/acm/latest/APIReference/API_ListCertificates.html#API_ListCertificates_RequestSyntax
 func listCertsFromACM(api acmiface.ACMAPI) ([]*acm.CertificateSummary, error) {
 	certList := make([]*acm.CertificateSummary, 0)
 	params := &acm.ListCertificatesInput{
 		CertificateStatuses: []*string{
-			aws.String("ISSUED"), // Required
+			aws.String(acm.CertificateStatusIssued), // Required
 		},
 	}
 	err := api.ListCertificatesPages(params, func(page *acm.ListCertificatesOutput, lastPage bool) bool {
@@ -48,6 +45,15 @@ func listCertsFromACM(api acmiface.ACMAPI) ([]*acm.CertificateSummary, error) {
 		return true
 	})
 	return certList, err
+}
+
+func getACMCertDetails(api acmiface.ACMAPI, arn string) (*CertDetail, error) {
+	params := &acm.DescribeCertificateInput{CertificateArn: aws.String(arn)}
+	resp, err := api.DescribeCertificate(params)
+	if err != nil {
+		return nil, err
+	}
+	return certDetailFromACM(resp.Certificate), nil
 }
 
 func certDetailFromACM(acmDetail *acm.CertificateDetail) *CertDetail {

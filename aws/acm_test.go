@@ -50,7 +50,7 @@ func TestACM(t *testing.T) {
 				api: mockedACMClient{
 					output: acm.ListCertificatesOutput{
 						CertificateSummaryList: []*acm.CertificateSummary{
-							&acm.CertificateSummary{
+							{
 								CertificateArn: aws.String("foobar"),
 								DomainName:     aws.String("foobar.de"),
 							},
@@ -70,9 +70,8 @@ func TestACM(t *testing.T) {
 				},
 			},
 			expect: acmExpect{
-				// List:  make([]*CertDetail, 0),
 				List: []*CertDetail{
-					&CertDetail{
+					{
 						NotAfter:  after,
 						NotBefore: before,
 						Arn:       "foobar",
