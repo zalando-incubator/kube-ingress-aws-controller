@@ -8,16 +8,12 @@ import (
 	"github.com/aws/aws-sdk-go/aws/client"
 	"github.com/aws/aws-sdk-go/aws/ec2metadata"
 	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/acm"
-	"github.com/aws/aws-sdk-go/service/acm/acmiface"
 	"github.com/aws/aws-sdk-go/service/autoscaling"
 	"github.com/aws/aws-sdk-go/service/autoscaling/autoscalingiface"
 	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/aws/aws-sdk-go/service/ec2/ec2iface"
 	"github.com/aws/aws-sdk-go/service/elbv2"
 	"github.com/aws/aws-sdk-go/service/elbv2/elbv2iface"
-	"github.com/aws/aws-sdk-go/service/iam"
-	"github.com/aws/aws-sdk-go/service/iam/iamiface"
 )
 
 // An Adapter can be used to orchestrate and obtain information from Amazon Web Services.
@@ -29,8 +25,7 @@ type Adapter struct {
 	manifest           *manifest
 	healthCheckPath    string
 	healthCheckPort    uint16
-	acm                acmiface.ACMAPI
-	iam                iamiface.IAMAPI
+	configProvider     client.ConfigProvider
 	certUpdateInterval time.Duration
 }
 
@@ -86,8 +81,7 @@ func NewAdapter(healthCheckPath string, healthCheckPort uint16, certUpdateInterv
 		ec2:                ec2.New(p),
 		ec2metadata:        ec2metadata.New(p),
 		autoscaling:        autoscaling.New(p),
-		acm:                acm.New(p),
-		iam:                iam.New(p),
+		configProvider:     p,
 		healthCheckPath:    healthCheckPath,
 		healthCheckPort:    healthCheckPort,
 		certUpdateInterval: certUpdateInterval,
@@ -101,9 +95,8 @@ func NewAdapter(healthCheckPath string, healthCheckPort uint16, certUpdateInterv
 	return
 }
 
-func (a *Adapter) newAcm() *certificateCache {
-	cc := newCertCache(a.acm, a.iam)
-	return cc
+func (a *Adapter) newCertCache() *certificateCache {
+	return newCertCache(a.configProvider)
 }
 
 // GetCerts returns the list of certificates. It's taken from a
@@ -270,7 +263,7 @@ func buildManifest(awsAdapter *Adapter) (*manifest, error) {
 		}
 	}
 
-	cc := awsAdapter.newAcm()
+	cc := awsAdapter.newCertCache()
 	if err := cc.updateCertCache(); err != nil {
 		return nil, err
 	}
