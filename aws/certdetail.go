@@ -81,10 +81,7 @@ func (cc *certificateCache) backgroundCertCacheUpdate(certUpdateInterval time.Du
 	}()
 }
 
-// GetCachedCerts returns a copy of the cached acm CertificateDetail slice
-// https://docs.aws.amazon.com/acm/latest/APIReference/API_ListCertificates.html#API_ListCertificates_RequestSyntax
-// filtered by CertificateStatuses
-// https://docs.aws.amazon.com/acm/latest/APIReference/API_ListCertificates.html#API_ListCertificates_RequestSyntax
+// GetCachedCerts returns a copy of the cached CertDetails
 func (cc *certificateCache) GetCachedCerts() []*CertDetail {
 	cc.Lock()
 	copy := cc.certDetails[:]

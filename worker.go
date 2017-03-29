@@ -36,7 +36,7 @@ func doWork(awsAdapter *aws.Adapter, kubeAdapter *kubernetes.Adapter) error {
 	log.Printf("found %d ingress resource(s)", len(ingresses))
 
 	serverCerts := awsAdapter.GetCerts()
-	log.Printf("found %d ACM/IAM certificates", len(serverCerts))
+	log.Printf("%d currently known server certificate(s)", len(serverCerts))
 
 	uniqueARNs := ingressByCertArn(awsAdapter, ingresses, serverCerts)
 	missingARNs, existingARNs := filterExistingARNs(awsAdapter, uniqueARNs)
