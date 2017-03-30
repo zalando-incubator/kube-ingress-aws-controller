@@ -19,7 +19,7 @@ clean:
 	rm -rf build
 
 test:
-	go test -v -cover $(GOPKGS)
+	go test -v -race -cover $(GOPKGS)
 
 fmt:
 	go fmt $(GOPKGS)
