@@ -6,11 +6,11 @@ kube-ingress-aws-controller uses your EC2 instance metadata to find the CloudFor
 
 ## Development Status
 
-kube-ingress-aws-controller is a work in progress, under active development. It aims to be out-of-the-box useful for anyone running Kubernetes. 
+kube-ingress-aws-controller is a work in progress, under active development. It aims to be out-of-the-box useful for anyone running Kubernetes. Jump down to the [Quickstart](#trying-it-out) to try it out—and please let us know if you have trouble getting it running by filing an [Issue](https://github.com/zalando-incubator/kube-ingress-aws-controller/issues).
 
 As of this writing, it's being used only in small production use cases at [Zalando](https://tech.zalando.com/), and is not yet battle-tested. We're actively seeking devs/teams/companies to try it out and share feedback so we can make improvements. 
 
-We are also eager to bring new contributors on board. See [our contributor guidelines](https://github.com/LappleApple/kube-ingress-aws-controller/blob/master/CONTRIBUTING.md) to get started.
+We are also eager to bring new contributors on board. See [our contributor guidelines](https://github.com/LappleApple/kube-ingress-aws-controller/blob/master/CONTRIBUTING.md) to get started, or [claim a "Help Wanted" item](https://github.com/zalando-incubator/kube-ingress-aws-controller/issues?q=is%3Aissue+is%3Aopen+label%3A%22help+wanted%22).
 
 ## Why We Created This Ingress Controller
 
