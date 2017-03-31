@@ -6,7 +6,7 @@ This ingress controller uses your EC2 instance metadata to find the CloudFormati
 
 ## Development Status
 
-kube-ingress-aws-controller is a work in progress, under active development. It aims to be out-of-the-box useful for anyone running Kubernetes. Jump down to the [Quickstart](#trying-it-out) to try it out—and please let us know if you have trouble getting it running by filing an [Issue](https://github.com/zalando-incubator/kube-ingress-aws-controller/issues).
+This is a work in progress, under active development. It aims to be out-of-the-box useful for anyone running Kubernetes. Jump down to the [Quickstart](#trying-it-out) to try it out—and please let us know if you have trouble getting it running by filing an [Issue](https://github.com/zalando-incubator/kube-ingress-aws-controller/issues).
 
 As of this writing, it's being used only in small production use cases at [Zalando](https://tech.zalando.com/), and is not yet battle-tested. We're actively seeking devs/teams/companies to try it out and share feedback so we can make improvements. 
 
