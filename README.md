@@ -1,6 +1,6 @@
 # Kubernetes Ingress Controller for AWS
 
-This is an ingress controller for [Kubernetes](http://kubernetes.io/)—the open-source container deployment, scaling, and management system—on AWS. It runs inside a Kubernetes cluster to monitor changes to your ingress resources and orchestrate [AWS Load Balancers](https://aws.amazon.com/elasticloadbalancing/) accordingly.
+This is an ingress controller for [Kubernetes](http://kubernetes.io/) — the open-source container deployment, scaling, and management system — on AWS. It runs inside a Kubernetes cluster to monitor changes to your ingress resources and orchestrate [AWS Load Balancers](https://aws.amazon.com/elasticloadbalancing/) accordingly.
 
 This ingress controller uses your EC2 instance metadata to find the CloudFormation stack that it belongs to, and then uses this information to discover the required AWS resources attached to each newly created [Application Load Balancer](https://aws.amazon.com/elasticloadbalancing/applicationloadbalancer/).
 
