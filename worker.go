@@ -35,10 +35,10 @@ func doWork(awsAdapter *aws.Adapter, kubeAdapter *kubernetes.Adapter) error {
 	}
 	log.Printf("found %d ingress resource(s)", len(ingresses))
 
-	acmCerts := awsAdapter.GetCerts()
-	log.Printf("found %d ACM certificates", len(acmCerts))
+	serverCerts := awsAdapter.GetCerts()
+	log.Printf("%d currently known server certificate(s)", len(serverCerts))
 
-	uniqueARNs := ingressByCertArn(awsAdapter, ingresses, acmCerts)
+	uniqueARNs := ingressByCertArn(awsAdapter, ingresses, serverCerts)
 	missingARNs, existingARNs := filterExistingARNs(awsAdapter, uniqueARNs)
 	for missingARN, ingresses := range missingARNs {
 		lb, err := createMissingLoadBalancer(awsAdapter, missingARN)
@@ -63,14 +63,14 @@ func doWork(awsAdapter *aws.Adapter, kubeAdapter *kubernetes.Adapter) error {
 	return nil
 }
 
-func ingressByCertArn(awsAdapter *aws.Adapter, ingresses []*kubernetes.Ingress, acmCerts []*aws.CertDetail) map[string][]*kubernetes.Ingress {
+func ingressByCertArn(awsAdapter *aws.Adapter, ingresses []*kubernetes.Ingress, serverCerts []*aws.CertDetail) map[string][]*kubernetes.Ingress {
 	uniqueARNs := make(map[string][]*kubernetes.Ingress)
 	for _, ingress := range ingresses {
 		certificateARN := ingress.CertificateARN()
 		if certificateARN != "" {
 			uniqueARNs[certificateARN] = append(uniqueARNs[certificateARN], ingress)
 		} else {
-			arn, err := findCertARNForIngress(awsAdapter, ingress, acmCerts)
+			arn, err := findCertARNForIngress(awsAdapter, ingress, serverCerts)
 			if err != nil {
 				log.Printf("No valid Certificate found for %v: %v", ingress.CertHostname(), err)
 				continue
@@ -82,8 +82,8 @@ func ingressByCertArn(awsAdapter *aws.Adapter, ingresses []*kubernetes.Ingress, 
 	return uniqueARNs
 }
 
-func findCertARNForIngress(awsAdapter *aws.Adapter, ingress *kubernetes.Ingress, acmCerts []*aws.CertDetail) (string, error) {
-	acmCert, err := awsAdapter.FindBestMatchingCertificate(acmCerts, ingress.CertHostname())
+func findCertARNForIngress(awsAdapter *aws.Adapter, ingress *kubernetes.Ingress, serverCerts []*aws.CertDetail) (string, error) {
+	acmCert, err := awsAdapter.FindBestMatchingCertificate(serverCerts, ingress.CertHostname())
 	if err != nil {
 		return "", err
 	}

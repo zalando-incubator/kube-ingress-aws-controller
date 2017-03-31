@@ -16,6 +16,8 @@ import (
 	"github.com/aws/aws-sdk-go/service/ec2/ec2iface"
 	"github.com/aws/aws-sdk-go/service/elbv2"
 	"github.com/aws/aws-sdk-go/service/elbv2/elbv2iface"
+	"github.com/aws/aws-sdk-go/service/iam"
+	"github.com/aws/aws-sdk-go/service/iam/iamiface"
 )
 
 // An Adapter can be used to orchestrate and obtain information from Amazon Web Services.
@@ -24,10 +26,11 @@ type Adapter struct {
 	ec2                ec2iface.EC2API
 	elbv2              elbv2iface.ELBV2API
 	autoscaling        autoscalingiface.AutoScalingAPI
+	acm                acmiface.ACMAPI
+	iam                iamiface.IAMAPI
 	manifest           *manifest
 	healthCheckPath    string
 	healthCheckPort    uint16
-	acm                acmiface.ACMAPI
 	certUpdateInterval time.Duration
 }
 
@@ -84,6 +87,7 @@ func NewAdapter(healthCheckPath string, healthCheckPort uint16, certUpdateInterv
 		ec2metadata:        ec2metadata.New(p),
 		autoscaling:        autoscaling.New(p),
 		acm:                acm.New(p),
+		iam:                iam.New(p),
 		healthCheckPath:    healthCheckPath,
 		healthCheckPort:    healthCheckPort,
 		certUpdateInterval: certUpdateInterval,
@@ -95,11 +99,6 @@ func NewAdapter(healthCheckPath string, healthCheckPort uint16, certUpdateInterv
 	}
 
 	return
-}
-
-func (a *Adapter) newAcm() *certificateCache {
-	cc := newCertCache(a.acm)
-	return cc
 }
 
 // GetCerts returns the list of certificates. It's taken from a
@@ -266,7 +265,7 @@ func buildManifest(awsAdapter *Adapter) (*manifest, error) {
 		}
 	}
 
-	cc := awsAdapter.newAcm()
+	cc := newCertCache(newIAMCertProvider(awsAdapter.iam), newACMCertProvider(awsAdapter.acm))
 	if err := cc.updateCertCache(); err != nil {
 		return nil, err
 	}
