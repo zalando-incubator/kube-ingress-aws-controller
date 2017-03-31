@@ -10,7 +10,7 @@ This controller is a work in progress, under active development. It aims to be o
 
 As of this writing, it's being used only in small production use cases at [Zalando](https://tech.zalando.com/), and is not yet battle-tested. We're actively seeking devs/teams/companies to try it out and share feedback so we can make improvements. 
 
-We are also eager to bring new contributors on board. See [our contributor guidelines](https://github.com/LappleApple/kube-ingress-aws-controller/blob/master/CONTRIBUTING.md) to get started, or [claim a "Help Wanted" item](https://github.com/zalando-incubator/kube-ingress-aws-controller/issues?q=is%3Aissue+is%3Aopen+label%3A%22help+wanted%22).
+We are also eager to bring new contributors on board. See [our contributor guidelines](https://github.com/zalando-incubator/kube-ingress-aws-controller/blob/master/CONTRIBUTING.md) to get started, or [claim a "Help Wanted" item](https://github.com/zalando-incubator/kube-ingress-aws-controller/issues?q=is%3Aissue+is%3Aopen+label%3A%22help+wanted%22).
 
 ## Why We Created This Ingress Controller
 
@@ -127,7 +127,7 @@ To have convenient DNS names for your application, you can use [mate](https://gi
 
 ## Contributing
 
-We welcome your contributions, ideas and bug reports via issues and pull requests; [here are those Contributor guidelines again](https://github.com/LappleApple/kube-ingress-aws-controller/blob/master/CONTRIBUTING.md).
+We welcome your contributions, ideas and bug reports via issues and pull requests; [here are those Contributor guidelines again](https://github.com/zalando-incubator/kube-ingress-aws-controller/blob/master/CONTRIBUTING.md).
 
 ## Contact
 
