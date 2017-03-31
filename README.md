@@ -20,7 +20,7 @@ We're using this ingress controller with [Skipper](http://github.com/zalando/ski
 
 ## How It Works
 
-This controller continuously polls the API server checking for ingress resources. It runs an infinite loop. For each cycle it creates load balancers for new ingress resources, and deletes the load balancers for obsolete/dead ingress resources.
+This controller continuously polls the API server to check for ingress resources. It runs an infinite loop. For each cycle it creates load balancers for new ingress resources, and deletes the load balancers for obsolete/dead ingress resources.
 
 The controller *will not* manage the security groups required to allow access from the Internet to the load balancers. It assumes that their lifecycle is external to the controller itself.
 
