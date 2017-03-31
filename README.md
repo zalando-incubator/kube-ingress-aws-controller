@@ -6,7 +6,7 @@ This ingress controller uses your EC2 instance metadata to find the CloudFormati
 
 ## Development Status
 
-This is a work in progress, under active development. It aims to be out-of-the-box useful for anyone running Kubernetes. Jump down to the [Quickstart](#trying-it-out) to try it out—and please let us know if you have trouble getting it running by filing an [Issue](https://github.com/zalando-incubator/kube-ingress-aws-controller/issues).
+This controller is a work in progress, under active development. It aims to be out-of-the-box useful for anyone running Kubernetes. Jump down to the [Quickstart](#trying-it-out) to try it out—and please let us know if you have trouble getting it running by filing an [Issue](https://github.com/zalando-incubator/kube-ingress-aws-controller/issues).
 
 As of this writing, it's being used only in small production use cases at [Zalando](https://tech.zalando.com/), and is not yet battle-tested. We're actively seeking devs/teams/companies to try it out and share feedback so we can make improvements. 
 
@@ -38,7 +38,7 @@ On startup, the controller discovers the AWS resources relevant for the controll
 
 ### Creating Load Balancers
 
-When the controller learns about new ingress resources, it uses the host specified in it to automatically determine the most specific certificate to use. An example ingress is the following:
+When the controller learns about new ingress resources, it uses the host specified in it to automatically determine the most specific certificate to use. An example ingress:
 
 ```
 apiVersion: extensions/v1beta1
@@ -57,7 +57,7 @@ spec:
 
 The Application Load Balancer created by the controller will have both an HTTP listener and an HTTPS listener. The latter will use the automatically selected certificate.
 
-Alternatively, you can specify the Amazon Resource Name (ARN) of the desired certificate with an annotation like the one shown here:
+Alternatively, you can specify the [Amazon Resource Name](https://docs.aws.amazon.com/general/latest/gr/aws-arns-and-namespaces.html) (ARN) of the desired certificate with an annotation like the one shown here:
 
 ```
 apiVersion: extensions/v1beta1
@@ -76,7 +76,7 @@ spec:
           servicePort: main-port
 ```
 
-Application Load Balancers created by the controller have a custom tag marking them as *managed* load balancers to differentiate them from other load balancers. The tag looks like this:
+The new Application Load Balancers have a custom tag marking them as *managed* load balancers to differentiate them from other load balancers. The tag looks like this:
 
     kubernetes:application: kube-ingress-aws-controller
 
@@ -93,7 +93,7 @@ This project provides a [`Makefile`](https://github.com/zalando-incubator/kube-i
 
 ### Building a Binary
 
-To build a binary for the Linux current operating system, simply run `make` or `make build.linux`.
+To build a binary for the Linux operating system, simply run `make` or `make build.linux`.
 
 ### Building a Docker Image
 
