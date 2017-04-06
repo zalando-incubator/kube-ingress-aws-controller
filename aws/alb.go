@@ -204,11 +204,13 @@ func normalizeLoadBalancerName(clusterID string, certificateARN string) string {
 
 func createDefaultTargetGroup(alb elbv2iface.ELBV2API, name string, vpcID string, hc healthCheck) (string, error) {
 	params := &elbv2.CreateTargetGroupInput{
-		HealthCheckPath: aws.String(hc.path),
-		Port:            aws.Int64(int64(hc.port)),
-		Protocol:        aws.String(elbv2.ProtocolEnumHttp),
-		VpcId:           aws.String(vpcID),
-		Name:            aws.String(name),
+		HealthCheckPath:            aws.String(hc.path),
+		HealthCheckIntervalSeconds: aws.Int64(int64(10)),
+		UnhealthyThresholdCount:    aws.Int64(int64(2)),
+		Port:     aws.Int64(int64(hc.port)),
+		Protocol: aws.String(elbv2.ProtocolEnumHttp),
+		VpcId:    aws.String(vpcID),
+		Name:     aws.String(name),
 	}
 	resp, err := alb.CreateTargetGroup(params)
 	if err != nil {
