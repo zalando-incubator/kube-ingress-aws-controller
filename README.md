@@ -126,7 +126,7 @@ To complete the setup, you'll need to fulfill some additional requirements regar
 
 ### DNS
 
-To have convenient DNS names for your application, you can use [mate](https://github.com/zalando-incubator/mate). It's not strictly necessary for this Ingress Controller to work, though. (NOTE: `mate` will soon be replaced by a new Kubernetes-Incubator project, [external-dns](https://github.com/kubernetes-incubator/external-dns).)
+To have convenient DNS names for your application, you can use [External DNS](https://github.com/kubernetes-incubator/external-dns). It's not strictly necessary for this Ingress Controller to work, though.
 
 ## Contributing
 
