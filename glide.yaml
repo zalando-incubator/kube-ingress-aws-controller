@@ -19,6 +19,8 @@ import:
   - service/iam/iamiface
 - package: github.com/pkg/errors
   version: ~0.8.0
+- package: github.com/linki/instrumented_http
+  version: ~0.1.0
 testImport:
 - package: github.com/davecgh/go-spew
   version: ~1.1.0

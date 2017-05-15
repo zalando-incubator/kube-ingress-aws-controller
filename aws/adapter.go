@@ -18,6 +18,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/elbv2/elbv2iface"
 	"github.com/aws/aws-sdk-go/service/iam"
 	"github.com/aws/aws-sdk-go/service/iam/iamiface"
+	"github.com/linki/instrumented_http"
 )
 
 // An Adapter can be used to orchestrate and obtain information from Amazon Web Services.
@@ -72,7 +73,9 @@ var (
 var configProvider = defaultConfigProvider
 
 func defaultConfigProvider() client.ConfigProvider {
-	return session.Must(session.NewSession(aws.NewConfig().WithMaxRetries(3)))
+	config := aws.NewConfig().WithMaxRetries(3)
+	config = config.WithHTTPClient(instrumented_http.NewClient(config.HTTPClient, nil))
+	return session.Must(session.NewSession(config))
 }
 
 // NewAdapter returns a new Adapter that can be used to orchestrate and obtain information from Amazon Web Services.
