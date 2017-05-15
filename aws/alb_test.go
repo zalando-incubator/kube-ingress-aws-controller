@@ -231,7 +231,7 @@ func TestFindingManagedLoadBalancers(t *testing.T) {
 			},
 			"fake-cluster-id", "",
 			nil,
-			false,
+			true,
 		},
 		{
 			"no-matching-listeners",
