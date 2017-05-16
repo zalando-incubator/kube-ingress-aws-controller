@@ -294,7 +294,7 @@ func findManagedLoadBalancers(svc elbv2iface.ELBV2API, clusterID string) ([]*Loa
 				listeners, err := getListeners(svc, loadBalancerARN)
 				if err != nil {
 					log.Printf("failed to describe listeners for load balancer ARN %q: %v\n", loadBalancerARN, err)
-					continue
+					return nil, err
 				}
 
 				listener, certARN := findFirstListenerWithAnyCertificate(listeners)
