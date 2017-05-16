@@ -73,7 +73,8 @@ func (cc *cachingProvider) updateCertCache() error {
 	return nil
 }
 
-//
+// startBackgroundRefresh creates a background forever loop to update
+// certificate cache.
 func (cc *cachingProvider) startBackgroundRefresh(certUpdateInterval time.Duration) {
 	go func() {
 		for {
