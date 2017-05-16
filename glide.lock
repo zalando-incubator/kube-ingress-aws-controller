@@ -1,0 +1,52 @@
+hash: c5d0ee7122d41a94629ca3c25d197a0e3385071bfbd6f11fb9b194fec789606d
+updated: 2017-05-16T14:17:59.877172145+02:00
+imports:
+- name: github.com/aws/aws-sdk-go
+  version: 9f8b24cb7c7701c78150869d906711a2e7184bc0
+  subpackages:
+  - aws
+  - aws/awserr
+  - aws/awsutil
+  - aws/client
+  - aws/client/metadata
+  - aws/corehandlers
+  - aws/credentials
+  - aws/credentials/ec2rolecreds
+  - aws/credentials/endpointcreds
+  - aws/credentials/stscreds
+  - aws/defaults
+  - aws/ec2metadata
+  - aws/endpoints
+  - aws/request
+  - aws/session
+  - aws/signer/v4
+  - private/protocol
+  - private/protocol/ec2query
+  - private/protocol/json/jsonutil
+  - private/protocol/jsonrpc
+  - private/protocol/query
+  - private/protocol/query/queryutil
+  - private/protocol/rest
+  - private/protocol/xml/xmlutil
+  - service/acm
+  - service/acm/acmiface
+  - service/autoscaling
+  - service/autoscaling/autoscalingiface
+  - service/ec2
+  - service/ec2/ec2iface
+  - service/elbv2
+  - service/elbv2/elbv2iface
+  - service/iam
+  - service/iam/iamiface
+  - service/sts
+- name: github.com/go-ini/ini
+  version: e7fea39b01aea8d5671f6858f0532f56e8bff3a5
+- name: github.com/jmespath/go-jmespath
+  version: bd40a432e4c76585ef6b72d3fd96fb9b6dc7b68d
+- name: github.com/pkg/errors
+  version: 645ef00459ed84a119197bfb8d8205042c6df63d
+testImports:
+- name: github.com/davecgh/go-spew
+  version: 346938d642f2ec3594ed81d874461961cd0faa76
+  subpackages:
+  - spew

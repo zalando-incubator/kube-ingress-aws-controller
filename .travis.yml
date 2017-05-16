@@ -9,4 +9,10 @@ go:
   - 1.7
   - tip
 
+before_install:
+  - go get github.com/Masterminds/glide
+
+install:
+  - glide install --strip-vendor
+
 script: make test
