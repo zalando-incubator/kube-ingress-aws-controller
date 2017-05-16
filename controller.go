@@ -37,7 +37,7 @@ func waitForTerminationSignals(signals ...os.Signal) chan os.Signal {
 func loadSettings() error {
 	flag.Usage = usage
 	flag.StringVar(&apiServerBaseURL, "api-server-base-url", "", "sets the kubernetes api "+
-		"server base url. if empty will try to use the configuration from the running cluster")
+		"server base url. If empty will try to use the configuration from the running cluster, else it will use InsecureConfig, that does not use encryption or authentication (use case to develop with kubectl proxy).")
 	flag.DurationVar(&pollingInterval, "polling-interval", 30*time.Second, "sets the polling interval for "+
 		"ingress resources. The flag accepts a value acceptable to time.ParseDuration")
 	flag.StringVar(&cfCustomTemplate, "cf-custom-template", "",
