@@ -18,9 +18,11 @@ type certProviderWrapper struct {
 	err   error
 }
 
-// NewCachingProvider collects certificates from multiple providers and keeps them cached in memory.
-// After an initial loading of certificates it will continue to refresh the cache every certUpdateInterval in
-// the background. If the background refresh fails the last known cached values are considered current.
+// NewCachingProvider collects certificates from multiple providers
+// and keeps them cached in memory.  After an initial loading of
+// certificates it will continue to refresh the cache every
+// certUpdateInterval in the background. If the background refresh
+// fails the last known cached values are considered current.
 func NewCachingProvider(certUpdateInterval time.Duration, providers ...CertificatesProvider) (CertificatesProvider, error) {
 	provider := &cachingProvider{
 		providers:   providers,
@@ -42,8 +44,9 @@ func (cc *cachingProvider) GetCertificates() ([]*CertificateSummary, error) {
 	return certCopy, nil
 }
 
-// updateCertCache will only update the current certificate cache if all providers are successful.
-// In case it fails it will return the original error.
+// updateCertCache will only update the current certificate cache if
+// all providers are successful.  In case it fails it will return the
+// original error.
 func (cc *cachingProvider) updateCertCache() error {
 	var wg sync.WaitGroup
 	ch := make(chan certProviderWrapper, len(cc.providers))
