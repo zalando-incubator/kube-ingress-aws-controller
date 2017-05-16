@@ -187,7 +187,7 @@ func mapToManagedStack(stack *cloudformation.Stack) *Stack {
 func isComplete(stackStatus *string) bool {
 	switch aws.StringValue(stackStatus) {
 	case cloudformation.StackStatusCreateComplete:
-		fallthrough
+		return true
 	case cloudformation.ResourceStatusUpdateComplete:
 		return true
 	}
