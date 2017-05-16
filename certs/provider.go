@@ -2,7 +2,8 @@ package certs
 
 import "time"
 
-// CertificatesProvider interface for Certificate Provider like local, AWS IAM or AWS ACM
+// CertificatesProvider interface for Certificate Provider like local,
+// AWS IAM or AWS ACM
 type CertificatesProvider interface {
 	GetCertificates() ([]*CertificateSummary, error)
 }
@@ -15,7 +16,8 @@ type CertificateSummary struct {
 	notAfter  time.Time
 }
 
-// NewCertificate returns a new CertificateSummary with the matching fields set from the arguments
+// NewCertificate returns a new CertificateSummary with the matching
+// fields set from the arguments
 func NewCertificate(id string, san []string, notBefore time.Time, notAfter time.Time) *CertificateSummary {
 	return &CertificateSummary{
 		id:        id,
@@ -30,8 +32,9 @@ func (c *CertificateSummary) ID() string {
 	return c.id
 }
 
-// SubjectAlternativeNames returns all the additional host names (sites, IP addresses, common names, etc.) protected
-// by the certificate
+// SubjectAlternativeNames returns all the additional host names
+// (sites, IP addresses, common names, etc.) protected by the
+// certificate
 func (c *CertificateSummary) SubjectAlternativeNames() []string {
 	return c.san
 }
@@ -46,7 +49,8 @@ func (c *CertificateSummary) NotAfter() time.Time {
 	return c.notAfter
 }
 
-// IsValidAt asserts if the the argument is contained in the certificate's date interval
+// IsValidAt asserts if the the argument is contained in the
+// certificate's date interval
 func (c *CertificateSummary) IsValidAt(when time.Time) bool {
 	return when.Before(c.notAfter) && when.After(c.notBefore)
 }
