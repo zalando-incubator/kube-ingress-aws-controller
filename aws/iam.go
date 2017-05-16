@@ -7,28 +7,26 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/iam"
 	"github.com/aws/aws-sdk-go/service/iam/iamiface"
-	"github.com/pkg/errors"
+	"github.com/zalando-incubator/kube-ingress-aws-controller/certs"
 )
 
 type iamCertificateProvider struct {
 	api iamiface.IAMAPI
 }
 
-var errFailedToParsePEM = errors.New("failed to parse certificate PEM")
-
-func newIAMCertProvider(api iamiface.IAMAPI) CertificatesProvider {
+func newIAMCertProvider(api iamiface.IAMAPI) certs.CertificatesProvider {
 	return &iamCertificateProvider{api: api}
 }
 
-// GetCertificates returns a list of IAM certificates
-func (p *iamCertificateProvider) GetCertificates() ([]*CertDetail, error) {
-	certList, err := listCertsFromIAM(p.api)
+// GetCertificates returns a list of AWS IAM certificates
+func (p *iamCertificateProvider) GetCertificates() ([]*certs.CertificateSummary, error) {
+	serverCertificatesMetadata, err := getIAMServerCertificateMetadata(p.api)
 	if err != nil {
 		return nil, err
 	}
-	list := make([]*CertDetail, 0)
-	for _, o := range certList {
-		certDetail, err := getIAMCertDetails(p.api, aws.StringValue(o.ServerCertificateName))
+	list := make([]*certs.CertificateSummary, 0)
+	for _, o := range serverCertificatesMetadata {
+		certDetail, err := getCertificateSummaryFromIAM(p.api, aws.StringValue(o.ServerCertificateName))
 		if err != nil {
 			return nil, err
 		}
@@ -37,11 +35,11 @@ func (p *iamCertificateProvider) GetCertificates() ([]*CertDetail, error) {
 	return list, nil
 }
 
-func listCertsFromIAM(api iamiface.IAMAPI) ([]*iam.ServerCertificateMetadata, error) {
-	certList := make([]*iam.ServerCertificateMetadata, 0)
+func getIAMServerCertificateMetadata(api iamiface.IAMAPI) ([]*iam.ServerCertificateMetadata, error) {
 	params := &iam.ListServerCertificatesInput{
 		PathPrefix: aws.String("/"),
 	}
+	certList := make([]*iam.ServerCertificateMetadata, 0)
 	err := api.ListServerCertificatesPages(params, func(p *iam.ListServerCertificatesOutput, lastPage bool) bool {
 		for _, cert := range p.ServerCertificateMetadataList {
 			certList = append(certList, cert)
@@ -51,23 +49,23 @@ func listCertsFromIAM(api iamiface.IAMAPI) ([]*iam.ServerCertificateMetadata, er
 	return certList, err
 }
 
-func getIAMCertDetails(api iamiface.IAMAPI, name string) (*CertDetail, error) {
+func getCertificateSummaryFromIAM(api iamiface.IAMAPI, name string) (*certs.CertificateSummary, error) {
 	params := &iam.GetServerCertificateInput{ServerCertificateName: aws.String(name)}
 	resp, err := api.GetServerCertificate(params)
 	if err != nil {
 		return nil, err
 	}
-	certDetail, err := certDetailFromIAM(resp.ServerCertificate)
+	certificateSummary, err := summaryFromServerCertificate(resp.ServerCertificate)
 	if err != nil {
 		return nil, err
 	}
-	return certDetail, nil
+	return certificateSummary, nil
 }
 
-func certDetailFromIAM(iamCertDetail *iam.ServerCertificate) (*CertDetail, error) {
+func summaryFromServerCertificate(iamCertDetail *iam.ServerCertificate) (*certs.CertificateSummary, error) {
 	block, _ := pem.Decode([]byte(*iamCertDetail.CertificateBody))
 	if block == nil {
-		return nil, errFailedToParsePEM
+		return nil, ErrFailedToParsePEM
 	}
 
 	cert, err := x509.ParseCertificate(block.Bytes)
@@ -80,10 +78,9 @@ func certDetailFromIAM(iamCertDetail *iam.ServerCertificate) (*CertDetail, error
 	if cert.Subject.CommonName != "" {
 		dnsNames = append(dnsNames, cert.Subject.CommonName)
 	}
-	return &CertDetail{
-		Arn:       aws.StringValue(iamCertDetail.ServerCertificateMetadata.Arn),
-		AltNames:  dnsNames,
-		NotBefore: cert.NotBefore,
-		NotAfter:  cert.NotAfter,
-	}, nil
+	return certs.NewCertificate(
+		aws.StringValue(iamCertDetail.ServerCertificateMetadata.Arn),
+		dnsNames,
+		cert.NotBefore,
+		cert.NotAfter), nil
 }

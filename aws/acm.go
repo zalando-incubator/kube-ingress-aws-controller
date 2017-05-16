@@ -4,67 +4,59 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/acm"
 	"github.com/aws/aws-sdk-go/service/acm/acmiface"
+	"github.com/zalando-incubator/kube-ingress-aws-controller/certs"
 )
 
 type acmCertificateProvider struct {
 	api acmiface.ACMAPI
 }
 
-func newACMCertProvider(api acmiface.ACMAPI) CertificatesProvider {
+func newACMCertProvider(api acmiface.ACMAPI) certs.CertificatesProvider {
 	return &acmCertificateProvider{api: api}
 }
 
-// GetCertificates returns a list of ACM certificates
-func (p *acmCertificateProvider) GetCertificates() ([]*CertDetail, error) {
-	certList, err := listCertsFromACM(p.api)
+// GetCertificates returns a list of AWS ACM certificates
+func (p *acmCertificateProvider) GetCertificates() ([]*certs.CertificateSummary, error) {
+	acmSummaries, err := getACMCertificateSummaries(p.api)
 	if err != nil {
 		return nil, err
 	}
-	result := make([]*CertDetail, 0)
-	for _, o := range certList {
-		certDetail, err := getACMCertDetails(p.api, aws.StringValue(o.CertificateArn))
+	result := make([]*certs.CertificateSummary, 0)
+	for _, o := range acmSummaries {
+		summary, err := getCertificateSummaryFromACM(p.api, o.CertificateArn)
 		if err != nil {
 			return nil, err
 		}
-		result = append(result, certDetail)
+		result = append(result, summary)
 	}
 	return result, nil
 }
 
-func listCertsFromACM(api acmiface.ACMAPI) ([]*acm.CertificateSummary, error) {
-	certList := make([]*acm.CertificateSummary, 0)
+func getACMCertificateSummaries(api acmiface.ACMAPI) ([]*acm.CertificateSummary, error) {
 	params := &acm.ListCertificatesInput{
 		CertificateStatuses: []*string{
-			aws.String(acm.CertificateStatusIssued), // Required
+			aws.String(acm.CertificateStatusIssued),
 		},
 	}
+	acmSummaries := make([]*acm.CertificateSummary, 0)
 	err := api.ListCertificatesPages(params, func(page *acm.ListCertificatesOutput, lastPage bool) bool {
 		for _, cert := range page.CertificateSummaryList {
-			certList = append(certList, cert)
+			acmSummaries = append(acmSummaries, cert)
 		}
 		return true
 	})
-	return certList, err
+	return acmSummaries, err
 }
 
-func getACMCertDetails(api acmiface.ACMAPI, arn string) (*CertDetail, error) {
-	params := &acm.DescribeCertificateInput{CertificateArn: aws.String(arn)}
+func getCertificateSummaryFromACM(api acmiface.ACMAPI, arn *string) (*certs.CertificateSummary, error) {
+	params := &acm.DescribeCertificateInput{CertificateArn: arn}
 	resp, err := api.DescribeCertificate(params)
 	if err != nil {
 		return nil, err
 	}
-	return certDetailFromACM(resp.Certificate), nil
-}
-
-func certDetailFromACM(acmDetail *acm.CertificateDetail) *CertDetail {
-	var altNames []string
-	for _, alt := range acmDetail.SubjectAlternativeNames {
-		altNames = append(altNames, aws.StringValue(alt))
-	}
-	return &CertDetail{
-		Arn:       aws.StringValue(acmDetail.CertificateArn),
-		AltNames:  append(altNames, aws.StringValue(acmDetail.DomainName)),
-		NotBefore: aws.TimeValue(acmDetail.NotBefore),
-		NotAfter:  aws.TimeValue(acmDetail.NotAfter),
-	}
+	return certs.NewCertificate(
+		aws.StringValue(resp.Certificate.CertificateArn),
+		append(aws.StringValueSlice(resp.Certificate.SubjectAlternativeNames), aws.StringValue(resp.Certificate.DomainName)),
+		aws.TimeValue(resp.Certificate.NotBefore),
+		aws.TimeValue(resp.Certificate.NotAfter)), nil
 }

@@ -8,7 +8,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/acm"
 	"github.com/aws/aws-sdk-go/service/acm/acmiface"
-	"github.com/davecgh/go-spew/spew"
+	"github.com/zalando-incubator/kube-ingress-aws-controller/certs"
 )
 
 type mockedACMClient struct {
@@ -31,7 +31,7 @@ func (m mockedACMClient) DescribeCertificate(input *acm.DescribeCertificateInput
 }
 
 type acmExpect struct {
-	List  []*CertDetail
+	List  []*certs.CertificateSummary
 	Error error
 }
 
@@ -40,52 +40,46 @@ func TestACM(t *testing.T) {
 	before := now.Add(-time.Hour * 24 * 7)
 	after := now.Add(time.Hour*24*7 + 1*time.Second)
 	for _, ti := range []struct {
-		msg      string
-		provider acmCertificateProvider
-		expect   acmExpect
+		msg    string
+		api    acmiface.ACMAPI
+		expect acmExpect
 	}{
 		{
 			msg: "Found ACM Cert foobar",
-			provider: acmCertificateProvider{
-				api: mockedACMClient{
-					output: acm.ListCertificatesOutput{
-						CertificateSummaryList: []*acm.CertificateSummary{
-							{
-								CertificateArn: aws.String("foobar"),
-								DomainName:     aws.String("foobar.de"),
-							},
-						},
-					},
-					cert: acm.DescribeCertificateOutput{
-						Certificate: &acm.CertificateDetail{
+			api: mockedACMClient{
+				output: acm.ListCertificatesOutput{
+					CertificateSummaryList: []*acm.CertificateSummary{
+						{
 							CertificateArn: aws.String("foobar"),
 							DomainName:     aws.String("foobar.de"),
-							NotAfter:       aws.Time(after),
-							NotBefore:      aws.Time(before),
-							SubjectAlternativeNames: []*string{
-								aws.String("foobar.de"),
-							},
+						},
+					},
+				},
+				cert: acm.DescribeCertificateOutput{
+					Certificate: &acm.CertificateDetail{
+						CertificateArn: aws.String("foobar"),
+						DomainName:     aws.String("foobar.de"),
+						NotAfter:       aws.Time(after),
+						NotBefore:      aws.Time(before),
+						SubjectAlternativeNames: []*string{
+							aws.String("foobar.de"),
 						},
 					},
 				},
 			},
 			expect: acmExpect{
-				List: []*CertDetail{
-					{
-						NotAfter:  after,
-						NotBefore: before,
-						Arn:       "foobar",
-						AltNames:  []string{"foobar.de", "foobar.de"},
-					},
+				List: []*certs.CertificateSummary{
+					certs.NewCertificate("foobar", []string{"foobar.de", "foobar.de"}, before, after),
 				},
 				Error: nil,
 			},
 		},
 	} {
 		t.Run(ti.msg, func(t *testing.T) {
-			list, err := ti.provider.GetCertificates()
+			provider := newACMCertProvider(ti.api)
+			list, err := provider.GetCertificates()
 			if !reflect.DeepEqual(list, ti.expect.List) {
-				t.Errorf("%s:\nexpected %s\ngiven: %s\n", ti.msg, spew.Sdump(ti.expect.List), spew.Sdump(list))
+				t.Errorf("%s:\nexpected %+v\ngiven: %+v\n", ti.msg, ti.expect.List, list)
 			}
 			if err != ti.expect.Error {
 				t.Errorf("%s: expected %#v\ngiven: %#v\n", ti.msg, ti.expect.Error, err)

@@ -2,7 +2,6 @@ package aws
 
 import (
 	"fmt"
-	"github.com/aws/aws-sdk-go/service/autoscaling/autoscalingiface"
 	"reflect"
 	"testing"
 )
@@ -95,29 +94,48 @@ func TestGetAutoScalingGroupByName(t *testing.T) {
 	}
 }
 
-func TestAttachDetach(t *testing.T) {
+func TestAttach(t *testing.T) {
 	for _, test := range []struct {
 		name      string
-		f         func(autoscalingiface.AutoScalingAPI, string, string) error
 		responses autoscalingMockOutputs
 		wantError bool
 	}{
-		{"success-attach", attachTargetGroupToAutoScalingGroup,
-			autoscalingMockOutputs{attachLoadBalancerTargetGroups: R(nil, nil)},
+		{"success-attach", autoscalingMockOutputs{attachLoadBalancerTargetGroups: R(nil, nil)},
 			false},
-		{"success-dettach", detachTargetGroupFromAutoScalingGroup,
-			autoscalingMockOutputs{detachLoadBalancerTargetGroups: R(nil, nil)},
-			false},
-		{"failed-attach", attachTargetGroupToAutoScalingGroup,
-			autoscalingMockOutputs{attachLoadBalancerTargetGroups: R(nil, dummyErr)},
-			true},
-		{"failed-dettach", detachTargetGroupFromAutoScalingGroup,
-			autoscalingMockOutputs{detachLoadBalancerTargetGroups: R(nil, dummyErr)},
+		{"failed-attach", autoscalingMockOutputs{attachLoadBalancerTargetGroups: R(nil, dummyErr)},
 			true},
 	} {
 		t.Run(fmt.Sprintf("%v", test.name), func(t *testing.T) {
 			mockSvc := &mockAutoScalingClient{outputs: test.responses}
-			err := test.f(mockSvc, "foo", "bar")
+			err := attachTargetGroupsToAutoScalingGroup(mockSvc, []string{"foo"}, "bar")
+			if test.wantError {
+				if err == nil {
+					t.Error("wanted an error but call seemed to have succeeded")
+				}
+			} else {
+				if err != nil {
+					t.Fatal("unexpected error", err)
+				}
+			}
+		})
+	}
+
+}
+
+func TestDetach(t *testing.T) {
+	for _, test := range []struct {
+		name      string
+		responses autoscalingMockOutputs
+		wantError bool
+	}{
+		{"success-dettach", autoscalingMockOutputs{detachLoadBalancerTargetGroups: R(nil, nil)},
+			false},
+		{"failed-dettach", autoscalingMockOutputs{detachLoadBalancerTargetGroups: R(nil, dummyErr)},
+			true},
+	} {
+		t.Run(fmt.Sprintf("%v", test.name), func(t *testing.T) {
+			mockSvc := &mockAutoScalingClient{outputs: test.responses}
+			err := detachTargetGroupFromAutoScalingGroup(mockSvc, "foo", "bar")
 			if test.wantError {
 				if err == nil {
 					t.Error("wanted an error but call seemed to have succeeded")

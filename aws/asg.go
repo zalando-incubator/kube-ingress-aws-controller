@@ -2,6 +2,7 @@ package aws
 
 import (
 	"fmt"
+
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/autoscaling"
 	"github.com/aws/aws-sdk-go/service/autoscaling/autoscalingiface"
@@ -47,10 +48,10 @@ func getAutoScalingGroupByName(service autoscalingiface.AutoScalingAPI, autoScal
 	return nil, fmt.Errorf("auto scaling group %q not found", autoScalingGroupName)
 }
 
-func attachTargetGroupToAutoScalingGroup(svc autoscalingiface.AutoScalingAPI, targetGroupARN string, autoScalingGroupName string) error {
+func attachTargetGroupsToAutoScalingGroup(svc autoscalingiface.AutoScalingAPI, targetGroupARNs []string, autoScalingGroupName string) error {
 	params := &autoscaling.AttachLoadBalancerTargetGroupsInput{
 		AutoScalingGroupName: aws.String(autoScalingGroupName),
-		TargetGroupARNs:      aws.StringSlice([]string{targetGroupARN}),
+		TargetGroupARNs:      aws.StringSlice(targetGroupARNs),
 	}
 	_, err := svc.AttachLoadBalancerTargetGroups(params)
 	if err != nil {
@@ -59,6 +60,19 @@ func attachTargetGroupToAutoScalingGroup(svc autoscalingiface.AutoScalingAPI, ta
 
 	return nil
 }
+
+//func attachTargetGroupToAutoScalingGroup(svc autoscalingiface.AutoScalingAPI, targetGroupARN string, autoScalingGroupName string) error {
+//	params := &autoscaling.AttachLoadBalancerTargetGroupsInput{
+//		AutoScalingGroupName: aws.String(autoScalingGroupName),
+//		TargetGroupARNs:      aws.StringSlice([]string{targetGroupARN}),
+//	}
+//	_, err := svc.AttachLoadBalancerTargetGroups(params)
+//	if err != nil {
+//		return err
+//	}
+//
+//	return nil
+//}
 
 func detachTargetGroupFromAutoScalingGroup(svc autoscalingiface.AutoScalingAPI, targetGroupARN string, autoScalingGroupName string) error {
 	params := &autoscaling.DetachLoadBalancerTargetGroupsInput{

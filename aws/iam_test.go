@@ -10,6 +10,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/iam"
 	"github.com/aws/aws-sdk-go/service/iam/iamiface"
+	"github.com/zalando-incubator/kube-ingress-aws-controller/certs"
 )
 
 type mockedIAMClient struct {
@@ -32,7 +33,7 @@ func (m mockedIAMClient) GetServerCertificate(*iam.GetServerCertificateInput) (*
 }
 
 type iamExpect struct {
-	List  []*CertDetail
+	List  []*certs.CertificateSummary
 	Error error
 }
 
@@ -68,26 +69,19 @@ func TestIAM(t *testing.T) {
 	for _, ti := range []struct {
 		msg         string
 		certificate *iam.ServerCertificate
-		expect      *CertDetail
+		expect      *certs.CertificateSummary
 	}{
 		{
 			msg:         "Parse foobar.de Certificate",
 			certificate: foobarIAMCertificate,
-			expect: &CertDetail{
-				NotAfter:  foobarNotAfter,
-				NotBefore: foobarNotBefore,
-				Arn:       "foobar-arn",
-				AltNames:  []string{"foobar.de"},
-			},
+			expect:      certs.NewCertificate("foobar-arn", []string{"foobar.de"}, foobarNotBefore, foobarNotAfter),
 		},
 		{
 			msg:         "Parse Zalando Certificate",
 			certificate: zalandoIAMCertificate,
-			expect: &CertDetail{
-				NotAfter:  zalandoNotAfter,
-				NotBefore: zalandoNotBefore,
-				Arn:       "zalando-arn",
-				AltNames: []string{
+			expect: certs.NewCertificate(
+				"zalando-arn",
+				[]string{
 					"fr.zalando.be",
 					"fr.zalando.ch",
 					"jimmy-m-fr.zalando.be",
@@ -175,11 +169,13 @@ func TestIAM(t *testing.T) {
 					"www.zalando.pl",
 					"www.zalando.se",
 				},
-			},
+				zalandoNotBefore,
+				zalandoNotAfter,
+			),
 		},
 	} {
 		t.Run(ti.msg, func(t *testing.T) {
-			detail, err := certDetailFromIAM(ti.certificate)
+			detail, err := summaryFromServerCertificate(ti.certificate)
 			if err != nil {
 				t.Error(err)
 			} else {
@@ -217,7 +213,7 @@ func TestIAM(t *testing.T) {
 			},
 			expect: iamExpect{
 				List:  nil,
-				Error: errFailedToParsePEM,
+				Error: ErrFailedToParsePEM,
 			},
 		},
 		{
@@ -239,13 +235,8 @@ func TestIAM(t *testing.T) {
 				},
 			},
 			expect: iamExpect{
-				List: []*CertDetail{
-					{
-						NotAfter:  foobarNotAfter,
-						NotBefore: foobarNotBefore,
-						Arn:       "foobar-arn",
-						AltNames:  []string{"foobar.de"},
-					},
+				List: []*certs.CertificateSummary{
+					certs.NewCertificate("foobar-arn", []string{"foobar.de"}, foobarNotBefore, foobarNotAfter),
 				},
 				Error: nil,
 			},
