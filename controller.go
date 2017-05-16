@@ -10,10 +10,11 @@ import (
 	"flag"
 	"time"
 
+	"io/ioutil"
+
 	"github.com/zalando-incubator/kube-ingress-aws-controller/aws"
 	"github.com/zalando-incubator/kube-ingress-aws-controller/certs"
 	"github.com/zalando-incubator/kube-ingress-aws-controller/kubernetes"
-	"io/ioutil"
 )
 
 var (
@@ -150,17 +151,17 @@ func main() {
 	}
 
 	log.Println("controller manifest:")
-	log.Printf("\tkubernetes API server: %s\n", apiServerBaseURL)
-	log.Printf("\tCluster ID: %s\n", awsAdapter.ClusterID())
-	log.Printf("\tvpc id: %s\n", awsAdapter.VpcID())
-	log.Printf("\tinstance id: %s\n", awsAdapter.InstanceID())
-	log.Printf("\tauto scaling group name: %s\n", awsAdapter.AutoScalingGroupName())
-	log.Printf("\tsecurity group id: %s\n", awsAdapter.SecurityGroupID())
-	log.Printf("\tprivate subnet ids: %s\n", awsAdapter.PrivateSubnetIDs())
-	log.Printf("\tpublic subnet ids: %s\n", awsAdapter.PublicSubnetIDs())
+	log.Printf("\tkubernetes API server: %s", apiServerBaseURL)
+	log.Printf("\tCluster ID: %s", awsAdapter.ClusterID())
+	log.Printf("\tvpc id: %s", awsAdapter.VpcID())
+	log.Printf("\tinstance id: %s", awsAdapter.InstanceID())
+	log.Printf("\tauto scaling group name: %s", awsAdapter.AutoScalingGroupName())
+	log.Printf("\tsecurity group id: %s", awsAdapter.SecurityGroupID())
+	log.Printf("\tprivate subnet ids: %s", awsAdapter.PrivateSubnetIDs())
+	log.Printf("\tpublic subnet ids: %s", awsAdapter.PublicSubnetIDs())
 
 	go startPolling(certificatesProvider, awsAdapter, kubeAdapter, pollingInterval)
 	<-waitForTerminationSignals(syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
 
-	log.Printf("terminating %s\n", os.Args[0])
+	log.Printf("terminating %s", os.Args[0])
 }

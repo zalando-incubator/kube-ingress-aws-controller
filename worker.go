@@ -6,14 +6,15 @@ import (
 
 	"fmt"
 
+	"runtime/debug"
+	"strings"
+
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/service/cloudformation"
 	"github.com/pkg/errors"
 	"github.com/zalando-incubator/kube-ingress-aws-controller/aws"
 	"github.com/zalando-incubator/kube-ingress-aws-controller/certs"
 	"github.com/zalando-incubator/kube-ingress-aws-controller/kubernetes"
-	"runtime/debug"
-	"strings"
 )
 
 type managedItem struct {
@@ -97,7 +98,7 @@ func buildManagedModel(certsProvider certs.CertificatesProvider, ingresses []*ku
 		if certificateARN == "" { // do discovery
 			certificateARN, err = discoverCertificateAndUpdateIngress(certsProvider, ingress)
 			if err != nil {
-				log.Printf("failed to find a certificate for %v: %v\n", ingress.CertHostname(), err)
+				log.Printf("failed to find a certificate for %v: %v", ingress.CertHostname(), err)
 				continue
 			}
 		}
@@ -127,7 +128,7 @@ func discoverCertificateAndUpdateIngress(certsProvider certs.CertificatesProvide
 
 func createStack(awsAdapter *aws.Adapter, item *managedItem) {
 	certificateARN := item.ingress.CertificateARN()
-	log.Printf("creating stack for certificate %q / ingress %q\n", certificateARN, item.ingress)
+	log.Printf("creating stack for certificate %q / ingress %q", certificateARN, item.ingress)
 
 	stackId, err := awsAdapter.CreateStack(certificateARN)
 	if err != nil {
@@ -137,9 +138,9 @@ func createStack(awsAdapter *aws.Adapter, item *managedItem) {
 				return
 			}
 		}
-		log.Printf("createStack(%q) failed: %v\n", certificateARN, err)
+		log.Printf("createStack(%q) failed: %v", certificateARN, err)
 	} else {
-		log.Printf("stack %q for certificate %q created\n", stackId, certificateARN)
+		log.Printf("stack %q for certificate %q created", stackId, certificateARN)
 	}
 }
 
@@ -160,15 +161,15 @@ func updateIngress(kubeAdapter *kubernetes.Adapter, item *managedItem) {
 			log.Println(err)
 		}
 	} else {
-		log.Printf("updated ingress %v with DNS name %q\n", item.ingress, dnsName)
+		log.Printf("updated ingress %v with DNS name %q", item.ingress, dnsName)
 	}
 }
 
 func deleteStack(awsAdapter *aws.Adapter, item *managedItem) {
 	stackName := item.stack.Name()
 	if err := awsAdapter.DeleteStack(item.stack); err != nil {
-		log.Printf("deleteStack failed to delete stack %q: %v\n", stackName, err)
+		log.Printf("deleteStack failed to delete stack %q: %v", stackName, err)
 	} else {
-		log.Printf("deleted orphaned stack %q\n", stackName)
+		log.Printf("deleted orphaned stack %q", stackName)
 	}
 }
