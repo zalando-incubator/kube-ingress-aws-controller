@@ -26,6 +26,7 @@ _testmain.go
 *.prof
 
 
+aws/cftemplate.go
 /scm-source.json
 build/
 vendor/
