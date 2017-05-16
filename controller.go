@@ -136,6 +136,9 @@ func main() {
 		awsAdapter.NewACMCertificateProvider(),
 		awsAdapter.NewIAMCertificateProvider(),
 	)
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	if apiServerBaseURL == "" {
 		kubeConfig, err = kubernetes.InClusterConfig()
