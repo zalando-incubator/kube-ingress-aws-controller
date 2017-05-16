@@ -5,10 +5,11 @@ import (
 	"fmt"
 	"strings"
 
+	"time"
+
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/cloudformation"
 	"github.com/aws/aws-sdk-go/service/cloudformation/cloudformationiface"
-	"time"
 )
 
 // Stack is a simple wrapper around a CloudFormation Stack.
@@ -143,10 +144,8 @@ func cfTag(key, value string) *cloudformation.Tag {
 
 func deleteStack(svc cloudformationiface.CloudFormationAPI, stackName string) error {
 	params := &cloudformation.DeleteStackInput{StackName: aws.String(stackName)}
-	if _, err := svc.DeleteStack(params); err != nil {
-		return err
-	}
-	return nil
+	_, err := svc.DeleteStack(params)
+	return err
 }
 
 func getStack(svc cloudformationiface.CloudFormationAPI, stackName string) (*Stack, error) {
