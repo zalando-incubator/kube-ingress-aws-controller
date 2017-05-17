@@ -264,7 +264,7 @@ func createListener(alb elbv2iface.ELBV2API, loadBalancerARN string, targetGroup
 }
 
 func findManagedLoadBalancers(svc elbv2iface.ELBV2API, clusterID string) ([]*LoadBalancer, error) {
-	resp, err := svc.DescribeLoadBalancers(nil)
+	resp, err := getLoadbalancerDescribe(svc)
 	if err != nil {
 		return nil, err
 	}
@@ -278,11 +278,7 @@ func findManagedLoadBalancers(svc elbv2iface.ELBV2API, clusterID string) ([]*Loa
 		loadBalancerARNs[i] = lb.LoadBalancerArn
 	}
 
-	params := &elbv2.DescribeTagsInput{ResourceArns: loadBalancerARNs}
-	r, err := svc.DescribeTags(params)
-	if err != nil {
-		return nil, err
-	}
+	r, err := getTags(svc, loadBalancerARNs)
 
 	var loadBalancers []*LoadBalancer
 
@@ -338,7 +334,41 @@ func findManagedLoadBalancers(svc elbv2iface.ELBV2API, clusterID string) ([]*Loa
 	return loadBalancers, err
 }
 
+var lbDescriptionCache *elbv2.DescribeLoadBalancersOutput
+
+func getLoadbalancerDescribe(svc elbv2iface.ELBV2API) (*elbv2.DescribeLoadBalancersOutput, error) {
+	if lbDescriptionCache != nil {
+		return lbDescriptionCache, nil
+	}
+	resp, err := svc.DescribeLoadBalancers(nil)
+	if err != nil {
+		return nil, err
+	}
+	lbDescriptionCache = resp
+	return resp
+}
+
+var tagsCache map[[]*string][]*elbv2.DescribeTagsOutput
+
+func getTags(svc elbv2iface.ELBV2API, loadBalancerARNs []*string) (*elbv2.DescribeTagsOutput, error) {
+	if v, ok := tagsCache[loadBalancerARNs]; ok {
+		return v, nil
+	}
+	params := &elbv2.DescribeTagsInput{ResourceArns: loadBalancerARNs}
+	r, err := svc.DescribeTags(params)
+	if err != nil {
+		return nil, err
+	}
+	tagCache[loadBalancerARNs] = r
+	return r, err
+}
+
+var listenerCache map[string][]*elbv2.Listener
+
 func getListeners(alb elbv2iface.ELBV2API, loadBalancerARN string) ([]*elbv2.Listener, error) {
+	if v, ok := listenerCache[loadBalancerARN]; ok {
+		return v, nil
+	}
 	// TODO: paged results
 	params := &elbv2.DescribeListenersInput{
 		LoadBalancerArn: aws.String(loadBalancerARN),
@@ -347,6 +377,7 @@ func getListeners(alb elbv2iface.ELBV2API, loadBalancerARN string) ([]*elbv2.Lis
 	if err != nil {
 		return nil, err
 	}
+	listenerCache[loadBalancerARN] = resp.Listeners
 	return resp.Listeners, nil
 }
 
