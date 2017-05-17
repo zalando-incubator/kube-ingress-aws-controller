@@ -4,6 +4,10 @@ import (
 	"errors"
 	"time"
 
+	"fmt"
+
+	"log"
+
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/client"
 	"github.com/aws/aws-sdk-go/aws/ec2metadata"
@@ -12,27 +16,32 @@ import (
 	"github.com/aws/aws-sdk-go/service/acm/acmiface"
 	"github.com/aws/aws-sdk-go/service/autoscaling"
 	"github.com/aws/aws-sdk-go/service/autoscaling/autoscalingiface"
+	"github.com/aws/aws-sdk-go/service/cloudformation"
+	"github.com/aws/aws-sdk-go/service/cloudformation/cloudformationiface"
 	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/aws/aws-sdk-go/service/ec2/ec2iface"
 	"github.com/aws/aws-sdk-go/service/elbv2"
-	"github.com/aws/aws-sdk-go/service/elbv2/elbv2iface"
 	"github.com/aws/aws-sdk-go/service/iam"
 	"github.com/aws/aws-sdk-go/service/iam/iamiface"
 	"github.com/linki/instrumented_http"
+	"github.com/zalando-incubator/kube-ingress-aws-controller/certs"
 )
 
 // An Adapter can be used to orchestrate and obtain information from Amazon Web Services.
 type Adapter struct {
-	ec2metadata        *ec2metadata.EC2Metadata
-	ec2                ec2iface.EC2API
-	elbv2              elbv2iface.ELBV2API
-	autoscaling        autoscalingiface.AutoScalingAPI
-	acm                acmiface.ACMAPI
-	iam                iamiface.IAMAPI
-	manifest           *manifest
-	healthCheckPath    string
-	healthCheckPort    uint16
-	certUpdateInterval time.Duration
+	ec2metadata    *ec2metadata.EC2Metadata
+	ec2            ec2iface.EC2API
+	autoscaling    autoscalingiface.AutoScalingAPI
+	acm            acmiface.ACMAPI
+	iam            iamiface.IAMAPI
+	cloudformation cloudformationiface.CloudFormationAPI
+
+	customTemplate      string
+	manifest            *manifest
+	healthCheckPath     string
+	healthCheckPort     uint
+	healthCheckInterval time.Duration
+	creationTimeout     time.Duration
 }
 
 type manifest struct {
@@ -41,21 +50,32 @@ type manifest struct {
 	autoScalingGroup *autoScalingGroupDetails
 	privateSubnets   []*subnetDetails
 	publicSubnets    []*subnetDetails
-	certificateCache *certificateCache
 }
 
 type configProviderFunc func() client.ConfigProvider
 
 const (
+	DefaultHealthCheckPath           = "/kube-system/healthz"
+	DefaultHealthCheckPort           = 9999
+	DefaultHealthCheckInterval       = 10 * time.Second
+	DefaultCertificateUpdateInterval = 30 * time.Minute
+	DefaultCreationTimeout           = 5 * time.Minute
+
 	clusterIDTag = "ClusterID"
 	nameTag      = "Name"
+
+	kubernetesCreatorTag   = "kubernetes:application"
+	kubernetesCreatorValue = "kube-ingress-aws-controller"
+	certificateARNTag      = "ingress:certificate-arn"
 )
 
 var (
 	// ErrMissingSecurityGroup is used to signal that the required security group couldn't be found.
 	ErrMissingSecurityGroup = errors.New("required security group was not found")
-	// ErrLoadBalancerNotFound is used to signal that a given load balancer was not found.
-	ErrLoadBalancerNotFound = errors.New("load balancer not found")
+	// ErrLoadBalancerStackNotFound is used to signal that a given load balancer CF stack was not found.
+	ErrLoadBalancerStackNotFound = errors.New("load balancer stack not found")
+	// ErrLoadBalancerStackNotReady is used to signal that a given load balancer CF stack is not ready to be used.
+	ErrLoadBalancerStackNotReady = errors.New("existing load balancer stack not ready")
 	// ErrMissingNameTag is used to signal that the Name tag on a given resource is missing.
 	ErrMissingNameTag = errors.New("Name tag not found")
 	// ErrMissingTag is used to signal that a tag on a given resource is missing.
@@ -64,36 +84,41 @@ var (
 	ErrNoSubnets = errors.New("unable to find VPC subnets")
 	// ErrMissingAutoScalingGroupTag is used to signal that the auto scaling group tag is not present in the list of tags.
 	ErrMissingAutoScalingGroupTag = errors.New(`instance is missing the "` + autoScalingGroupNameTag + `" tag`)
-	// ErrNoMatchingCertificateFound is used if there is no matching ACM certificate found
-	ErrNoMatchingCertificateFound = errors.New("no matching ACM certificate found")
 	// ErrNoRunningInstances is used to signal that no instances were found in the running state
-	ErrNoRunningInstances = errors.New("no reservations or instances in the running state matched the DescribeInstances request")
+	ErrNoRunningInstances = errors.New("no reservations or instances in the running state")
+	// ErrFailedToParsePEM is used to signal that the PEM block for a certificate failed to be parsed
+	ErrFailedToParsePEM = errors.New("failed to parse certificate PEM")
 )
 
 var configProvider = defaultConfigProvider
 
 func defaultConfigProvider() client.ConfigProvider {
-	config := aws.NewConfig().WithMaxRetries(3)
-	config = config.WithHTTPClient(instrumented_http.NewClient(config.HTTPClient, nil))
-	return session.Must(session.NewSession(config))
+	cfg := aws.NewConfig().WithMaxRetries(3)
+	cfg = cfg.WithHTTPClient(instrumented_http.NewClient(cfg.HTTPClient, nil))
+	opts := session.Options{
+		SharedConfigState: session.SharedConfigEnable,
+		Config:            *cfg,
+	}
+	return session.Must(session.NewSessionWithOptions(opts))
 }
 
 // NewAdapter returns a new Adapter that can be used to orchestrate and obtain information from Amazon Web Services.
-// Before returning there is a discovery process for VPC and EC2 details. It tries to find the TargetGroup and
-// Security Group that should be used for newly created LoadBalancers. If any of those critical steps fail
+// Before returning there is a discovery process for VPC and EC2 details. It tries to find the Auto Scaling Group and
+// Security Group that should be used for newly created Load Balancers. If any of those critical steps fail
 // an appropriate error is returned.
-func NewAdapter(healthCheckPath string, healthCheckPort uint16, certUpdateInterval time.Duration) (adapter *Adapter, err error) {
+func NewAdapter() (adapter *Adapter, err error) {
 	p := configProvider()
 	adapter = &Adapter{
-		elbv2:              elbv2.New(p),
-		ec2:                ec2.New(p),
-		ec2metadata:        ec2metadata.New(p),
-		autoscaling:        autoscaling.New(p),
-		acm:                acm.New(p),
-		iam:                iam.New(p),
-		healthCheckPath:    healthCheckPath,
-		healthCheckPort:    healthCheckPort,
-		certUpdateInterval: certUpdateInterval,
+		ec2:                 ec2.New(p),
+		ec2metadata:         ec2metadata.New(p),
+		autoscaling:         autoscaling.New(p),
+		acm:                 acm.New(p),
+		iam:                 iam.New(p),
+		cloudformation:      cloudformation.New(p),
+		healthCheckPath:     DefaultHealthCheckPath,
+		healthCheckPort:     DefaultHealthCheckPort,
+		healthCheckInterval: DefaultHealthCheckInterval,
+		creationTimeout:     DefaultCreationTimeout,
 	}
 
 	adapter.manifest, err = buildManifest(adapter)
@@ -104,30 +129,51 @@ func NewAdapter(healthCheckPath string, healthCheckPort uint16, certUpdateInterv
 	return
 }
 
-// GetCerts returns the list of certificates. It's taken from a
-// cache. Right now only ACM certifcates are supported.
-func (a *Adapter) GetCerts() []*CertDetail {
-	return a.manifest.certificateCache.GetCachedCerts()
+func (a *Adapter) NewACMCertificateProvider() certs.CertificatesProvider {
+	return newACMCertProvider(a.acm)
 }
 
-// FindBestMatchingCertificate returns the best matching certificate
-// dependent on string match (required), NotBefore and NotAfter
-// attributes of certificates. If there are more than one equally
-// matching certifactes are found, then the best is most of the time
-// the newest certificate, such that you can update and revoke your
-// certificates.
-func (a *Adapter) FindBestMatchingCertificate(certs []*CertDetail, hostname string) (*CertDetail, error) {
-	return FindBestMatchingCertificate(certs, hostname)
+func (a *Adapter) NewIAMCertificateProvider() certs.CertificatesProvider {
+	return newIAMCertProvider(a.iam)
 }
 
-// StackName returns the Name tag that all resources created by the same CloudFormation stack share. It's taken from
-// The current ec2 instance.
-func (a *Adapter) StackName() string {
-	return a.manifest.instance.name()
+// WithHealthCheckPath returns the receiver adapter after changing the health check path that will be used by
+// the resources created by the adapter.
+func (a *Adapter) WithHealthCheckPath(path string) *Adapter {
+	a.healthCheckPath = path
+	return a
 }
 
-// StackName returns the ClusterID tag that all resources from the same Kubernetes cluster share. It's taken from
-// The current ec2 instance.
+// WithHealthCheckPort returns the receiver adapter after changing the health check port that will be used by
+// the resources created by the adapter
+func (a *Adapter) WithHealthCheckPort(port uint) *Adapter {
+	a.healthCheckPort = port
+	return a
+}
+
+// WithHealthCheckInterval returns the receiver adapter after changing the health check interval that will be used by
+// the resources created by the adapter
+func (a *Adapter) WithHealthCheckInterval(interval time.Duration) *Adapter {
+	a.healthCheckInterval = interval
+	return a
+}
+
+// WithCreationTimeout returns the receiver adapter after changing the creation timeout that is used as the max wait
+// time for the creation of all the required AWS resources for a given Ingress
+func (a *Adapter) WithCreationTimeout(interval time.Duration) *Adapter {
+	a.creationTimeout = interval
+	return a
+}
+
+// WithCustomTemplate returns the receiver adapter after changing the CloudFormation template that should be used
+// to create Load Balancer stacks
+func (a *Adapter) WithCustomTemplate(template string) *Adapter {
+	a.customTemplate = template
+	return a
+}
+
+// ClusterStackName returns the ClusterID tag that all resources from the same Kubernetes cluster share.
+// It's taken from the current ec2 instance.
 func (a *Adapter) ClusterID() string {
 	return a.manifest.instance.clusterID()
 }
@@ -162,53 +208,60 @@ func (a *Adapter) PublicSubnetIDs() []string {
 	return getSubnetIDs(a.manifest.publicSubnets)
 }
 
-// FindLoadBalancerWithCertificateID looks up for the first Application Load Balancer with, at least, 1 listener with
-// the certificateARN. Order is not guaranteed and depends only on the AWS SDK result order.
-func (a *Adapter) FindLoadBalancerWithCertificateID(certificateARN string) (*LoadBalancer, error) {
-	return findManagedLBWithCertificateID(a.elbv2, a.ClusterID(), certificateARN)
-}
-
-// FindManagedLoadBalancers returns all ALBs containing the controller management tags for the current cluster.
-func (a *Adapter) FindManagedLoadBalancers() ([]*LoadBalancer, error) {
-	lbs, err := findManagedLoadBalancers(a.elbv2, a.ClusterID())
+// FindManagedStacks returns all CloudFormation stacks containing the controller management tags
+// that match the current cluster and are ready to be used. The stack status is used to filter.
+func (a *Adapter) FindManagedStacks() ([]*Stack, error) {
+	stacks, err := findManagedStacks(a.cloudformation, a.ClusterID())
 	if err != nil {
 		return nil, err
 	}
-	return lbs, nil
+	targetGroupARNs := make([]string, len(stacks))
+	for i, stack := range stacks {
+		targetGroupARNs[i] = stack.targetGroupARN
+	}
+	// This call is idempotent and safe to execute every time
+	if err := attachTargetGroupsToAutoScalingGroup(a.autoscaling, targetGroupARNs, a.AutoScalingGroupName()); err != nil {
+		log.Printf("FindManagedStacks() failed to attach target groups to ASG: %v", err)
+	}
+	return stacks, nil
 }
 
-// CreateLoadBalancer creates a new Application Load Balancer with an HTTPS listener using the certificate with the
-// certificateARN argument. It will forward all requests to the target group discovered by the Adapter.
-func (a *Adapter) CreateLoadBalancer(certificateARN string) (*LoadBalancer, error) {
-	// only internet-facing for now. Maybe we need a separate SG for internal vs internet-facing
-	spec := &createLoadBalancerSpec{
+// CreateStack creates a new Application Load Balancer using CloudFormation. The stack name is derived
+// from the Cluster ID and the certificate ARN (when available).
+// All the required resources (listeners and target group) are created in a transactional fashion.
+// Failure to create the stack causes it to be deleted automatically.
+func (a *Adapter) CreateStack(certificateARN string) (string, error) {
+	spec := &createStackSpec{
+		name:            normalizeStackName(a.ClusterID(), certificateARN),
 		scheme:          elbv2.LoadBalancerSchemeEnumInternetFacing,
 		certificateARN:  certificateARN,
 		securityGroupID: a.SecurityGroupID(),
-		stackName:       a.StackName(),
 		subnets:         a.PublicSubnetIDs(),
 		vpcID:           a.VpcID(),
 		clusterID:       a.ClusterID(),
-		healthCheck: healthCheck{
-			path: a.healthCheckPath,
-			port: a.healthCheckPort,
+		healthCheck: &healthCheck{
+			path:     a.healthCheckPath,
+			port:     a.healthCheckPort,
+			interval: a.healthCheckInterval,
 		},
-	}
-	var (
-		lb  *LoadBalancer
-		err error
-	)
-
-	lb, err = createLoadBalancer(a.elbv2, spec)
-	if err != nil {
-		return nil, err
+		timeoutInMinutes: uint(a.creationTimeout.Minutes()),
 	}
 
-	if err := attachTargetGroupToAutoScalingGroup(a.autoscaling, lb.listeners.targetGroupARN, a.AutoScalingGroupName()); err != nil {
-		// TODO: delete previously created load balancer?
-		return nil, err
+	return createStack(a.cloudformation, spec)
+}
+
+// GetStack returns the CloudFormation stack details with the name or ID from the argument
+func (a *Adapter) GetStack(stackID string) (*Stack, error) {
+	return getStack(a.cloudformation, stackID)
+}
+
+// DeleteStack deletes the CloudFormation stack with the given name
+func (a *Adapter) DeleteStack(stack *Stack) error {
+	if err := detachTargetGroupFromAutoScalingGroup(a.autoscaling, stack.TargetGroupARN(), a.AutoScalingGroupName()); err != nil {
+		return fmt.Errorf("DeleteStack failed to detach: %v", err)
 	}
-	return lb, nil
+
+	return deleteStack(a.cloudformation, stack.Name())
 }
 
 func getSubnetIDs(snds []*subnetDetails) []string {
@@ -268,49 +321,13 @@ func buildManifest(awsAdapter *Adapter) (*manifest, error) {
 		}
 	}
 
-	cc := newCertCache(newIAMCertProvider(awsAdapter.iam), newACMCertProvider(awsAdapter.acm))
-	if err := cc.updateCertCache(); err != nil {
-		return nil, err
-	}
-	cc.backgroundCertCacheUpdate(awsAdapter.certUpdateInterval)
-
 	return &manifest{
 		securityGroup:    securityGroupDetails,
 		instance:         instanceDetails,
 		autoScalingGroup: autoScalingGroupDetails,
 		privateSubnets:   priv,
 		publicSubnets:    pub,
-		certificateCache: cc,
 	}, nil
-}
-
-func (a *Adapter) DeleteLoadBalancer(loadBalancer *LoadBalancer) error {
-	targetGroupARN := loadBalancer.listeners.targetGroupARN
-	if loadBalancer.listeners.https != nil {
-		if err := deleteListener(a.elbv2, loadBalancer.listeners.https.arn); err != nil {
-			return err
-		}
-	}
-
-	if loadBalancer.listeners.http != nil {
-		if err := deleteListener(a.elbv2, loadBalancer.listeners.http.arn); err != nil {
-			return err
-		}
-	}
-
-	if err := detachTargetGroupFromAutoScalingGroup(a.autoscaling, targetGroupARN, a.manifest.autoScalingGroup.name); err != nil {
-		return err
-	}
-
-	if err := deleteTargetGroup(a.elbv2, targetGroupARN); err != nil {
-		return err
-	}
-
-	if err := deleteLoadBalancer(a.elbv2, loadBalancer.arn); err != nil {
-		return err
-	}
-
-	return nil
 }
 
 func getNameTag(tags map[string]string) (string, error) {

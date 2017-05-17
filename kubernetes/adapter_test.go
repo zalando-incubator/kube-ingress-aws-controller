@@ -2,8 +2,8 @@ package kubernetes
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
-	"github.com/pkg/errors"
 	"io"
 	"io/ioutil"
 	"reflect"
@@ -145,12 +145,13 @@ func TestUpdateIngressLoadBalancer(t *testing.T) {
 
 func TestBrokenConfig(t *testing.T) {
 	for _, test := range []struct {
-		cfg *Config
+		name string
+		cfg  *Config
 	}{
-		{nil},
-		{&Config{}},
-		{&Config{BaseURL: "dontcare", TLSClientConfig: TLSClientConfig{CAFile: "missing"}}},
-		{&Config{BaseURL: "dontcare", TLSClientConfig: TLSClientConfig{CAFile: "testdata/broken.pem"}}},
+		{"nil-configuraion", nil},
+		{"empty-configuration", &Config{}},
+		{"missing-cert", &Config{BaseURL: "dontcare", TLSClientConfig: TLSClientConfig{CAFile: "missing"}}},
+		{"broken-cert", &Config{BaseURL: "dontcare", TLSClientConfig: TLSClientConfig{CAFile: "testdata/broken.pem"}}},
 	} {
 		t.Run(fmt.Sprintf("%v", test.cfg), func(t *testing.T) {
 			_, err := NewAdapter(test.cfg)

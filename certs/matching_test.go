@@ -1,27 +1,21 @@
-package aws
+package certs
 
 import (
 	"testing"
 	"time"
 )
 
-func createDummyCertDetail(arn, domainName string, altNames []string, notBefore, notAfter time.Time) *CertDetail {
-
-	return &CertDetail{
-		Arn:       arn,
-		NotAfter:  notAfter,
-		NotBefore: notBefore,
-		AltNames:  append(altNames, domainName),
-	}
+func createDummyCertDetail(arn, domainName string, altNames []string, notBefore, notAfter time.Time) *CertificateSummary {
+	return NewCertificate(arn, append(altNames, domainName), notBefore, notAfter)
 }
 
-type certCondition func(error, *CertDetail, *CertDetail) bool
+type certCondition func(error, *CertificateSummary, *CertificateSummary) bool
 
-func certValidMatchFunction(err error, expect, c *CertDetail) bool {
+func certValidMatchFunction(err error, expect, c *CertificateSummary) bool {
 	return err != nil || c != expect
 }
 
-func certInvalidMatchFunction(err error, expect, c *CertDetail) bool {
+func certInvalidMatchFunction(err error, expect, c *CertificateSummary) bool {
 	return err == nil && c == expect
 }
 
@@ -79,194 +73,194 @@ func TestFindBestMatchingCertificate(t *testing.T) {
 	for _, ti := range []struct {
 		msg       string
 		hostname  string
-		cert      []*CertDetail
-		expect    *CertDetail
+		cert      []*CertificateSummary
+		expect    *CertificateSummary
 		condition certCondition
 	}{
 		{
 			msg:       "Not found best match",
 			hostname:  validHostname,
-			cert:      []*CertDetail{validCert},
+			cert:      []*CertificateSummary{validCert},
 			expect:    validCert,
 			condition: certValidMatchFunction,
 		}, {
 			msg:       "Not found wildcard as best match",
 			hostname:  validHostname,
-			cert:      []*CertDetail{validWildcardCert},
+			cert:      []*CertificateSummary{validWildcardCert},
 			expect:    validWildcardCert,
 			condition: certValidMatchFunction,
 		}, {
 			msg:       "Not found best match of multiple valid certs",
 			hostname:  validHostname,
-			cert:      []*CertDetail{validCert, validWildcardCert},
+			cert:      []*CertificateSummary{validCert, validWildcardCert},
 			expect:    validCert,
 			condition: certValidMatchFunction,
 		}, {
 			msg:       "Not found best match of multiple certs one wildcard valid",
 			hostname:  validHostname,
-			cert:      []*CertDetail{invalidDomainCert, validWildcardCert, invalidWildcardCert},
+			cert:      []*CertificateSummary{invalidDomainCert, validWildcardCert, invalidWildcardCert},
 			expect:    validWildcardCert,
 			condition: certValidMatchFunction,
 		}, {
 			msg:       "Not found best match of multiple certs one valid",
 			hostname:  validHostname,
-			cert:      []*CertDetail{invalidDomainCert, validCert, invalidWildcardCert},
+			cert:      []*CertificateSummary{invalidDomainCert, validCert, invalidWildcardCert},
 			expect:    validCert,
 			condition: certValidMatchFunction,
 		}, {
 			msg:       "Found best match for invalid hostname",
 			hostname:  invalidHostname,
-			cert:      []*CertDetail{validCert},
+			cert:      []*CertificateSummary{validCert},
 			expect:    nil,
 			condition: certInvalidMatchFunction,
 		}, {
 			msg:       "Found best match for invalid cert",
 			hostname:  validHostname,
-			cert:      []*CertDetail{invalidDomainCert},
+			cert:      []*CertificateSummary{invalidDomainCert},
 			expect:    nil,
 			condition: certInvalidMatchFunction,
 		}, {
 			msg:       "Found best match for invalid wildcardcert",
 			hostname:  validHostname,
-			cert:      []*CertDetail{invalidWildcardCert},
+			cert:      []*CertificateSummary{invalidWildcardCert},
 			expect:    nil,
 			condition: certInvalidMatchFunction,
 		}, {
 			msg:       "Found best match for multiple invalid certs",
 			hostname:  validHostname,
-			cert:      []*CertDetail{invalidWildcardCert, invalidDomainCert},
+			cert:      []*CertificateSummary{invalidWildcardCert, invalidDomainCert},
 			expect:    nil,
 			condition: certInvalidMatchFunction,
 		}, {
 			msg:       "Not found best match of AlternateName cert",
 			hostname:  validHostname,
-			cert:      []*CertDetail{saSingleValidCert},
+			cert:      []*CertificateSummary{saSingleValidCert},
 			expect:    saSingleValidCert,
 			condition: certValidMatchFunction,
 		}, {
 			msg:       "Not found best match of AlternateName cert with wrong Cn",
 			hostname:  validHostname,
-			cert:      []*CertDetail{saCnWrongValidCert},
+			cert:      []*CertificateSummary{saCnWrongValidCert},
 			expect:    saCnWrongValidCert,
 			condition: certValidMatchFunction,
 		}, {
 			msg:       "Not found best match of AlternateName cert with one valid and multiple invalid names",
 			hostname:  validHostname,
-			cert:      []*CertDetail{saValidCert},
+			cert:      []*CertificateSummary{saValidCert},
 			expect:    saValidCert,
 			condition: certValidMatchFunction,
 		}, {
 			msg:       "Not found best match of AlternateName cert with one valid wildcard and multiple invalid names",
 			hostname:  validHostname,
-			cert:      []*CertDetail{saValidWildcardCert},
+			cert:      []*CertificateSummary{saValidWildcardCert},
 			expect:    saValidWildcardCert,
 			condition: certValidMatchFunction,
 		}, {
 			msg:       "Not found best match of AlternateName cert with multiple valid and multiple invalid names",
 			hostname:  validHostname,
-			cert:      []*CertDetail{saMultipleValidCert},
+			cert:      []*CertificateSummary{saMultipleValidCert},
 			expect:    saMultipleValidCert,
 			condition: certValidMatchFunction,
 		}, {
 			msg:       "Found best match for invalid time cert 1",
 			hostname:  validHostname,
-			cert:      []*CertDetail{invalidTimeCert1},
+			cert:      []*CertificateSummary{invalidTimeCert1},
 			expect:    nil,
 			condition: certInvalidMatchFunction,
 		}, {
 			msg:       "Found best match for invalid time cert 2",
 			hostname:  validHostname,
-			cert:      []*CertDetail{invalidTimeCert2},
+			cert:      []*CertificateSummary{invalidTimeCert2},
 			expect:    nil,
 			condition: certInvalidMatchFunction,
 		}, {
 			msg:       "Found best match for invalid time cert 3",
 			hostname:  validHostname,
-			cert:      []*CertDetail{invalidTimeCert3},
+			cert:      []*CertificateSummary{invalidTimeCert3},
 			expect:    nil,
 			condition: certInvalidMatchFunction,
 		}, {
 			msg:       "Not found best match tricky cert NotAfter 1 day compared to 6 days",
 			hostname:  validHostname,
-			cert:      []*CertDetail{validCertForOneDay, validCertForSixDays},
+			cert:      []*CertificateSummary{validCertForOneDay, validCertForSixDays},
 			expect:    validCertForSixDays,
 			condition: certValidMatchFunction,
 		}, {
 			msg:       "Not found best match tricky cert NotAfter 365 days compared to 1 day",
 			hostname:  validHostname,
-			cert:      []*CertDetail{validCertForOneYear, validCertForOneDay},
+			cert:      []*CertificateSummary{validCertForOneYear, validCertForOneDay},
 			expect:    validCertForOneYear,
 			condition: certValidMatchFunction,
 		}, {
 			msg:       "Not found best match tricky cert NotAfter 365 days compared to 6 day",
 			hostname:  validHostname,
-			cert:      []*CertDetail{validCertForOneYear, validCertForSixDays},
+			cert:      []*CertificateSummary{validCertForOneYear, validCertForSixDays},
 			expect:    validCertForOneYear,
 			condition: certValidMatchFunction,
 		}, {
 			msg:       "Not found best match tricky cert NotAfter 365 days compared to 10 day",
 			hostname:  validHostname,
-			cert:      []*CertDetail{validCertForTenDays, validCertForOneYear},
+			cert:      []*CertificateSummary{validCertForTenDays, validCertForOneYear},
 			expect:    validCertForOneYear,
 			condition: certValidMatchFunction,
 		}, {
 			msg:       "Not found best match (newest first) tricky cert NotBefore 6 days compared to 1 day",
 			hostname:  validHostname,
-			cert:      []*CertDetail{validCertSinceOneDay, validCertSinceSixDays}, // FIXME: this is by order
+			cert:      []*CertificateSummary{validCertSinceOneDay, validCertSinceSixDays}, // FIXME: this is by order
 			expect:    validCertSinceOneDay,
 			condition: certValidMatchFunction,
 		}, {
 			msg:       "Not found best match (newest first) tricky cert NotBefore 6 days compared to 365 days",
 			hostname:  validHostname,
-			cert:      []*CertDetail{validCertSinceSixDays, validCertSinceOneYear},
+			cert:      []*CertificateSummary{validCertSinceSixDays, validCertSinceOneYear},
 			expect:    validCertSinceSixDays,
 			condition: certValidMatchFunction,
 		}, {
 			msg:       "Not found best match (newest first) tricky cert NotBefore 6 days compared to 365 days another order by cert",
 			hostname:  validHostname,
-			cert:      []*CertDetail{validCertSinceOneYear, validCertSinceSixDays},
+			cert:      []*CertificateSummary{validCertSinceOneYear, validCertSinceSixDays},
 			expect:    validCertSinceSixDays,
 			condition: certValidMatchFunction,
 		}, {
 			msg:       "Not found best match (newest first) tricky cert NotBefore 1 days compared to 365 days and both valid for 1 year",
 			hostname:  validHostname,
-			cert:      []*CertDetail{validCertForOneYearSinceOneDay, validCertForOneYearSinceOneYear},
+			cert:      []*CertificateSummary{validCertForOneYearSinceOneDay, validCertForOneYearSinceOneYear},
 			expect:    validCertForOneYearSinceOneDay,
 			condition: certValidMatchFunction,
 		}, {
 			msg:       "Not found best match (newest first) tricky cert NotBefore 6 days compared to 365 days and both valid for 1 year",
 			hostname:  validHostname,
-			cert:      []*CertDetail{validCertForOneYearSinceOneYear, validCertForOneYearSinceSixDays},
+			cert:      []*CertificateSummary{validCertForOneYearSinceOneYear, validCertForOneYearSinceSixDays},
 			expect:    validCertForOneYearSinceSixDays,
 			condition: certValidMatchFunction,
 		}, {
 			msg:       "Not found best match (newest first) tricky cert NotBefore/NotAfter 6d/1y compared to 1d/10d",
 			hostname:  validHostname,
-			cert:      []*CertDetail{validCertFor6dUntill1y, validCertFor1dUntill10d},
+			cert:      []*CertificateSummary{validCertFor6dUntill1y, validCertFor1dUntill10d},
 			expect:    validCertFor1dUntill10d,
 			condition: certValidMatchFunction,
 		}, {
 			msg:       "Not found best match (newer first) tricky cert NotBefore/NotAfter 1d/7d1s compared to 6d/10d",
 			hostname:  validHostname,
-			cert:      []*CertDetail{validCertFor1dUntill7d1s, validCertFor6dUntill10d},
+			cert:      []*CertificateSummary{validCertFor1dUntill7d1s, validCertFor6dUntill10d},
 			expect:    validCertFor1dUntill7d1s,
 			condition: certValidMatchFunction,
 		}, {
 			msg:       "Not found best match (longer first) tricky cert NotBefore/NotAfter 6d/6d compared to 6d/1y",
 			hostname:  validHostname,
-			cert:      []*CertDetail{validCertFor6dUntill6d, validCertForOneYearSinceSixDays},
+			cert:      []*CertificateSummary{validCertFor6dUntill6d, validCertForOneYearSinceSixDays},
 			expect:    validCertForOneYearSinceSixDays,
 			condition: certValidMatchFunction,
 		}, {
 			msg:       "Not found best match (longer first) tricky cert NotBefore/NotAfter 1d/6d compared to 6d/10d",
 			hostname:  validHostname,
-			cert:      []*CertDetail{validCertFor1dUntill6d, validCertFor6dUntill10d},
+			cert:      []*CertificateSummary{validCertFor1dUntill6d, validCertFor6dUntill10d},
 			expect:    validCertFor6dUntill10d,
 			condition: certValidMatchFunction,
 		}, {
 			msg:       "Not found best match (longer first) tricky cert NotBefore/NotAfter 6d/10d compared to 1d/7d-1s",
 			hostname:  validHostname,
-			cert:      []*CertDetail{validCertFor6dUntill10d, validCertFor1dUntill7d1sLess},
+			cert:      []*CertificateSummary{validCertFor6dUntill10d, validCertFor1dUntill7d1sLess},
 			expect:    validCertFor6dUntill10d,
 			condition: certValidMatchFunction,
 		},

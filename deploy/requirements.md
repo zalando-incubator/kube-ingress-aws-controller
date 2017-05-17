@@ -50,51 +50,6 @@ Please also note that the worker nodes will need the right permission to describ
     "Effect": "Allow"
 },
 {
-    "Action": "elasticloadbalancing:DescribeLoadBalancers",
-    "Resource": "*",
-    "Effect": "Allow"
-},
-{
-    "Action": "elasticloadbalancing:CreateLoadBalancer",
-    "Resource": "*",
-    "Effect": "Allow"
-},
-{
-    "Action": "elasticloadbalancing:DeleteLoadBalancer",
-    "Resource": "*",
-    "Effect": "Allow"
-},
-{
-    "Action": "elasticloadbalancing:DescribeListeners",
-    "Resource": "*",
-    "Effect": "Allow"
-},
-{
-    "Action": "elasticloadbalancing:CreateListener",
-    "Resource": "*",
-    "Effect": "Allow"
-},
-{
-    "Action": "elasticloadbalancing:DeleteListener",
-    "Resource": "*",
-    "Effect": "Allow"
-},
-{
-    "Action": "elasticloadbalancing:DescribeTags",
-    "Resource": "*",
-    "Effect": "Allow"
-},
-{
-    "Action": "elasticloadbalancing:CreateTargetGroup",
-    "Resource": "*",
-    "Effect": "Allow"
-},
-{
-    "Action": "elasticloadbalancing:DeleteTargetGroup",
-    "Resource": "*",
-    "Effect": "Allow"
-},
-{
     "Action": "ec2:DescribeInstances",
     "Resource": "*",
     "Effect": "Allow"
@@ -131,6 +86,31 @@ Please also note that the worker nodes will need the right permission to describ
 },
 {
     "Action": "iam:GetServerCertificate",
+    "Resource": "*",
+    "Effect": "Allow"
+},
+{
+    "Action": "cloudformation:Get*",
+    "Resource": "*",
+    "Effect": "Allow"
+},
+{
+    "Action": "cloudformation:Describe*",
+    "Resource": "*",
+    "Effect": "Allow"
+},
+{
+    "Action": "cloudformation:List*",
+    "Resource": "*",
+    "Effect": "Allow"
+},
+{
+    "Action": "cloudformation:Create*",
+    "Resource": "*",
+    "Effect": "Allow"
+},
+{
+    "Action": "cloudformation:Delete*",
     "Resource": "*",
     "Effect": "Allow"
 }

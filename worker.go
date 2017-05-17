@@ -2,28 +2,70 @@ package main
 
 import (
 	"log"
+	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"fmt"
 
+	"runtime/debug"
+	"strings"
+
+	"github.com/aws/aws-sdk-go/aws/awserr"
+	"github.com/aws/aws-sdk-go/service/cloudformation"
 	"github.com/pkg/errors"
 	"github.com/zalando-incubator/kube-ingress-aws-controller/aws"
+	"github.com/zalando-incubator/kube-ingress-aws-controller/certs"
 	"github.com/zalando-incubator/kube-ingress-aws-controller/kubernetes"
 )
 
-func startPolling(awsAdapter *aws.Adapter, kubeAdapter *kubernetes.Adapter, pollingInterval time.Duration) {
+type managedItem struct {
+	ingress *kubernetes.Ingress
+	stack   *aws.Stack
+}
+
+const (
+	ready int = iota
+	missing
+	orphan
+)
+
+func (item *managedItem) Status() int {
+	if item.stack != nil && item.ingress == nil {
+		return orphan
+	}
+	if item.ingress != nil && item.stack == nil {
+		return missing
+	}
+	return ready
+}
+
+func waitForTerminationSignals(signals ...os.Signal) chan os.Signal {
+	c := make(chan os.Signal, 1)
+	signal.Notify(c, signals...)
+	return c
+}
+
+func startPolling(quitCH chan struct{}, certsProvider certs.CertificatesProvider, awsAdapter *aws.Adapter, kubeAdapter *kubernetes.Adapter, pollingInterval time.Duration) {
 	for {
-		if err := doWork(awsAdapter, kubeAdapter); err != nil {
-			log.Println(err)
+		select {
+		case <-waitForTerminationSignals(syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT):
+			quitCH <- struct{}{}
+			return
+		case <-time.After(pollingInterval):
+			if err := doWork(certsProvider, awsAdapter, kubeAdapter); err != nil {
+				log.Println(err)
+			}
 		}
-		time.Sleep(pollingInterval)
 	}
 }
 
-func doWork(awsAdapter *aws.Adapter, kubeAdapter *kubernetes.Adapter) error {
+func doWork(certsProvider certs.CertificatesProvider, awsAdapter *aws.Adapter, kubeAdapter *kubernetes.Adapter) error {
 	defer func() error {
 		if r := recover(); r != nil {
 			log.Println("shit has hit the fan:", errors.Wrap(r.(error), "panic caused by"))
+			debug.PrintStack()
 			return r.(error)
 		}
 		return nil
@@ -31,126 +73,117 @@ func doWork(awsAdapter *aws.Adapter, kubeAdapter *kubernetes.Adapter) error {
 
 	ingresses, err := kubeAdapter.ListIngress()
 	if err != nil {
-		return err
+		return fmt.Errorf("doWork failed to list ingress resources: %v", err)
 	}
-	log.Printf("found %d ingress resource(s)", len(ingresses))
 
-	serverCerts := awsAdapter.GetCerts()
-	log.Printf("%d currently known server certificate(s)", len(serverCerts))
+	stacks, err := awsAdapter.FindManagedStacks()
+	if err != nil {
+		return fmt.Errorf("doWork failed to list managed stacks: %v", err)
+	}
 
-	uniqueARNs := ingressByCertArn(awsAdapter, ingresses, serverCerts)
-	missingARNs, existingARNs := filterExistingARNs(awsAdapter, uniqueARNs)
-	for missingARN, ingresses := range missingARNs {
-		lb, err := createMissingLoadBalancer(awsAdapter, missingARN)
-		if err != nil {
-			log.Println(err)
-			continue
+	model := buildManagedModel(certsProvider, ingresses, stacks)
+	for _, managedItem := range model {
+		switch managedItem.Status() {
+		case orphan:
+			deleteStack(awsAdapter, managedItem)
+		case missing:
+			createStack(awsAdapter, managedItem)
+			fallthrough
+		case ready:
+			updateIngress(kubeAdapter, managedItem)
 		}
-		log.Printf("successfully created ALB %q for certificate %q\n", lb.ARN(), missingARN)
-
-		updateIngresses(kubeAdapter, ingresses, lb.DNSName())
-	}
-
-	for existingARN, lb := range existingARNs {
-		ingresses := uniqueARNs[existingARN]
-		updateIngresses(kubeAdapter, ingresses, lb.DNSName())
-	}
-
-	if err := deleteOrphanedLoadBalancers(awsAdapter, ingresses); err != nil {
-		log.Println("failed to delete orphaned load balancers", err)
 	}
 
 	return nil
 }
 
-func ingressByCertArn(awsAdapter *aws.Adapter, ingresses []*kubernetes.Ingress, serverCerts []*aws.CertDetail) map[string][]*kubernetes.Ingress {
-	uniqueARNs := make(map[string][]*kubernetes.Ingress)
+func buildManagedModel(certsProvider certs.CertificatesProvider, ingresses []*kubernetes.Ingress, stacks []*aws.Stack) map[string]*managedItem {
+	model := make(map[string]*managedItem)
+	for _, stack := range stacks {
+		model[stack.CertificateARN()] = &managedItem{stack: stack}
+	}
+
+	var (
+		certificateARN string
+		err            error
+	)
 	for _, ingress := range ingresses {
-		certificateARN := ingress.CertificateARN()
-		if certificateARN != "" {
-			uniqueARNs[certificateARN] = append(uniqueARNs[certificateARN], ingress)
-		} else {
-			arn, err := findCertARNForIngress(awsAdapter, ingress, serverCerts)
+		certificateARN = ingress.CertificateARN()
+		if certificateARN == "" { // do discovery
+			certificateARN, err = discoverCertificateAndUpdateIngress(certsProvider, ingress)
 			if err != nil {
-				log.Printf("No valid Certificate found for %v: %v", ingress.CertHostname(), err)
+				log.Printf("failed to find a certificate for %v: %v", ingress.CertHostname(), err)
 				continue
 			}
-			log.Printf("using autopilot mode for ingress %v", ingress)
-			uniqueARNs[arn] = append(uniqueARNs[arn], ingress)
 		}
-	}
-	return uniqueARNs
-}
-
-func findCertARNForIngress(awsAdapter *aws.Adapter, ingress *kubernetes.Ingress, serverCerts []*aws.CertDetail) (string, error) {
-	acmCert, err := awsAdapter.FindBestMatchingCertificate(serverCerts, ingress.CertHostname())
-	if err != nil {
-		return "", err
-	}
-	ingress.SetCertificateARN(acmCert.Arn)
-
-	return acmCert.Arn, nil
-}
-
-func filterExistingARNs(awsAdapter *aws.Adapter, certificateARNs map[string][]*kubernetes.Ingress) (map[string][]*kubernetes.Ingress, map[string]*aws.LoadBalancer) {
-	missingARNs := make(map[string][]*kubernetes.Ingress)
-	existingARNs := make(map[string]*aws.LoadBalancer)
-	for certificateARN, ingresses := range certificateARNs {
-		lb, err := awsAdapter.FindLoadBalancerWithCertificateID(certificateARN)
-		if err != nil && err != aws.ErrLoadBalancerNotFound {
-			log.Println(err)
-			continue
-		}
-		if lb != nil {
-			log.Printf("found existing ALB %q with certificate %q\n", lb.Name(), certificateARN)
-			existingARNs[certificateARN] = lb
+		if item, ok := model[certificateARN]; ok {
+			item.ingress = ingress
 		} else {
-			log.Printf("ALB with certificate %q not found\n", certificateARN)
-			missingARNs[certificateARN] = ingresses
+			model[certificateARN] = &managedItem{ingress: ingress}
 		}
 	}
-	return missingARNs, existingARNs
+	return model
 }
 
-func createMissingLoadBalancer(awsAdapter *aws.Adapter, certificateARN string) (*aws.LoadBalancer, error) {
-	log.Printf("creating ALB for ARN %q\n", certificateARN)
-
-	lb, err := awsAdapter.CreateLoadBalancer(certificateARN)
+func discoverCertificateAndUpdateIngress(certsProvider certs.CertificatesProvider, ingress *kubernetes.Ingress) (string, error) {
+	knownCertificates, err := certsProvider.GetCertificates()
 	if err != nil {
-		return nil, fmt.Errorf("failed to create ALB for certificate %q. %v\n", certificateARN, err)
+		return "", fmt.Errorf("discoverCertificateAndUpdateIngress failed to obtain certificates: %v", err)
 	}
-	return lb, nil
-}
 
-func updateIngresses(kubeAdapter *kubernetes.Adapter, ingresses []*kubernetes.Ingress, dnsName string) {
-	for _, ingress := range ingresses {
-		if err := kubeAdapter.UpdateIngressLoadBalancer(ingress, dnsName); err != nil {
-			log.Println(err)
-		} else {
-			log.Printf("updated ingress %v with DNS name %q\n", ingress, dnsName)
-		}
-	}
-}
-
-func deleteOrphanedLoadBalancers(awsAdapter *aws.Adapter, ingresses []*kubernetes.Ingress) error {
-	lbs, err := awsAdapter.FindManagedLoadBalancers()
+	certificateSummary, err := certs.FindBestMatchingCertificate(knownCertificates, ingress.CertHostname())
 	if err != nil {
-		return err
+		return "", fmt.Errorf("discoverCertificateAndUpdateIngress failed to find a certificate for %q: %v",
+			ingress.CertHostname(), err)
 	}
+	ingress.SetCertificateARN(certificateSummary.ID())
+	return certificateSummary.ID(), nil
+}
 
-	certificateMap := make(map[string]bool)
-	for _, ingress := range ingresses {
-		certificateMap[ingress.CertificateARN()] = true
-	}
+func createStack(awsAdapter *aws.Adapter, item *managedItem) {
+	certificateARN := item.ingress.CertificateARN()
+	log.Printf("creating stack for certificate %q / ingress %q", certificateARN, item.ingress)
 
-	for _, lb := range lbs {
-		if _, has := certificateMap[lb.CertificateARN()]; !has {
-			if err := awsAdapter.DeleteLoadBalancer(lb); err == nil {
-				log.Printf("deleted orphaned load balancer ARN %q\n", lb.ARN())
-			} else {
-				log.Printf("failed to delete orphaned load balancer ARN %q: %v\n", lb.ARN(), err)
+	stackId, err := awsAdapter.CreateStack(certificateARN)
+	if err != nil {
+		if isAlreadyExistsError(err) {
+			item.stack, err = awsAdapter.GetStack(stackId)
+			if err == nil {
+				return
 			}
 		}
+		log.Printf("createStack(%q) failed: %v", certificateARN, err)
+	} else {
+		log.Printf("stack %q for certificate %q created", stackId, certificateARN)
 	}
-	return nil
+}
+
+func isAlreadyExistsError(err error) bool {
+	if awsErr, ok := err.(awserr.Error); ok {
+		return awsErr.Code() == cloudformation.ErrCodeAlreadyExistsException
+	}
+	return false
+}
+
+func updateIngress(kubeAdapter *kubernetes.Adapter, item *managedItem) {
+	if item.stack == nil {
+		return
+	}
+	dnsName := strings.ToLower(item.stack.DNSName()) // lower case to satisfy Kubernetes reqs
+	if err := kubeAdapter.UpdateIngressLoadBalancer(item.ingress, dnsName); err != nil {
+		if err != kubernetes.ErrUpdateNotNeeded {
+			log.Println(err)
+		}
+	} else {
+		log.Printf("updated ingress %v with DNS name %q", item.ingress, dnsName)
+	}
+}
+
+func deleteStack(awsAdapter *aws.Adapter, item *managedItem) {
+	stackName := item.stack.Name()
+	if err := awsAdapter.DeleteStack(item.stack); err != nil {
+		log.Printf("deleteStack failed to delete stack %q: %v", stackName, err)
+	} else {
+		log.Printf("deleted orphaned stack %q", stackName)
+	}
 }
