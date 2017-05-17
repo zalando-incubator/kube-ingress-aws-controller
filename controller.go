@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"os/signal"
-	"syscall"
 
 	"flag"
 	"time"
@@ -27,12 +25,6 @@ var (
 	healthCheckPort     uint
 	healthcheckInterval time.Duration
 )
-
-func waitForTerminationSignals(signals ...os.Signal) chan os.Signal {
-	c := make(chan os.Signal, 1)
-	signal.Notify(c, signals...)
-	return c
-}
 
 func loadSettings() error {
 	flag.Usage = usage
@@ -163,8 +155,9 @@ func main() {
 	log.Printf("\tprivate subnet ids: %s", awsAdapter.PrivateSubnetIDs())
 	log.Printf("\tpublic subnet ids: %s", awsAdapter.PublicSubnetIDs())
 
-	go startPolling(certificatesProvider, awsAdapter, kubeAdapter, pollingInterval)
-	<-waitForTerminationSignals(syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
+	quitCH := make(chan struct{})
+	go startPolling(quitCH, certificatesProvider, awsAdapter, kubeAdapter, pollingInterval)
+	<-quitCH
 
 	log.Printf("terminating %s", os.Args[0])
 }
