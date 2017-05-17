@@ -6,6 +6,8 @@ import (
 
 	"fmt"
 
+	"log"
+
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/client"
 	"github.com/aws/aws-sdk-go/aws/ec2metadata"
@@ -19,18 +21,15 @@ import (
 	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/aws/aws-sdk-go/service/ec2/ec2iface"
 	"github.com/aws/aws-sdk-go/service/elbv2"
-	"github.com/aws/aws-sdk-go/service/elbv2/elbv2iface"
 	"github.com/aws/aws-sdk-go/service/iam"
 	"github.com/aws/aws-sdk-go/service/iam/iamiface"
 	"github.com/zalando-incubator/kube-ingress-aws-controller/certs"
-	"log"
 )
 
 // An Adapter can be used to orchestrate and obtain information from Amazon Web Services.
 type Adapter struct {
 	ec2metadata    *ec2metadata.EC2Metadata
 	ec2            ec2iface.EC2API
-	elbv2          elbv2iface.ELBV2API
 	autoscaling    autoscalingiface.AutoScalingAPI
 	acm            acmiface.ACMAPI
 	iam            iamiface.IAMAPI
@@ -108,7 +107,6 @@ func defaultConfigProvider() client.ConfigProvider {
 func NewAdapter() (adapter *Adapter, err error) {
 	p := configProvider()
 	adapter = &Adapter{
-		elbv2:               elbv2.New(p),
 		ec2:                 ec2.New(p),
 		ec2metadata:         ec2metadata.New(p),
 		autoscaling:         autoscaling.New(p),
