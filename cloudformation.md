@@ -11,14 +11,14 @@ The approach also gives additional customization options like the ones described
 The built-in template creates a set of AWS resources necessary to accept and forward requests from the outside world
 into your Kubernetes services.
 
-This is achieved by creating an internet-facing Application Load Balancer (ALB) with 2 default listeners 
+This is achieved by creating an internet-facing Application Load Balancer (ALB) with 2 default listeners
 (HTTP and HTTPS) and a Target Group that is attached to the Auto Scaling Group of the worker nodes.
 
-You can further customize the stack adding other resources or tags for your specific setup.
+You can further customize the stack by adding other resources or tags for your specific setup.
 
 ## Customization
 
-The controller accepts some flags that to customize some basic behavior of the stack. You can specify the health 
+The controller accepts some flags to customize some basic behavior of the stack. You can specify the health
 check path and port used by the Target Group to select healthy nodes.
 
 For more advanced customization you can provide another flag with the path for your own CloudFormation
@@ -29,7 +29,7 @@ The controller requires the template to comply with some some basic requirements
 ### Input Parameters
 
 The controller will set the values for some parameters when it creates a new stack. These parameters can change the
-behavior and set of resources created. Each one of the following parameters should be defined in the template: 
+behavior and set of resources created. Each one of the following parameters should be defined in the template:
 
 | Parameter                               	| Description                                                	| Required 	| Default Value        	|
 |-----------------------------------------	|------------------------------------------------------------	|----------	|----------------------	|
