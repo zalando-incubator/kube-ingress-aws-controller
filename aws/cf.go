@@ -184,12 +184,16 @@ func mapToManagedStack(stack *cloudformation.Stack) *Stack {
 	}
 }
 
+// isComplete returns false by design on all other status, because
+// updateIngress will ignore not completed stacks.
+// Stack can never be in rollback state by design.
 func isComplete(stackStatus *string) bool {
 	switch aws.StringValue(stackStatus) {
 	case cloudformation.StackStatusCreateComplete:
 		return true
-	case cloudformation.ResourceStatusUpdateComplete:
+	case cloudformation.StackStatusUpdateComplete:
 		return true
+
 	}
 	return false
 }
