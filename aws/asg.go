@@ -61,19 +61,6 @@ func attachTargetGroupsToAutoScalingGroup(svc autoscalingiface.AutoScalingAPI, t
 	return nil
 }
 
-//func attachTargetGroupToAutoScalingGroup(svc autoscalingiface.AutoScalingAPI, targetGroupARN string, autoScalingGroupName string) error {
-//	params := &autoscaling.AttachLoadBalancerTargetGroupsInput{
-//		AutoScalingGroupName: aws.String(autoScalingGroupName),
-//		TargetGroupARNs:      aws.StringSlice([]string{targetGroupARN}),
-//	}
-//	_, err := svc.AttachLoadBalancerTargetGroups(params)
-//	if err != nil {
-//		return err
-//	}
-//
-//	return nil
-//}
-
 func detachTargetGroupFromAutoScalingGroup(svc autoscalingiface.AutoScalingAPI, targetGroupARN string, autoScalingGroupName string) error {
 	params := &autoscaling.DetachLoadBalancerTargetGroupsInput{
 		AutoScalingGroupName: aws.String(autoScalingGroupName),
