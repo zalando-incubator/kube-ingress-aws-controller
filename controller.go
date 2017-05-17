@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"log"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
@@ -10,6 +11,7 @@ import (
 	"flag"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/zalando-incubator/kube-ingress-aws-controller/aws"
 	"github.com/zalando-incubator/kube-ingress-aws-controller/kubernetes"
 )
@@ -20,6 +22,7 @@ var (
 	certPollingInterval time.Duration
 	healthCheckPath     string
 	healthCheckPort     uint
+	metricsAddress      string
 )
 
 func waitForTerminationSignals(signals ...os.Signal) chan os.Signal {
@@ -40,6 +43,7 @@ func loadEnviroment() error {
 		"for the created target groups")
 	flag.UintVar(&healthCheckPort, "health-check-port", 9999, "sets the health check port for the created "+
 		"target groups")
+	flag.StringVar(&metricsAddress, "metrics-address", ":7979", "defines where to serve metrics")
 	flag.Parse()
 
 	if tmp, defined := os.LookupEnv("API_SERVER_BASE_URL"); defined {
@@ -116,8 +120,14 @@ func main() {
 	log.Printf("\tprivate subnet ids: %s\n", awsAdapter.PrivateSubnetIDs())
 	log.Printf("\tpublic subnet ids: %s\n", awsAdapter.PublicSubnetIDs())
 
+	go serveMetrics(metricsAddress)
 	go startPolling(awsAdapter, kubeAdapter, pollingInterval)
 	<-waitForTerminationSignals(syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
 
 	log.Printf("terminating %s\n", os.Args[0])
+}
+
+func serveMetrics(address string) {
+	http.Handle("/metrics", promhttp.Handler())
+	log.Fatal(http.ListenAndServe(address, nil))
 }
