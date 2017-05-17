@@ -9,7 +9,10 @@ import (
 	"io/ioutil"
 	"net"
 	"net/http"
+	"strings"
 	"time"
+
+	"github.com/linki/instrumented_http"
 )
 
 type client interface {
@@ -61,6 +64,13 @@ func newSimpleClient(cfg *Config) (client, error) {
 			c.Timeout = cfg.Timeout
 		}
 	}
+
+	c = instrumented_http.NewClient(c, &instrumented_http.Callbacks{
+		PathProcessor: func(path string) string {
+			parts := strings.Split(path, "/")
+			return parts[len(parts)-1]
+		},
+	})
 
 	return &simpleClient{cfg: cfg, httpClient: c}, nil
 }
