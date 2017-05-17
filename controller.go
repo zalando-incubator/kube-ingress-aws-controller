@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"log"
+	"net/http"
 	"os"
 
 	"flag"
@@ -10,6 +11,7 @@ import (
 
 	"io/ioutil"
 
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/zalando-incubator/kube-ingress-aws-controller/aws"
 	"github.com/zalando-incubator/kube-ingress-aws-controller/certs"
 	"github.com/zalando-incubator/kube-ingress-aws-controller/kubernetes"
@@ -24,6 +26,7 @@ var (
 	healthCheckPath     string
 	healthCheckPort     uint
 	healthcheckInterval time.Duration
+	metricsAddress      string
 )
 
 func loadSettings() error {
@@ -47,6 +50,8 @@ func loadSettings() error {
 	flag.DurationVar(&healthcheckInterval, "health-check-interval", aws.DefaultHealthCheckInterval,
 		"sets the health check interval for the created target groups. The flag accepts a value "+
 			"acceptable to time.ParseDuration")
+	flag.StringVar(&metricsAddress, "metrics-address", ":7979", "defines where to serve metrics")
+
 	flag.Parse()
 
 	if tmp, defined := os.LookupEnv("API_SERVER_BASE_URL"); defined {
@@ -155,9 +160,15 @@ func main() {
 	log.Printf("\tprivate subnet ids: %s", awsAdapter.PrivateSubnetIDs())
 	log.Printf("\tpublic subnet ids: %s", awsAdapter.PublicSubnetIDs())
 
+	go serveMetrics(metricsAddress)
 	quitCH := make(chan struct{})
 	go startPolling(quitCH, certificatesProvider, awsAdapter, kubeAdapter, pollingInterval)
 	<-quitCH
 
 	log.Printf("terminating %s", os.Args[0])
+}
+
+func serveMetrics(address string) {
+	http.Handle("/metrics", promhttp.Handler())
+	log.Fatal(http.ListenAndServe(address, nil))
 }

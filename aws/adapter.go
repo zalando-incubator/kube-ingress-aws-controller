@@ -23,6 +23,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/elbv2"
 	"github.com/aws/aws-sdk-go/service/iam"
 	"github.com/aws/aws-sdk-go/service/iam/iamiface"
+	"github.com/linki/instrumented_http"
 	"github.com/zalando-incubator/kube-ingress-aws-controller/certs"
 )
 
@@ -93,6 +94,7 @@ var configProvider = defaultConfigProvider
 
 func defaultConfigProvider() client.ConfigProvider {
 	cfg := aws.NewConfig().WithMaxRetries(3)
+	cfg = cfg.WithHTTPClient(instrumented_http.NewClient(cfg.HTTPClient, nil))
 	opts := session.Options{
 		SharedConfigState: session.SharedConfigEnable,
 		Config:            *cfg,
