@@ -20,7 +20,7 @@ clean:
 	rm -rf build
 	rm -f aws/cftemplate.go
 
-test:
+test: aws/cftemplate.go
 	go test -v -race -cover $(GOPKGS)
 
 fmt:
