@@ -128,9 +128,9 @@ func TestDetach(t *testing.T) {
 		responses autoscalingMockOutputs
 		wantError bool
 	}{
-		{"success-dettach", autoscalingMockOutputs{detachLoadBalancerTargetGroups: R(nil, nil)},
+		{"success-detach", autoscalingMockOutputs{detachLoadBalancerTargetGroups: R(nil, nil)},
 			false},
-		{"failed-dettach", autoscalingMockOutputs{detachLoadBalancerTargetGroups: R(nil, dummyErr)},
+		{"failed-detach", autoscalingMockOutputs{detachLoadBalancerTargetGroups: R(nil, dummyErr)},
 			true},
 	} {
 		t.Run(fmt.Sprintf("%v", test.name), func(t *testing.T) {

@@ -256,7 +256,7 @@ func (a *Adapter) GetStack(stackID string) (*Stack, error) {
 // DeleteStack deletes the CloudFormation stack with the given name
 func (a *Adapter) DeleteStack(stack *Stack) error {
 	if err := detachTargetGroupFromAutoScalingGroup(a.autoscaling, stack.TargetGroupARN(), a.AutoScalingGroupName()); err != nil {
-		return fmt.Errorf("DeleteStack failed to dettach: %v", err)
+		return fmt.Errorf("DeleteStack failed to detach: %v", err)
 	}
 
 	return deleteStack(a.cloudformation, stack.Name())
