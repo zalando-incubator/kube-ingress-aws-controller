@@ -21,8 +21,8 @@ import (
 )
 
 type managedItem struct {
-	ingress *kubernetes.Ingress
-	stack   *aws.Stack
+	ingresses []*kubernetes.Ingress
+	stack     *aws.Stack
 }
 
 const (
@@ -32,10 +32,10 @@ const (
 )
 
 func (item *managedItem) Status() int {
-	if item.stack != nil && item.ingress == nil {
+	if item.stack != nil && len(item.ingresses) == 0 {
 		return orphan
 	}
-	if item.ingress != nil && item.stack == nil {
+	if len(item.ingresses) != 0 && item.stack == nil {
 		return missing
 	}
 	return ready
@@ -121,9 +121,9 @@ func buildManagedModel(certsProvider certs.CertificatesProvider, ingresses []*ku
 			}
 		}
 		if item, ok := model[certificateARN]; ok {
-			item.ingress = ingress
+			item.ingresses = append(item.ingresses, ingress)
 		} else {
-			model[certificateARN] = &managedItem{ingress: ingress}
+			model[certificateARN] = &managedItem{ingresses: []*kubernetes.Ingress{ingress}}
 		}
 	}
 	return model
@@ -145,8 +145,8 @@ func discoverCertificateAndUpdateIngress(certsProvider certs.CertificatesProvide
 }
 
 func createStack(awsAdapter *aws.Adapter, item *managedItem) {
-	certificateARN := item.ingress.CertificateARN()
-	log.Printf("creating stack for certificate %q / ingress %q", certificateARN, item.ingress)
+	certificateARN := item.ingresses[0].CertificateARN()
+	log.Printf("creating stack for certificate %q / ingress %q", certificateARN, item.ingresses)
 
 	stackId, err := awsAdapter.CreateStack(certificateARN)
 	if err != nil {
@@ -174,14 +174,16 @@ func updateIngress(kubeAdapter *kubernetes.Adapter, item *managedItem) {
 		return
 	}
 	dnsName := strings.ToLower(item.stack.DNSName()) // lower case to satisfy Kubernetes reqs
-	if err := kubeAdapter.UpdateIngressLoadBalancer(item.ingress, dnsName); err != nil {
-		if err != kubernetes.ErrUpdateNotNeeded {
-			log.Println(err)
+	for _, ing := range item.ingresses {
+		if err := kubeAdapter.UpdateIngressLoadBalancer(ing, dnsName); err != nil {
+			if err != kubernetes.ErrUpdateNotNeeded {
+				log.Println(err)
+			} else {
+				log.Printf("updated ingress not needed %v with DNS name %q", ing, dnsName)
+			}
 		} else {
-			log.Printf("updated ingress not needed %v with DNS name %q", item.ingress, dnsName)
+			log.Printf("updated ingress %v with DNS name %q", ing, dnsName)
 		}
-	} else {
-		log.Printf("updated ingress %v with DNS name %q", item.ingress, dnsName)
 	}
 }
 
