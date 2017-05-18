@@ -49,6 +49,7 @@ func waitForTerminationSignals(signals ...os.Signal) chan os.Signal {
 
 func startPolling(quitCH chan struct{}, certsProvider certs.CertificatesProvider, awsAdapter *aws.Adapter, kubeAdapter *kubernetes.Adapter, pollingInterval time.Duration) {
 	for {
+		log.Printf("Start polling sleep %s", pollingInterval)
 		select {
 		case <-waitForTerminationSignals(syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT):
 			quitCH <- struct{}{}
@@ -75,13 +76,16 @@ func doWork(certsProvider certs.CertificatesProvider, awsAdapter *aws.Adapter, k
 	if err != nil {
 		return fmt.Errorf("doWork failed to list ingress resources: %v", err)
 	}
+	log.Printf("Found %d ingresses", len(ingresses))
 
 	stacks, err := awsAdapter.FindManagedStacks()
 	if err != nil {
 		return fmt.Errorf("doWork failed to list managed stacks: %v", err)
 	}
+	log.Printf("Found %d stacks", len(stacks))
 
 	model := buildManagedModel(certsProvider, ingresses, stacks)
+	log.Printf("Have %d models", len(model))
 	for _, managedItem := range model {
 		switch managedItem.Status() {
 		case orphan:
@@ -173,6 +177,8 @@ func updateIngress(kubeAdapter *kubernetes.Adapter, item *managedItem) {
 	if err := kubeAdapter.UpdateIngressLoadBalancer(item.ingress, dnsName); err != nil {
 		if err != kubernetes.ErrUpdateNotNeeded {
 			log.Println(err)
+		} else {
+			log.Printf("updated ingress not needed %v with DNS name %q", item.ingress, dnsName)
 		}
 	} else {
 		log.Printf("updated ingress %v with DNS name %q", item.ingress, dnsName)
