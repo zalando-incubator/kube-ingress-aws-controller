@@ -21,8 +21,8 @@ import (
 )
 
 type managedItem struct {
-	ingress *kubernetes.Ingress
-	stack   *aws.Stack
+	ingresses []*kubernetes.Ingress
+	stack     *aws.Stack
 }
 
 const (
@@ -32,10 +32,10 @@ const (
 )
 
 func (item *managedItem) Status() int {
-	if item.stack != nil && item.ingress == nil {
+	if item.stack != nil && len(item.ingresses) == 0 {
 		return orphan
 	}
-	if item.ingress != nil && item.stack == nil {
+	if len(item.ingresses) != 0 && item.stack == nil {
 		return missing
 	}
 	return ready
@@ -49,6 +49,7 @@ func waitForTerminationSignals(signals ...os.Signal) chan os.Signal {
 
 func startPolling(quitCH chan struct{}, certsProvider certs.CertificatesProvider, awsAdapter *aws.Adapter, kubeAdapter *kubernetes.Adapter, pollingInterval time.Duration) {
 	for {
+		log.Printf("Start polling sleep %s", pollingInterval)
 		select {
 		case <-waitForTerminationSignals(syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT):
 			quitCH <- struct{}{}
@@ -75,13 +76,16 @@ func doWork(certsProvider certs.CertificatesProvider, awsAdapter *aws.Adapter, k
 	if err != nil {
 		return fmt.Errorf("doWork failed to list ingress resources: %v", err)
 	}
+	log.Printf("Found %d ingresses", len(ingresses))
 
 	stacks, err := awsAdapter.FindManagedStacks()
 	if err != nil {
 		return fmt.Errorf("doWork failed to list managed stacks: %v", err)
 	}
+	log.Printf("Found %d stacks", len(stacks))
 
 	model := buildManagedModel(certsProvider, ingresses, stacks)
+	log.Printf("Have %d models", len(model))
 	for _, managedItem := range model {
 		switch managedItem.Status() {
 		case orphan:
@@ -117,9 +121,9 @@ func buildManagedModel(certsProvider certs.CertificatesProvider, ingresses []*ku
 			}
 		}
 		if item, ok := model[certificateARN]; ok {
-			item.ingress = ingress
+			item.ingresses = append(item.ingresses, ingress)
 		} else {
-			model[certificateARN] = &managedItem{ingress: ingress}
+			model[certificateARN] = &managedItem{ingresses: []*kubernetes.Ingress{ingress}}
 		}
 	}
 	return model
@@ -141,8 +145,8 @@ func discoverCertificateAndUpdateIngress(certsProvider certs.CertificatesProvide
 }
 
 func createStack(awsAdapter *aws.Adapter, item *managedItem) {
-	certificateARN := item.ingress.CertificateARN()
-	log.Printf("creating stack for certificate %q / ingress %q", certificateARN, item.ingress)
+	certificateARN := item.ingresses[0].CertificateARN()
+	log.Printf("creating stack for certificate %q / ingress %q", certificateARN, item.ingresses)
 
 	stackId, err := awsAdapter.CreateStack(certificateARN)
 	if err != nil {
@@ -170,12 +174,16 @@ func updateIngress(kubeAdapter *kubernetes.Adapter, item *managedItem) {
 		return
 	}
 	dnsName := strings.ToLower(item.stack.DNSName()) // lower case to satisfy Kubernetes reqs
-	if err := kubeAdapter.UpdateIngressLoadBalancer(item.ingress, dnsName); err != nil {
-		if err != kubernetes.ErrUpdateNotNeeded {
-			log.Println(err)
+	for _, ing := range item.ingresses {
+		if err := kubeAdapter.UpdateIngressLoadBalancer(ing, dnsName); err != nil {
+			if err != kubernetes.ErrUpdateNotNeeded {
+				log.Println(err)
+			} else {
+				log.Printf("updated ingress not needed %v with DNS name %q", ing, dnsName)
+			}
+		} else {
+			log.Printf("updated ingress %v with DNS name %q", ing, dnsName)
 		}
-	} else {
-		log.Printf("updated ingress %v with DNS name %q", item.ingress, dnsName)
 	}
 }
 
