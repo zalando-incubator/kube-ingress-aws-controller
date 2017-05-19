@@ -1,18 +1,23 @@
 dist: trusty
 
 os:
-  - linux
+- linux
 
 language: go
 
 go:
-  - 1.7
-  - tip
+- 1.7
+- tip
 
 before_install:
-  - go get github.com/Masterminds/glide
+- go get github.com/Masterminds/glide
+- go get github.com/mattn/goveralls
+- go get -u github.com/alecthomas/gometalinter
 
 install:
-  - glide install --strip-vendor
+- glide install --strip-vendor
+- gometalinter --install
 
-script: make test
+script:
+- make test
+- goveralls -service=travis-ci
