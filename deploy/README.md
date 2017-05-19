@@ -4,7 +4,7 @@
 
 * You have a running Kubernetes Cluster on AWS.
 * You have a route53 Hosted Zone in your AWS account.
-* You have provisioned valid ACM or IAM certificates that are valid
+* You have provisioned ACM or IAM certificates that are valid
   for example one wildcard certificate for `*.YOUR_HOSTED_ZONE`.
 * You have met all [requirements.md](requirements.md), such that the
   ingress controller has access to all relevant AWS APIs.
@@ -20,6 +20,6 @@
     # install the controller which glues together AWS and the ingress implementation
     % kubectl create -f ingress-controller.yaml
 
-If you have done this, you cant use our
+If you have done this, you can use our
 [example](https://github.com/zalando-incubator/kube-ingress-aws-controller/tree/master/example)
 to test the integration.
