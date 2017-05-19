@@ -12,7 +12,7 @@ go:
 before_install:
 - go get github.com/Masterminds/glide
 - go get github.com/mattn/goveralls
-- go get -u github.com/alecthomas/gometalinter
+- go get github.com/alecthomas/gometalinter
 
 install:
 - glide install --strip-vendor
