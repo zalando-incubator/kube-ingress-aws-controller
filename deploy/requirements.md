@@ -150,6 +150,106 @@ Please also note that the worker nodes will need the right permission to describ
     "Effect": "Allow"
 },
 {
+    "Action": "elasticloadbalancing:DescribeLoadBalancers",
+    "Resource": "*",
+    "Effect": "Allow"
+},
+{
+    "Action": "elasticloadbalancing:CreateLoadBalancer",
+    "Resource": "*",
+    "Effect": "Allow"
+},
+{
+    "Action": "elasticloadbalancing:DeleteLoadBalancer",
+    "Resource": "*",
+    "Effect": "Allow"
+},
+{
+    "Action": "elasticloadbalancing:DescribeListeners",
+    "Resource": "*",
+    "Effect": "Allow"
+},
+{
+    "Action": "elasticloadbalancing:CreateListener",
+    "Resource": "*",
+    "Effect": "Allow"
+},
+{
+    "Action": "elasticloadbalancing:DeleteListener",
+    "Resource": "*",
+    "Effect": "Allow"
+},
+{
+    "Action": "elasticloadbalancing:DescribeTags",
+    "Resource": "*",
+    "Effect": "Allow"
+},
+{
+    "Action": "elasticloadbalancing:CreateTargetGroup",
+    "Resource": "*",
+    "Effect": "Allow"
+},
+{
+    "Action": "elasticloadbalancing:DeleteTargetGroup",
+    "Resource": "*",
+    "Effect": "Allow"
+},
+{
+    "Action": "elasticloadbalancing:DescribeTargetGroups",
+    "Resource": "*",
+    "Effect": "Allow"
+},
+{
+    "Action": "elasticloadbalancingv2:DescribeTargetGroups",
+    "Resource": "*",
+    "Effect": "Allow"
+},
+{
+    "Action": "elasticloadbalancingv2:DescribeLoadBalancers",
+    "Resource": "*",
+    "Effect": "Allow"
+},
+{
+    "Action": "elasticloadbalancingv2:CreateLoadBalancer",
+    "Resource": "*",
+    "Effect": "Allow"
+},
+{
+    "Action": "elasticloadbalancingv2:DeleteLoadBalancer",
+    "Resource": "*",
+    "Effect": "Allow"
+},
+{
+    "Action": "elasticloadbalancingv2:DescribeListeners",
+    "Resource": "*",
+    "Effect": "Allow"
+},
+{
+    "Action": "elasticloadbalancingv2:CreateListener",
+    "Resource": "*",
+    "Effect": "Allow"
+},
+{
+    "Action": "elasticloadbalancingv2:DeleteListener",
+    "Resource": "*",
+    "Effect": "Allow"
+},
+{
+    "Action": "elasticloadbalancingv2:DescribeTags",
+    "Resource": "*",
+    "Effect": "Allow"
+},
+{
+    "Action": "elasticloadbalancingv2:CreateTargetGroup",
+    "Resource": "*",
+    "Effect": "Allow"
+},
+{
+    "Action": "elasticloadbalancingv2:DeleteTargetGroup",
+    "Resource": "*",
+    "Effect": "Allow"
+},
+{
     "Action": "ec2:DescribeInstances",
     "Resource": "*",
     "Effect": "Allow"
@@ -166,6 +266,11 @@ Please also note that the worker nodes will need the right permission to describ
 },
 {
     "Action": "ec2:DescribeRouteTables",
+    "Resource": "*",
+    "Effect": "Allow"
+},
+{
+    "Action": "ec2:DescribeVpcs",
     "Resource": "*",
     "Effect": "Allow"
 },
