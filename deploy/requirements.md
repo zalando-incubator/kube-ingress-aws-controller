@@ -175,11 +175,6 @@ Please also note that the worker nodes will need the right permission to describ
     "Effect": "Allow"
 },
 {
-    "Action": "ec2:DescribeVpcs",
-    "Resource": "*",
-    "Effect": "Allow"
-},
-{
     "Action": "acm:ListCertificates",
     "Resource": "*",
     "Effect": "Allow"
