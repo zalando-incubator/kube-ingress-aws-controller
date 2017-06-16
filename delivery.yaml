@@ -15,9 +15,9 @@ build_steps:
     - desc: 'Symlink sources into the GOPATH'
       cmd: |
         export GOPATH=$HOME/go
-        export OPERATOR_TOP_DIR=$GOPATH/src/github.com/zalando-incubator
-        mkdir -p $OPERATOR_TOP_DIR
-        ln -s $(pwd) $OPERATOR_TOP_DIR/kube-ingress-aws-controller
+        export PKG_BASE_PATH=$GOPATH/src/github.com/zalando-incubator
+        mkdir -p $PKG_BASE_PATH
+        ln -s $(pwd) $PKG_BASE_PATH/kube-ingress-aws-controller
     - desc: 'Build & push docker image'
       cmd: |
         export PATH=$PATH:$HOME/go/bin
