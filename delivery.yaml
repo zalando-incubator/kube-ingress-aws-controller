@@ -1,0 +1,28 @@
+build_steps:
+    - desc: 'Install required build software'
+      cmd: |
+        apt-get update
+        apt-get install -y make git apt-transport-https ca-certificates \
+        curl software-properties-common python-software-properties
+    - desc: 'Install go'
+      cmd: |
+        add-apt-repository -y ppa:longsleep/golang-backports
+        apt-get update
+        apt-get install -y golang-go
+    - desc: 'Install Docker'
+      cmd: |
+        curl -sSL https://get.docker.com/ | sh
+    - desc: 'Symlink sources into the GOPATH'
+      cmd: |
+        export GOPATH=$HOME/go
+        export PKG_BASE_PATH=$GOPATH/src/github.com/zalando-incubator
+        mkdir -p $PKG_BASE_PATH
+        ln -s $(pwd) $PKG_BASE_PATH/kube-ingress-aws-controller
+    - desc: 'Build & push docker image'
+      cmd: |
+        export PATH=$PATH:$HOME/go/bin
+        IS_PR_BUILD=${CDP_PULL_REQUEST_NUMBER+"true"}
+        if [[ ${CDP_TARGET_BRANCH} == "master" && ${IS_PR_BUILD} != "true" ]]
+        then
+          make build.push
+        fi
