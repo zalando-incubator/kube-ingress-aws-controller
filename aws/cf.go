@@ -3,11 +3,11 @@ package aws
 
 import (
 	"fmt"
+	"log"
 	"strings"
 
 	"time"
 
-	log "github.com/Sirupsen/logrus"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/cloudformation"
 	"github.com/aws/aws-sdk-go/service/cloudformation/cloudformationiface"
@@ -77,7 +77,7 @@ func (s *Stack) deleteTime() *time.Time {
 	}
 	t, err := time.Parse(time.RFC3339, ts)
 	if err != nil {
-		log.Errorf("Failed to parse time: %v", err)
+		log.Printf("Failed to parse time: %v", err)
 		return nil
 	}
 	return &t
