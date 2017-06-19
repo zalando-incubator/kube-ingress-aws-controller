@@ -232,7 +232,7 @@ func (a *Adapter) FindManagedStacks() ([]*Stack, error) {
 // Failure to create the stack causes it to be deleted automatically.
 func (a *Adapter) CreateStack(certificateARN string) (string, error) {
 	spec := &createStackSpec{
-		name:            normalizeStackName(a.ClusterID(), certificateARN),
+		name:            a.stackName(certificateARN),
 		scheme:          elbv2.LoadBalancerSchemeEnumInternetFacing,
 		certificateARN:  certificateARN,
 		securityGroupID: a.SecurityGroupID(),
@@ -250,9 +250,24 @@ func (a *Adapter) CreateStack(certificateARN string) (string, error) {
 	return createStack(a.cloudformation, spec)
 }
 
+func (a *Adapter) stackName(certificateARN string) string {
+	return normalizeStackName(a.ClusterID(), certificateARN)
+}
+
 // GetStack returns the CloudFormation stack details with the name or ID from the argument
 func (a *Adapter) GetStack(stackID string) (*Stack, error) {
 	return getStack(a.cloudformation, stackID)
+}
+
+// MarkToDeleteStack adds a "deleteScheduled" Tag to the CloudFormation stack with the given name
+func (a *Adapter) MarkToDeleteStack(stack *Stack) (time.Time, error) {
+	t0 := time.Now().Add(1 * time.Hour)
+
+	if err := markToDeleteStack(a.cloudformation, a.stackName(stack.CertificateARN()), t0.Format(time.RFC3339)); err != nil {
+		return t0, fmt.Errorf("MarkToDeleteStack failed: %v", err)
+	}
+
+	return t0, nil
 }
 
 // DeleteStack deletes the CloudFormation stack with the given name

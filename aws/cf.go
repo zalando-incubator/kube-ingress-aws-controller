@@ -7,9 +7,14 @@ import (
 
 	"time"
 
+	log "github.com/Sirupsen/logrus"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/cloudformation"
 	"github.com/aws/aws-sdk-go/service/cloudformation/cloudformationiface"
+)
+
+const (
+	deleteScheduled = "deleteScheduled"
 )
 
 // Stack is a simple wrapper around a CloudFormation Stack.
@@ -18,6 +23,7 @@ type Stack struct {
 	dnsName        string
 	targetGroupARN string
 	certificateARN string
+	tags           map[string]string
 }
 
 func (s *Stack) Name() string {
@@ -34,6 +40,47 @@ func (s *Stack) CertificateARN() string {
 
 func (s *Stack) TargetGroupARN() string {
 	return s.targetGroupARN
+}
+
+// IsDeleteInProgress returns true if the stack has already a tag
+// deleteScheduled.
+func (s *Stack) IsDeleteInProgress() bool {
+	if s == nil {
+		return false
+	}
+	_, ok := s.tags[deleteScheduled]
+	return ok
+}
+
+// ShouldDelete returns true if stack is marked to delete and the
+// deleteScheduled tag is after time.Now(). In all other cases it
+// returns false.
+func (s *Stack) ShouldDelete() bool {
+	if s == nil {
+		return false
+	}
+	t0 := s.deleteTime()
+	if t0 == nil {
+		return false
+	}
+	now := time.Now()
+	return now.After(*t0)
+}
+
+func (s *Stack) deleteTime() *time.Time {
+	if s == nil {
+		return nil
+	}
+	ts, ok := s.tags[deleteScheduled]
+	if !ok {
+		return nil
+	}
+	t, err := time.Parse(time.RFC3339, ts)
+	if err != nil {
+		log.Errorf("Failed to parse time: %v", err)
+		return nil
+	}
+	return &t
 }
 
 type stackOutput map[string]string
@@ -148,7 +195,33 @@ func deleteStack(svc cloudformationiface.CloudFormationAPI, stackName string) er
 	return err
 }
 
+// maybe use https://docs.aws.amazon.com/AWSCloudFormation/latest/APIReference/API_CreateChangeSet.html instead
+func markToDeleteStack(svc cloudformationiface.CloudFormationAPI, stackName, ts string) error {
+	stack, err := getCFStackByName(svc, stackName)
+	if err != nil {
+		return err
+	}
+	tags := append(stack.Tags, cfTag(deleteScheduled, ts))
+
+	params := &cloudformation.UpdateStackInput{
+		StackName:           aws.String(stackName),
+		Tags:                tags,
+		UsePreviousTemplate: aws.Bool(true),
+	}
+
+	_, err = svc.UpdateStack(params)
+	return err
+}
+
 func getStack(svc cloudformationiface.CloudFormationAPI, stackName string) (*Stack, error) {
+	stack, err := getCFStackByName(svc, stackName)
+	if err != nil {
+		return nil, ErrLoadBalancerStackNotReady
+	}
+	return mapToManagedStack(stack), nil
+}
+
+func getCFStackByName(svc cloudformationiface.CloudFormationAPI, stackName string) (*cloudformation.Stack, error) {
 	params := &cloudformation.DescribeStacksInput{StackName: aws.String(stackName)}
 
 	resp, err := svc.DescribeStacks(params)
@@ -171,7 +244,7 @@ func getStack(svc cloudformationiface.CloudFormationAPI, stackName string) (*Sta
 		return nil, ErrLoadBalancerStackNotReady
 	}
 
-	return mapToManagedStack(stack), nil
+	return stack, nil
 }
 
 func mapToManagedStack(stack *cloudformation.Stack) *Stack {
@@ -181,6 +254,7 @@ func mapToManagedStack(stack *cloudformation.Stack) *Stack {
 		dnsName:        o.dnsName(),
 		targetGroupARN: o.targetGroupARN(),
 		certificateARN: t[certificateARNTag],
+		tags:           convertCloudFormationTags(stack.Tags),
 	}
 }
 
