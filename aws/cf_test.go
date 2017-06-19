@@ -211,6 +211,11 @@ func TestFindingManagedStacks(t *testing.T) {
 					dnsName:        "example.com",
 					certificateARN: "cert-arn",
 					targetGroupARN: "tg-arn",
+					tags: map[string]string{
+						kubernetesCreatorTag: kubernetesCreatorValue,
+						clusterIDTag:         "test-cluster",
+						certificateARNTag:    "cert-arn",
+					},
 				},
 			},
 			false,
