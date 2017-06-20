@@ -206,6 +206,7 @@ func markToDeleteStack(svc cloudformationiface.CloudFormationAPI, stackName, ts 
 	params := &cloudformation.UpdateStackInput{
 		StackName:           aws.String(stackName),
 		Tags:                tags,
+		Parameters:          stack.Parameters,
 		UsePreviousTemplate: aws.Bool(true),
 	}
 
