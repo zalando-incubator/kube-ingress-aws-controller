@@ -1,6 +1,6 @@
 .PHONY: clean check build.local build.linux build.osx build.docker build.push
 
-BINARY        ?= kube-aws-ingress-controller
+BINARY        ?= kube-ingress-aws-controller
 VERSION       ?= $(shell git describe --tags --always --dirty)
 IMAGE         ?= registry-write.opensource.zalan.do/teapot/$(BINARY)
 TAG           ?= $(VERSION)
@@ -46,14 +46,8 @@ build/linux/$(BINARY): $(SOURCES)
 build/osx/$(BINARY): $(SOURCES)
 	GOOS=darwin GOARCH=amd64 CGO_ENABLED=0 go build $(BUILD_FLAGS) -o build/osx/$(BINARY) -ldflags "$(LDFLAGS)" .
 
-$(DOCKERFILE).upstream: $(DOCKERFILE)
-	sed "s@UPSTREAM@$(shell $(shell head -1 $(DOCKERFILE) | sed -E 's@FROM (.*)/(.*)/(.*):.*@pierone latest \2 \3 --url \1@'))@" $(DOCKERFILE) > $(DOCKERFILE).upstream
-
-build.docker: $(DOCKERFILE).upstream scm-source.json build.linux
-	docker build --rm -t "$(IMAGE):$(TAG)" -f $(DOCKERFILE).upstream .
+build.docker: build.linux
+	docker build -t "$(IMAGE):$(TAG)" -f $(DOCKERFILE) .
 
 build.push: build.docker
 	docker push "$(IMAGE):$(TAG)"
-
-scm-source.json: .git
-	@echo '{"url": "$(GITURL)", "revision": "$(GITHEAD)", "author": "$(USER)", "status": "$(GITSTATUS)"}' > scm-source.json
