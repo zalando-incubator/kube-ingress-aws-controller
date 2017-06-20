@@ -143,7 +143,7 @@ registry of your choice.
 To deploy the ingress controller, use the [example YAML](deploy/ingress-controller.yaml) as the descriptor. You can
 customize the image used in the example YAML file.
 
-We provide `registry.opensource.zalan.do/teapot/kube-aws-ingress-controller:latest` as a publicly usable Docker image
+We provide `registry.opensource.zalan.do/teapot/kube-ingress-aws-controller:latest` as a publicly usable Docker image
 built from this codebase. You can deploy it with 2 easy steps:
 - Replace the placeholder for your region inside the example YAML, for ex., `eu-west-1`
 - Use kubectl to execute the command  `kubectl apply -f deploy/ingress-controller.yaml`
