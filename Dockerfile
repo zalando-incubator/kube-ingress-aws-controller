@@ -5,6 +5,7 @@ RUN go get github.com/Masterminds/glide
 WORKDIR /go/src/github.com/zalando-incubator/kube-ingress-aws-controller
 COPY . .
 RUN glide install --strip-vendor
+RUN make test
 RUN make build.linux
 
 # final image
