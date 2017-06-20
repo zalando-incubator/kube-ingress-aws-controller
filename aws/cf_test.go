@@ -407,8 +407,8 @@ func TestDeleteTime(t *testing.T) {
 		t.Run(ti.msg, func(t *testing.T) {
 			got := ti.given.deleteTime()
 			if ti.want != nil {
-				if *ti.want != *got {
-					t.Errorf("unexpected result for %s. wanted %+v, got %+v", ti.msg, ti.want, got)
+				if !ti.want.Equal(*got) {
+					t.Errorf("unexpected result for non nil %s. wanted %+v, got %+v", ti.msg, ti.want, got)
 				}
 			} else if ti.want != got {
 				t.Errorf("unexpected result for %s. wanted %+v, got %+v", ti.msg, ti.want, got)
