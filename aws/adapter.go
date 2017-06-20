@@ -42,6 +42,7 @@ type Adapter struct {
 	healthCheckPort     uint
 	healthCheckInterval time.Duration
 	creationTimeout     time.Duration
+	stackTTL            time.Duration
 }
 
 type manifest struct {
@@ -60,6 +61,7 @@ const (
 	DefaultHealthCheckInterval       = 10 * time.Second
 	DefaultCertificateUpdateInterval = 30 * time.Minute
 	DefaultCreationTimeout           = 5 * time.Minute
+	DefaultStackTTL                  = 5 * time.Minute
 
 	clusterIDTag = "ClusterID"
 	nameTag      = "Name"
@@ -119,6 +121,7 @@ func NewAdapter() (adapter *Adapter, err error) {
 		healthCheckPort:     DefaultHealthCheckPort,
 		healthCheckInterval: DefaultHealthCheckInterval,
 		creationTimeout:     DefaultCreationTimeout,
+		stackTTL:            DefaultStackTTL,
 	}
 
 	adapter.manifest, err = buildManifest(adapter)
@@ -261,7 +264,7 @@ func (a *Adapter) GetStack(stackID string) (*Stack, error) {
 
 // MarkToDeleteStack adds a "deleteScheduled" Tag to the CloudFormation stack with the given name
 func (a *Adapter) MarkToDeleteStack(stack *Stack) (time.Time, error) {
-	t0 := time.Now().Add(1 * time.Hour)
+	t0 := time.Now().Add(a.stackTTL)
 
 	if err := markToDeleteStack(a.cloudformation, a.stackName(stack.CertificateARN()), t0.Format(time.RFC3339)); err != nil {
 		return t0, fmt.Errorf("MarkToDeleteStack failed: %v", err)
