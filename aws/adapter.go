@@ -42,6 +42,7 @@ type Adapter struct {
 	healthCheckPort     uint
 	healthCheckInterval time.Duration
 	creationTimeout     time.Duration
+	stackTTL            time.Duration
 }
 
 type manifest struct {
@@ -60,6 +61,7 @@ const (
 	DefaultHealthCheckInterval       = 10 * time.Second
 	DefaultCertificateUpdateInterval = 30 * time.Minute
 	DefaultCreationTimeout           = 5 * time.Minute
+	DefaultStackTTL                  = 5 * time.Minute
 
 	clusterIDTag = "ClusterID"
 	nameTag      = "Name"
@@ -119,6 +121,7 @@ func NewAdapter() (adapter *Adapter, err error) {
 		healthCheckPort:     DefaultHealthCheckPort,
 		healthCheckInterval: DefaultHealthCheckInterval,
 		creationTimeout:     DefaultCreationTimeout,
+		stackTTL:            DefaultStackTTL,
 	}
 
 	adapter.manifest, err = buildManifest(adapter)
@@ -232,7 +235,7 @@ func (a *Adapter) FindManagedStacks() ([]*Stack, error) {
 // Failure to create the stack causes it to be deleted automatically.
 func (a *Adapter) CreateStack(certificateARN string) (string, error) {
 	spec := &createStackSpec{
-		name:            normalizeStackName(a.ClusterID(), certificateARN),
+		name:            a.stackName(certificateARN),
 		scheme:          elbv2.LoadBalancerSchemeEnumInternetFacing,
 		certificateARN:  certificateARN,
 		securityGroupID: a.SecurityGroupID(),
@@ -250,9 +253,20 @@ func (a *Adapter) CreateStack(certificateARN string) (string, error) {
 	return createStack(a.cloudformation, spec)
 }
 
+func (a *Adapter) stackName(certificateARN string) string {
+	return normalizeStackName(a.ClusterID(), certificateARN)
+}
+
 // GetStack returns the CloudFormation stack details with the name or ID from the argument
 func (a *Adapter) GetStack(stackID string) (*Stack, error) {
 	return getStack(a.cloudformation, stackID)
+}
+
+// MarkToDeleteStack adds a "deleteScheduled" Tag to the CloudFormation stack with the given name
+func (a *Adapter) MarkToDeleteStack(stack *Stack) (time.Time, error) {
+	t0 := time.Now().Add(a.stackTTL)
+
+	return t0, markToDeleteStack(a.cloudformation, a.stackName(stack.CertificateARN()), t0.Format(time.RFC3339))
 }
 
 // DeleteStack deletes the CloudFormation stack with the given name

@@ -3,6 +3,7 @@ package aws
 import (
 	"reflect"
 	"testing"
+	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/cloudformation"
@@ -49,6 +50,37 @@ func TestCreatingStack(t *testing.T) {
 				if ti.want != got {
 					t.Errorf("unexpected result. wanted %+v, got %+v", ti.want, got)
 				}
+			}
+		})
+	}
+}
+
+func TestDeleteStack(t *testing.T) {
+	for _, ti := range []struct {
+		msg          string
+		givenSpec    createStackSpec
+		givenOutputs cfMockOutputs
+		wantErr      bool
+	}{
+		{
+			"delete-existing-stack",
+			createStackSpec{name: "existing-stack-id"},
+			cfMockOutputs{deleteStack: R(mockDeleteStackOutput("existing-stack-id"), nil)},
+			false,
+		},
+		{
+			"delete-non-existing-stack",
+			createStackSpec{name: "non-existing-stack-id"},
+			cfMockOutputs{deleteStack: R(mockDeleteStackOutput("existing-stack-id"), nil)},
+			false,
+		},
+	} {
+		t.Run(ti.msg, func(t *testing.T) {
+			c := &mockCloudFormationClient{outputs: ti.givenOutputs}
+			err := deleteStack(c, ti.givenSpec.name)
+			haveErr := err != nil
+			if haveErr != ti.wantErr {
+				t.Errorf("unexpected result from %s. wanted error %v, got err: %+v", ti.msg, ti.wantErr, err)
 			}
 		})
 	}
@@ -211,6 +243,11 @@ func TestFindingManagedStacks(t *testing.T) {
 					dnsName:        "example.com",
 					certificateARN: "cert-arn",
 					targetGroupARN: "tg-arn",
+					tags: map[string]string{
+						kubernetesCreatorTag: kubernetesCreatorValue,
+						clusterIDTag:         "test-cluster",
+						certificateARNTag:    "cert-arn",
+					},
 				},
 			},
 			false,
@@ -295,4 +332,124 @@ func TestFindingManagedStacks(t *testing.T) {
 
 		})
 	}
+}
+
+func TestIsDeleteInProgress(t *testing.T) {
+	for _, ti := range []struct {
+		msg   string
+		given *Stack
+		want  bool
+	}{
+		{
+			"DeleteInProgress",
+			&Stack{tags: map[string]string{deleteScheduled: time.Now().Add(1 * time.Minute).Format(time.RFC3339)}},
+			true,
+		},
+		{
+			"EmptyStack",
+			&Stack{},
+			false,
+		},
+		{
+			"StackNil",
+			nil,
+			false,
+		},
+	} {
+		t.Run(ti.msg, func(t *testing.T) {
+			got := ti.given.IsDeleteInProgress()
+			if ti.want != got {
+				t.Errorf("unexpected result. wanted %+v, got %+v", ti.want, got)
+			}
+		})
+	}
+
+}
+
+func TestShouldDelete(t *testing.T) {
+	for _, ti := range []struct {
+		msg   string
+		given *Stack
+		want  bool
+	}{
+		{
+			"DeleteInProgress",
+			&Stack{tags: map[string]string{deleteScheduled: time.Now().Add(1 * time.Minute).Format(time.RFC3339)}},
+			false,
+		},
+		{
+			"DeleteInProgressSecond",
+			&Stack{tags: map[string]string{deleteScheduled: time.Now().Add(1 * time.Second).Format(time.RFC3339)}},
+			false,
+		},
+		{
+			"ShouldDelete",
+			&Stack{tags: map[string]string{deleteScheduled: time.Now().Add(-1 * time.Second).Format(time.RFC3339)}},
+			true,
+		},
+		{
+			"ShouldDeleteMinute",
+			&Stack{tags: map[string]string{deleteScheduled: time.Now().Add(-1 * time.Minute).Format(time.RFC3339)}},
+			true,
+		}, {
+			"EmptyStack",
+			&Stack{},
+			false,
+		},
+		{
+			"StackNil",
+			nil,
+			false,
+		},
+	} {
+		t.Run(ti.msg, func(t *testing.T) {
+			got := ti.given.ShouldDelete()
+			if ti.want != got {
+				t.Errorf("unexpected result for %s. wanted %+v, got %+v", ti.msg, ti.want, got)
+			}
+		})
+	}
+
+}
+
+func TestDeleteTime(t *testing.T) {
+	now := time.Now()
+	for _, ti := range []struct {
+		msg   string
+		given *Stack
+		want  *time.Time
+	}{
+		{
+			"GetCorrectTime",
+			&Stack{tags: map[string]string{deleteScheduled: now.Format(time.RFC3339Nano)}},
+			&now,
+		},
+		{
+			"IncorrectTime",
+			&Stack{tags: map[string]string{deleteScheduled: "foo"}},
+			nil,
+		},
+		{
+			"EmptyStack",
+			&Stack{},
+			nil,
+		},
+		{
+			"StackNil",
+			nil,
+			nil,
+		},
+	} {
+		t.Run(ti.msg, func(t *testing.T) {
+			got := ti.given.deleteTime()
+			if ti.want != nil {
+				if !ti.want.Equal(*got) {
+					t.Errorf("unexpected result for non nil %s. wanted %+v, got %+v", ti.msg, ti.want, got)
+				}
+			} else if ti.want != got {
+				t.Errorf("unexpected result for %s. wanted %+v, got %+v", ti.msg, ti.want, got)
+			}
+		})
+	}
+
 }

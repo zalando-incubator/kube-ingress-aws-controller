@@ -28,12 +28,16 @@ type managedItem struct {
 const (
 	ready int = iota
 	missing
+	marktodelete
 	orphan
 )
 
 func (item *managedItem) Status() int {
-	if item.stack != nil && len(item.ingresses) == 0 {
+	if item.stack.ShouldDelete() {
 		return orphan
+	}
+	if item.stack != nil && len(item.ingresses) == 0 && !item.stack.IsDeleteInProgress() {
+		return marktodelete
 	}
 	if len(item.ingresses) != 0 && item.stack == nil {
 		return missing
@@ -90,6 +94,8 @@ func doWork(certsProvider certs.CertificatesProvider, awsAdapter *aws.Adapter, k
 		switch managedItem.Status() {
 		case orphan:
 			deleteStack(awsAdapter, managedItem)
+		case marktodelete:
+			markToDeleteStack(awsAdapter, managedItem)
 		case missing:
 			createStack(awsAdapter, managedItem)
 			fallthrough
@@ -193,5 +199,15 @@ func deleteStack(awsAdapter *aws.Adapter, item *managedItem) {
 		log.Printf("deleteStack failed to delete stack %q: %v", stackName, err)
 	} else {
 		log.Printf("deleted orphaned stack %q", stackName)
+	}
+}
+
+func markToDeleteStack(awsAdapter *aws.Adapter, item *managedItem) {
+	stackName := item.stack.Name()
+	ts, err := awsAdapter.MarkToDeleteStack(item.stack)
+	if err != nil {
+		log.Printf("markToDeleteStack failed to tag stack %q, at %v: %v", stackName, ts, err)
+	} else {
+		log.Printf("marked stack %q to be deleted at %v", stackName, ts)
 	}
 }
