@@ -10,6 +10,7 @@ type cfMockOutputs struct {
 	describeStackPages *apiResponse
 	describeStacks     *apiResponse
 	createStack        *apiResponse
+	deleteStack        *apiResponse
 }
 
 type mockCloudFormationClient struct {
@@ -53,4 +54,15 @@ func mockCSOutput(stackId string) *cloudformation.CreateStackOutput {
 	return &cloudformation.CreateStackOutput{
 		StackId: aws.String(stackId),
 	}
+}
+
+func (m *mockCloudFormationClient) DeleteStack(params *cloudformation.DeleteStackInput) (*cloudformation.DeleteStackOutput, error) {
+	if out, ok := m.outputs.deleteStack.response.(*cloudformation.DeleteStackOutput); ok {
+		return out, m.outputs.deleteStack.err
+	}
+	return nil, m.outputs.deleteStack.err
+}
+
+func mockDeleteStackOutput(stackId string) *cloudformation.DeleteStackOutput {
+	return &cloudformation.DeleteStackOutput{}
 }

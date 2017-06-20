@@ -55,6 +55,37 @@ func TestCreatingStack(t *testing.T) {
 	}
 }
 
+func TestDeleteStack(t *testing.T) {
+	for _, ti := range []struct {
+		msg          string
+		givenSpec    createStackSpec
+		givenOutputs cfMockOutputs
+		wantErr      bool
+	}{
+		{
+			"delete-existing-stack",
+			createStackSpec{name: "existing-stack-id"},
+			cfMockOutputs{deleteStack: R(mockDeleteStackOutput("existing-stack-id"), nil)},
+			false,
+		},
+		{
+			"delete-non-existing-stack",
+			createStackSpec{name: "non-existing-stack-id"},
+			cfMockOutputs{deleteStack: R(mockDeleteStackOutput("existing-stack-id"), nil)},
+			false,
+		},
+	} {
+		t.Run(ti.msg, func(t *testing.T) {
+			c := &mockCloudFormationClient{outputs: ti.givenOutputs}
+			err := deleteStack(c, ti.givenSpec.name)
+			haveErr := err != nil
+			if haveErr != ti.wantErr {
+				t.Errorf("unexpected result from %s. wanted error %v, got err: %+v", ti.msg, ti.wantErr, err)
+			}
+		})
+	}
+}
+
 func TestStackReadiness(t *testing.T) {
 	for _, ti := range []struct {
 		given string
@@ -392,6 +423,11 @@ func TestDeleteTime(t *testing.T) {
 			"GetCorrectTime",
 			&Stack{tags: map[string]string{deleteScheduled: now.Format(time.RFC3339Nano)}},
 			&now,
+		},
+		{
+			"IncorrectTime",
+			&Stack{tags: map[string]string{deleteScheduled: "foo"}},
+			nil,
 		},
 		{
 			"EmptyStack",
