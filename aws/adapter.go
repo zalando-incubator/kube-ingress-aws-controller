@@ -266,11 +266,7 @@ func (a *Adapter) GetStack(stackID string) (*Stack, error) {
 func (a *Adapter) MarkToDeleteStack(stack *Stack) (time.Time, error) {
 	t0 := time.Now().Add(a.stackTTL)
 
-	if err := markToDeleteStack(a.cloudformation, a.stackName(stack.CertificateARN()), t0.Format(time.RFC3339)); err != nil {
-		return t0, fmt.Errorf("MarkToDeleteStack failed: %v", err)
-	}
-
-	return t0, nil
+	return t0, markToDeleteStack(a.cloudformation, a.stackName(stack.CertificateARN()), t0.Format(time.RFC3339))
 }
 
 // DeleteStack deletes the CloudFormation stack with the given name
