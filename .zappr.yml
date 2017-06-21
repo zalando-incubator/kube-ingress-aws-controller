@@ -13,3 +13,4 @@ approvals:
       - zalando-incubator
     # OR a collaborator of the repo
     collaborators: true
+X-Zalando-Team: teapot
