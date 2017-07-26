@@ -12,28 +12,28 @@ import (
 func TestCreatingStack(t *testing.T) {
 	for _, ti := range []struct {
 		name         string
-		givenSpec    createStackSpec
+		givenSpec    stackSpec
 		givenOutputs cfMockOutputs
 		want         string
 		wantErr      bool
 	}{
 		{
 			"successful-call",
-			createStackSpec{name: "foo", securityGroupID: "bar", vpcID: "baz"},
+			stackSpec{name: "foo", securityGroupID: "bar", vpcID: "baz"},
 			cfMockOutputs{createStack: R(mockCSOutput("fake-stack-id"), nil)},
 			"fake-stack-id",
 			false,
 		},
 		{
 			"successful-call",
-			createStackSpec{name: "foo", securityGroupID: "bar", vpcID: "baz"},
+			stackSpec{name: "foo", securityGroupID: "bar", vpcID: "baz"},
 			cfMockOutputs{createStack: R(mockCSOutput("fake-stack-id"), nil)},
 			"fake-stack-id",
 			false,
 		},
 		{
 			"fail-call",
-			createStackSpec{name: "foo", securityGroupID: "bar", vpcID: "baz"},
+			stackSpec{name: "foo", securityGroupID: "bar", vpcID: "baz"},
 			cfMockOutputs{createStack: R(nil, dummyErr)},
 			"fake-stack-id",
 			true,
@@ -58,19 +58,19 @@ func TestCreatingStack(t *testing.T) {
 func TestDeleteStack(t *testing.T) {
 	for _, ti := range []struct {
 		msg          string
-		givenSpec    createStackSpec
+		givenSpec    stackSpec
 		givenOutputs cfMockOutputs
 		wantErr      bool
 	}{
 		{
 			"delete-existing-stack",
-			createStackSpec{name: "existing-stack-id"},
+			stackSpec{name: "existing-stack-id"},
 			cfMockOutputs{deleteStack: R(mockDeleteStackOutput("existing-stack-id"), nil)},
 			false,
 		},
 		{
 			"delete-non-existing-stack",
-			createStackSpec{name: "non-existing-stack-id"},
+			stackSpec{name: "non-existing-stack-id"},
 			cfMockOutputs{deleteStack: R(mockDeleteStackOutput("existing-stack-id"), nil)},
 			false,
 		},

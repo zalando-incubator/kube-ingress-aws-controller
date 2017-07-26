@@ -116,7 +116,7 @@ const (
 	parameterListenerCertificateParameter            = "ListenerCertificateParameter"
 )
 
-type createStackSpec struct {
+type stackSpec struct {
 	name             string
 	scheme           string
 	subnets          []string
@@ -135,7 +135,7 @@ type healthCheck struct {
 	interval time.Duration
 }
 
-func createStack(svc cloudformationiface.CloudFormationAPI, spec *createStackSpec) (string, error) {
+func createStack(svc cloudformationiface.CloudFormationAPI, spec *stackSpec) (string, error) {
 	template := templateYAML
 	if spec.customTemplate != "" {
 		template = spec.customTemplate
@@ -168,6 +168,44 @@ func createStack(svc cloudformationiface.CloudFormationAPI, spec *createStackSpe
 		)
 	}
 	resp, err := svc.CreateStack(params)
+	if err != nil {
+		return spec.name, err
+	}
+
+	return aws.StringValue(resp.StackId), nil
+}
+
+func updateStack(svc cloudformationiface.CloudFormationAPI, spec *stackSpec) (string, error) {
+	template := templateYAML
+	if spec.customTemplate != "" {
+		template = spec.customTemplate
+	}
+	params := &cloudformation.UpdateStackInput{
+		StackName: aws.String(spec.name),
+		Parameters: []*cloudformation.Parameter{
+			cfParam(parameterLoadBalancerSchemeParameter, spec.scheme),
+			cfParam(parameterLoadBalancerSecurityGroupParameter, spec.securityGroupID),
+			cfParam(parameterLoadBalancerSubnetsParameter, strings.Join(spec.subnets, ",")),
+			cfParam(parameterTargetGroupVPCIDParameter, spec.vpcID),
+			cfParam(parameterListenerCertificateParameter, spec.certificateARN),
+		},
+		Tags: []*cloudformation.Tag{
+			cfTag(kubernetesCreatorTag, kubernetesCreatorValue),
+			cfTag(clusterIDTag, spec.clusterID),
+		},
+		TemplateBody: aws.String(template),
+	}
+	if spec.certificateARN != "" {
+		params.Tags = append(params.Tags, cfTag(certificateARNTag, spec.certificateARN))
+	}
+	if spec.healthCheck != nil {
+		params.Parameters = append(params.Parameters,
+			cfParam(parameterTargetGroupHealthCheckPathParameter, spec.healthCheck.path),
+			cfParam(parameterTargetGroupHealthCheckPortParameter, fmt.Sprintf("%d", spec.healthCheck.port)),
+			cfParam(parameterTargetGroupHealthCheckIntervalParameter, fmt.Sprintf("%.0f", spec.healthCheck.interval.Seconds())),
+		)
+	}
+	resp, err := svc.UpdateStack(params)
 	if err != nil {
 		return spec.name, err
 	}

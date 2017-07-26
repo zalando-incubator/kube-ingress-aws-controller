@@ -32,6 +32,10 @@ const (
 	orphan
 )
 
+const (
+	maxTargetGroupSupported = 1000
+)
+
 func (item *managedItem) Status() int {
 	if item.stack.ShouldDelete() {
 		return orphan
@@ -52,6 +56,8 @@ func waitForTerminationSignals(signals ...os.Signal) chan os.Signal {
 }
 
 func startPolling(quitCH chan struct{}, certsProvider certs.CertificatesProvider, awsAdapter *aws.Adapter, kubeAdapter *kubernetes.Adapter, pollingInterval time.Duration) {
+	items := make(chan *managedItem, maxTargetGroupSupported)
+	go updateStacks(awsAdapter, 1*time.Hour, items)
 	for {
 		log.Printf("Start polling sleep %s", pollingInterval)
 		select {
@@ -59,14 +65,38 @@ func startPolling(quitCH chan struct{}, certsProvider certs.CertificatesProvider
 			quitCH <- struct{}{}
 			return
 		case <-time.After(pollingInterval):
-			if err := doWork(certsProvider, awsAdapter, kubeAdapter); err != nil {
+			if err := doWork(certsProvider, awsAdapter, kubeAdapter, items); err != nil {
 				log.Println(err)
 			}
 		}
 	}
 }
 
-func doWork(certsProvider certs.CertificatesProvider, awsAdapter *aws.Adapter, kubeAdapter *kubernetes.Adapter) error {
+func updateStacks(awsAdapter *aws.Adapter, interval time.Duration, items <-chan *managedItem) {
+	for {
+		itemsMap := map[string]*managedItem{}
+		done := make(chan struct{})
+		go func() {
+			for {
+				select {
+				case item := <-items:
+					if _, ok := itemsMap[item.stack.CertificateARN()]; !ok {
+						itemsMap[item.stack.CertificateARN()] = item
+					}
+				case <-done:
+					return
+				}
+			}
+		}()
+		time.Sleep(interval)
+		done <- struct{}{}
+		for _, item := range itemsMap {
+			updateStack(awsAdapter, item)
+		}
+	}
+}
+
+func doWork(certsProvider certs.CertificatesProvider, awsAdapter *aws.Adapter, kubeAdapter *kubernetes.Adapter, items chan<- *managedItem) error {
 	defer func() error {
 		if r := recover(); r != nil {
 			log.Println("shit has hit the fan:", errors.Wrap(r.(error), "panic caused by"))
@@ -98,8 +128,9 @@ func doWork(certsProvider certs.CertificatesProvider, awsAdapter *aws.Adapter, k
 			markToDeleteStack(awsAdapter, managedItem)
 		case missing:
 			createStack(awsAdapter, managedItem)
-			fallthrough
+			updateIngress(kubeAdapter, managedItem)
 		case ready:
+			items <- managedItem
 			updateIngress(kubeAdapter, managedItem)
 		}
 	}
@@ -168,9 +199,33 @@ func createStack(awsAdapter *aws.Adapter, item *managedItem) {
 	}
 }
 
+func updateStack(awsAdapter *aws.Adapter, item *managedItem) {
+	certificateARN := item.ingresses[0].CertificateARN()
+	log.Printf("updating stack for certificate %q / ingress %q", certificateARN, item.ingresses)
+
+	stackId, err := awsAdapter.UpdateStack(certificateARN)
+	if isNoUpdatesToBePerformedError(err) {
+		log.Printf("stack(%q) is already up to date", certificateARN)
+	} else if err != nil {
+		log.Printf("updateStack(%q) failed: %v", certificateARN, err)
+	} else {
+		log.Printf("stack %q for certificate %q updated", stackId, certificateARN)
+	}
+}
+
 func isAlreadyExistsError(err error) bool {
 	if awsErr, ok := err.(awserr.Error); ok {
 		return awsErr.Code() == cloudformation.ErrCodeAlreadyExistsException
+	}
+	return false
+}
+
+func isNoUpdatesToBePerformedError(err error) bool {
+	if err == nil {
+		return false
+	}
+	if _, ok := err.(awserr.Error); ok {
+		return strings.Contains(err.Error(), "No updates are to be performed")
 	}
 	return false
 }
