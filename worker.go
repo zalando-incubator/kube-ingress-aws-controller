@@ -98,8 +98,9 @@ func doWork(certsProvider certs.CertificatesProvider, awsAdapter *aws.Adapter, k
 			markToDeleteStack(awsAdapter, managedItem)
 		case missing:
 			createStack(awsAdapter, managedItem)
-			fallthrough
+			updateIngress(kubeAdapter, managedItem)
 		case ready:
+			updateStack(awsAdapter, managedItem)
 			updateIngress(kubeAdapter, managedItem)
 		}
 	}
@@ -165,6 +166,18 @@ func createStack(awsAdapter *aws.Adapter, item *managedItem) {
 		log.Printf("createStack(%q) failed: %v", certificateARN, err)
 	} else {
 		log.Printf("stack %q for certificate %q created", stackId, certificateARN)
+	}
+}
+
+func updateStack(awsAdapter *aws.Adapter, item *managedItem) {
+	certificateARN := item.ingresses[0].CertificateARN()
+	log.Printf("updating stack for certificate %q / ingress %q", certificateARN, item.ingresses)
+
+	stackId, err := awsAdapter.UpdateStack(certificateARN)
+	if err != nil {
+		log.Printf("updateStack(%q) failed: %v", certificateARN, err)
+	} else {
+		log.Printf("stack %q for certificate %q updated", stackId, certificateARN)
 	}
 }
 
