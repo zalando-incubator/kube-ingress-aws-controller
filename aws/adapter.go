@@ -253,6 +253,26 @@ func (a *Adapter) CreateStack(certificateARN string) (string, error) {
 	return createStack(a.cloudformation, spec)
 }
 
+func (a *Adapter) UpdateStack(certificateARN string) (string, error) {
+	spec := &createStackSpec{
+		name:            a.stackName(certificateARN),
+		scheme:          elbv2.LoadBalancerSchemeEnumInternetFacing,
+		certificateARN:  certificateARN,
+		securityGroupID: a.SecurityGroupID(),
+		subnets:         a.PublicSubnetIDs(),
+		vpcID:           a.VpcID(),
+		clusterID:       a.ClusterID(),
+		healthCheck: &healthCheck{
+			path:     a.healthCheckPath,
+			port:     a.healthCheckPort,
+			interval: a.healthCheckInterval,
+		},
+		timeoutInMinutes: uint(a.creationTimeout.Minutes()),
+	}
+
+	return updateStack(a.cloudformation, spec)
+}
+
 func (a *Adapter) stackName(certificateARN string) string {
 	return normalizeStackName(a.ClusterID(), certificateARN)
 }
