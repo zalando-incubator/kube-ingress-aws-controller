@@ -55,9 +55,9 @@ func waitForTerminationSignals(signals ...os.Signal) chan os.Signal {
 	return c
 }
 
-func startPolling(quitCH chan struct{}, certsProvider certs.CertificatesProvider, awsAdapter *aws.Adapter, kubeAdapter *kubernetes.Adapter, pollingInterval time.Duration) {
+func startPolling(quitCH chan struct{}, certsProvider certs.CertificatesProvider, awsAdapter *aws.Adapter, kubeAdapter *kubernetes.Adapter, pollingInterval, updateStackInterval time.Duration) {
 	items := make(chan *managedItem, maxTargetGroupSupported)
-	go updateStacks(awsAdapter, 1*time.Hour, items)
+	go updateStacks(awsAdapter, updateStackInterval, items)
 	for {
 		log.Printf("Start polling sleep %s", pollingInterval)
 		select {
