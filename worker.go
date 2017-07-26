@@ -204,7 +204,9 @@ func updateStack(awsAdapter *aws.Adapter, item *managedItem) {
 	log.Printf("updating stack for certificate %q / ingress %q", certificateARN, item.ingresses)
 
 	stackId, err := awsAdapter.UpdateStack(certificateARN)
-	if err != nil {
+	if isNoUpdatesToBePerformedError(err) {
+		log.Printf("stack(%q) is already up to date", certificateARN)
+	} else if err != nil {
 		log.Printf("updateStack(%q) failed: %v", certificateARN, err)
 	} else {
 		log.Printf("stack %q for certificate %q updated", stackId, certificateARN)
@@ -214,6 +216,16 @@ func updateStack(awsAdapter *aws.Adapter, item *managedItem) {
 func isAlreadyExistsError(err error) bool {
 	if awsErr, ok := err.(awserr.Error); ok {
 		return awsErr.Code() == cloudformation.ErrCodeAlreadyExistsException
+	}
+	return false
+}
+
+func isNoUpdatesToBePerformedError(err error) bool {
+	if err == nil {
+		return false
+	}
+	if _, ok := err.(awserr.Error); ok {
+		return strings.Contains(err.Error(), "No updates are to be performed")
 	}
 	return false
 }
