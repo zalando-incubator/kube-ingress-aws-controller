@@ -234,7 +234,7 @@ func (a *Adapter) FindManagedStacks() ([]*Stack, error) {
 // All the required resources (listeners and target group) are created in a transactional fashion.
 // Failure to create the stack causes it to be deleted automatically.
 func (a *Adapter) CreateStack(certificateARN string) (string, error) {
-	spec := &createStackSpec{
+	spec := &stackSpec{
 		name:            a.stackName(certificateARN),
 		scheme:          elbv2.LoadBalancerSchemeEnumInternetFacing,
 		certificateARN:  certificateARN,
@@ -254,7 +254,7 @@ func (a *Adapter) CreateStack(certificateARN string) (string, error) {
 }
 
 func (a *Adapter) UpdateStack(certificateARN string) (string, error) {
-	spec := &createStackSpec{
+	spec := &stackSpec{
 		name:            a.stackName(certificateARN),
 		scheme:          elbv2.LoadBalancerSchemeEnumInternetFacing,
 		certificateARN:  certificateARN,

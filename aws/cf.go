@@ -116,7 +116,7 @@ const (
 	parameterListenerCertificateParameter            = "ListenerCertificateParameter"
 )
 
-type createStackSpec struct {
+type stackSpec struct {
 	name             string
 	scheme           string
 	subnets          []string
@@ -135,7 +135,7 @@ type healthCheck struct {
 	interval time.Duration
 }
 
-func createStack(svc cloudformationiface.CloudFormationAPI, spec *createStackSpec) (string, error) {
+func createStack(svc cloudformationiface.CloudFormationAPI, spec *stackSpec) (string, error) {
 	template := templateYAML
 	if spec.customTemplate != "" {
 		template = spec.customTemplate
@@ -175,7 +175,7 @@ func createStack(svc cloudformationiface.CloudFormationAPI, spec *createStackSpe
 	return aws.StringValue(resp.StackId), nil
 }
 
-func updateStack(svc cloudformationiface.CloudFormationAPI, spec *createStackSpec) (string, error) {
+func updateStack(svc cloudformationiface.CloudFormationAPI, spec *stackSpec) (string, error) {
 	template := templateYAML
 	if spec.customTemplate != "" {
 		template = spec.customTemplate
