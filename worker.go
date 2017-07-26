@@ -32,7 +32,7 @@ const (
 	orphan
 )
 
-const ( 
+const (
 	maxTargetGroupSupported = 1000
 )
 
@@ -74,29 +74,29 @@ func startPolling(quitCH chan struct{}, certsProvider certs.CertificatesProvider
 
 func updateStacks(awsAdapter *aws.Adapter, interval time.Duration, items <-chan *managedItem) {
 	for {
-		itemsMap := map[string]*managedItem 
+		itemsMap := map[string]*managedItem{}
 		done := make(chan struct{})
-		go func() { 
-			for { 
-				select { 
-				case item :=<- items :
-					if _, ok := itemsMap[item.stack.certificateARN]; !ok { 
-						itemsMap[item.stack.certificateARN] = item
+		go func() {
+			for {
+				select {
+				case item := <-items:
+					if _, ok := itemsMap[item.stack.CertificateARN()]; !ok {
+						itemsMap[item.stack.CertificateARN()] = item
 					}
-				case <-done: 
+				case <-done:
 					return
 				}
 			}
 		}()
 		time.Sleep(interval)
-		done<-struct{}{}
-		for _, item := range itemsMap { 
+		done <- struct{}{}
+		for _, item := range itemsMap {
 			updateStack(awsAdapter, item)
 		}
 	}
 }
 
-func doWork(certsProvider certs.CertificatesProvider, awsAdapter *aws.Adapter, kubeAdapter *kubernetes.Adapter, items <-chan *managedItem) error {
+func doWork(certsProvider certs.CertificatesProvider, awsAdapter *aws.Adapter, kubeAdapter *kubernetes.Adapter, items chan<- *managedItem) error {
 	defer func() error {
 		if r := recover(); r != nil {
 			log.Println("shit has hit the fan:", errors.Wrap(r.(error), "panic caused by"))
