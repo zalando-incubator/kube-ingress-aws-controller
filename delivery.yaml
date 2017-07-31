@@ -9,13 +9,11 @@ build_steps:
     apt-get install -y docker-ce
 - desc: Build and push docker image
   cmd: |
-    IS_PR_BUILD=${CDP_PULL_REQUEST_NUMBER+"true"}
-    if [[ ${CDP_TARGET_BRANCH} == "master" && ${IS_PR_BUILD} != "true" ]]
-    then
+    if [[ $CDP_TARGET_BRANCH == master && ! $CDP_PULL_REQUEST_NUMBER ]]; then
       RELEASE_VERSION=$(git describe --tags --always --dirty)
-      image=registry-write.opensource.zalan.do/teapot/kube-ingress-aws-controller:${RELEASE_VERSION}
+      IMAGE=registry-write.opensource.zalan.do/teapot/kube-ingress-aws-controller:${RELEASE_VERSION}
     else
-      image=registry-write.opensource.zalan.do/teapot/kube-ingress-aws-controller-test:${CDP_BUILD_VERSION}
+      IMAGE=registry-write.opensource.zalan.do/teapot/kube-ingress-aws-controller-test:${CDP_BUILD_VERSION}
     fi
-    docker build --tag $image .
-    docker push $image
+    docker build --tag "$IMAGE" .
+    docker push "$IMAGE"
