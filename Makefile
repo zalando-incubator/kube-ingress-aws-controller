@@ -46,7 +46,7 @@ build/linux/$(BINARY): $(SOURCES)
 build/osx/$(BINARY): $(SOURCES)
 	GOOS=darwin GOARCH=amd64 CGO_ENABLED=0 go build $(BUILD_FLAGS) -o build/osx/$(BINARY) -ldflags "$(LDFLAGS)" .
 
-build.docker: build.linux
+build.docker:
 	docker build -t "$(IMAGE):$(TAG)" -f $(DOCKERFILE) .
 
 build.push: build.docker
