@@ -21,3 +21,4 @@ install:
 script:
 - make test
 - goveralls -service=travis-ci
+- make check
