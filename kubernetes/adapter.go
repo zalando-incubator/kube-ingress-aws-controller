@@ -82,6 +82,11 @@ func newIngressFromKube(kubeIngress *ingress) *Ingress {
 		}
 	}
 
+	certDomain := kubeIngress.getAnnotationsString(ingressCertificateDomainAnnotation, "")
+	if certDomain != "" {
+		certHostname = certDomain
+	}
+
 	return &Ingress{
 		certificateARN: kubeIngress.getAnnotationsString(ingressCertificateARNAnnotation, ""),
 		namespace:      kubeIngress.Metadata.Namespace,
