@@ -1,5 +1,5 @@
 # builder image
-FROM golang:1.8 as builder
+FROM golang as builder
 
 RUN go get github.com/Masterminds/glide
 WORKDIR /go/src/github.com/zalando-incubator/kube-ingress-aws-controller
