@@ -60,6 +60,27 @@ func TestMappingRoundtrip(t *testing.T) {
 	}
 }
 
+func TestCertDomainAnnotation(t *testing.T) {
+	certDomain := "foo.org"
+
+	kubeMeta := ingressItemMetadata{
+		Namespace: "default",
+		Name:      "foo",
+		Annotations: map[string]interface{}{
+			ingressCertificateARNAnnotation:    "zbr",
+			ingressCertificateDomainAnnotation: certDomain,
+		},
+	}
+	kubeIngress := &ingress{
+		Metadata: kubeMeta,
+	}
+
+	got := newIngressFromKube(kubeIngress)
+	if got.CertHostname() != certDomain {
+		t.Errorf("expected cert hostname %s, got %s", certDomain, got.CertHostname())
+	}
+}
+
 func TestInsecureConfig(t *testing.T) {
 	cfg := InsecureConfig("http://domain.com:12345")
 	if cfg.BaseURL != "http://domain.com:12345" {
