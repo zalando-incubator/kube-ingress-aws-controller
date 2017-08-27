@@ -59,9 +59,10 @@ type ingressLoadBalancer struct {
 }
 
 const (
-	ingressListResource             = "/apis/extensions/v1beta1/ingresses"
-	ingressPatchStatusResource      = "/apis/extensions/v1beta1/namespaces/%s/ingresses/%s/status"
-	ingressCertificateARNAnnotation = "zalando.org/aws-load-balancer-ssl-cert"
+	ingressListResource                = "/apis/extensions/v1beta1/ingresses"
+	ingressPatchStatusResource         = "/apis/extensions/v1beta1/namespaces/%s/ingresses/%s/status"
+	ingressCertificateARNAnnotation    = "zalando.org/aws-load-balancer-ssl-cert"
+	ingressCertificateDomainAnnotation = "zalando.org/aws-load-balancer-ssl-cert-domain"
 )
 
 func (i *ingress) getAnnotationsString(key string, defaultValue string) string {
