@@ -64,7 +64,7 @@ On startup, the controller discovers the AWS resources required for the controll
 
 2. The Security Group
 
-    Lookup of the "Name" tag of the Security Group matching the stack for the controller node and the
+    Lookup of the `kubernetes.io/cluster/<cluster-id>` tag of the Security Group matching the clusterID for the controller node and the
     tag `aws:cloudformation:logical-id` matching the value `IngressLoadBalancerSecurityGroup`
 
 ### Creating Load Balancers
@@ -143,7 +143,7 @@ from other load balancers. The tag looks like this:
 
     `kubernetes:application` = `kube-ingress-aws-controller`
 
-They also share the `ClusterID` tag with other resources from the same CloudFormation stack.
+They also share the `kubernetes.io/cluster/<cluster-id>` tag with other resources from the cluster where it belongs.
 
 ### Deleting load balancers
 

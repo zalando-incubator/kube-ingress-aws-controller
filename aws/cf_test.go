@@ -123,21 +123,21 @@ func TestManagementAssertion(t *testing.T) {
 	}{
 		{"managed", []*cloudformation.Tag{
 			cfTag(kubernetesCreatorTag, kubernetesCreatorValue),
-			cfTag(clusterIDTag, "test-cluster"),
+			cfTag(clusterIDTagPrefix+"test-cluster", resourceLifecycleOwned),
 			cfTag("foo", "bar"),
 		}, true},
 		{"missing-cluster-tag", []*cloudformation.Tag{
 			cfTag(kubernetesCreatorTag, kubernetesCreatorValue),
 		}, false},
 		{"missing-kube-mgmt-tag", []*cloudformation.Tag{
-			cfTag(clusterIDTag, "test-cluster"),
+			cfTag(clusterIDTagPrefix+"test-cluster", resourceLifecycleOwned),
 		}, false},
 		{"missing-all-mgmt-tag", []*cloudformation.Tag{
 			cfTag("foo", "bar"),
 		}, false},
 		{"mismatch-cluster-tag", []*cloudformation.Tag{
 			cfTag(kubernetesCreatorTag, kubernetesCreatorValue),
-			cfTag(clusterIDTag, "other-cluster"),
+			cfTag(clusterIDTagPrefix+"other-cluster", resourceLifecycleOwned),
 			cfTag("foo", "bar"),
 		}, false},
 	} {
@@ -187,7 +187,7 @@ func TestFindingManagedStacks(t *testing.T) {
 							StackName: aws.String("managed-stack-not-ready"),
 							Tags: []*cloudformation.Tag{
 								cfTag(kubernetesCreatorTag, kubernetesCreatorValue),
-								cfTag(clusterIDTag, "test-cluster"),
+								cfTag(clusterIDTagPrefix+"test-cluster", resourceLifecycleOwned),
 								cfTag(certificateARNTag, "cert-arn"),
 							},
 							Outputs: []*cloudformation.Output{
@@ -200,7 +200,7 @@ func TestFindingManagedStacks(t *testing.T) {
 							StackStatus: aws.String(cloudformation.StackStatusCreateComplete),
 							Tags: []*cloudformation.Tag{
 								cfTag(kubernetesCreatorTag, kubernetesCreatorValue),
-								cfTag(clusterIDTag, "test-cluster"),
+								cfTag(clusterIDTagPrefix+"test-cluster", resourceLifecycleOwned),
 								cfTag(certificateARNTag, "cert-arn"),
 							},
 							Outputs: []*cloudformation.Output{
@@ -212,13 +212,13 @@ func TestFindingManagedStacks(t *testing.T) {
 							StackName: aws.String("managed-stack-not-ready"),
 							Tags: []*cloudformation.Tag{
 								cfTag(kubernetesCreatorTag, kubernetesCreatorValue),
-								cfTag(clusterIDTag, "test-cluster"),
+								cfTag(clusterIDTagPrefix+"test-cluster", resourceLifecycleOwned),
 							},
 						},
 						{
 							StackName: aws.String("unmanaged-stack"),
 							Tags: []*cloudformation.Tag{
-								cfTag(clusterIDTag, "test-cluster"),
+								cfTag(clusterIDTagPrefix+"test-cluster", resourceLifecycleOwned),
 							},
 						},
 						{
@@ -231,7 +231,7 @@ func TestFindingManagedStacks(t *testing.T) {
 							StackName: aws.String("belongs-to-other-cluster"),
 							Tags: []*cloudformation.Tag{
 								cfTag(kubernetesCreatorTag, kubernetesCreatorValue),
-								cfTag(clusterIDTag, "other-cluster"),
+								cfTag(clusterIDTagPrefix+"other-cluster", resourceLifecycleOwned),
 							},
 						},
 					},
@@ -244,9 +244,9 @@ func TestFindingManagedStacks(t *testing.T) {
 					certificateARN: "cert-arn",
 					targetGroupARN: "tg-arn",
 					tags: map[string]string{
-						kubernetesCreatorTag: kubernetesCreatorValue,
-						clusterIDTag:         "test-cluster",
-						certificateARNTag:    "cert-arn",
+						kubernetesCreatorTag:                kubernetesCreatorValue,
+						clusterIDTagPrefix + "test-cluster": resourceLifecycleOwned,
+						certificateARNTag:                   "cert-arn",
 					},
 				},
 			},
@@ -263,7 +263,7 @@ func TestFindingManagedStacks(t *testing.T) {
 							StackStatus: aws.String(cloudformation.StackStatusReviewInProgress),
 							Tags: []*cloudformation.Tag{
 								cfTag(kubernetesCreatorTag, kubernetesCreatorValue),
-								cfTag(clusterIDTag, "test-cluster"),
+								cfTag(clusterIDTagPrefix+"test-cluster", resourceLifecycleOwned),
 							},
 							Outputs: []*cloudformation.Output{
 								{OutputKey: aws.String(outputLoadBalancerDNSName), OutputValue: aws.String("example-notready.com")},
@@ -275,7 +275,7 @@ func TestFindingManagedStacks(t *testing.T) {
 							StackStatus: aws.String(cloudformation.StackStatusRollbackComplete),
 							Tags: []*cloudformation.Tag{
 								cfTag(kubernetesCreatorTag, kubernetesCreatorValue),
-								cfTag(clusterIDTag, "test-cluster"),
+								cfTag(clusterIDTagPrefix+"test-cluster", resourceLifecycleOwned),
 							},
 							Outputs: []*cloudformation.Output{
 								{OutputKey: aws.String(outputLoadBalancerDNSName), OutputValue: aws.String("example.com")},
