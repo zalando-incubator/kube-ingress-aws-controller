@@ -6,8 +6,12 @@ os:
 language: go
 
 go:
-- 1.7
+- 1.9
 - tip
+
+matrix:
+  allow_failures:
+  - go: tip
 
 before_install:
 - go get github.com/Masterminds/glide
