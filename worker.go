@@ -156,6 +156,12 @@ func buildManagedModel(certsProvider certs.CertificatesProvider, ingresses []*ku
 				log.Printf("failed to find a certificate for %v: %v", ingress.CertHostname(), err)
 				continue
 			}
+		} else { // validate that certificateARN exists
+			err := checkCertificate(certsProvider, certificateARN)
+			if err != nil {
+				log.Printf("Failed to validate certificate: %v", err)
+				continue
+			}
 		}
 		if item, ok := model[certificateARN]; ok {
 			item.ingresses = append(item.ingresses, ingress)
@@ -179,6 +185,23 @@ func discoverCertificateAndUpdateIngress(certsProvider certs.CertificatesProvide
 	}
 	ingress.SetCertificateARN(certificateSummary.ID())
 	return certificateSummary.ID(), nil
+}
+
+// checkCertificate checks that a certificate with the specified ARN exists in
+// the account. Returns error if no certificate is found.
+func checkCertificate(certsProvider certs.CertificatesProvider, arn string) error {
+	certs, err := certsProvider.GetCertificates()
+	if err != nil {
+		return fmt.Errorf("failed to list certificates: %v", err)
+	}
+
+	for _, cert := range certs {
+		if arn == cert.ID() {
+			return nil
+		}
+	}
+
+	return fmt.Errorf("certificate with ARN '%s' not found", arn)
 }
 
 func createStack(awsAdapter *aws.Adapter, item *managedItem) {
