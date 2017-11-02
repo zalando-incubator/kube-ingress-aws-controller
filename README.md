@@ -25,7 +25,7 @@ This information is used to manage AWS resources for each ingress objects of the
 
 ### <v0.4.0 to >=v0.4.0
 
-In versions <v.04.0 we used AWS Tags that were set by CloudFormation automatically to find
+In versions before v.04.0 we used AWS Tags that were set by CloudFormation automatically to find
 some AWS resources.
 This behavior has been changed to use custom non cloudformation tags.
 
