@@ -65,9 +65,7 @@ const (
 
 	nameTag = "Name"
 
-	kubernetesCreatorTag   = "kubernetes:application"
-	kubernetesCreatorValue = "kube-ingress-aws-controller"
-	certificateARNTag      = "ingress:certificate-arn"
+	certificateARNTag = "ingress:certificate-arn"
 )
 
 var (
