@@ -77,8 +77,8 @@ On startup, the controller discovers the AWS resources required for the controll
 
 2. The Security Group
 
-    Lookup of the `kubernetes.io/cluster/<cluster-id>` tag of the Security Group matching the clusterID for the controller node and the
-    tag `aws:cloudformation:logical-id` matching the value `IngressLoadBalancerSecurityGroup`
+    Lookup of the `kubernetes.io/cluster/<cluster-id>` tag of the Security Group matching the clusterID for the controller node and `kubernetes:application` matching the value `kube-ingress-aws-controller` or as fallback for <v0.4.0
+    tag `aws:cloudformation:logical-id` matching the value `IngressLoadBalancerSecurityGroup` (only clusters created by CF).
 
 ### Creating Load Balancers
 
