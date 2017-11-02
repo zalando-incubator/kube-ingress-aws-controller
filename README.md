@@ -27,12 +27,16 @@ This information is used to manage AWS resources for each ingress objects of the
 
 In versions <v.04.0 we used AWS Tags that were set by CloudFormation automatically to find
 some AWS resources.
-This behavior we changed to the Kubernetes
+This behavior has been changed to use custom non cloudformation tags.
 
 In order to update to v0.4.0, you have to add the following tags to your AWs Loadbalancer
 SecurityGroup before updating:
-- "kubernetes:application"="kube-ingress-aws-controller"
-- "kubernetes.io/cluster/<clusterid>"="owned"
+- `kubernetes:application=kube-ingress-aws-controller`
+- `kubernetes.io/cluster/<cluster-id>=owned`
+
+Additionally you must ensure that the instance where the ingress-controller is
+running has the clusterID tag `kubernetes.io/cluster/<cluster-id>=owned` set
+(was `ClusterID=<cluster-id>` before v0.4.0).
 
 ## Development Status
 
