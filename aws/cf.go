@@ -338,10 +338,8 @@ func isManagedStack(cfTags []*cloudformation.Tag, clusterID string) bool {
 	if tags[kubernetesCreatorTag] != kubernetesCreatorValue {
 		return false
 	}
-	if tags[clusterIDTagPrefix+clusterID] != resourceLifecycleOwned {
-		return false
-	}
-	return true
+	// TODO(sszuecs): remove 2nd condition, only for migration
+	return tags[clusterIDTagPrefix+clusterID] == resourceLifecycleOwned || tags[clusterIDTag] == clusterID
 }
 
 func convertCloudFormationTags(tags []*cloudformation.Tag) map[string]string {

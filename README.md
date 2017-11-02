@@ -21,6 +21,19 @@ This information is used to manage AWS resources for each ingress objects of the
 - Automatic forwarding of requests to all Worker Nodes, even with auto scaling
 - Automatic cleanup of unnecessary managed resources
 
+## Upgrade
+
+### <v0.4.0 to >=v0.4.0
+
+In versions <v.04.0 we used AWS Tags that were set by CloudFormation automatically to find
+some AWS resources.
+This behavior we changed to the Kubernetes
+
+In order to update to v0.4.0, you have to add the following tags to your AWs Loadbalancer
+SecurityGroup before updating:
+- "kubernetes:application"="kube-ingress-aws-controller"
+- "kubernetes.io/cluster/<clusterid>"="owned"
+
 ## Development Status
 
 This controller is a work in progress, under active development. It aims to be out-of-the-box useful for anyone

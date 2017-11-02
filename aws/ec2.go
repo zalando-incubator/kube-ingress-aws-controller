@@ -11,6 +11,7 @@ import (
 
 const (
 	defaultClusterID        = "unknown-cluster"
+	clusterIDTag            = "ClusterID" // TODO(sszuecs): deprecated fallback cleanup
 	clusterIDTagPrefix      = "kubernetes.io/cluster/"
 	resourceLifecycleOwned  = "owned"
 	autoScalingGroupNameTag = "aws:autoscaling:groupName"
@@ -238,13 +239,13 @@ func findSecurityGroupWithClusterID(svc ec2iface.EC2API, clusterID string) (*sec
 			{
 				Name: aws.String("tag-key"),
 				Values: []*string{
-					aws.String("aws:cloudformation:logical-id"),
+					aws.String("kubernetes:application"),
 				},
 			},
 			{
 				Name: aws.String("tag-value"),
 				Values: []*string{
-					aws.String("IngressLoadBalancerSecurityGroup"),
+					aws.String("kube-ingress-aws-controller"),
 				},
 			},
 		},
