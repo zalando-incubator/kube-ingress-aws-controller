@@ -3,7 +3,9 @@
 This document describes the prerequisites for deploying the Kubernetes Ingress Controller on AWS.
 The following is needed:
 
-- an additional security group to allow traffic from the internet to the load balancers. This can be done by using the following cloud formation stack which needs to have the same name of the autoscaling group used for the nodes:
+- an additional security group to allow traffic from the internet to
+the load balancers. This can be done by using the following cloud
+formation stack which needs to have the same ClusterID as the EC2 instances:
 ```
 Resources:
   IngressLoadBalancerSecurityGroup:
@@ -15,11 +17,13 @@ Resources:
       - {CidrIp: 0.0.0.0/0, FromPort: 443, IpProtocol: tcp, ToPort: 443}
       VpcId: "$VPC_ID"
       Tags:
-        - Key: "ClusterID"
-          Value: "$CLUSTER_ID"
+        - Key: "kubernetes.io/cluster/$ClusterID"
+          Value: "owned"
+        - Key: "kubernetes:application"
+          Value: "kube-ingress-aws-controller"
 ```
 
-- Make the port used by `skipper` (in this example, port `9999`) accessible from the IP range of the VPC to allow health checking from the AWS Application Load Balancer (ALB).
+- Make the port used by your chosen ingress proxy (in this example `skipper`, port `9999`) accessible from the IP range of the VPC to allow health checking from the AWS Application Load Balancer (ALB).
 
 Please also note that the worker nodes will need the right permission to describe autoscaling groups, create load balancers and so on. The full list of required AWS IAM roles is the following:
 
