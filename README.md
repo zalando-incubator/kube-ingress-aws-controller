@@ -21,6 +21,23 @@ This information is used to manage AWS resources for each ingress objects of the
 - Automatic forwarding of requests to all Worker Nodes, even with auto scaling
 - Automatic cleanup of unnecessary managed resources
 
+## Upgrade
+
+### <v0.4.0 to >=v0.4.0
+
+In versions before v.04.0 we used AWS Tags that were set by CloudFormation automatically to find
+some AWS resources.
+This behavior has been changed to use custom non cloudformation tags.
+
+In order to update to v0.4.0, you have to add the following tags to your AWs Loadbalancer
+SecurityGroup before updating:
+- `kubernetes:application=kube-ingress-aws-controller`
+- `kubernetes.io/cluster/<cluster-id>=owned`
+
+Additionally you must ensure that the instance where the ingress-controller is
+running has the clusterID tag `kubernetes.io/cluster/<cluster-id>=owned` set
+(was `ClusterID=<cluster-id>` before v0.4.0).
+
 ## Development Status
 
 This controller is a work in progress, under active development. It aims to be out-of-the-box useful for anyone
@@ -64,8 +81,8 @@ On startup, the controller discovers the AWS resources required for the controll
 
 2. The Security Group
 
-    Lookup of the "Name" tag of the Security Group matching the stack for the controller node and the
-    tag `aws:cloudformation:logical-id` matching the value `IngressLoadBalancerSecurityGroup`
+    Lookup of the `kubernetes.io/cluster/<cluster-id>` tag of the Security Group matching the clusterID for the controller node and `kubernetes:application` matching the value `kube-ingress-aws-controller` or as fallback for <v0.4.0
+    tag `aws:cloudformation:logical-id` matching the value `IngressLoadBalancerSecurityGroup` (only clusters created by CF).
 
 ### Creating Load Balancers
 
@@ -143,7 +160,7 @@ from other load balancers. The tag looks like this:
 
     `kubernetes:application` = `kube-ingress-aws-controller`
 
-They also share the `ClusterID` tag with other resources from the same CloudFormation stack.
+They also share the `kubernetes.io/cluster/<cluster-id>` tag with other resources from the cluster where it belongs.
 
 ### Deleting load balancers
 

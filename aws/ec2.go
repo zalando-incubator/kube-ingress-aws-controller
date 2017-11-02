@@ -10,8 +10,12 @@ import (
 )
 
 const (
-	defaultInstanceName     = "unknown-instance"
 	defaultClusterID        = "unknown-cluster"
+	clusterIDTag            = "ClusterID" // TODO(sszuecs): deprecated fallback cleanup
+	clusterIDTagPrefix      = "kubernetes.io/cluster/"
+	resourceLifecycleOwned  = "owned"
+	kubernetesCreatorTag    = "kubernetes:application"
+	kubernetesCreatorValue  = "kube-ingress-aws-controller"
 	autoScalingGroupNameTag = "aws:autoscaling:groupName"
 	runningState            = 16 // See https://github.com/aws/aws-sdk-go/blob/master/service/ec2/api.go, type InstanceState
 )
@@ -27,16 +31,11 @@ type instanceDetails struct {
 	tags  map[string]string
 }
 
-func (id *instanceDetails) name() string {
-	if n, err := getNameTag(id.tags); err == nil {
-		return n
-	}
-	return defaultInstanceName
-}
-
 func (id *instanceDetails) clusterID() string {
-	if clusterID, err := getTag(id.tags, clusterIDTag); err == nil {
-		return clusterID
+	for name, value := range id.tags {
+		if strings.HasPrefix(name, clusterIDTagPrefix) && value == resourceLifecycleOwned {
+			return strings.TrimPrefix(name, clusterIDTagPrefix)
+		}
 	}
 	return defaultClusterID
 }
@@ -224,31 +223,31 @@ func isSubnetPublic(rt []*ec2.RouteTable, subnetID string) (bool, error) {
 	return false, nil
 }
 
-func findSecurityGroupWithNameTag(svc ec2iface.EC2API, nameTag string) (*securityGroupDetails, error) {
+func findSecurityGroupWithClusterID(svc ec2iface.EC2API, clusterID string) (*securityGroupDetails, error) {
 	params := &ec2.DescribeSecurityGroupsInput{
 		Filters: []*ec2.Filter{
 			{
 				Name: aws.String("tag-key"),
 				Values: []*string{
-					aws.String("Name"),
+					aws.String(clusterIDTagPrefix + clusterID),
 				},
 			},
 			{
 				Name: aws.String("tag-value"),
 				Values: []*string{
-					aws.String(nameTag),
+					aws.String(resourceLifecycleOwned),
 				},
 			},
 			{
 				Name: aws.String("tag-key"),
 				Values: []*string{
-					aws.String("aws:cloudformation:logical-id"),
+					aws.String(kubernetesCreatorTag),
 				},
 			},
 			{
 				Name: aws.String("tag-value"),
 				Values: []*string{
-					aws.String("IngressLoadBalancerSecurityGroup"),
+					aws.String(kubernetesCreatorValue),
 				},
 			},
 		},

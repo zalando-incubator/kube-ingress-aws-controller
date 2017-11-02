@@ -63,12 +63,9 @@ const (
 	DefaultCreationTimeout           = 5 * time.Minute
 	DefaultStackTTL                  = 5 * time.Minute
 
-	clusterIDTag = "ClusterID"
-	nameTag      = "Name"
+	nameTag = "Name"
 
-	kubernetesCreatorTag   = "kubernetes:application"
-	kubernetesCreatorValue = "kube-ingress-aws-controller"
-	certificateARNTag      = "ingress:certificate-arn"
+	certificateARNTag = "ingress:certificate-arn"
 )
 
 var (
@@ -327,9 +324,9 @@ func buildManifest(awsAdapter *Adapter) (*manifest, error) {
 		return nil, err
 	}
 
-	stackName := instanceDetails.name()
+	clusterID := instanceDetails.clusterID()
 
-	securityGroupDetails, err := findSecurityGroupWithNameTag(awsAdapter.ec2, stackName)
+	securityGroupDetails, err := findSecurityGroupWithClusterID(awsAdapter.ec2, clusterID)
 	if err != nil {
 		return nil, err
 	}

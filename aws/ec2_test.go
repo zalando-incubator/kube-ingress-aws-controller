@@ -51,7 +51,7 @@ func TestFindingSecurityGroup(t *testing.T) {
 	} {
 		t.Run(fmt.Sprintf("%v", test.name), func(t *testing.T) {
 			ec2 := &mockEc2Client{outputs: test.responses}
-			got, err := findSecurityGroupWithNameTag(ec2, "foo")
+			got, err := findSecurityGroupWithClusterID(ec2, "foo")
 			assertResultAndError(t, test.want, got, test.wantError, err)
 		})
 	}
@@ -60,46 +60,37 @@ func TestFindingSecurityGroup(t *testing.T) {
 func TestInstanceDetails(t *testing.T) {
 	for _, test := range []struct {
 		given         instanceDetails
-		wantName      string
 		wantClusterID string
 	}{
 		{
 			given: instanceDetails{id: "this-should-be-fine", vpcID: "bar", tags: map[string]string{
-				nameTag:      "baz",
-				clusterIDTag: "zbr",
+				nameTag:                    "baz",
+				clusterIDTagPrefix + "zbr": resourceLifecycleOwned,
 			}},
-			wantName:      "baz",
 			wantClusterID: "zbr",
 		},
 		{
 			given: instanceDetails{id: "missing-name-tag", vpcID: "bar", tags: map[string]string{
-				clusterIDTag: "zbr",
+				clusterIDTagPrefix + "zbr": resourceLifecycleOwned,
 			}},
-			wantName:      defaultInstanceName,
 			wantClusterID: "zbr",
 		},
 		{
 			given: instanceDetails{id: "missing-cluster-id-tag", vpcID: "bar", tags: map[string]string{
 				nameTag: "baz",
 			}},
-			wantName:      "baz",
 			wantClusterID: defaultClusterID,
 		},
 		{
 			given:         instanceDetails{id: "missing-mgmt-tags", vpcID: "bar", tags: map[string]string{}},
-			wantName:      defaultInstanceName,
 			wantClusterID: defaultClusterID,
 		},
 		{
 			given:         instanceDetails{id: "nil-mgmt-tags", vpcID: "bar"},
-			wantName:      defaultInstanceName,
 			wantClusterID: defaultClusterID,
 		},
 	} {
 		t.Run(fmt.Sprintf("%v", test.given.id), func(t *testing.T) {
-			if test.given.name() != test.wantName {
-				t.Errorf("unexpected instance name. wanted %q, got %q", test.wantName, test.given.name())
-			}
 			if test.given.clusterID() != test.wantClusterID {
 				t.Errorf("unexpected cluster ID. wanted %q, got %q", test.wantClusterID, test.given.clusterID())
 			}

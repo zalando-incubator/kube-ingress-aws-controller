@@ -153,7 +153,7 @@ func createStack(svc cloudformationiface.CloudFormationAPI, spec *stackSpec) (st
 		},
 		Tags: []*cloudformation.Tag{
 			cfTag(kubernetesCreatorTag, kubernetesCreatorValue),
-			cfTag(clusterIDTag, spec.clusterID),
+			cfTag(clusterIDTagPrefix+spec.clusterID, resourceLifecycleOwned),
 		},
 		TemplateBody:     aws.String(template),
 		TimeoutInMinutes: aws.Int64(int64(spec.timeoutInMinutes)),
@@ -192,7 +192,7 @@ func updateStack(svc cloudformationiface.CloudFormationAPI, spec *stackSpec) (st
 		},
 		Tags: []*cloudformation.Tag{
 			cfTag(kubernetesCreatorTag, kubernetesCreatorValue),
-			cfTag(clusterIDTag, spec.clusterID),
+			cfTag(clusterIDTagPrefix+spec.clusterID, resourceLifecycleOwned),
 		},
 		TemplateBody: aws.String(template),
 	}
@@ -338,10 +338,8 @@ func isManagedStack(cfTags []*cloudformation.Tag, clusterID string) bool {
 	if tags[kubernetesCreatorTag] != kubernetesCreatorValue {
 		return false
 	}
-	if tags[clusterIDTag] != clusterID {
-		return false
-	}
-	return true
+	// TODO(sszuecs): remove 2nd condition, only for migration
+	return tags[clusterIDTagPrefix+clusterID] == resourceLifecycleOwned || tags[clusterIDTag] == clusterID
 }
 
 func convertCloudFormationTags(tags []*cloudformation.Tag) map[string]string {
