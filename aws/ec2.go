@@ -10,14 +10,15 @@ import (
 )
 
 const (
-	defaultClusterID        = "unknown-cluster"
-	clusterIDTag            = "ClusterID" // TODO(sszuecs): deprecated fallback cleanup
-	clusterIDTagPrefix      = "kubernetes.io/cluster/"
-	resourceLifecycleOwned  = "owned"
-	kubernetesCreatorTag    = "kubernetes:application"
-	kubernetesCreatorValue  = "kube-ingress-aws-controller"
-	autoScalingGroupNameTag = "aws:autoscaling:groupName"
-	runningState            = 16 // See https://github.com/aws/aws-sdk-go/blob/master/service/ec2/api.go, type InstanceState
+	defaultClusterID           = "unknown-cluster"
+	kubernetesClusterLegacyTag = "KubernetesCluster"
+	clusterIDTag               = "ClusterID" // TODO(sszuecs): deprecated fallback cleanup
+	clusterIDTagPrefix         = "kubernetes.io/cluster/"
+	resourceLifecycleOwned     = "owned"
+	kubernetesCreatorTag       = "kubernetes:application"
+	kubernetesCreatorValue     = "kube-ingress-aws-controller"
+	autoScalingGroupNameTag    = "aws:autoscaling:groupName"
+	runningState               = 16 // See https://github.com/aws/aws-sdk-go/blob/master/service/ec2/api.go, type InstanceState
 )
 
 type securityGroupDetails struct {
@@ -35,6 +36,11 @@ func (id *instanceDetails) clusterID() string {
 	for name, value := range id.tags {
 		if strings.HasPrefix(name, clusterIDTagPrefix) && value == resourceLifecycleOwned {
 			return strings.TrimPrefix(name, clusterIDTagPrefix)
+		}
+	}
+	for name, value := range id.tags {
+		if name == kubernetesClusterLegacyTag {
+			return value
 		}
 	}
 	return defaultClusterID

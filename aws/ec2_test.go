@@ -70,6 +70,21 @@ func TestInstanceDetails(t *testing.T) {
 			wantClusterID: "zbr",
 		},
 		{
+			given: instanceDetails{id: "this-should-be-fine-legacy", vpcID: "bar", tags: map[string]string{
+				nameTag:                    "baz",
+				kubernetesClusterLegacyTag: "zbr",
+			}},
+			wantClusterID: "zbr",
+		},
+		{
+			given: instanceDetails{id: "this-should-be-fine-new-plus-legacy", vpcID: "bar", tags: map[string]string{
+				nameTag:                    "foo",
+				kubernetesClusterLegacyTag: "bar",
+				clusterIDTagPrefix + "baz": resourceLifecycleOwned,
+			}},
+			wantClusterID: "baz",
+		},
+		{
 			given: instanceDetails{id: "missing-name-tag", vpcID: "bar", tags: map[string]string{
 				clusterIDTagPrefix + "zbr": resourceLifecycleOwned,
 			}},
