@@ -1,8 +1,5 @@
 # Deploy
 
-If you use [Kops](https://github.com/kubernetes/kops) to create your
-cluster, please use our [deployment guide for Kops](kops.md)
-
 ## Requirements
 
 * You have a running Kubernetes Cluster on AWS.
@@ -17,12 +14,15 @@ cluster, please use our [deployment guide for Kops](kops.md)
 
 ## Install
 
-    % cd deploy
-    # install the ingress implementation
-    % kubectl create -f skipper.yaml
+    # install skipper an ingress http router
+    % kubectl create -f deploy/skipper.yaml
     # install the controller which glues together AWS and the ingress implementation
-    % kubectl create -f ingress-controller.yaml
+    % kubectl create -f deploy/ingress-controller.yaml
 
 If you have done this, you can use our
 [example](https://github.com/zalando-incubator/kube-ingress-aws-controller/tree/master/example)
 to test the integration.
+
+## Test deployment
+
+To test base and advanced features, please follow [this guide](deploy/test-deployment.md).
