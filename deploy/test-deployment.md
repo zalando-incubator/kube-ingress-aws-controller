@@ -2,7 +2,7 @@
 
 For this page we assume you have a running Kubernetes cluster with a
 running kube-ingress-aws-controller and skipper deployed.
-If not please read our [deployment readme](deploy/README.md)
+If not please read our [deployment readme](README.md)
 
 ## Base features
 

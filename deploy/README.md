@@ -21,8 +21,8 @@
 
 If you have done this, you can use our
 [example](https://github.com/zalando-incubator/kube-ingress-aws-controller/tree/master/example)
-to test the integration.
+to test the integration and see our [test deployment for advanced features](test-deployment.md).
 
 ## Test deployment
 
-To test base and advanced features, please follow [this guide](deploy/test-deployment.md).
+To test base and advanced features, please follow [this guide](test-deployment.md).

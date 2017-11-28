@@ -20,7 +20,7 @@ This information is used to manage AWS resources for each ingress objects of the
 - Automatic discovery of SSL certificates
 - Automatic forwarding of requests to all Worker Nodes, even with auto scaling
 - Automatic cleanup of unnecessary managed resources
-- Can be used in clusters created by [Kops](https://github.com/kubernetes/kops), see our [deployment guide for Kops](deployment/kops.md)
+- Can be used in clusters created by [Kops](https://github.com/kubernetes/kops), see our [deployment guide for Kops](deploy/kops.md)
 
 ## Upgrade
 
@@ -45,7 +45,7 @@ This controller is used in production since Q1 2017. It aims to be out-of-the-bo
 running Kubernetes. Jump down to the [Quickstart](#trying-it-out) to try it out—and please let us know if you have
 trouble getting it running by filing an
 [Issue](https://github.com/zalando-incubator/kube-ingress-aws-controller/issues).
-If you created your cluster with [Kops](https://github.com/kubernetes/kops), see our [deployment guide for Kops](deployment/kops.md)
+If you created your cluster with [Kops](https://github.com/kubernetes/kops), see our [deployment guide for Kops](deploy/kops.md)
 
 As of this writing, it's being used only in small production use cases at [Zalando](https://tech.zalando.com/), and
 is not yet battle-tested. We're actively seeking devs/teams/companies to try it out and share feedback so we can
@@ -201,7 +201,7 @@ built from this codebase. You can deploy it with 2 easy steps:
 - Use kubectl to execute the command  `kubectl apply -f deploy/ingress-controller.yaml`
 
 If you use [Kops](https://github.com/kubernetes/kops) to create your
-cluster, please use our [deployment guide for Kops](kops.md)
+cluster, please use our [deployment guide for Kops](deploy/kops.md)
 
 ## Trying it out
 
