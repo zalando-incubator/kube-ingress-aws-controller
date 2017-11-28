@@ -20,6 +20,7 @@ This information is used to manage AWS resources for each ingress objects of the
 - Automatic discovery of SSL certificates
 - Automatic forwarding of requests to all Worker Nodes, even with auto scaling
 - Automatic cleanup of unnecessary managed resources
+- Can be used in clusters created by [Kops](https://github.com/kubernetes/kops), see our [deployment guide for Kops](deployment/kops.md)
 
 ## Upgrade
 
@@ -40,15 +41,17 @@ running has the clusterID tag `kubernetes.io/cluster/<cluster-id>=owned` set
 
 ## Development Status
 
-This controller is a work in progress, under active development. It aims to be out-of-the-box useful for anyone
+This controller is used in production since Q1 2017. It aims to be out-of-the-box useful for anyone
 running Kubernetes. Jump down to the [Quickstart](#trying-it-out) to try it out—and please let us know if you have
-trouble getting it running by filing an [Issue](https://github.com/zalando-incubator/kube-ingress-aws-controller/issues).
+trouble getting it running by filing an
+[Issue](https://github.com/zalando-incubator/kube-ingress-aws-controller/issues).
+If you created your cluster with [Kops](https://github.com/kubernetes/kops), see our [deployment guide for Kops](deployment/kops.md)
 
 As of this writing, it's being used only in small production use cases at [Zalando](https://tech.zalando.com/), and
 is not yet battle-tested. We're actively seeking devs/teams/companies to try it out and share feedback so we can
 make improvements.
 
-We are also eager to bring new contributors on board. See [our contributor guidelines](https://github.com/zalando-incubator/kube-ingress-aws-controller/blob/master/CONTRIBUTING.md)
+We are also eager to bring new contributors on board. See [our contributor guidelines](CONTRIBUTING.md)
 to get started, or [claim a "Help Wanted" item](https://github.com/zalando-incubator/kube-ingress-aws-controller/issues?q=is%3Aissue+is%3Aopen+label%3A%22help+wanted%22).
 
 ## Why We Created This Ingress Controller
@@ -56,8 +59,11 @@ to get started, or [claim a "Help Wanted" item](https://github.com/zalando-incub
 The maintainers of this project are building an infrastructure that runs [Kubernetes on top of AWS](https://github.com/zalando-incubator/kubernetes-on-aws) at large scale (for nearly 200 delivery teams), and with automation. As such, we're creating our own tooling to support this new infrastructure. We couldn't find an existing ingress controller that operates like this one does, so we created one ourselves.
 
 We're using this ingress controller with [Skipper](http://github.com/zalando/skipper), an HTTP router that Zalando
-has used in production for more than a year as part of its front-end microservices architecture. Skipper's also open
-source. Feel free to use it, or use another ingress of your choosing.
+has used in production since Q4 2015 as part of its front-end microservices architecture. Skipper's also open
+source and has some outstanding features, that we
+[documented here](https://zalando.github.io/skipper/dataclients/kubernetes/). Feel
+free to use it, or use another ingress of your choosing.
+
 
 ## How It Works
 
@@ -185,13 +191,17 @@ registry of your choice.
 
 ## Deploy
 
-To deploy the ingress controller, use the [example YAML](deploy/ingress-controller.yaml) as the descriptor. You can
-customize the image used in the example YAML file.
+To [deploy](deploy/README.md) the ingress controller, use the
+[example YAML](deploy/ingress-controller.yaml) as the descriptor.
+You can customize the image used in the example YAML file.
 
 We provide `registry.opensource.zalan.do/teapot/kube-ingress-aws-controller:latest` as a publicly usable Docker image
 built from this codebase. You can deploy it with 2 easy steps:
 - Replace the placeholder for your region inside the example YAML, for ex., `eu-west-1`
 - Use kubectl to execute the command  `kubectl apply -f deploy/ingress-controller.yaml`
+
+If you use [Kops](https://github.com/kubernetes/kops) to create your
+cluster, please use our [deployment guide for Kops](kops.md)
 
 ## Trying it out
 
@@ -219,11 +229,16 @@ though.
 ## Contributing
 
 We welcome your contributions, ideas and bug reports via issues and pull requests;
-[here are those Contributor guidelines again](https://github.com/zalando-incubator/kube-ingress-aws-controller/blob/master/CONTRIBUTING.md).
+[here are those Contributor guidelines again](CONTRIBUTING.md).
 
 ## Contact
 
 Check our [MAINTAINERS file](MAINTAINERS) for email addresses.
+
+## Security
+
+We welcome your security reports please checkout our
+[SECURITY.md](SECURITY.md).
 
 ## License
 

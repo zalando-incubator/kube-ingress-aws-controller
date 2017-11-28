@@ -1,5 +1,8 @@
 # Deploy
 
+If you use [Kops](https://github.com/kubernetes/kops) to create your
+cluster, please use our [deployment guide for Kops](kops.md)
+
 ## Requirements
 
 * You have a running Kubernetes Cluster on AWS.
