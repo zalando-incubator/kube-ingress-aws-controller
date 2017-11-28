@@ -4,38 +4,37 @@ metadata:
   name: skipper-ingress
   namespace: kube-system
   labels:
-    application: skipper-ingress
     component: ingress
-  annotations:
-    daemonset.kubernetes.io/strategyType: RollingUpdate
-    daemonset.kubernetes.io/maxUnavailable: "1"
 spec:
   selector:
     matchLabels:
       application: skipper-ingress
+  updateStrategy:
+    type: RollingUpdate
   template:
     metadata:
       name: skipper-ingress
       labels:
-        application: skipper-ingress
         component: ingress
-    spec:
       hostNetwork: true
       containers:
       - name: skipper-ingress
-        image: registry.opensource.zalan.do/teapot/skipper:latest
+        image: registry.opensource.zalan.do/pathfinder/skipper:latest
         ports:
         - name: ingress-port
           containerPort: 9999
           hostPort: 9999
         args:
           - "skipper"
-          - "-application-log-level=DEBUG"
           - "-kubernetes"
           - "-kubernetes-in-cluster"
           - "-address=:9999"
           - "-proxy-preserve-host"
           - "-serve-host-metrics"
+          - "-enable-ratelimits"
+          - "-experimental-upgrade"
+          - "-metrics-exp-decay-sample"
+          - "-kubernetes-https-redirect=true"
         resources:
           limits:
             cpu: 200m
@@ -43,3 +42,9 @@ spec:
           requests:
             cpu: 25m
             memory: 25Mi
+        readinessProbe:
+          httpGet:
+            path: /kube-system/healthz
+            port: 9999
+          initialDelaySeconds: 5
+          timeoutSeconds: 5
