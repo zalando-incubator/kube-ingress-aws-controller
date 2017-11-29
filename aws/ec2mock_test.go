@@ -85,6 +85,7 @@ type testSubnet struct {
 	id   string
 	az   string
 	name string
+	tags map[string]string
 }
 
 func mockDSOutput(mockedSubnets ...testSubnet) *ec2.DescribeSubnetsOutput {
@@ -96,6 +97,9 @@ func mockDSOutput(mockedSubnets ...testSubnet) *ec2.DescribeSubnetsOutput {
 			Tags: []*ec2.Tag{
 				{Key: aws.String(nameTag), Value: aws.String(subnet.name)},
 			},
+		}
+		for k, v := range subnet.tags {
+			s.Tags = append(s.Tags, &ec2.Tag{Key: aws.String(k), Value: aws.String(v)})
 		}
 		subnets = append(subnets, s)
 	}
