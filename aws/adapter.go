@@ -340,6 +340,23 @@ func buildManifest(awsAdapter *Adapter) (*manifest, error) {
 	}
 
 	var (
+		elbRole []*subnetDetails
+	)
+
+	// Filter for subnets declaring the ELB role.
+	for _, subnet := range subnets {
+		if subnet.elbRole {
+			elbRole = append(elbRole, subnet)
+		}
+	}
+
+	// If there's at least one subnet declaring the ELB role, use only the tagged subnets.
+	// Otherwise use all found subnets.
+	if len(elbRole) > 0 {
+		subnets = elbRole
+	}
+
+	var (
 		priv []*subnetDetails
 		pub  []*subnetDetails
 	)

@@ -19,6 +19,8 @@ const (
 	kubernetesCreatorValue     = "kube-ingress-aws-controller"
 	autoScalingGroupNameTag    = "aws:autoscaling:groupName"
 	runningState               = 16 // See https://github.com/aws/aws-sdk-go/blob/master/service/ec2/api.go, type InstanceState
+	elbRoleTagName             = "kubernetes.io/role/elb"
+	internalELBRoleTagName     = "kubernetes.io/role/internal-elb"
 )
 
 type securityGroupDetails struct {
@@ -51,10 +53,11 @@ type subnetDetails struct {
 	availabilityZone string
 	tags             map[string]string
 	public           bool
+	elbRole          bool
 }
 
 func (sd *subnetDetails) String() string {
-	return fmt.Sprintf("%s (%s) @ %s", sd.Name(), sd.id, sd.availabilityZone)
+	return fmt.Sprintf("%s (%s) @ %s (public: %t, elb: %t)", sd.Name(), sd.id, sd.availabilityZone, sd.public, sd.elbRole)
 }
 
 func (sd *subnetDetails) Name() string {
@@ -147,11 +150,13 @@ func getSubnets(svc ec2iface.EC2API, vpcID string) ([]*subnetDetails, error) {
 		if err != nil {
 			return nil, err
 		}
+		tags := convertEc2Tags(sn.Tags)
 		ret[i] = &subnetDetails{
 			id:               subnetID,
 			availabilityZone: az,
 			public:           isPublic,
-			tags:             convertEc2Tags(sn.Tags),
+			tags:             tags,
+			elbRole:          isELBSubnet(tags),
 		}
 	}
 	return ret, nil
@@ -227,6 +232,13 @@ func isSubnetPublic(rt []*ec2.RouteTable, subnetID string) (bool, error) {
 	}
 
 	return false, nil
+}
+
+// Returns true if the subnet tags indicate an ELB role.
+func isELBSubnet(tags map[string]string) bool {
+	_, external := tags[elbRoleTagName]
+	_, internal := tags[internalELBRoleTagName]
+	return external || internal
 }
 
 func findSecurityGroupWithClusterID(svc ec2iface.EC2API, clusterID string) (*securityGroupDetails, error) {
