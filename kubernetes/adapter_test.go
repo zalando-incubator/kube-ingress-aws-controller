@@ -48,6 +48,9 @@ func TestMappingRoundtrip(t *testing.T) {
 	if got.CertificateARN() != kubeIngress.Metadata.Annotations[ingressCertificateARNAnnotation] {
 		t.Error("wrong value from CertificateARN()")
 	}
+	if got.Scheme() != kubeIngress.Metadata.Annotations[ingressSchemeAnnotation] {
+		t.Error("wrong value from Scheme()")
+	}
 	if got.Hostname() != kubeIngress.Status.LoadBalancer.Ingress[1].Hostname {
 		t.Error("wrong value from Hostname()")
 	}
