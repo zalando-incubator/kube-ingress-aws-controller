@@ -125,7 +125,6 @@ metadata:
   name: myingress
   annotations:
     zalando.org/aws-load-balancer-ssl-cert-domain: alt.name.org
-    zalando.org/aws-load-balancer-scheme: internal
 spec:
   rules:
   - host: test-app.example.org
@@ -162,7 +161,7 @@ spec:
           servicePort: main-port
 ```
 
-You can select the [Application Load Balancer Scheme ](http://docs.aws.amazon.com/elasticloadbalancing/latest/userguide/how-elastic-load-balancing-works.html#load-balancer-scheme)
+You can select the [Application Load Balancer Scheme](http://docs.aws.amazon.com/elasticloadbalancing/latest/userguide/how-elastic-load-balancing-works.html#load-balancer-scheme)
 with an annotation like the one shown here:
 
 ```yaml
@@ -182,7 +181,7 @@ spec:
           servicePort: main-port
 ```
 
-You can only select from internet-facing (default) and internal options.
+You can only select from `internet-facing` (default) and `internal` options.
 
 The new Application Load Balancers have a custom tag marking them as *managed* load balancers to differentiate them
 from other load balancers. The tag looks like this:
