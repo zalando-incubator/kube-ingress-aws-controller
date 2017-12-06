@@ -79,7 +79,7 @@ func (i *Ingress) SetScheme(scheme string) {
 }
 
 func newIngressFromKube(kubeIngress *ingress) *Ingress {
-	var host, certHostname string
+	var host, certHostname, scheme string
 	for _, ingressLoadBalancer := range kubeIngress.Status.LoadBalancer.Ingress {
 		if ingressLoadBalancer.Hostname != "" {
 			host = ingressLoadBalancer.Hostname
@@ -94,6 +94,14 @@ func newIngressFromKube(kubeIngress *ingress) *Ingress {
 		}
 	}
 
+	// Set schema to default if annotation value is not valid
+	switch kubeIngress.getAnnotationsString(ingressSchemeAnnotation, "") {
+		case elbv2.LoadBalancerSchemeEnumInternal:
+			scheme = elbv2.LoadBalancerSchemeEnumInternal
+		default:
+			scheme = elbv2.LoadBalancerSchemeEnumInternetFacing
+	}
+
 	certDomain := kubeIngress.getAnnotationsString(ingressCertificateDomainAnnotation, "")
 	if certDomain != "" {
 		certHostname = certDomain
@@ -104,7 +112,7 @@ func newIngressFromKube(kubeIngress *ingress) *Ingress {
 		namespace:      kubeIngress.Metadata.Namespace,
 		name:           kubeIngress.Metadata.Name,
 		hostName:       host,
-		scheme:         kubeIngress.getAnnotationsString(ingressSchemeAnnotation, elbv2.LoadBalancerSchemeEnumInternetFacing),
+		scheme:         scheme,
 		certHostname:   certHostname,
 	}
 }
