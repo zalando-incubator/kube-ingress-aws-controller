@@ -63,6 +63,7 @@ const (
 	ingressPatchStatusResource         = "/apis/extensions/v1beta1/namespaces/%s/ingresses/%s/status"
 	ingressCertificateARNAnnotation    = "zalando.org/aws-load-balancer-ssl-cert"
 	ingressCertificateDomainAnnotation = "zalando.org/aws-load-balancer-ssl-cert-domain"
+	ingressSchemeAnnotation            = "zalando.org/aws-load-balancer-scheme"
 )
 
 func (i *ingress) getAnnotationsString(key string, defaultValue string) string {

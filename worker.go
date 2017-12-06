@@ -206,9 +206,10 @@ func checkCertificate(certsProvider certs.CertificatesProvider, arn string) erro
 
 func createStack(awsAdapter *aws.Adapter, item *managedItem) {
 	certificateARN := item.ingresses[0].CertificateARN()
-	log.Printf("creating stack for certificate %q / ingress %q", certificateARN, item.ingresses)
+	scheme := item.ingresses[0].Scheme()
+	log.Printf("creating %q stack for certificate %q / ingress %q", scheme, certificateARN, item.ingresses)
 
-	stackId, err := awsAdapter.CreateStack(certificateARN)
+	stackId, err := awsAdapter.CreateStack(certificateARN,scheme)
 	if err != nil {
 		if isAlreadyExistsError(err) {
 			item.stack, err = awsAdapter.GetStack(stackId)
@@ -224,9 +225,10 @@ func createStack(awsAdapter *aws.Adapter, item *managedItem) {
 
 func updateStack(awsAdapter *aws.Adapter, item *managedItem) {
 	certificateARN := item.ingresses[0].CertificateARN()
-	log.Printf("updating stack for certificate %q / ingress %q", certificateARN, item.ingresses)
+	scheme := item.ingresses[0].Scheme()
+	log.Printf("updating %q stack for certificate %q / ingress %q", scheme, certificateARN, item.ingresses)
 
-	stackId, err := awsAdapter.UpdateStack(certificateARN)
+	stackId, err := awsAdapter.UpdateStack(certificateARN,scheme)
 	if isNoUpdatesToBePerformedError(err) {
 		log.Printf("stack(%q) is already up to date", certificateARN)
 	} else if err != nil {

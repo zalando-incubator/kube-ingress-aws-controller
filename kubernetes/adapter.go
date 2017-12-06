@@ -35,6 +35,7 @@ type Ingress struct {
 	namespace      string
 	name           string
 	hostName       string
+	scheme         string
 	certHostname   string
 }
 
@@ -55,6 +56,11 @@ func (i *Ingress) Hostname() string {
 	return i.hostName
 }
 
+// Scheme returns the scheme associated with the ingress
+func (i *Ingress) Scheme() string {
+       return i.scheme
+}
+
 // CertHostname returns the DNS hostname associated with the ingress
 // gotten from Kubernetes Spec
 func (i *Ingress) CertHostname() string {
@@ -64,6 +70,11 @@ func (i *Ingress) CertHostname() string {
 // SetCertificateARN sets Ingress.certificateARN to the arn as specified.
 func (i *Ingress) SetCertificateARN(arn string) {
 	i.certificateARN = arn
+}
+
+// SetScheme sets Ingress.scheme to the scheme as specified.
+func (i *Ingress) SetScheme(scheme string) {
+       i.scheme = scheme
 }
 
 func newIngressFromKube(kubeIngress *ingress) *Ingress {
@@ -92,6 +103,7 @@ func newIngressFromKube(kubeIngress *ingress) *Ingress {
 		namespace:      kubeIngress.Metadata.Namespace,
 		name:           kubeIngress.Metadata.Name,
 		hostName:       host,
+		scheme:         kubeIngress.getAnnotationsString(ingressSchemeAnnotation, "internet-facing"),
 		certHostname:   certHostname,
 	}
 }
@@ -103,6 +115,7 @@ func newIngressForKube(i *Ingress) *ingress {
 			Name:      i.name,
 			Annotations: map[string]interface{}{
 				ingressCertificateARNAnnotation: i.certificateARN,
+				ingressSchemeAnnotation: i.scheme,
 			},
 		},
 		Status: ingressStatus{
