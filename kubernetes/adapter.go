@@ -3,6 +3,7 @@ package kubernetes
 import (
 	"errors"
 	"fmt"
+        "github.com/aws/aws-sdk-go/service/elbv2"
 )
 
 type Adapter struct {
@@ -35,6 +36,7 @@ type Ingress struct {
 	namespace      string
 	name           string
 	hostName       string
+	scheme         string
 	certHostname   string
 }
 
@@ -55,6 +57,11 @@ func (i *Ingress) Hostname() string {
 	return i.hostName
 }
 
+// Scheme returns the scheme associated with the ingress
+func (i *Ingress) Scheme() string {
+       return i.scheme
+}
+
 // CertHostname returns the DNS hostname associated with the ingress
 // gotten from Kubernetes Spec
 func (i *Ingress) CertHostname() string {
@@ -66,8 +73,13 @@ func (i *Ingress) SetCertificateARN(arn string) {
 	i.certificateARN = arn
 }
 
+// SetScheme sets Ingress.scheme to the scheme as specified.
+func (i *Ingress) SetScheme(scheme string) {
+       i.scheme = scheme
+}
+
 func newIngressFromKube(kubeIngress *ingress) *Ingress {
-	var host, certHostname string
+	var host, certHostname, scheme string
 	for _, ingressLoadBalancer := range kubeIngress.Status.LoadBalancer.Ingress {
 		if ingressLoadBalancer.Hostname != "" {
 			host = ingressLoadBalancer.Hostname
@@ -82,6 +94,14 @@ func newIngressFromKube(kubeIngress *ingress) *Ingress {
 		}
 	}
 
+	// Set schema to default if annotation value is not valid
+	switch kubeIngress.getAnnotationsString(ingressSchemeAnnotation, "") {
+		case elbv2.LoadBalancerSchemeEnumInternal:
+			scheme = elbv2.LoadBalancerSchemeEnumInternal
+		default:
+			scheme = elbv2.LoadBalancerSchemeEnumInternetFacing
+	}
+
 	certDomain := kubeIngress.getAnnotationsString(ingressCertificateDomainAnnotation, "")
 	if certDomain != "" {
 		certHostname = certDomain
@@ -92,6 +112,7 @@ func newIngressFromKube(kubeIngress *ingress) *Ingress {
 		namespace:      kubeIngress.Metadata.Namespace,
 		name:           kubeIngress.Metadata.Name,
 		hostName:       host,
+		scheme:         scheme,
 		certHostname:   certHostname,
 	}
 }
@@ -103,6 +124,7 @@ func newIngressForKube(i *Ingress) *ingress {
 			Name:      i.name,
 			Annotations: map[string]interface{}{
 				ingressCertificateARNAnnotation: i.certificateARN,
+				ingressSchemeAnnotation: i.scheme,
 			},
 		},
 		Status: ingressStatus{

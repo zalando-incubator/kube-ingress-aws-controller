@@ -22,6 +22,7 @@ const (
 type Stack struct {
 	name           string
 	dnsName        string
+	scheme         string
 	targetGroupARN string
 	certificateARN string
 	tags           map[string]string
@@ -33,6 +34,10 @@ func (s *Stack) Name() string {
 
 func (s *Stack) DNSName() string {
 	return s.dnsName
+}
+
+func (s *Stack) Scheme() string {
+	return s.scheme
 }
 
 func (s *Stack) CertificateARN() string {
@@ -96,6 +101,10 @@ func newStackOutput(outputs []*cloudformation.Output) stackOutput {
 
 func (o stackOutput) dnsName() string {
 	return o[outputLoadBalancerDNSName]
+}
+
+func (o stackOutput) scheme() string {
+	return o[parameterLoadBalancerSchemeParameter]
 }
 
 func (o stackOutput) targetGroupARN() string {
@@ -292,6 +301,7 @@ func mapToManagedStack(stack *cloudformation.Stack) *Stack {
 	return &Stack{
 		name:           aws.StringValue(stack.StackName),
 		dnsName:        o.dnsName(),
+		scheme :        o.scheme(),
 		targetGroupARN: o.targetGroupARN(),
 		certificateARN: t[certificateARNTag],
 		tags:           convertCloudFormationTags(stack.Tags),

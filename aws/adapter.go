@@ -20,7 +20,6 @@ import (
 	"github.com/aws/aws-sdk-go/service/cloudformation/cloudformationiface"
 	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/aws/aws-sdk-go/service/ec2/ec2iface"
-	"github.com/aws/aws-sdk-go/service/elbv2"
 	"github.com/aws/aws-sdk-go/service/iam"
 	"github.com/aws/aws-sdk-go/service/iam/iamiface"
 	"github.com/linki/instrumented_http"
@@ -230,10 +229,10 @@ func (a *Adapter) FindManagedStacks() ([]*Stack, error) {
 // from the Cluster ID and the certificate ARN (when available).
 // All the required resources (listeners and target group) are created in a transactional fashion.
 // Failure to create the stack causes it to be deleted automatically.
-func (a *Adapter) CreateStack(certificateARN string) (string, error) {
+func (a *Adapter) CreateStack(certificateARN string, scheme string) (string, error) {
 	spec := &stackSpec{
 		name:            a.stackName(certificateARN),
-		scheme:          elbv2.LoadBalancerSchemeEnumInternetFacing,
+		scheme:          scheme,
 		certificateARN:  certificateARN,
 		securityGroupID: a.SecurityGroupID(),
 		subnets:         a.PublicSubnetIDs(),
@@ -250,10 +249,10 @@ func (a *Adapter) CreateStack(certificateARN string) (string, error) {
 	return createStack(a.cloudformation, spec)
 }
 
-func (a *Adapter) UpdateStack(certificateARN string) (string, error) {
+func (a *Adapter) UpdateStack(certificateARN string, scheme string) (string, error) {
 	spec := &stackSpec{
 		name:            a.stackName(certificateARN),
-		scheme:          elbv2.LoadBalancerSchemeEnumInternetFacing,
+		scheme:          scheme,
 		certificateARN:  certificateARN,
 		securityGroupID: a.SecurityGroupID(),
 		subnets:         a.PublicSubnetIDs(),
