@@ -3,6 +3,7 @@ package kubernetes
 import (
 	"errors"
 	"fmt"
+        "github.com/aws/aws-sdk-go/service/elbv2"
 )
 
 type Adapter struct {
@@ -103,7 +104,7 @@ func newIngressFromKube(kubeIngress *ingress) *Ingress {
 		namespace:      kubeIngress.Metadata.Namespace,
 		name:           kubeIngress.Metadata.Name,
 		hostName:       host,
-		scheme:         kubeIngress.getAnnotationsString(ingressSchemeAnnotation, "internet-facing"),
+		scheme:         kubeIngress.getAnnotationsString(ingressSchemeAnnotation, elbv2.LoadBalancerSchemeEnumInternetFacing),
 		certHostname:   certHostname,
 	}
 }
