@@ -26,14 +26,14 @@ Parameters:
     TargetGroupVPCIDParameter:
         Type: AWS::EC2::VPC::Id
         Description: The VPCID for the TargetGroup
-    ListenerCertificateParameter:
+    ListenerCertificatesParameter:
         Type: String
-        Description: The HTTPS Listener certificate ARN (IAM/ACM)
+        Description: The HTTPS Listener certificate ARNs (IAM/ACM)
         Default: ""
 
 Conditions:
-    CreateHTTPSListener: !Not [ !Equals [ !Ref ListenerCertificateParameter, "" ] ]
-    
+    CreateHTTPSListener: !Not [ !Equals [ !Ref ListenerCertificatesParameter, "" ] ]
+
 Resources:
     HTTPListener:
         Type : AWS::ElasticLoadBalancingV2::Listener
@@ -55,8 +55,7 @@ Resources:
             LoadBalancerArn: !Ref LB
             Port: 443
             Protocol: HTTPS
-            Certificates:
-                - CertificateArn: !Ref ListenerCertificateParameter
+            Certificates: []
 
     LB:
         Type: AWS::ElasticLoadBalancingV2::LoadBalancer

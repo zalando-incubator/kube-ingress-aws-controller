@@ -40,15 +40,17 @@ var (
 	squeezeDashesRegex = regexp.MustCompile("[-]{2,}")
 )
 
-// Normalize returns a normalized name which replaces invalid characters from the ClusterID with '-' and appends the
-// last 7 chars of the SHA1 hash of the certificateARN. If the length of the normalized clusterID exceeds 24 chars, the
-// it is truncated so that its concatenation with a '-' char and the hash part don't exceed 32 chars.
-func (n *awsResourceNamer) Normalize(clusterID, certificateARN, scheme string) string {
+// Normalize returns a normalized name which replaces invalid characters from
+// the ClusterID with '-' and appends the last 7 chars of the SHA1 hash of the
+// first certificateARN. If the length of the normalized clusterID exceeds 24
+// chars, the it is truncated so that its concatenation with a '-' char and the
+// hash part don't exceed 32 chars.
+func (n *awsResourceNamer) Normalize(clusterID string, certificateARNs []string, scheme string) string {
 	hasher := sha1.New()
-	if certificateARN == "" {
+	if len(certificateARNs) == 0 {
 		binary.Write(hasher, binary.BigEndian, emptyARN)
 	} else {
-		hasher.Write([]byte(certificateARN))
+		hasher.Write([]byte(certificateARNs[0]))
 	}
 	hash := strings.ToLower(hex.EncodeToString(hasher.Sum(nil)))
 	hashLen := len(hash)
@@ -69,10 +71,9 @@ func (n *awsResourceNamer) Normalize(clusterID, certificateARN, scheme string) s
 }
 
 var (
-	stackNamer        = &awsResourceNamer{maxLen: maxStackNameLen}
-	loadBalancerNamer = &awsResourceNamer{maxLen: maxLoadBalancerNameLen}
+	stackNamer = &awsResourceNamer{maxLen: maxStackNameLen}
 )
 
-func normalizeStackName(clusterID, certificateARN, scheme string) string {
-	return stackNamer.Normalize(clusterID, certificateARN, scheme)
+func normalizeStackName(clusterID string, certificateARNs []string, scheme string) string {
+	return stackNamer.Normalize(clusterID, certificateARNs, scheme)
 }

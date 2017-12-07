@@ -12,6 +12,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/cloudformation"
 	"github.com/aws/aws-sdk-go/service/cloudformation/cloudformationiface"
+	yaml "gopkg.in/yaml.v2"
 )
 
 const (
@@ -20,12 +21,12 @@ const (
 
 // Stack is a simple wrapper around a CloudFormation Stack.
 type Stack struct {
-	name           string
-	dnsName        string
-	scheme         string
-	targetGroupARN string
-	certificateARN string
-	tags           map[string]string
+	name            string
+	dnsName         string
+	scheme          string
+	targetGroupARN  string
+	CertificateARNs []string
+	tags            map[string]string
 }
 
 func (s *Stack) Name() string {
@@ -38,10 +39,6 @@ func (s *Stack) DNSName() string {
 
 func (s *Stack) Scheme() string {
 	return s.scheme
-}
-
-func (s *Stack) CertificateARN() string {
-	return s.certificateARN
 }
 
 func (s *Stack) TargetGroupARN() string {
@@ -129,14 +126,14 @@ const (
 	parameterTargetGroupHealthCheckPortParameter     = "TargetGroupHealthCheckPortParameter"
 	parameterTargetGroupHealthCheckIntervalParameter = "TargetGroupHealthCheckIntervalParameter"
 	parameterTargetGroupVPCIDParameter               = "TargetGroupVPCIDParameter"
-	parameterListenerCertificateParameter            = "ListenerCertificateParameter"
+	parameterListenerCertificatesParameter           = "ListenerCertificatesParameter"
 )
 
 type stackSpec struct {
 	name             string
 	scheme           string
 	subnets          []string
-	certificateARN   string
+	certificateARNs  []string
 	securityGroupID  string
 	clusterID        string
 	vpcID            string
@@ -151,11 +148,75 @@ type healthCheck struct {
 	interval time.Duration
 }
 
+type Certificate struct {
+	CertificateArn string `yaml:"CertificateArn"`
+}
+
+// cfTemplate is an opauqe structure for unmarshaling a yaml cloudformation
+// stack into in order to replace the list of certificates for the
+// HTTPSListener.
+type cfTemplate struct {
+	AWSTemplateFormatVersion string      `yaml:"AWSTemplateFormatVersion"`
+	Description              string      `yaml:"Description"`
+	Parameters               interface{} `yaml:"Parameters"`
+	Conditions               interface{} `yaml:"Conditions"`
+	Resources                struct {
+		HTTPListener  interface{} `yaml:"HTTPListener"`
+		HTTPSListener struct {
+			Type       string `yaml:"Type"`
+			Condition  string `yaml:"Condition"`
+			Properties struct {
+				DefaultActions []struct {
+					Type           string `yaml:"Type"`
+					TargetGroupArn string `yaml:"TargetGroupArn"`
+				} `yaml:"DefaultActions"`
+				LoadBalancerArn string        `yaml:"LoadBalancerArn"`
+				Port            int           `yaml:"Port"`
+				Protocol        string        `yaml:"Protocol"`
+				Certificates    []Certificate `yaml:"Certificates"`
+			}
+		}
+		LB interface{} `yaml:"LB"`
+		TG interface{} `yaml:"TG"`
+	} `yaml:"Resources"`
+	Outputs interface{} `yaml:"Outputs"`
+}
+
+// injectCertificates injects a list of certificates into the cloudformation
+// template.
+func injectCertificates(cfTmpl string, certs []string) (string, error) {
+	var template cfTemplate
+	err := yaml.Unmarshal([]byte(cfTmpl), &template)
+	if err != nil {
+		return "", err
+	}
+
+	certificates := make([]Certificate, len(certs))
+	for i, cert := range certs {
+		certificates[i] = Certificate{CertificateArn: cert}
+	}
+
+	template.Resources.HTTPSListener.Properties.Certificates = certificates
+
+	data, err := yaml.Marshal(&template)
+	if err != nil {
+		return "", err
+	}
+
+	return string(data), nil
+}
+
 func createStack(svc cloudformationiface.CloudFormationAPI, spec *stackSpec) (string, error) {
 	template := templateYAML
 	if spec.customTemplate != "" {
 		template = spec.customTemplate
 	}
+
+	template, err := injectCertificates(template, spec.certificateARNs)
+	if err != nil {
+		return "", err
+	}
+
 	params := &cloudformation.CreateStackInput{
 		StackName: aws.String(spec.name),
 		OnFailure: aws.String(cloudformation.OnFailureDelete),
@@ -164,7 +225,7 @@ func createStack(svc cloudformationiface.CloudFormationAPI, spec *stackSpec) (st
 			cfParam(parameterLoadBalancerSecurityGroupParameter, spec.securityGroupID),
 			cfParam(parameterLoadBalancerSubnetsParameter, strings.Join(spec.subnets, ",")),
 			cfParam(parameterTargetGroupVPCIDParameter, spec.vpcID),
-			cfParam(parameterListenerCertificateParameter, spec.certificateARN),
+			cfParam(parameterListenerCertificatesParameter, strings.Join(spec.certificateARNs, ",")),
 		},
 		Tags: []*cloudformation.Tag{
 			cfTag(kubernetesCreatorTag, kubernetesCreatorValue),
@@ -173,8 +234,8 @@ func createStack(svc cloudformationiface.CloudFormationAPI, spec *stackSpec) (st
 		TemplateBody:     aws.String(template),
 		TimeoutInMinutes: aws.Int64(int64(spec.timeoutInMinutes)),
 	}
-	if spec.certificateARN != "" {
-		params.Tags = append(params.Tags, cfTag(certificateARNTag, spec.certificateARN))
+	if len(spec.certificateARNs) > 0 {
+		params.Tags = append(params.Tags, cfTag(certificateARNsTag, strings.Join(spec.certificateARNs, ",")))
 	}
 	if spec.healthCheck != nil {
 		params.Parameters = append(params.Parameters,
@@ -196,6 +257,12 @@ func updateStack(svc cloudformationiface.CloudFormationAPI, spec *stackSpec) (st
 	if spec.customTemplate != "" {
 		template = spec.customTemplate
 	}
+
+	template, err := injectCertificates(template, spec.certificateARNs)
+	if err != nil {
+		return "", err
+	}
+
 	params := &cloudformation.UpdateStackInput{
 		StackName: aws.String(spec.name),
 		Parameters: []*cloudformation.Parameter{
@@ -203,7 +270,7 @@ func updateStack(svc cloudformationiface.CloudFormationAPI, spec *stackSpec) (st
 			cfParam(parameterLoadBalancerSecurityGroupParameter, spec.securityGroupID),
 			cfParam(parameterLoadBalancerSubnetsParameter, strings.Join(spec.subnets, ",")),
 			cfParam(parameterTargetGroupVPCIDParameter, spec.vpcID),
-			cfParam(parameterListenerCertificateParameter, spec.certificateARN),
+			cfParam(parameterListenerCertificatesParameter, strings.Join(spec.certificateARNs, ",")),
 		},
 		Tags: []*cloudformation.Tag{
 			cfTag(kubernetesCreatorTag, kubernetesCreatorValue),
@@ -211,8 +278,8 @@ func updateStack(svc cloudformationiface.CloudFormationAPI, spec *stackSpec) (st
 		},
 		TemplateBody: aws.String(template),
 	}
-	if spec.certificateARN != "" {
-		params.Tags = append(params.Tags, cfTag(certificateARNTag, spec.certificateARN))
+	if len(spec.certificateARNs) > 0 {
+		params.Tags = append(params.Tags, cfTag(certificateARNsTag, strings.Join(spec.certificateARNs, ",")))
 	}
 	if spec.healthCheck != nil {
 		params.Parameters = append(params.Parameters,
@@ -308,12 +375,12 @@ func mapToManagedStack(stack *cloudformation.Stack) *Stack {
 	parameters := convertStackParameters(stack.Parameters)
 
 	return &Stack{
-		name:           aws.StringValue(stack.StackName),
-		dnsName:        outputs.dnsName(),
-		targetGroupARN: outputs.targetGroupARN(),
-		scheme:         parameters[parameterLoadBalancerSchemeParameter],
-		certificateARN: tags[certificateARNTag],
-		tags:           tags,
+		name:            aws.StringValue(stack.StackName),
+		dnsName:         outputs.dnsName(),
+		targetGroupARN:  outputs.targetGroupARN(),
+		scheme:          parameters[parameterLoadBalancerSchemeParameter],
+		CertificateARNs: strings.Split(tags[certificateARNsTag], ","),
+		tags:            tags,
 	}
 }
 

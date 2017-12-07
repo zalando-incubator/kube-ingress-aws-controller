@@ -1,10 +1,10 @@
-hash: 86ed922a0d8ebedd825733b480d2f87f0a404f915e76b365640405e8fa51a719
-updated: 2017-05-31T10:28:32.181038829+02:00
+hash: 1bde642ef645e303b10371bde9d4cfcef6a81344f98361cb23c5c28a0e9aef16
+updated: 2017-12-17T00:49:39.216937612+01:00
 imports:
 - name: bitbucket.org/ww/goautoneg
   version: 75cd24fc2f2c2a2088577d12123ddee5f54e0675
 - name: github.com/aws/aws-sdk-go
-  version: a479673916dcc0f62674f085bb4112272b8d8560
+  version: 96358b8282b1a3aa66836d2f2fe66216cc419668
   subpackages:
   - aws
   - aws/awserr
@@ -22,6 +22,7 @@ imports:
   - aws/request
   - aws/session
   - aws/signer/v4
+  - internal/shareddefaults
   - private/protocol
   - private/protocol/ec2query
   - private/protocol/json/jsonutil
@@ -78,4 +79,6 @@ imports:
   - model
 - name: github.com/prometheus/procfs
   version: 454a56f35412459b5e684fd5ec0f9211b94f002a
+- name: gopkg.in/yaml.v2
+  version: cd8b52f8269e0feb286dfeef29f8fe4d5b397e0b
 testImports: []
