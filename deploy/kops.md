@@ -223,4 +223,4 @@ kubectl -n kube-system logs <podname>
 
 ### Test deployment
 
-To test features of this ingress stack checkout our [test deployment page](deploy/test-deployment.md)
+To test features of this ingress stack checkout our [test deployment page](test-deployment.md)
