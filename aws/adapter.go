@@ -229,9 +229,9 @@ func (a *Adapter) FindManagedStacks() ([]*Stack, error) {
 // from the Cluster ID and the certificate ARN (when available).
 // All the required resources (listeners and target group) are created in a transactional fashion.
 // Failure to create the stack causes it to be deleted automatically.
-func (a *Adapter) CreateStack(certificateARN string, scheme string) (string, error) {
+func (a *Adapter) CreateStack(certificateARN, scheme string) (string, error) {
 	spec := &stackSpec{
-		name:            a.stackName(certificateARN),
+		name:            a.stackName(certificateARN, scheme),
 		scheme:          scheme,
 		certificateARN:  certificateARN,
 		securityGroupID: a.SecurityGroupID(),
@@ -249,9 +249,9 @@ func (a *Adapter) CreateStack(certificateARN string, scheme string) (string, err
 	return createStack(a.cloudformation, spec)
 }
 
-func (a *Adapter) UpdateStack(certificateARN string, scheme string) (string, error) {
+func (a *Adapter) UpdateStack(stackName, certificateARN, scheme string) (string, error) {
 	spec := &stackSpec{
-		name:            a.stackName(certificateARN),
+		name:            stackName,
 		scheme:          scheme,
 		certificateARN:  certificateARN,
 		securityGroupID: a.SecurityGroupID(),
@@ -269,8 +269,8 @@ func (a *Adapter) UpdateStack(certificateARN string, scheme string) (string, err
 	return updateStack(a.cloudformation, spec)
 }
 
-func (a *Adapter) stackName(certificateARN string) string {
-	return normalizeStackName(a.ClusterID(), certificateARN)
+func (a *Adapter) stackName(certificateARN, scheme string) string {
+	return normalizeStackName(a.ClusterID(), certificateARN, scheme)
 }
 
 // GetStack returns the CloudFormation stack details with the name or ID from the argument
@@ -282,7 +282,7 @@ func (a *Adapter) GetStack(stackID string) (*Stack, error) {
 func (a *Adapter) MarkToDeleteStack(stack *Stack) (time.Time, error) {
 	t0 := time.Now().Add(a.stackTTL)
 
-	return t0, markToDeleteStack(a.cloudformation, a.stackName(stack.CertificateARN()), t0.Format(time.RFC3339))
+	return t0, markToDeleteStack(a.cloudformation, stack.Name(), t0.Format(time.RFC3339))
 }
 
 // DeleteStack deletes the CloudFormation stack with the given name

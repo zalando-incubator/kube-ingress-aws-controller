@@ -103,12 +103,18 @@ func (o stackOutput) dnsName() string {
 	return o[outputLoadBalancerDNSName]
 }
 
-func (o stackOutput) scheme() string {
-	return o[parameterLoadBalancerSchemeParameter]
-}
-
 func (o stackOutput) targetGroupARN() string {
 	return o[outputTargetGroupARN]
+}
+
+// convertStackParameters converts a list of cloudformation stack parameters to
+// a map.
+func convertStackParameters(parameters []*cloudformation.Parameter) map[string]string {
+	result := make(map[string]string)
+	for _, p := range parameters {
+		result[aws.StringValue(p.ParameterKey)] = aws.StringValue(p.ParameterValue)
+	}
+	return result
 }
 
 const (
@@ -297,14 +303,17 @@ func getCFStackByName(svc cloudformationiface.CloudFormationAPI, stackName strin
 }
 
 func mapToManagedStack(stack *cloudformation.Stack) *Stack {
-	o, t := newStackOutput(stack.Outputs), convertCloudFormationTags(stack.Tags)
+	outputs := newStackOutput(stack.Outputs)
+	tags := convertCloudFormationTags(stack.Tags)
+	parameters := convertStackParameters(stack.Parameters)
+
 	return &Stack{
 		name:           aws.StringValue(stack.StackName),
-		dnsName:        o.dnsName(),
-		scheme :        o.scheme(),
-		targetGroupARN: o.targetGroupARN(),
-		certificateARN: t[certificateARNTag],
-		tags:           convertCloudFormationTags(stack.Tags),
+		dnsName:        outputs.dnsName(),
+		targetGroupARN: outputs.targetGroupARN(),
+		scheme:         parameters[parameterLoadBalancerSchemeParameter],
+		certificateARN: tags[certificateARNTag],
+		tags:           tags,
 	}
 }
 

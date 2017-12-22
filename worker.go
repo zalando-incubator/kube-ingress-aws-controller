@@ -228,7 +228,7 @@ func updateStack(awsAdapter *aws.Adapter, item *managedItem) {
 	scheme := item.ingresses[0].Scheme()
 	log.Printf("updating %q stack for certificate %q / ingress %q", scheme, certificateARN, item.ingresses)
 
-	stackId, err := awsAdapter.UpdateStack(certificateARN, scheme)
+	stackId, err := awsAdapter.UpdateStack(item.stack.Name(), certificateARN, scheme)
 	if isNoUpdatesToBePerformedError(err) {
 		log.Printf("stack(%q) is already up to date", certificateARN)
 	} else if err != nil {
