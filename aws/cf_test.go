@@ -170,6 +170,31 @@ func TestTagConversion(t *testing.T) {
 
 }
 
+func TestConvertStackParameters(t *testing.T) {
+	for _, ti := range []struct {
+		name  string
+		given []*cloudformation.Parameter
+		want  map[string]string
+	}{
+		{"default", []*cloudformation.Parameter{
+			{
+				ParameterKey:   aws.String("foo"),
+				ParameterValue: aws.String("bar"),
+			},
+		}, map[string]string{"foo": "bar"}},
+		{"empty-input", []*cloudformation.Parameter{}, map[string]string{}},
+		{"nil-input", nil, map[string]string{}},
+	} {
+		t.Run(ti.name, func(t *testing.T) {
+			got := convertStackParameters(ti.given)
+			if !reflect.DeepEqual(ti.want, got) {
+				t.Errorf("unexpected result. wanted %+v, got %+v", ti.want, got)
+			}
+		})
+	}
+
+}
+
 func TestFindingManagedStacks(t *testing.T) {
 	for _, ti := range []struct {
 		name    string
