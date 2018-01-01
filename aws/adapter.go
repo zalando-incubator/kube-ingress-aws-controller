@@ -2,6 +2,7 @@ package aws
 
 import (
 	"errors"
+	"strings"
 	"time"
 
 	"fmt"
@@ -20,6 +21,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/cloudformation/cloudformationiface"
 	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/aws/aws-sdk-go/service/ec2/ec2iface"
+	"github.com/aws/aws-sdk-go/service/elbv2"
 	"github.com/aws/aws-sdk-go/service/iam"
 	"github.com/aws/aws-sdk-go/service/iam/iamiface"
 	"github.com/linki/instrumented_http"
@@ -48,8 +50,7 @@ type manifest struct {
 	securityGroup    *securityGroupDetails
 	instance         *instanceDetails
 	autoScalingGroup *autoScalingGroupDetails
-	privateSubnets   []*subnetDetails
-	publicSubnets    []*subnetDetails
+	subnets          []*subnetDetails
 }
 
 type configProviderFunc func() client.ConfigProvider
@@ -197,16 +198,6 @@ func (a *Adapter) SecurityGroupID() string {
 	return a.manifest.securityGroup.id
 }
 
-// PrivateSubnetIDs returns a slice with the private subnet IDs discovered by the adapter.
-func (a *Adapter) PrivateSubnetIDs() []string {
-	return getSubnetIDs(a.manifest.privateSubnets)
-}
-
-// PublicSubnetIDs returns a slice with the public subnet IDs discovered by the adapter.
-func (a *Adapter) PublicSubnetIDs() []string {
-	return getSubnetIDs(a.manifest.publicSubnets)
-}
-
 // FindManagedStacks returns all CloudFormation stacks containing the controller management tags
 // that match the current cluster and are ready to be used. The stack status is used to filter.
 func (a *Adapter) FindManagedStacks() ([]*Stack, error) {
@@ -235,7 +226,7 @@ func (a *Adapter) CreateStack(certificateARN, scheme string) (string, error) {
 		scheme:          scheme,
 		certificateARN:  certificateARN,
 		securityGroupID: a.SecurityGroupID(),
-		subnets:         a.PublicSubnetIDs(),
+		subnets:         a.FindLBSubnets(scheme),
 		vpcID:           a.VpcID(),
 		clusterID:       a.ClusterID(),
 		healthCheck: &healthCheck{
@@ -255,7 +246,7 @@ func (a *Adapter) UpdateStack(stackName, certificateARN, scheme string) (string,
 		scheme:          scheme,
 		certificateARN:  certificateARN,
 		securityGroupID: a.SecurityGroupID(),
-		subnets:         a.PublicSubnetIDs(),
+		subnets:         a.FindLBSubnets(scheme),
 		vpcID:           a.VpcID(),
 		clusterID:       a.ClusterID(),
 		healthCheck: &healthCheck{
@@ -294,14 +285,6 @@ func (a *Adapter) DeleteStack(stack *Stack) error {
 	return deleteStack(a.cloudformation, stack.Name())
 }
 
-func getSubnetIDs(snds []*subnetDetails) []string {
-	ret := make([]string, len(snds))
-	for i, snd := range snds {
-		ret[i] = snd.id
-	}
-	return ret
-}
-
 func buildManifest(awsAdapter *Adapter) (*manifest, error) {
 	var err error
 
@@ -338,43 +321,69 @@ func buildManifest(awsAdapter *Adapter) (*manifest, error) {
 		return nil, ErrNoSubnets
 	}
 
-	var (
-		elbRole []*subnetDetails
-	)
-
-	// Filter for subnets declaring the ELB role.
-	for _, subnet := range subnets {
-		if subnet.elbRole {
-			elbRole = append(elbRole, subnet)
-		}
-	}
-
-	// If there's at least one subnet declaring the ELB role, use only the tagged subnets.
-	// Otherwise use all found subnets.
-	if len(elbRole) > 0 {
-		subnets = elbRole
-	}
-
-	var (
-		priv []*subnetDetails
-		pub  []*subnetDetails
-	)
-
-	for _, subnet := range subnets {
-		if subnet.public {
-			pub = append(pub, subnet)
-		} else {
-			priv = append(priv, subnet)
-		}
-	}
-
 	return &manifest{
 		securityGroup:    securityGroupDetails,
 		instance:         instanceDetails,
 		autoScalingGroup: autoScalingGroupDetails,
-		privateSubnets:   priv,
-		publicSubnets:    pub,
+		subnets:          subnets,
 	}, nil
+}
+
+// FindLBSubnets finds subnets for an ALB based on the scheme.
+//
+// It follows the same logic for finding subnets as the kube-controller-manager
+// when finding subnets for ELBs used for services of type LoadBalancer.
+// https://github.com/kubernetes/kubernetes/blob/65efeee64f772e0f38037e91a677138a335a7570/pkg/cloudprovider/providers/aws/aws.go#L2949-L3027
+func (a *Adapter) FindLBSubnets(scheme string) []string {
+	var internal bool
+	if scheme == elbv2.LoadBalancerSchemeEnumInternal {
+		internal = true
+	}
+
+	subnetsByAZ := make(map[string]*subnetDetails)
+	for _, subnet := range a.manifest.subnets {
+		// ignore private subnet for public LB
+		if !internal && !subnet.public {
+			continue
+		}
+
+		existing, ok := subnetsByAZ[subnet.availabilityZone]
+		if !ok {
+			subnetsByAZ[subnet.availabilityZone] = subnet
+			continue
+		}
+
+		// prefer subnet with an elb role tag
+		var tagName string
+		if internal {
+			tagName = internalELBRoleTagName
+		} else {
+			tagName = elbRoleTagName
+		}
+
+		_, existingHasTag := existing.tags[tagName]
+		_, subnetHasTag := subnet.tags[tagName]
+
+		if existingHasTag != subnetHasTag {
+			if subnetHasTag {
+				subnetsByAZ[subnet.availabilityZone] = subnet
+			}
+			continue
+		}
+
+		// If we have two subnets for the same AZ we arbitrarily choose
+		// the one that is first lexicographically.
+		if strings.Compare(existing.id, subnet.id) > 0 {
+			subnetsByAZ[subnet.availabilityZone] = subnet
+		}
+	}
+
+	subnetIDs := make([]string, 0, len(subnetsByAZ))
+	for _, subnet := range subnetsByAZ {
+		subnetIDs = append(subnetIDs, subnet.id)
+	}
+
+	return subnetIDs
 }
 
 func getNameTag(tags map[string]string) (string, error) {
