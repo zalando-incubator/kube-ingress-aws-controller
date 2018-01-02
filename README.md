@@ -101,6 +101,18 @@ On startup, the controller discovers the AWS resources required for the controll
     Lookup of the `kubernetes.io/cluster/<cluster-id>` tag of the Security Group matching the clusterID for the controller node and `kubernetes:application` matching the value `kube-ingress-aws-controller` or as fallback for `<v0.4.0`
     tag `aws:cloudformation:logical-id` matching the value `IngressLoadBalancerSecurityGroup` (only clusters created by CF).
 
+3. The Subnets
+
+    Subnets are discovered based on the VPC of the instance where the
+    controller is running. By default it will try to select all subnets of the
+    VPC but will limit the subnets to one per Availability Zone. If there are
+    many subnets within the VPC it's possible to tag the desired subnets with
+    the tags `kubernetes.io/role/elb` (for internet-facing ALBs) or
+    `kubernetes.io/role/internal-elb` (for internal ALBs). Subnets with these
+    tags will be favored when selecting subnets for the ALBs.
+    If there are two possible subnets for a single Availability Zone then the
+    first subnet, lexicographically sorted by ID, will be selected.
+
 ### Creating Load Balancers
 
 When the controller learns about new ingress resources, it uses the host specified in it to automatically determine
