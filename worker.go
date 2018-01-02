@@ -141,7 +141,7 @@ func doWork(certsProvider certs.CertificatesProvider, awsAdapter *aws.Adapter, k
 func buildManagedModel(certsProvider certs.CertificatesProvider, ingresses []*kubernetes.Ingress, stacks []*aws.Stack) map[string]*managedItem {
 	model := make(map[string]*managedItem)
 	for _, stack := range stacks {
-		model[stack.CertificateARN()] = &managedItem{stack: stack}
+		model[stack.CertificateARN()+"/"+stack.Scheme()] = &managedItem{stack: stack}
 	}
 
 	var (
@@ -163,10 +163,10 @@ func buildManagedModel(certsProvider certs.CertificatesProvider, ingresses []*ku
 				continue
 			}
 		}
-		if item, ok := model[certificateARN]; ok {
+		if item, ok := model[certificateARN+"/"+ingress.Scheme()]; ok {
 			item.ingresses = append(item.ingresses, ingress)
 		} else {
-			model[certificateARN] = &managedItem{ingresses: []*kubernetes.Ingress{ingress}}
+			model[certificateARN+"/"+ingress.Scheme()] = &managedItem{ingresses: []*kubernetes.Ingress{ingress}}
 		}
 	}
 	return model
@@ -209,7 +209,7 @@ func createStack(awsAdapter *aws.Adapter, item *managedItem) {
 	scheme := item.ingresses[0].Scheme()
 	log.Printf("creating %q stack for certificate %q / ingress %q", scheme, certificateARN, item.ingresses)
 
-	stackId, err := awsAdapter.CreateStack(certificateARN,scheme)
+	stackId, err := awsAdapter.CreateStack(certificateARN, scheme)
 	if err != nil {
 		if isAlreadyExistsError(err) {
 			item.stack, err = awsAdapter.GetStack(stackId)
@@ -228,7 +228,7 @@ func updateStack(awsAdapter *aws.Adapter, item *managedItem) {
 	scheme := item.ingresses[0].Scheme()
 	log.Printf("updating %q stack for certificate %q / ingress %q", scheme, certificateARN, item.ingresses)
 
-	stackId, err := awsAdapter.UpdateStack(certificateARN,scheme)
+	stackId, err := awsAdapter.UpdateStack(item.stack.Name(), certificateARN, scheme)
 	if isNoUpdatesToBePerformedError(err) {
 		log.Printf("stack(%q) is already up to date", certificateARN)
 	} else if err != nil {

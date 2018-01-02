@@ -20,13 +20,24 @@ This information is used to manage AWS resources for each ingress objects of the
 - Automatic discovery of SSL certificates
 - Automatic forwarding of requests to all Worker Nodes, even with auto scaling
 - Automatic cleanup of unnecessary managed resources
+- Support for internet-facing and internal load balancers
 - Can be used in clusters created by [Kops](https://github.com/kubernetes/kops), see our [deployment guide for Kops](deploy/kops.md)
 
 ## Upgrade
 
+### <v0.5.0 to >=v0.5.0
+
+Version `v0.5.0` introduced support for both `internet-facing` and `internal`
+load balancers. For this change we had to change the naming of the
+CloudFormation stacks created by the controller. To upgrade from v0.4.* to
+v0.5.0 no changes are needed, but since the naming change of the stacks
+migrating back down to a v0.4.* version will not be non-disruptive as it will
+be unable to manage the stacks with the new naming scheme. Deleting the stacks
+manually will allow for a working downgrade.
+
 ### <v0.4.0 to >=v0.4.0
 
-In versions before v.04.0 we used AWS Tags that were set by CloudFormation automatically to find
+In versions before v0.4.0 we used AWS Tags that were set by CloudFormation automatically to find
 some AWS resources.
 This behavior has been changed to use custom non cloudformation tags.
 
@@ -87,7 +98,7 @@ On startup, the controller discovers the AWS resources required for the controll
 
 2. The Security Group
 
-    Lookup of the `kubernetes.io/cluster/<cluster-id>` tag of the Security Group matching the clusterID for the controller node and `kubernetes:application` matching the value `kube-ingress-aws-controller` or as fallback for <v0.4.0
+    Lookup of the `kubernetes.io/cluster/<cluster-id>` tag of the Security Group matching the clusterID for the controller node and `kubernetes:application` matching the value `kube-ingress-aws-controller` or as fallback for `<v0.4.0`
     tag `aws:cloudformation:logical-id` matching the value `IngressLoadBalancerSecurityGroup` (only clusters created by CF).
 
 ### Creating Load Balancers
