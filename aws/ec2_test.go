@@ -181,8 +181,8 @@ func TestGetSubnets(t *testing.T) {
 				), nil),
 			},
 			[]*subnetDetails{
-				{id: "foo1", availabilityZone: "baz1", public: true, tags: map[string]string{nameTag: "bar1", elbRoleTagName: ""}, elbRole: true},
-				{id: "foo2", availabilityZone: "baz2", public: true, tags: map[string]string{nameTag: "bar2"}, elbRole: false},
+				{id: "foo1", availabilityZone: "baz1", public: true, tags: map[string]string{nameTag: "bar1", elbRoleTagName: ""}},
+				{id: "foo2", availabilityZone: "baz2", public: true, tags: map[string]string{nameTag: "bar2"}},
 			},
 			false,
 		},

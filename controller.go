@@ -11,6 +11,7 @@ import (
 
 	"io/ioutil"
 
+	"github.com/aws/aws-sdk-go/service/elbv2"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/zalando-incubator/kube-ingress-aws-controller/aws"
 	"github.com/zalando-incubator/kube-ingress-aws-controller/certs"
@@ -162,8 +163,8 @@ func main() {
 	log.Printf("\tinstance id: %s", awsAdapter.InstanceID())
 	log.Printf("\tauto scaling group name: %s", awsAdapter.AutoScalingGroupName())
 	log.Printf("\tsecurity group id: %s", awsAdapter.SecurityGroupID())
-	log.Printf("\tprivate subnet ids: %s", awsAdapter.PrivateSubnetIDs())
-	log.Printf("\tpublic subnet ids: %s", awsAdapter.PublicSubnetIDs())
+	log.Printf("\tinternal subnet ids: %s", awsAdapter.FindLBSubnets(elbv2.LoadBalancerSchemeEnumInternal))
+	log.Printf("\tpublic subnet ids: %s", awsAdapter.FindLBSubnets(elbv2.LoadBalancerSchemeEnumInternetFacing))
 
 	go serveMetrics(metricsAddress)
 	quitCH := make(chan struct{})
