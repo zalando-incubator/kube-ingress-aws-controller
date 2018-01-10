@@ -30,6 +30,7 @@ type securityGroupDetails struct {
 
 type instanceDetails struct {
 	id    string
+	ip    string
 	vpcID string
 	tags  map[string]string
 }
@@ -102,9 +103,51 @@ func getInstanceDetails(ec2Service ec2iface.EC2API, instanceID string) (*instanc
 
 	return &instanceDetails{
 		id:    aws.StringValue(i.InstanceId),
+		ip:    aws.StringValue(i.PrivateIpAddress),
 		vpcID: aws.StringValue(i.VpcId),
 		tags:  convertEc2Tags(i.Tags),
 	}, nil
+}
+
+func getInstancesDetailsByPrivateIp(ec2Service ec2iface.EC2API, privateIps []string) ([]*instanceDetails, error) {
+	values := make([]*string, len(privateIps))
+	for i, ip := range privateIps {
+		values[i] = aws.String(ip)
+	}
+	params := &ec2.DescribeInstancesInput{
+		Filters: []*ec2.Filter{
+			{
+				Name:   aws.String("private-ip-address"),
+				Values: values,
+			},
+		},
+	}
+	resp, err := ec2Service.DescribeInstances(params)
+	if err != nil || resp == nil {
+		return nil, fmt.Errorf("unable to get details for instances with IPs %q: %v", privateIps, err)
+	}
+
+	instancesFound := make(map[string]bool)
+	result := make([]*instanceDetails, instancesCount(resp.Reservations))
+	i := 0
+	for _, reservation := range resp.Reservations {
+		for _, instance := range reservation.Instances {
+			result[i] = &instanceDetails{
+				id:    aws.StringValue(instance.InstanceId),
+				ip:    aws.StringValue(instance.PrivateIpAddress),
+				vpcID: aws.StringValue(instance.VpcId),
+				tags:  convertEc2Tags(instance.Tags),
+			}
+			instancesFound[aws.StringValue(instance.PrivateIpAddress)] = true
+			i++
+		}
+	}
+	for _, ip := range privateIps {
+		if !instancesFound[ip] {
+			return nil, fmt.Errorf("unable to find instance %q: %v", ip, err)
+		}
+	}
+	return result, nil
 }
 
 func findFirstRunningInstance(resp *ec2.DescribeInstancesOutput) (*ec2.Instance, error) {
@@ -276,4 +319,12 @@ func findSecurityGroupWithClusterID(svc ec2iface.EC2API, clusterID string) (*sec
 		name: aws.StringValue(sg.GroupName),
 		id:   aws.StringValue(sg.GroupId),
 	}, nil
+}
+
+func instancesCount(reservations []*ec2.Reservation) int {
+	instances := 0
+	for _, r := range reservations {
+		instances += len(r.Instances)
+	}
+	return instances
 }

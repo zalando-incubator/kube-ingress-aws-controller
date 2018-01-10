@@ -112,11 +112,20 @@ func doWork(certsProvider certs.CertificatesProvider, awsAdapter *aws.Adapter, k
 	}
 	log.Printf("Found %d ingresses", len(ingresses))
 
+	nodes, err := kubeAdapter.ListNode()
+	if err != nil {
+		return fmt.Errorf("doWork failed to list node resources: %v", err)
+	}
+	log.Printf("Found %d nodes", len(nodes))
+
 	stacks, err := awsAdapter.FindManagedStacks()
 	if err != nil {
 		return fmt.Errorf("doWork failed to list managed stacks: %v", err)
 	}
 	log.Printf("Found %d stacks", len(stacks))
+
+	awsAdapter.UpdateAutoScalingGroups(extractIps(nodes))
+	log.Printf("Found %d auto scaling groups", len(awsAdapter.AutoScalingGroupNames()))
 
 	model := buildManagedModel(certsProvider, ingresses, stacks)
 	log.Printf("Have %d models", len(model))
@@ -290,4 +299,17 @@ func markToDeleteStack(awsAdapter *aws.Adapter, item *managedItem) {
 	} else {
 		log.Printf("marked stack %q to be deleted at %v", stackName, ts)
 	}
+}
+
+// Extract internal IPs of Kubernetes nodes. Skip nodes with empty
+// internal IP.
+func extractIps(nodes []*kubernetes.Node) []string {
+	result := make([]string, 0, len(nodes))
+	for _, node := range nodes {
+		ip := node.InternalIp()
+		if ip != "" {
+			result = append(result, ip)
+		}
+	}
+	return result
 }

@@ -59,9 +59,11 @@ func mockDSGOutput(sgs map[string]string) *ec2.DescribeSecurityGroupsOutput {
 }
 
 type testInstance struct {
-	id    string
-	tags  tags
-	state int64
+	id        string
+	tags      tags
+	state     int64
+	privateIp string
+	vpcId     string
 }
 
 func mockDIOutput(mockedInstances ...testInstance) *ec2.DescribeInstancesOutput {
@@ -72,9 +74,11 @@ func mockDIOutput(mockedInstances ...testInstance) *ec2.DescribeInstancesOutput 
 			tags = append(tags, &ec2.Tag{Key: aws.String(k), Value: aws.String(v)})
 		}
 		instance := &ec2.Instance{
-			InstanceId: aws.String(i.id),
-			Tags:       tags,
-			State:      &ec2.InstanceState{Code: aws.Int64(i.state)},
+			InstanceId:       aws.String(i.id),
+			Tags:             tags,
+			State:            &ec2.InstanceState{Code: aws.Int64(i.state)},
+			PrivateIpAddress: aws.String(i.privateIp),
+			VpcId:            aws.String(i.vpcId),
 		}
 		instances = append(instances, instance)
 	}

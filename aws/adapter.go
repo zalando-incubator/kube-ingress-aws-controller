@@ -44,13 +44,14 @@ type Adapter struct {
 	healthCheckInterval time.Duration
 	creationTimeout     time.Duration
 	stackTTL            time.Duration
+	autoScalingGroups   map[string]*autoScalingGroupDetails
+	instancesDetails    map[string]*instanceDetails
 }
 
 type manifest struct {
-	securityGroup    *securityGroupDetails
-	instance         *instanceDetails
-	autoScalingGroup *autoScalingGroupDetails
-	subnets          []*subnetDetails
+	securityGroup *securityGroupDetails
+	instance      *instanceDetails
+	subnets       []*subnetDetails
 }
 
 type configProviderFunc func() client.ConfigProvider
@@ -119,6 +120,8 @@ func NewAdapter() (adapter *Adapter, err error) {
 		healthCheckInterval: DefaultHealthCheckInterval,
 		creationTimeout:     DefaultCreationTimeout,
 		stackTTL:            DefaultStackTTL,
+		autoScalingGroups:   make(map[string]*autoScalingGroupDetails),
+		instancesDetails:    make(map[string]*instanceDetails),
 	}
 
 	adapter.manifest, err = buildManifest(adapter)
@@ -172,7 +175,7 @@ func (a *Adapter) WithCustomTemplate(template string) *Adapter {
 	return a
 }
 
-// ClusterStackName returns the ClusterID tag that all resources from the same Kubernetes cluster share.
+// ClusterID returns the ClusterID tag that all resources from the same Kubernetes cluster share.
 // It's taken from the current ec2 instance.
 func (a *Adapter) ClusterID() string {
 	return a.manifest.instance.clusterID()
@@ -188,9 +191,16 @@ func (a *Adapter) InstanceID() string {
 	return a.manifest.instance.id
 }
 
-// AutoScalingGroupName returns the name of the Auto Scaling Group the current node belongs to
-func (a *Adapter) AutoScalingGroupName() string {
-	return a.manifest.autoScalingGroup.name
+// AutoScalingGroupName returns names of the Auto Scaling Groups that
+// kubernetes nodes belong to.
+func (a *Adapter) AutoScalingGroupNames() []string {
+	result := make([]string, len(a.autoScalingGroups))
+	i := 0
+	for name := range a.autoScalingGroups {
+		result[i] = name
+		i++
+	}
+	return result
 }
 
 // SecurityGroupID returns the security group ID that should be used to create Load Balancers.
@@ -209,9 +219,11 @@ func (a *Adapter) FindManagedStacks() ([]*Stack, error) {
 	for i, stack := range stacks {
 		targetGroupARNs[i] = stack.targetGroupARN
 	}
-	// This call is idempotent and safe to execute every time
-	if err := attachTargetGroupsToAutoScalingGroup(a.autoscaling, targetGroupARNs, a.AutoScalingGroupName()); err != nil {
-		log.Printf("FindManagedStacks() failed to attach target groups to ASG: %v", err)
+	for _, asg := range a.autoScalingGroups {
+		// This call is idempotent and safe to execute every time
+		if err := attachTargetGroupsToAutoScalingGroup(a.autoscaling, targetGroupARNs, asg.name); err != nil {
+			log.Printf("FindManagedStacks() failed to attach target groups to ASG: %v", err)
+		}
 	}
 	return stacks, nil
 }
@@ -278,8 +290,10 @@ func (a *Adapter) MarkToDeleteStack(stack *Stack) (time.Time, error) {
 
 // DeleteStack deletes the CloudFormation stack with the given name
 func (a *Adapter) DeleteStack(stack *Stack) error {
-	if err := detachTargetGroupFromAutoScalingGroup(a.autoscaling, stack.TargetGroupARN(), a.AutoScalingGroupName()); err != nil {
-		return fmt.Errorf("DeleteStack failed to detach: %v", err)
+	for _, asg := range a.autoScalingGroups {
+		if err := detachTargetGroupFromAutoScalingGroup(a.autoscaling, stack.TargetGroupARN(), asg.name); err != nil {
+			return fmt.Errorf("DeleteStack failed to detach: %v", err)
+		}
 	}
 
 	return deleteStack(a.cloudformation, stack.Name())
@@ -305,6 +319,7 @@ func buildManifest(awsAdapter *Adapter) (*manifest, error) {
 	if err != nil {
 		return nil, err
 	}
+	awsAdapter.autoScalingGroups[autoScalingGroupName] = autoScalingGroupDetails
 
 	clusterID := instanceDetails.clusterID()
 
@@ -322,10 +337,9 @@ func buildManifest(awsAdapter *Adapter) (*manifest, error) {
 	}
 
 	return &manifest{
-		securityGroup:    securityGroupDetails,
-		instance:         instanceDetails,
-		autoScalingGroup: autoScalingGroupDetails,
-		subnets:          subnets,
+		securityGroup: securityGroupDetails,
+		instance:      instanceDetails,
+		subnets:       subnets,
 	}, nil
 }
 
@@ -398,4 +412,72 @@ func getTag(tags map[string]string, tagName string) (string, error) {
 		return name, nil
 	}
 	return "<missing tag>", ErrMissingTag
+}
+
+// Update list of ASGs that are updated with TargetGroup setting.
+func (a *Adapter) UpdateAutoScalingGroups(instancePrivateIps []string) error {
+	// remove obsolete instances
+	a.removeObsoleteInstances(instancePrivateIps)
+
+	// fetch missing instances information
+	if err := a.fetchMissingInstances(instancePrivateIps); err != nil {
+		return err
+	}
+
+	// update ASGs (create new map to get rid of deleted ASGs)
+	newAutoScalingGroups := make(map[string]*autoScalingGroupDetails)
+	for _, instance := range a.instancesDetails {
+		asgName, err := getAutoScalingGroupName(instance.tags)
+		if err != nil {
+			// Instance is not in ASG, ignore it.
+			continue
+		}
+		if _, exists := newAutoScalingGroups[asgName]; !exists {
+			if _, exists := a.autoScalingGroups[asgName]; exists {
+				newAutoScalingGroups[asgName] = a.autoScalingGroups[asgName]
+			} else {
+				newAutoScalingGroups[asgName], err = getAutoScalingGroupByName(a.autoscaling, asgName)
+				if err != nil {
+					return err
+				}
+			}
+		}
+	}
+	a.autoScalingGroups = newAutoScalingGroups
+	return nil
+}
+
+// Remove obsolete instances from cache
+func (a *Adapter) removeObsoleteInstances(currentPrivateIps []string) {
+	existingMap := make(map[string]bool)
+	for _, ip := range currentPrivateIps {
+		existingMap[ip] = true
+	}
+	for ip := range a.instancesDetails {
+		if !existingMap[ip] {
+			delete(a.instancesDetails, ip)
+		}
+	}
+}
+
+// Fetch and store in cache missing instance details/
+func (a *Adapter) fetchMissingInstances(currentPrivateIps []string) error {
+	missingIps := make([]string, 0, len(currentPrivateIps))
+	for _, ip := range currentPrivateIps {
+		if a.instancesDetails[ip] == nil {
+			missingIps = append(missingIps, ip)
+		}
+	}
+
+	if len(missingIps) != 0 {
+		instancesDetails, err := getInstancesDetailsByPrivateIp(a.ec2, missingIps)
+		if err != nil {
+			return err
+		}
+
+		for _, details := range instancesDetails {
+			a.instancesDetails[details.ip] = details
+		}
+	}
+	return nil
 }

@@ -25,7 +25,7 @@ func TestMappingRoundtrip(t *testing.T) {
 		Name:      "foo",
 		Annotations: map[string]interface{}{
 			ingressCertificateARNAnnotation: "zbr",
-			ingressSchemeAnnotation: "internal",
+			ingressSchemeAnnotation:         "internal",
 		},
 	}
 	kubeStatus := ingressStatus{
@@ -62,6 +62,52 @@ func TestMappingRoundtrip(t *testing.T) {
 	gotKube := newIngressForKube(got)
 	if !reflect.DeepEqual(kubeIngress, gotKube) {
 		t.Errorf("mapping from adapter to kubernetes ingress failed. wanted %v, got %v", kubeIngress, gotKube)
+	}
+}
+
+func TestNodeMapping(t *testing.T) {
+	expectedNode := &Node{
+		name:       "ip-1.2.3.4.ec2.internal",
+		internalIp: "1.2.3.4",
+	}
+
+	kubeNode := &node{
+		Metadata: nodeMetadata{
+			Name:            "ip-1.2.3.4.ec2.internal",
+			Uid:             "fixture02",
+			Annotations:     map[string]interface{}{},
+			SelfLink:        "/api/v1/nodes/ip-1.2.3.4.ec2.internal",
+			ResourceVersion: "42",
+			Labels:          map[string]interface{}{"kubernetes.io/role": "node"},
+		},
+		Status: nodeStatus{
+			Addresses: []nodeAddress{
+				nodeAddress{
+					Address: "1.2.3.4",
+					Type:    nodeAddressTypeInternalIP,
+				},
+				nodeAddress{
+					Address: "ip-1.2.3.4.ec2.internal",
+					Type:    nodeAddressTypeHostname,
+				},
+			},
+		},
+		Spec: nodeSpec{
+			ExternalId: "i-0123456789abcdef0",
+			PodCIDR:    "100.100.100.0/24",
+			ProviderId: "aws:///us-east-1c/i-0123456789abcdef0",
+		},
+	}
+
+	got := newNodeFromKube(kubeNode)
+	if !reflect.DeepEqual(expectedNode, got) {
+		t.Errorf("mapping from kubernetes node to adapter failed. wanted %v, got %v", expectedNode, got)
+	}
+	if got.InternalIp() != kubeNode.getAddress(nodeAddressTypeInternalIP) {
+		t.Error("wrong value from InternalIp()")
+	}
+	if got.Name() != kubeNode.Metadata.Name {
+		t.Error("wrong value from Name()")
 	}
 }
 
@@ -103,12 +149,13 @@ func TestInsecureConfig(t *testing.T) {
 }
 
 type mockClient struct {
-	broken bool
+	broken   bool
+	testFile string
 }
 
 func (c *mockClient) get(res string) (io.ReadCloser, error) {
-	if !c.broken && res == ingressListResource {
-		buf, err := ioutil.ReadFile("testdata/fixture01.json")
+	if !c.broken && (res == ingressListResource || res == nodeListResource) {
+		buf, err := ioutil.ReadFile(c.testFile)
 		if err != nil {
 			return nil, err
 		}
@@ -128,7 +175,7 @@ var testConfig = InsecureConfig("dummy-url")
 
 func TestListIngress(t *testing.T) {
 	a, _ := NewAdapter(testConfig)
-	client := &mockClient{}
+	client := &mockClient{testFile: "testdata/fixture01.json"}
 	a.kubeClient = client
 	ingresses, err := a.ListIngress()
 	if err != nil {
@@ -144,9 +191,27 @@ func TestListIngress(t *testing.T) {
 	}
 }
 
+func TestListNode(t *testing.T) {
+	a, _ := NewAdapter(testConfig)
+	client := &mockClient{testFile: "testdata/fixture02.json"}
+	a.kubeClient = client
+	nodes, err := a.ListNode()
+	if err != nil {
+		t.Error(err)
+	}
+	if len(nodes) != 1 {
+		t.Fatal("unexpected count of node resources")
+	}
+	client.broken = true
+	_, err = a.ListNode()
+	if err == nil {
+		t.Error("expected an error")
+	}
+}
+
 func TestUpdateIngressLoadBalancer(t *testing.T) {
 	a, _ := NewAdapter(testConfig)
-	client := &mockClient{}
+	client := &mockClient{testFile: "testdata/fixture01.json"}
 	a.kubeClient = client
 	ing := &Ingress{
 		namespace:      "default",

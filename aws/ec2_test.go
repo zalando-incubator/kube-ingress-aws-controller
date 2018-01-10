@@ -221,6 +221,66 @@ func TestGetSubnets(t *testing.T) {
 	}
 }
 
+func TestGetInstancesDetailsByPrivateIp(t *testing.T) {
+	for _, test := range []struct {
+		name      string
+		input     []string
+		responses ec2MockOutputs
+		want      []*instanceDetails
+		wantError bool
+	}{
+		{
+			"success-call",
+			[]string{"1.2.3.4", "1.2.3.5"},
+			ec2MockOutputs{describeInstances: R(mockDIOutput(
+				testInstance{id: "foo1", tags: tags{"bar": "baz"}, privateIp: "1.2.3.4", vpcId: "1"},
+				testInstance{id: "foo2", tags: tags{"bar": "baz"}, privateIp: "1.2.3.5", vpcId: "1"},
+			), nil)},
+			[]*instanceDetails{
+				&instanceDetails{id: "foo1", tags: map[string]string{"bar": "baz"}, ip: "1.2.3.4", vpcID: "1"},
+				&instanceDetails{id: "foo2", tags: map[string]string{"bar": "baz"}, ip: "1.2.3.5", vpcID: "1"},
+			},
+			false,
+		},
+		{
+			"success-empty-call",
+			[]string{},
+			ec2MockOutputs{describeInstances: R(mockDIOutput(), nil)},
+			[]*instanceDetails{},
+			false,
+		},
+		{
+			"failed-some-instance-not-found",
+			[]string{"1.2.3.4", "1.2.3.5"},
+			ec2MockOutputs{describeInstances: R(mockDIOutput(
+				testInstance{id: "foo1", tags: tags{"bar": "baz"}, privateIp: "1.2.3.4", vpcId: "1"},
+			), nil)},
+			nil,
+			true,
+		},
+		{
+			"failed-all-instances-not-found",
+			[]string{"1.2.3.4", "1.2.3.5"},
+			ec2MockOutputs{describeInstances: R(mockDIOutput(), nil)},
+			nil,
+			true,
+		},
+		{
+			"aws-api-fail",
+			[]string{},
+			ec2MockOutputs{describeInstances: R(nil, dummyErr)},
+			nil,
+			true,
+		},
+	} {
+		t.Run(fmt.Sprintf("%v", test.name), func(t *testing.T) {
+			ec2 := &mockEc2Client{outputs: test.responses}
+			got, err := getInstancesDetailsByPrivateIp(ec2, test.input)
+			assertResultAndError(t, test.want, got, test.wantError, err)
+		})
+	}
+}
+
 func assertResultAndError(t *testing.T, want, got interface{}, wantError bool, err error) {
 	if wantError {
 		if err == nil {
