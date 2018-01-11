@@ -19,7 +19,7 @@ func TestListNodes(t *testing.T) {
 	}))
 	defer testServer.Close()
 	kubeClient, _ := newSimpleClient(&Config{BaseURL: testServer.URL})
-	want := newNodeList(newNode("ip-1-2-3-4.ec2.internal", "1.2.3.4"))
+	want := newNodeList(newNode("ip-1-2-3-4.ec2.internal", "1.2.3.4", nodeRoleLabelValueNode), newNode("ip-1-1-1-1.ec2.internal", "1.1.1.1", nodeRoleLabelValueMaster))
 	got, err := listNode(kubeClient)
 	if err != nil {
 		t.Errorf("unexpected error from listNode: %v", err)
@@ -27,6 +27,8 @@ func TestListNodes(t *testing.T) {
 		if !reflect.DeepEqual(got, want) {
 			t.Logf("%v", *want.Items[0])
 			t.Logf("%v", *got.Items[0])
+			t.Logf("%v", *want.Items[1])
+			t.Logf("%v", *got.Items[1])
 			t.Errorf("unexpected result from listNode. wanted %v, got %v", want, got)
 		}
 	}
@@ -85,7 +87,7 @@ func newNodeList(nodes ...*node) *nodeList {
 	return &ret
 }
 
-func newNode(name string, internalIp string) *node {
+func newNode(name string, internalIp string, role string) *node {
 	ret := node{
 		Metadata: nodeMetadata{
 			Name:            name,
@@ -93,7 +95,7 @@ func newNode(name string, internalIp string) *node {
 			Annotations:     map[string]interface{}{},
 			SelfLink:        "/api/v1/nodes/" + name,
 			ResourceVersion: "42",
-			Labels:          map[string]interface{}{"kubernetes.io/role": "node"},
+			Labels:          map[string]interface{}{nodeRoleLabelName: role},
 		},
 		Status: nodeStatus{
 			Addresses: []nodeAddress{

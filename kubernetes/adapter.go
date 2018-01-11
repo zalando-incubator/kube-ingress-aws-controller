@@ -201,9 +201,11 @@ func (a *Adapter) ListNode() ([]*Node, error) {
 	if err != nil {
 		return nil, err
 	}
-	ret := make([]*Node, len(il.Items))
-	for i, node := range il.Items {
-		ret[i] = newNodeFromKube(node)
+	ret := make([]*Node, 0, len(il.Items))
+	for _, node := range il.Items {
+		if node.Metadata.Labels[nodeRoleLabelName] != nodeRoleLabelValueMaster {
+			ret = append(ret, newNodeFromKube(node))
+		}
 	}
 	return ret, nil
 }

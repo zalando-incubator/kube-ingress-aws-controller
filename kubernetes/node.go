@@ -46,6 +46,9 @@ const (
 	nodeAddressTypeInternalIP = "InternalIP"
 	nodeAddressTypeHostname   = "Hostname"
 	nodeListResource          = "/api/v1/nodes"
+	nodeRoleLabelName         = "kubernetes.io/role"
+	nodeRoleLabelValueMaster  = "master"
+	nodeRoleLabelValueNode    = "node"
 )
 
 func (i *node) getAddress(addrType string) string {
