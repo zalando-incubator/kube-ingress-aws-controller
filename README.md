@@ -21,6 +21,8 @@ This information is used to manage AWS resources for each ingress objects of the
 - Automatic forwarding of requests to all Worker Nodes, even with auto scaling
 - Automatic cleanup of unnecessary managed resources
 - Support for internet-facing and internal load balancers
+- Support for multiple Auto Scaling Groups
+- Support for instances that are not part of Auto Scaling Group
 - Can be used in clusters created by [Kops](https://github.com/kubernetes/kops), see our [deployment guide for Kops](deploy/kops.md)
 
 ## Upgrade
@@ -87,21 +89,25 @@ This is achieved using AWS CloudFormation. For more details check our [CloudForm
 The controller *will not* manage the security groups required to allow access from the Internet to the load balancers.
 It assumes that their lifecycle is external to the controller itself.
 
+Every poll cycle Kubernetes cluster is scanned for new nodes. Each new
+discovered node is scanned for Auto Scaling Group tag. Each Target
+Group created by this Ingress controller is then added to each Auto
+Scaling Group.
+If instance does not belong to Auto Scaling Group (does not have
+`aws:autoscaling:groupName` tag) it is stored in separate list of
+Single Instances. On each cycle instances on this list are registered
+as tartgets in all Target Groups managed by this controller.
+
 ### Discovery
 
 On startup, the controller discovers the AWS resources required for the controller operations:
 
-1. The AutoScalingGroup
-
-    Simple lookup of the Auto Scaling Group that name matches the `aws:autoscaling:groupName` tag from the
-    EC2 instance running the controller.
-
-2. The Security Group
+1. The Security Group
 
     Lookup of the `kubernetes.io/cluster/<cluster-id>` tag of the Security Group matching the clusterID for the controller node and `kubernetes:application` matching the value `kube-ingress-aws-controller` or as fallback for `<v0.4.0`
     tag `aws:cloudformation:logical-id` matching the value `IngressLoadBalancerSecurityGroup` (only clusters created by CF).
 
-3. The Subnets
+2. The Subnets
 
     Subnets are discovered based on the VPC of the instance where the
     controller is running. By default it will try to select all subnets of the
