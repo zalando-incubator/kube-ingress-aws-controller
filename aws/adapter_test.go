@@ -171,7 +171,7 @@ func TestUpdateAutoScalingGroups(tt *testing.T) {
 			"add-node-without-asg",
 			[]string{"1.2.3.4", "1.2.3.5", "2.1.1.1", "2.2.2.2", "3.1.1.1", "0.1.1.1"},
 			ec2MockOutputs{describeInstances: R(mockDIOutput(
-				testInstance{id: "bar1", tags: tags{"Name": "node"}, privateIp: "0.1.1.1", vpcId: "1"},
+				testInstance{id: "bar1", tags: tags{"Name": "node"}, privateIp: "0.1.1.1", vpcId: "1", state: runningState},
 			), nil)},
 			autoscalingMockOutputs{},
 			[]string{"asg1", "asg2", "asg3"},
@@ -180,7 +180,9 @@ func TestUpdateAutoScalingGroups(tt *testing.T) {
 		{
 			"remove-third-asg-node",
 			[]string{"1.2.3.4", "1.2.3.5", "2.1.1.1", "2.2.2.2", "0.1.1.1"},
-			ec2MockOutputs{},
+			ec2MockOutputs{describeInstances: R(mockDIOutput(
+				testInstance{id: "bar1", tags: tags{"Name": "node"}, privateIp: "0.1.1.1", vpcId: "1", state: runningState},
+			), nil)},
 			autoscalingMockOutputs{},
 			[]string{"asg1", "asg2"},
 			false,

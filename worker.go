@@ -126,6 +126,7 @@ func doWork(certsProvider certs.CertificatesProvider, awsAdapter *aws.Adapter, k
 
 	awsAdapter.UpdateAutoScalingGroups(extractIps(nodes))
 	log.Printf("Found %d auto scaling groups", len(awsAdapter.AutoScalingGroupNames()))
+	log.Printf("Found %d single instances", len(awsAdapter.SingleInstances()))
 
 	model := buildManagedModel(certsProvider, ingresses, stacks)
 	log.Printf("Have %d models", len(model))

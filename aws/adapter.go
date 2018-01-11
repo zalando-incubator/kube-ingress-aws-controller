@@ -22,6 +22,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/aws/aws-sdk-go/service/ec2/ec2iface"
 	"github.com/aws/aws-sdk-go/service/elbv2"
+	"github.com/aws/aws-sdk-go/service/elbv2/elbv2iface"
 	"github.com/aws/aws-sdk-go/service/iam"
 	"github.com/aws/aws-sdk-go/service/iam/iamiface"
 	"github.com/linki/instrumented_http"
@@ -32,6 +33,7 @@ import (
 type Adapter struct {
 	ec2metadata    *ec2metadata.EC2Metadata
 	ec2            ec2iface.EC2API
+	elbv2          elbv2iface.ELBV2API
 	autoscaling    autoscalingiface.AutoScalingAPI
 	acm            acmiface.ACMAPI
 	iam            iamiface.IAMAPI
@@ -46,6 +48,7 @@ type Adapter struct {
 	stackTTL            time.Duration
 	autoScalingGroups   map[string]*autoScalingGroupDetails
 	instancesDetails    map[string]*instanceDetails
+	singleInstances     []string
 }
 
 type manifest struct {
@@ -110,6 +113,7 @@ func NewAdapter() (adapter *Adapter, err error) {
 	p := configProvider()
 	adapter = &Adapter{
 		ec2:                 ec2.New(p),
+		elbv2:               elbv2.New(p),
 		ec2metadata:         ec2metadata.New(p),
 		autoscaling:         autoscaling.New(p),
 		acm:                 acm.New(p),
@@ -122,6 +126,7 @@ func NewAdapter() (adapter *Adapter, err error) {
 		stackTTL:            DefaultStackTTL,
 		autoScalingGroups:   make(map[string]*autoScalingGroupDetails),
 		instancesDetails:    make(map[string]*instanceDetails),
+		singleInstances:     make([]string, 0),
 	}
 
 	adapter.manifest, err = buildManifest(adapter)
@@ -203,6 +208,12 @@ func (a *Adapter) AutoScalingGroupNames() []string {
 	return result
 }
 
+// SingleInstances returns list of instance IDs of instances that do
+// not belong to any Auto Scaling Group and should be managed manually.
+func (a *Adapter) SingleInstances() []string {
+	return a.singleInstances
+}
+
 // SecurityGroupID returns the security group ID that should be used to create Load Balancers.
 func (a *Adapter) SecurityGroupID() string {
 	return a.manifest.securityGroup.id
@@ -224,6 +235,10 @@ func (a *Adapter) FindManagedStacks() ([]*Stack, error) {
 		if err := attachTargetGroupsToAutoScalingGroup(a.autoscaling, targetGroupARNs, asg.name); err != nil {
 			log.Printf("FindManagedStacks() failed to attach target groups to ASG: %v", err)
 		}
+	}
+	// This call is idempotent too
+	if err := registerTargetsOnTargetGroups(a.elbv2, targetGroupARNs, a.SingleInstances()); err != nil {
+		log.Printf("FindManagedStacks() failed to register instances %q in target groups: %v", a.SingleInstances(), err)
 	}
 	return stacks, nil
 }
@@ -424,12 +439,15 @@ func (a *Adapter) UpdateAutoScalingGroups(instancePrivateIps []string) error {
 		return err
 	}
 
-	// update ASGs (create new map to get rid of deleted ASGs)
+	// update ASGs (create new map to get rid of deleted ASGs) and
+	// single instances
 	newAutoScalingGroups := make(map[string]*autoScalingGroupDetails)
+	newSingleInstances := make([]string, 0)
 	for _, instance := range a.instancesDetails {
 		asgName, err := getAutoScalingGroupName(instance.tags)
 		if err != nil {
-			// Instance is not in ASG, ignore it.
+			// Instance is not in ASG, save in single instances list.
+			newSingleInstances = append(newSingleInstances, instance.id)
 			continue
 		}
 		if _, exists := newAutoScalingGroups[asgName]; !exists {
@@ -443,7 +461,13 @@ func (a *Adapter) UpdateAutoScalingGroups(instancePrivateIps []string) error {
 			}
 		}
 	}
+
+	var err error
 	a.autoScalingGroups = newAutoScalingGroups
+	a.singleInstances, err = filterRunningInstances(a.ec2, newSingleInstances)
+	if err != nil {
+		return err
+	}
 	return nil
 }
 

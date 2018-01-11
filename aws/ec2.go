@@ -328,3 +328,33 @@ func instancesCount(reservations []*ec2.Reservation) int {
 	}
 	return instances
 }
+
+func filterRunningInstances(svc ec2iface.EC2API, instanceIds []string) ([]string, error) {
+	params := &ec2.DescribeInstancesInput{
+		Filters: []*ec2.Filter{
+			{
+				Name:   aws.String("instance-id"),
+				Values: make([]*string, len(instanceIds)),
+			},
+		},
+	}
+
+	for i, instanceId := range instanceIds {
+		params.Filters[0].Values[i] = aws.String(instanceId)
+	}
+
+	resp, err := svc.DescribeInstances(params)
+	if err != nil || resp == nil {
+		return nil, fmt.Errorf("unable to get details for instances %q: %v", instanceIds, err)
+	}
+
+	result := make([]string, 0, len(instanceIds))
+	for _, reservation := range resp.Reservations {
+		for _, instance := range reservation.Instances {
+			if aws.Int64Value(instance.State.Code)&0xff == runningState {
+				result = append(result, aws.StringValue(instance.InstanceId))
+			}
+		}
+	}
+	return result, nil
+}
