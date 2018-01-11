@@ -236,9 +236,11 @@ func (a *Adapter) FindManagedStacks() ([]*Stack, error) {
 			log.Printf("FindManagedStacks() failed to attach target groups to ASG: %v", err)
 		}
 	}
-	// This call is idempotent too
-	if err := registerTargetsOnTargetGroups(a.elbv2, targetGroupARNs, a.SingleInstances()); err != nil {
-		log.Printf("FindManagedStacks() failed to register instances %q in target groups: %v", a.SingleInstances(), err)
+	if len(a.SingleInstances()) != 0 {
+		// This call is idempotent too
+		if err := registerTargetsOnTargetGroups(a.elbv2, targetGroupARNs, a.SingleInstances()); err != nil {
+			log.Printf("FindManagedStacks() failed to register instances %q in target groups: %v", a.SingleInstances(), err)
+		}
 	}
 	return stacks, nil
 }
