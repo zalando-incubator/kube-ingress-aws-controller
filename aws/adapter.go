@@ -196,7 +196,7 @@ func (a *Adapter) InstanceID() string {
 	return a.manifest.instance.id
 }
 
-// AutoScalingGroupName returns names of the Auto Scaling Groups that
+// AutoScalingGroupNames returns names of the Auto Scaling Groups that
 // kubernetes nodes belong to.
 func (a *Adapter) AutoScalingGroupNames() []string {
 	result := make([]string, len(a.autoScalingGroups))
@@ -432,7 +432,7 @@ func getTag(tags map[string]string, tagName string) (string, error) {
 }
 
 // Update list of ASGs that are updated with TargetGroup setting.
-func (a *Adapter) UpdateAutoScalingGroups(instancePrivateIps []string) error {
+func (a *Adapter) UpdateAutoScalingGroupsWithInstanceCache(instancePrivateIps []string) error {
 	// remove obsolete instances
 	a.removeObsoleteInstances(instancePrivateIps)
 
@@ -452,8 +452,8 @@ func (a *Adapter) UpdateAutoScalingGroups(instancePrivateIps []string) error {
 			newSingleInstances = append(newSingleInstances, instance.id)
 			continue
 		}
-		if _, exists := newAutoScalingGroups[asgName]; !exists {
-			if _, exists := a.autoScalingGroups[asgName]; exists {
+		if _, ok := newAutoScalingGroups[asgName]; !ok {
+			if _, ok := a.autoScalingGroups[asgName]; ok {
 				newAutoScalingGroups[asgName] = a.autoScalingGroups[asgName]
 			} else {
 				newAutoScalingGroups[asgName], err = getAutoScalingGroupByName(a.autoscaling, asgName)

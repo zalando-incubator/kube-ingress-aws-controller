@@ -124,7 +124,7 @@ func doWork(certsProvider certs.CertificatesProvider, awsAdapter *aws.Adapter, k
 	}
 	log.Printf("Found %d stacks", len(stacks))
 
-	awsAdapter.UpdateAutoScalingGroups(extractIps(nodes))
+	awsAdapter.UpdateAutoScalingGroupsWithInstanceCache(extractIps(nodes))
 	log.Printf("Found %d auto scaling groups", len(awsAdapter.AutoScalingGroupNames()))
 	log.Printf("Found %d single instances", len(awsAdapter.SingleInstances()))
 

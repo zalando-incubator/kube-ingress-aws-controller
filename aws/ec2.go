@@ -110,36 +110,30 @@ func getInstanceDetails(ec2Service ec2iface.EC2API, instanceID string) (*instanc
 }
 
 func getInstancesDetailsByPrivateIp(ec2Service ec2iface.EC2API, privateIps []string) ([]*instanceDetails, error) {
-	values := make([]*string, len(privateIps))
-	for i, ip := range privateIps {
-		values[i] = aws.String(ip)
-	}
 	params := &ec2.DescribeInstancesInput{
 		Filters: []*ec2.Filter{
 			{
 				Name:   aws.String("private-ip-address"),
-				Values: values,
+				Values: aws.StringSlice(privateIps),
 			},
 		},
 	}
 	resp, err := ec2Service.DescribeInstances(params)
-	if err != nil || resp == nil {
+	if err != nil {
 		return nil, fmt.Errorf("unable to get details for instances with IPs %q: %v", privateIps, err)
 	}
 
 	instancesFound := make(map[string]bool)
-	result := make([]*instanceDetails, instancesCount(resp.Reservations))
-	i := 0
+	result := make([]*instanceDetails, 0)
 	for _, reservation := range resp.Reservations {
 		for _, instance := range reservation.Instances {
-			result[i] = &instanceDetails{
+			result = append(result, &instanceDetails{
 				id:    aws.StringValue(instance.InstanceId),
 				ip:    aws.StringValue(instance.PrivateIpAddress),
 				vpcID: aws.StringValue(instance.VpcId),
 				tags:  convertEc2Tags(instance.Tags),
-			}
+			})
 			instancesFound[aws.StringValue(instance.PrivateIpAddress)] = true
-			i++
 		}
 	}
 	for _, ip := range privateIps {
@@ -321,30 +315,18 @@ func findSecurityGroupWithClusterID(svc ec2iface.EC2API, clusterID string) (*sec
 	}, nil
 }
 
-func instancesCount(reservations []*ec2.Reservation) int {
-	instances := 0
-	for _, r := range reservations {
-		instances += len(r.Instances)
-	}
-	return instances
-}
-
 func filterRunningInstances(svc ec2iface.EC2API, instanceIds []string) ([]string, error) {
 	params := &ec2.DescribeInstancesInput{
 		Filters: []*ec2.Filter{
 			{
 				Name:   aws.String("instance-id"),
-				Values: make([]*string, len(instanceIds)),
+				Values: aws.StringSlice(instanceIds),
 			},
 		},
 	}
 
-	for i, instanceId := range instanceIds {
-		params.Filters[0].Values[i] = aws.String(instanceId)
-	}
-
 	resp, err := svc.DescribeInstances(params)
-	if err != nil || resp == nil {
+	if err != nil {
 		return nil, fmt.Errorf("unable to get details for instances %q: %v", instanceIds, err)
 	}
 

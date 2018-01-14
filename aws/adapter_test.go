@@ -100,7 +100,7 @@ func TestFetchMissingInstances(tt *testing.T) {
 	}
 }
 
-func TestUpdateAutoScalingGroups(tt *testing.T) {
+func TestUpdateAutoScalingGroupsWithInstanceCache(tt *testing.T) {
 	a := Adapter{instancesDetails: map[string]*instanceDetails{}, autoScalingGroups: make(map[string]*autoScalingGroupDetails)}
 	for _, test := range []struct {
 		name         string
@@ -244,7 +244,7 @@ func TestUpdateAutoScalingGroups(tt *testing.T) {
 			a.ec2 = ec2
 			a.autoscaling = autoscaling
 			tt.Log(test.name)
-			err := a.UpdateAutoScalingGroups(test.input)
+			err := a.UpdateAutoScalingGroupsWithInstanceCache(test.input)
 			if test.wantError && err == nil {
 				t.Errorf("expected error, got nothing with input - %q", test.input)
 			}
