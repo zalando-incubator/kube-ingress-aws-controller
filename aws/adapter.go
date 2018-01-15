@@ -388,16 +388,6 @@ func buildManifest(awsAdapter *Adapter) (*manifest, error) {
 		return nil, err
 	}
 
-	autoScalingGroupName, err := getAutoScalingGroupName(instanceDetails.tags)
-	if err != nil {
-		return nil, err
-	}
-	autoScalingGroupDetails, err := getAutoScalingGroupByName(awsAdapter.autoscaling, autoScalingGroupName)
-	if err != nil {
-		return nil, err
-	}
-	awsAdapter.autoScalingGroups[autoScalingGroupName] = autoScalingGroupDetails
-
 	clusterID := instanceDetails.clusterID()
 
 	securityGroupDetails, err := findSecurityGroupWithClusterID(awsAdapter.ec2, clusterID)
