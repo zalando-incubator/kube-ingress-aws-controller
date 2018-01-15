@@ -514,6 +514,7 @@ func (a *Adapter) UpdateAutoScalingGroupsAndInstances() error {
 
 	// update ASGs (create new map to get rid of deleted ASGs)
 	newAutoScalingGroups := make(map[string]*autoScalingGroupDetails)
+	autoScalingGroupsToFetch := make([]string, 0)
 	for instanceId, details := range a.instancesDetails {
 		asgName, err := getAutoScalingGroupName(details.tags)
 		if err != nil {
@@ -525,12 +526,19 @@ func (a *Adapter) UpdateAutoScalingGroupsAndInstances() error {
 			if _, ok := a.autoScalingGroups[asgName]; ok {
 				newAutoScalingGroups[asgName] = a.autoScalingGroups[asgName]
 			} else {
-				asg, err := getAutoScalingGroupByName(a.autoscaling, asgName)
-				if err != nil {
-					log.Printf("failed fetching Auto Scaling Group %s details: %v", asgName, err)
-				} else {
-					newAutoScalingGroups[asgName] = asg
-				}
+				// Save ASGs that have to be loaded to loaded all of them in one API call
+				autoScalingGroupsToFetch = append(autoScalingGroupsToFetch, asgName)
+			}
+		}
+	}
+
+	if len(autoScalingGroupsToFetch) != 0 {
+		fetchedAutoScalingGroups, err := getAutoScalingGroupsByName(a.autoscaling, autoScalingGroupsToFetch)
+		if err != nil {
+			log.Printf("failed fetching Auto Scaling Groups details: %v", err)
+		} else {
+			for name, asg := range fetchedAutoScalingGroups {
+				newAutoScalingGroups[name] = asg
 			}
 		}
 	}

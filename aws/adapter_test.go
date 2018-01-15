@@ -143,6 +143,23 @@ func TestParseFilters(tt *testing.T) {
 				},
 			},
 		},
+		{
+			"illegal1",
+			aws.String("test"),
+			map[string]string{
+				kubernetesClusterTag: "cluster",
+			},
+			[]*ec2.Filter{
+				{
+					Name:   aws.String("tag:" + kubernetesClusterTag),
+					Values: aws.StringSlice([]string{"cluster"}),
+				},
+				{
+					Name:   aws.String("tag-key"),
+					Values: aws.StringSlice([]string{kubernetesNodeRoleTag}),
+				},
+			},
+		},
 	} {
 		tt.Run(fmt.Sprintf("%v", test.name), func(t *testing.T) {
 			tt.Log(test.name)
@@ -480,7 +497,6 @@ func TestUpdateAutoScalingGroupsAndInstances(tt *testing.T) {
 		tt.Run(fmt.Sprintf("%v", test.name), func(t *testing.T) {
 			a.ec2 = &mockEc2Client{outputs: test.ec2responses}
 			a.autoscaling = &mockAutoScalingClient{outputs: test.asgresponses}
-			tt.Log(test.name)
 			err := a.UpdateAutoScalingGroupsAndInstances()
 			if test.wantError && err == nil {
 				t.Errorf("expected error, got nothing")
