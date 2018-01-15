@@ -89,14 +89,22 @@ This is achieved using AWS CloudFormation. For more details check our [CloudForm
 The controller *will not* manage the security groups required to allow access from the Internet to the load balancers.
 It assumes that their lifecycle is external to the controller itself.
 
-Every poll cycle Kubernetes cluster is scanned for new nodes. Each new
-discovered node is scanned for Auto Scaling Group tag. Each Target
-Group created by this Ingress controller is then added to each Auto
-Scaling Group.
-If instance does not belong to Auto Scaling Group (does not have
-`aws:autoscaling:groupName` tag) it is stored in separate list of
-Single Instances. On each cycle instances on this list are registered
-as tartgets in all Target Groups managed by this controller.
+During startup phase EC2 filter is constructed as follows:
+
+* If `CUSTOM_TAG_FILTER` environment variable is set, it is expected to be in the form
+  of `FILTER_NAME=FILTER_VALUE1,FILTER_VALUE2... FILTER2_NAME=FILTER2_VALUE1,FILTER2_VALUE2... ...`.
+* If `CUSTOM_TAG_FILTER` environment variable is not set or could not be parsed, then default
+  filters are `tag:KubernetesCluster=<value-from-instance> tag-key=k8s.io/role/node` where `<value-from-instance>`
+  is determined from EC2 tags of instance on which Ingress Controller pod is started.
+
+Every poll cycle EC2 is queried with filters that were constructed during startup.
+Each new discovered instance is scanned for Auto Scaling Group tag. Each Target
+Group created by this Ingress controller is then added to each known Auto Scaling Group.
+Each Auto Scaling Group information is fetched only once when first node of it is discovered for first time.
+If instance does not belong to Auto Scaling Group (does not have `aws:autoscaling:groupName` tag) it is stored in separate list of
+Single Instances. On each cycle instances on this list are registered as tartgets in all Target Groups managed by this controller.
+If call to get instances from EC2 did not return previously known Single Instance, it is deregistered from Target Group and removed from list of Single Instances.
+Call to deregister instances is aggregated so that maximum 1 call to deregister is issued in poll cycle.
 
 ### Discovery
 
