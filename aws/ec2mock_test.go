@@ -61,9 +61,9 @@ func mockDSGOutput(sgs map[string]string) *ec2.DescribeSecurityGroupsOutput {
 type testInstance struct {
 	id        string
 	tags      tags
-	state     int64
 	privateIp string
 	vpcId     string
+	state     int64
 }
 
 func mockDIOutput(mockedInstances ...testInstance) *ec2.DescribeInstancesOutput {

@@ -164,6 +164,7 @@ func main() {
 	log.Printf("\tsecurity group id: %s", awsAdapter.SecurityGroupID())
 	log.Printf("\tinternal subnet ids: %s", awsAdapter.FindLBSubnets(elbv2.LoadBalancerSchemeEnumInternal))
 	log.Printf("\tpublic subnet ids: %s", awsAdapter.FindLBSubnets(elbv2.LoadBalancerSchemeEnumInternetFacing))
+	log.Printf("\tEC2 filters: %s", awsAdapter.FiltersString())
 
 	go serveMetrics(metricsAddress)
 	quitCH := make(chan struct{})

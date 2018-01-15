@@ -4,6 +4,9 @@ import (
 	"fmt"
 	"reflect"
 	"testing"
+
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/service/ec2"
 )
 
 func TestGetAutoScalingName(t *testing.T) {
@@ -125,7 +128,7 @@ func TestGetInstanceDetails(t *testing.T) {
 			ec2MockOutputs{describeInstances: R(mockDIOutput(
 				testInstance{id: "foo", tags: tags{"bar": "baz"}, state: runningState},
 			), nil)},
-			&instanceDetails{id: "foo", tags: map[string]string{"bar": "baz"}},
+			&instanceDetails{id: "foo", tags: map[string]string{"bar": "baz"}, running: true},
 			false,
 		},
 		{
@@ -221,53 +224,73 @@ func TestGetSubnets(t *testing.T) {
 	}
 }
 
-func TestGetInstancesDetailsByPrivateIp(t *testing.T) {
+func TestGetInstancesDetailsWithFilters(t *testing.T) {
 	for _, test := range []struct {
 		name      string
-		input     []string
+		input     []*ec2.Filter
 		responses ec2MockOutputs
-		want      []*instanceDetails
+		want      map[string]*instanceDetails
 		wantError bool
 	}{
 		{
 			"success-call",
-			[]string{"1.2.3.4", "1.2.3.5"},
+			[]*ec2.Filter{
+				{
+					Name: aws.String("tag:KubernetesCluster"),
+					Values: []*string{
+						aws.String("kube1"),
+					},
+				},
+			},
 			ec2MockOutputs{describeInstances: R(mockDIOutput(
-				testInstance{id: "foo1", tags: tags{"bar": "baz"}, privateIp: "1.2.3.4", vpcId: "1"},
-				testInstance{id: "foo2", tags: tags{"bar": "baz"}, privateIp: "1.2.3.5", vpcId: "1"},
+				testInstance{id: "foo1", tags: tags{"bar": "baz"}, privateIp: "1.2.3.4", vpcId: "1", state: 16},
+				testInstance{id: "foo2", tags: tags{"bar": "baz"}, privateIp: "1.2.3.5", vpcId: "1", state: 32},
+				testInstance{id: "foo3", tags: tags{"aaa": "zzz"}, privateIp: "1.2.3.6", vpcId: "1", state: 80},
 			), nil)},
-			[]*instanceDetails{
-				&instanceDetails{id: "foo1", tags: map[string]string{"bar": "baz"}, ip: "1.2.3.4", vpcID: "1"},
-				&instanceDetails{id: "foo2", tags: map[string]string{"bar": "baz"}, ip: "1.2.3.5", vpcID: "1"},
+			map[string]*instanceDetails{
+				"foo1": &instanceDetails{id: "foo1", tags: map[string]string{"bar": "baz"}, ip: "1.2.3.4", vpcID: "1", running: true},
+				"foo2": &instanceDetails{id: "foo2", tags: map[string]string{"bar": "baz"}, ip: "1.2.3.5", vpcID: "1", running: false},
+				"foo3": &instanceDetails{id: "foo3", tags: map[string]string{"aaa": "zzz"}, ip: "1.2.3.6", vpcID: "1", running: false},
 			},
 			false,
 		},
 		{
-			"success-empty-call",
-			[]string{},
-			ec2MockOutputs{describeInstances: R(mockDIOutput(), nil)},
-			[]*instanceDetails{},
+			"success-empty-filters",
+			[]*ec2.Filter{},
+			ec2MockOutputs{describeInstances: R(mockDIOutput(
+				testInstance{id: "foo1", tags: tags{"bar": "baz"}, privateIp: "1.2.3.4", vpcId: "1", state: 16},
+				testInstance{id: "foo3", tags: tags{"aaa": "zzz"}, privateIp: "1.2.3.6", vpcId: "1", state: 80},
+			), nil)},
+			map[string]*instanceDetails{
+				"foo1": &instanceDetails{id: "foo1", tags: map[string]string{"bar": "baz"}, ip: "1.2.3.4", vpcID: "1", running: true},
+				"foo3": &instanceDetails{id: "foo3", tags: map[string]string{"aaa": "zzz"}, ip: "1.2.3.6", vpcID: "1", running: false},
+			},
 			false,
 		},
 		{
-			"failed-some-instance-not-found",
-			[]string{"1.2.3.4", "1.2.3.5"},
-			ec2MockOutputs{describeInstances: R(mockDIOutput(
-				testInstance{id: "foo1", tags: tags{"bar": "baz"}, privateIp: "1.2.3.4", vpcId: "1"},
-			), nil)},
-			nil,
-			true,
-		},
-		{
-			"failed-all-instances-not-found",
-			[]string{"1.2.3.4", "1.2.3.5"},
+			"success-empty-response",
+			[]*ec2.Filter{
+				{
+					Name: aws.String("vpc-id"),
+					Values: []*string{
+						aws.String("some-vpc"),
+					},
+				},
+			},
 			ec2MockOutputs{describeInstances: R(mockDIOutput(), nil)},
-			nil,
-			true,
+			map[string]*instanceDetails{},
+			false,
 		},
 		{
 			"aws-api-fail",
-			[]string{},
+			[]*ec2.Filter{
+				{
+					Name: aws.String("tag-key"),
+					Values: []*string{
+						aws.String("key1"),
+					},
+				},
+			},
 			ec2MockOutputs{describeInstances: R(nil, dummyErr)},
 			nil,
 			true,
@@ -275,7 +298,7 @@ func TestGetInstancesDetailsByPrivateIp(t *testing.T) {
 	} {
 		t.Run(fmt.Sprintf("%v", test.name), func(t *testing.T) {
 			ec2 := &mockEc2Client{outputs: test.responses}
-			got, err := getInstancesDetailsByPrivateIp(ec2, test.input)
+			got, err := getInstancesDetailsWithFilters(ec2, test.input)
 			assertResultAndError(t, test.want, got, test.wantError, err)
 		})
 	}

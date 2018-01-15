@@ -112,21 +112,21 @@ func doWork(certsProvider certs.CertificatesProvider, awsAdapter *aws.Adapter, k
 	}
 	log.Printf("Found %d ingresses", len(ingresses))
 
-	nodes, err := kubeAdapter.ListNode()
-	if err != nil {
-		return fmt.Errorf("doWork failed to list node resources: %v", err)
-	}
-	log.Printf("Found %d nodes", len(nodes))
-
 	stacks, err := awsAdapter.FindManagedStacks()
 	if err != nil {
 		return fmt.Errorf("doWork failed to list managed stacks: %v", err)
 	}
 	log.Printf("Found %d stacks", len(stacks))
 
-	awsAdapter.UpdateAutoScalingGroupsWithInstanceCache(extractIps(nodes))
+	err = awsAdapter.UpdateAutoScalingGroupsAndInstances()
+	if err != nil {
+		return fmt.Errorf("doWork failed to get instances from EC2: %v", err)
+	}
+
+	awsAdapter.UpdateTargetGroupsAndAutoScalingGroups(stacks)
 	log.Printf("Found %d auto scaling groups", len(awsAdapter.AutoScalingGroupNames()))
 	log.Printf("Found %d single instances", len(awsAdapter.SingleInstances()))
+	log.Printf("Found %d EC2 instances", awsAdapter.CachedInstances())
 
 	model := buildManagedModel(certsProvider, ingresses, stacks)
 	log.Printf("Have %d models", len(model))

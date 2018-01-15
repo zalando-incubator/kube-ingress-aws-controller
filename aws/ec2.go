@@ -19,6 +19,7 @@ const (
 	kubernetesCreatorValue     = "kube-ingress-aws-controller"
 	autoScalingGroupNameTag    = "aws:autoscaling:groupName"
 	runningState               = 16 // See https://github.com/aws/aws-sdk-go/blob/master/service/ec2/api.go, type InstanceState
+	stoppedState               = 80 // See https://github.com/aws/aws-sdk-go/blob/master/service/ec2/api.go, type InstanceState
 	elbRoleTagName             = "kubernetes.io/role/elb"
 	internalELBRoleTagName     = "kubernetes.io/role/internal-elb"
 )
@@ -29,10 +30,11 @@ type securityGroupDetails struct {
 }
 
 type instanceDetails struct {
-	id    string
-	ip    string
-	vpcID string
-	tags  map[string]string
+	id      string
+	ip      string
+	vpcID   string
+	tags    map[string]string
+	running bool
 }
 
 func (id *instanceDetails) clusterID() string {
@@ -102,43 +104,33 @@ func getInstanceDetails(ec2Service ec2iface.EC2API, instanceID string) (*instanc
 	}
 
 	return &instanceDetails{
-		id:    aws.StringValue(i.InstanceId),
-		ip:    aws.StringValue(i.PrivateIpAddress),
-		vpcID: aws.StringValue(i.VpcId),
-		tags:  convertEc2Tags(i.Tags),
+		id:      aws.StringValue(i.InstanceId),
+		ip:      aws.StringValue(i.PrivateIpAddress),
+		vpcID:   aws.StringValue(i.VpcId),
+		tags:    convertEc2Tags(i.Tags),
+		running: aws.Int64Value(i.State.Code)&0xff == runningState,
 	}, nil
 }
 
-func getInstancesDetailsByPrivateIp(ec2Service ec2iface.EC2API, privateIps []string) ([]*instanceDetails, error) {
+func getInstancesDetailsWithFilters(ec2Service ec2iface.EC2API, filters []*ec2.Filter) (map[string]*instanceDetails, error) {
 	params := &ec2.DescribeInstancesInput{
-		Filters: []*ec2.Filter{
-			{
-				Name:   aws.String("private-ip-address"),
-				Values: aws.StringSlice(privateIps),
-			},
-		},
+		Filters: filters,
 	}
 	resp, err := ec2Service.DescribeInstances(params)
 	if err != nil {
-		return nil, fmt.Errorf("unable to get details for instances with IPs %q: %v", privateIps, err)
+		return nil, fmt.Errorf("failed getting instance list from EC2: %v", err)
 	}
 
-	instancesFound := make(map[string]bool)
-	result := make([]*instanceDetails, 0)
+	result := make(map[string]*instanceDetails)
 	for _, reservation := range resp.Reservations {
 		for _, instance := range reservation.Instances {
-			result = append(result, &instanceDetails{
-				id:    aws.StringValue(instance.InstanceId),
-				ip:    aws.StringValue(instance.PrivateIpAddress),
-				vpcID: aws.StringValue(instance.VpcId),
-				tags:  convertEc2Tags(instance.Tags),
-			})
-			instancesFound[aws.StringValue(instance.PrivateIpAddress)] = true
-		}
-	}
-	for _, ip := range privateIps {
-		if !instancesFound[ip] {
-			return nil, fmt.Errorf("unable to find instance %q: %v", ip, err)
+			result[aws.StringValue(instance.InstanceId)] = &instanceDetails{
+				id:      aws.StringValue(instance.InstanceId),
+				ip:      aws.StringValue(instance.PrivateIpAddress),
+				vpcID:   aws.StringValue(instance.VpcId),
+				tags:    convertEc2Tags(instance.Tags),
+				running: aws.Int64Value(instance.State.Code)&0xff == runningState,
+			}
 		}
 	}
 	return result, nil
@@ -313,30 +305,4 @@ func findSecurityGroupWithClusterID(svc ec2iface.EC2API, clusterID string) (*sec
 		name: aws.StringValue(sg.GroupName),
 		id:   aws.StringValue(sg.GroupId),
 	}, nil
-}
-
-func filterRunningInstances(svc ec2iface.EC2API, instanceIds []string) ([]string, error) {
-	params := &ec2.DescribeInstancesInput{
-		Filters: []*ec2.Filter{
-			{
-				Name:   aws.String("instance-id"),
-				Values: aws.StringSlice(instanceIds),
-			},
-		},
-	}
-
-	resp, err := svc.DescribeInstances(params)
-	if err != nil {
-		return nil, fmt.Errorf("unable to get details for instances %q: %v", instanceIds, err)
-	}
-
-	result := make([]string, 0, len(instanceIds))
-	for _, reservation := range resp.Reservations {
-		for _, instance := range reservation.Instances {
-			if aws.Int64Value(instance.State.Code)&0xff == runningState {
-				result = append(result, aws.StringValue(instance.InstanceId))
-			}
-		}
-	}
-	return result, nil
 }

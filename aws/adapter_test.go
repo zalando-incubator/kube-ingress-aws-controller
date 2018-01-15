@@ -1,274 +1,520 @@
 package aws
 
 import (
+	"fmt"
+	"os"
+	"reflect"
 	"sort"
 	"testing"
 
-	"fmt"
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/aws/aws-sdk-go/service/elbv2"
-	"reflect"
 )
 
-func TestRemoveObsoletteInstances(tt *testing.T) {
-	a := Adapter{instancesDetails: map[string]*instanceDetails{
-		"1.2.3.4": nil,
-		"1.2.3.5": nil,
-	}}
-	a.removeObsoleteInstances([]string{"1.2.3.4", "1.2.3.5"})
-	if len(a.instancesDetails) != 2 {
-		tt.Errorf("unexpected change in instancesDetails - %q", a.instancesDetails)
-	}
-	a.removeObsoleteInstances([]string{"1.2.3.4"})
-	if len(a.instancesDetails) != 1 {
-		tt.Errorf("unexpected change in instancesDetails - %q", a.instancesDetails)
-	}
-	if _, ok := a.instancesDetails["1.2.3.4"]; !ok {
-		tt.Errorf("1.2.3.4 not found in instancesDetails")
-	}
-}
-
-func TestFetchMissingInstances(tt *testing.T) {
-	a := Adapter{instancesDetails: map[string]*instanceDetails{}}
+func TesGenerateDefaultFilters(tt *testing.T) {
 	for _, test := range []struct {
-		name      string
-		input     []string
-		responses ec2MockOutputs
-		wantError bool
+		name string
+		tags map[string]string
 	}{
 		{
-			"initial",
-			[]string{"1.2.3.4", "1.2.3.5"},
-			ec2MockOutputs{describeInstances: R(mockDIOutput(
-				testInstance{id: "foo1", tags: tags{"aws:autoscaling:groupName": "asg"}, privateIp: "1.2.3.4", vpcId: "1"},
-				testInstance{id: "foo2", tags: tags{"aws:autoscaling:groupName": "asg"}, privateIp: "1.2.3.5", vpcId: "1"},
-			), nil)},
-			false,
+			"empty-tags",
+			map[string]string{},
 		},
 		{
-			"remove-last-instance",
-			[]string{"1.2.3.4"},
-			ec2MockOutputs{describeInstances: R(mockDIOutput(), nil)},
-			false,
+			"set1",
+			map[string]string{
+				"KubernetesCluster": "test1",
+			},
 		},
 		{
-			"add-two-more-instances",
-			[]string{"1.2.3.6", "1.2.3.4", "1.2.3.5"},
-			ec2MockOutputs{describeInstances: R(mockDIOutput(
-				testInstance{id: "foo2", tags: tags{"aws:autoscaling:groupName": "asg"}, privateIp: "1.2.3.5", vpcId: "1"},
-				testInstance{id: "foo3", tags: tags{"aws:autoscaling:groupName": "asg"}, privateIp: "1.2.3.6", vpcId: "1"},
-			), nil)},
-			false,
+			"set2",
+			map[string]string{
+				"KubernetesCluster": "test2",
+			},
 		},
 		{
-			"remove-all-instances",
-			[]string{},
-			ec2MockOutputs{describeInstances: R(mockDIOutput(), nil)},
-			false,
-		},
-		{
-			"fail-fetching-instance",
-			[]string{"1.2.3.7", "1.2.3.8"},
-			ec2MockOutputs{describeInstances: R(mockDIOutput(
-				testInstance{id: "foo3", tags: tags{"aws:autoscaling:groupName": "asg"}, privateIp: "1.2.3.7", vpcId: "1"},
-			), nil)},
-			true,
+			"set3",
+			map[string]string{
+				"Cluster": "something",
+			},
 		},
 	} {
 		tt.Run(fmt.Sprintf("%v", test.name), func(t *testing.T) {
-			ec2 := &mockEc2Client{outputs: test.responses}
-			a.ec2 = ec2
-			a.removeObsoleteInstances(test.input)
-			err := a.fetchMissingInstances(test.input)
-			if test.wantError && err == nil {
-				t.Errorf("expected error, got nothing with input - %q", test.input)
+			tt.Log(test.name)
+			filters := generateDefaultFilters(test.tags)
+			if len(filters) != 2 {
+				t.Errorf("generateDefaultFilters returned %d filters instead of 2", len(filters))
 			}
-			if !test.wantError && err != nil {
-				t.Errorf("unexpected error '%s' with input - %q", err, test.input)
+			if aws.StringValue(filters[0].Name) != "tag:"+kubernetesClusterTag {
+				t.Errorf("generateDefaultFilters first filter has wrong name %s", aws.StringValue(filters[0].Name))
 			}
-			if !test.wantError && err == nil {
-				adapterIps := make([]string, 0, len(a.instancesDetails))
-				for ip := range a.instancesDetails {
-					adapterIps = append(adapterIps, ip)
-				}
-				sort.Strings(test.input)
-				sort.Strings(adapterIps)
-				if !reflect.DeepEqual(test.input, adapterIps) {
-					t.Errorf("unexpected result. wanted %+v, got %+v", test.input, adapterIps)
-				}
+			if len(filters[0].Values) != 1 {
+				t.Errorf("generateDefaultFilters first filter has %d values instead of 1", len(filters[0].Values))
+			}
+			if aws.StringValue(filters[0].Values[0]) != test.tags["KubernetesCluster"] {
+				t.Errorf("generateDefaultFilters first filter has wrong value %s", aws.StringValue(filters[0].Values[0]))
+			}
+			if aws.StringValue(filters[1].Name) != "tag-key" {
+				t.Errorf("generateDefaultFilters second filter has wrong name %s", aws.StringValue(filters[1].Name))
+			}
+			if len(filters[1].Values) != 1 {
+				t.Errorf("generateDefaultFilters second filter has %d values instead of 1", len(filters[1].Values))
+			}
+			if aws.StringValue(filters[1].Values[0]) != kubernetesNodeRoleTag {
+				t.Errorf("generateDefaultFilters second filter has wrong value %s", aws.StringValue(filters[1].Values[0]))
 			}
 		})
 	}
 }
 
-func TestUpdateAutoScalingGroupsWithInstanceCache(tt *testing.T) {
-	a := Adapter{instancesDetails: map[string]*instanceDetails{}, autoScalingGroups: make(map[string]*autoScalingGroupDetails)}
+func TestParseFilters(tt *testing.T) {
 	for _, test := range []struct {
-		name         string
-		input        []string
-		ec2responses ec2MockOutputs
-		asgresponses autoscalingMockOutputs
-		wantAsgs     []string
-		wantError    bool
+		name            string
+		customFilter    *string
+		tags            map[string]string
+		expectedFilters []*ec2.Filter
+	}{
+		{
+			"no-custom-filter",
+			nil,
+			map[string]string{
+				kubernetesClusterTag: "cluster",
+			},
+			[]*ec2.Filter{
+				{
+					Name:   aws.String("tag:" + kubernetesClusterTag),
+					Values: aws.StringSlice([]string{"cluster"}),
+				},
+				{
+					Name:   aws.String("tag-key"),
+					Values: aws.StringSlice([]string{kubernetesNodeRoleTag}),
+				},
+			},
+		},
+		{
+			"custom-filter1",
+			aws.String("tag:Test=test"),
+			map[string]string{
+				kubernetesClusterTag: "cluster",
+			},
+			[]*ec2.Filter{
+				{
+					Name:   aws.String("tag:Test"),
+					Values: aws.StringSlice([]string{"test"}),
+				},
+			},
+		},
+		{
+			"custom-filter2",
+			aws.String("tag:Test=test vpc-id=id1,id2"),
+			map[string]string{
+				kubernetesClusterTag: "cluster",
+			},
+			[]*ec2.Filter{
+				{
+					Name:   aws.String("tag:Test"),
+					Values: aws.StringSlice([]string{"test"}),
+				},
+				{
+					Name:   aws.String("vpc-id"),
+					Values: aws.StringSlice([]string{"id1", "id2"}),
+				},
+			},
+		},
+		{
+			"custom-filter3",
+			aws.String("tag:Test=test tag:Test=test1,test2  tag-key=key1,key2,key3"),
+			map[string]string{
+				kubernetesClusterTag: "cluster",
+			},
+			[]*ec2.Filter{
+				{
+					Name:   aws.String("tag:Test"),
+					Values: aws.StringSlice([]string{"test"}),
+				},
+				{
+					Name:   aws.String("tag:Test"),
+					Values: aws.StringSlice([]string{"test1", "test2"}),
+				},
+				{
+					Name:   aws.String("tag-key"),
+					Values: aws.StringSlice([]string{"key1", "key2", "key3"}),
+				},
+			},
+		},
+	} {
+		tt.Run(fmt.Sprintf("%v", test.name), func(t *testing.T) {
+			tt.Log(test.name)
+			if test.customFilter != nil {
+				os.Setenv(customTagFilterEnvVarName, *test.customFilter)
+			} else {
+				os.Unsetenv(customTagFilterEnvVarName)
+			}
+			output := parseFilters(test.tags)
+			if !reflect.DeepEqual(test.expectedFilters, output) {
+				t.Errorf("unexpected result. wanted %q, got %q", test.expectedFilters, output)
+			}
+		})
+	}
+}
+
+func TestFiltersString(tt *testing.T) {
+	for _, test := range []struct {
+		name    string
+		filters []*ec2.Filter
+		str     string
+	}{
+		{
+			"test1",
+			[]*ec2.Filter{
+				{
+					Name:   aws.String("tag:" + kubernetesClusterTag),
+					Values: aws.StringSlice([]string{"cluster"}),
+				},
+				{
+					Name:   aws.String("tag-key"),
+					Values: aws.StringSlice([]string{kubernetesNodeRoleTag}),
+				},
+			},
+			"tag:" + kubernetesClusterTag + "=cluster tag-key=" + kubernetesNodeRoleTag,
+		},
+		{
+			"test2",
+			[]*ec2.Filter{
+				{
+					Name:   aws.String("tag:Test"),
+					Values: aws.StringSlice([]string{"test"}),
+				},
+			},
+			"tag:Test=test",
+		},
+		{
+			"custom-filter2",
+			[]*ec2.Filter{
+				{
+					Name:   aws.String("tag:Test"),
+					Values: aws.StringSlice([]string{"test"}),
+				},
+				{
+					Name:   aws.String("vpc-id"),
+					Values: aws.StringSlice([]string{"id1", "id2"}),
+				},
+			},
+			"tag:Test=test vpc-id=id1,id2",
+		},
+		{
+			"custom-filter3",
+			[]*ec2.Filter{
+				{
+					Name:   aws.String("tag:Test"),
+					Values: aws.StringSlice([]string{"test"}),
+				},
+				{
+					Name:   aws.String("tag:Test"),
+					Values: aws.StringSlice([]string{"test1", "test2"}),
+				},
+				{
+					Name:   aws.String("tag-key"),
+					Values: aws.StringSlice([]string{"key1", "key2", "key3"}),
+				},
+			},
+			"tag:Test=test tag:Test=test1,test2 tag-key=key1,key2,key3",
+		},
+	} {
+		tt.Run(fmt.Sprintf("%v", test.name), func(t *testing.T) {
+			tt.Log(test.name)
+			a := Adapter{manifest: &manifest{filters: test.filters}}
+			if test.str != a.FiltersString() {
+				t.Errorf("filter string validation failure. wanted %q, got %q", test.str, a.FiltersString())
+			}
+		})
+	}
+}
+
+func TestUpdateAutoScalingGroupsAndInstances(tt *testing.T) {
+	a := Adapter{
+		instancesDetails:  map[string]*instanceDetails{},
+		autoScalingGroups: make(map[string]*autoScalingGroupDetails),
+		singleInstances:   make(map[string]*instanceDetails),
+		obsoleteInstances: make([]string, 0),
+		manifest:          &manifest{},
+	}
+	for _, test := range []struct {
+		name                       string
+		ec2responses               ec2MockOutputs
+		asgresponses               autoscalingMockOutputs
+		cacheSize                  int
+		wantAsgs                   []string
+		wantSingleInstances        []string
+		wantRunningSingleInstances []string
+		wantObsoleteInstances      []string
+		wantError                  bool
 	}{
 		{
 			"initial",
-			[]string{"1.2.3.3", "1.2.3.4"},
 			ec2MockOutputs{describeInstances: R(mockDIOutput(
-				testInstance{id: "foo0", tags: tags{"aws:autoscaling:groupName": "asg1"}, privateIp: "1.2.3.3", vpcId: "1"},
-				testInstance{id: "foo1", tags: tags{"aws:autoscaling:groupName": "asg1"}, privateIp: "1.2.3.4", vpcId: "1"},
+				testInstance{id: "foo0", tags: tags{"aws:autoscaling:groupName": "asg1"}, privateIp: "1.2.3.3", vpcId: "1", state: runningState},
+				testInstance{id: "foo1", tags: tags{"aws:autoscaling:groupName": "asg1"}, privateIp: "1.2.3.4", vpcId: "1", state: runningState},
 			), nil)},
 			autoscalingMockOutputs{
 				describeAutoScalingGroups: R(mockDASGOutput(map[string]asgtags{"asg1": {"foo": "bar"}}), nil),
 			},
+			2,
 			[]string{"asg1"},
+			[]string{},
+			[]string{},
+			[]string{},
 			false,
 		},
 		{
 			"add-node-same-asg",
-			[]string{"1.2.3.4", "1.2.3.5"},
 			ec2MockOutputs{describeInstances: R(mockDIOutput(
-				testInstance{id: "foo2", tags: tags{"aws:autoscaling:groupName": "asg1"}, privateIp: "1.2.3.5", vpcId: "1"},
+				testInstance{id: "foo0", tags: tags{"aws:autoscaling:groupName": "asg1"}, privateIp: "1.2.3.3", vpcId: "1", state: runningState},
+				testInstance{id: "foo1", tags: tags{"aws:autoscaling:groupName": "asg1"}, privateIp: "1.2.3.4", vpcId: "1", state: 0},
+				testInstance{id: "foo2", tags: tags{"aws:autoscaling:groupName": "asg1"}, privateIp: "1.2.3.5", vpcId: "1", state: runningState},
 			), nil)},
 			autoscalingMockOutputs{},
+			3,
 			[]string{"asg1"},
+			[]string{},
+			[]string{},
+			[]string{},
 			false,
 		},
 		{
 			"add-node-second-asg",
-			[]string{"1.2.3.4", "1.2.3.5", "2.1.1.1"},
 			ec2MockOutputs{describeInstances: R(mockDIOutput(
-				testInstance{id: "bar1", tags: tags{"aws:autoscaling:groupName": "asg2"}, privateIp: "2.1.1.1", vpcId: "1"},
+				testInstance{id: "foo0", tags: tags{"aws:autoscaling:groupName": "asg1"}, privateIp: "1.2.3.3", vpcId: "1", state: runningState},
+				testInstance{id: "foo1", tags: tags{"aws:autoscaling:groupName": "asg1"}, privateIp: "1.2.3.4", vpcId: "1", state: runningState},
+				testInstance{id: "foo2", tags: tags{"aws:autoscaling:groupName": "asg1"}, privateIp: "1.2.3.5", vpcId: "1", state: runningState},
+				testInstance{id: "bar1", tags: tags{"aws:autoscaling:groupName": "asg2"}, privateIp: "2.1.1.1", vpcId: "1", state: runningState},
 			), nil)},
 			autoscalingMockOutputs{
 				describeAutoScalingGroups: R(mockDASGOutput(map[string]asgtags{"asg2": {"foo": "baz"}}), nil),
 			},
+			4,
 			[]string{"asg1", "asg2"},
+			[]string{},
+			[]string{},
+			[]string{},
 			false,
 		},
 		{
 			"add-another-node-second-asg",
-			[]string{"1.2.3.4", "1.2.3.5", "2.1.1.1", "2.2.2.2"},
 			ec2MockOutputs{describeInstances: R(mockDIOutput(
-				testInstance{id: "bar2", tags: tags{"aws:autoscaling:groupName": "asg2"}, privateIp: "2.2.2.2", vpcId: "1"},
+				testInstance{id: "foo0", tags: tags{"aws:autoscaling:groupName": "asg1"}, privateIp: "1.2.3.3", vpcId: "1", state: runningState},
+				testInstance{id: "foo1", tags: tags{"aws:autoscaling:groupName": "asg1"}, privateIp: "1.2.3.4", vpcId: "1", state: runningState},
+				testInstance{id: "foo2", tags: tags{"aws:autoscaling:groupName": "asg1"}, privateIp: "1.2.3.5", vpcId: "1", state: runningState},
+				testInstance{id: "bar1", tags: tags{"aws:autoscaling:groupName": "asg2"}, privateIp: "2.1.1.1", vpcId: "1", state: runningState},
+				testInstance{id: "bar2", tags: tags{"aws:autoscaling:groupName": "asg2"}, privateIp: "2.2.2.2", vpcId: "1", state: runningState},
 			), nil)},
 			autoscalingMockOutputs{},
+			5,
 			[]string{"asg1", "asg2"},
+			[]string{},
+			[]string{},
+			[]string{},
 			false,
 		},
 		{
 			"add-node-third-asg",
-			[]string{"1.2.3.4", "1.2.3.5", "2.1.1.1", "2.2.2.2", "3.1.1.1"},
 			ec2MockOutputs{describeInstances: R(mockDIOutput(
-				testInstance{id: "bar1", tags: tags{"aws:autoscaling:groupName": "asg3"}, privateIp: "3.1.1.1", vpcId: "1"},
+				testInstance{id: "foo0", tags: tags{"aws:autoscaling:groupName": "asg1"}, privateIp: "1.2.3.3", vpcId: "1", state: runningState},
+				testInstance{id: "foo1", tags: tags{"aws:autoscaling:groupName": "asg1"}, privateIp: "1.2.3.4", vpcId: "1", state: runningState},
+				testInstance{id: "foo2", tags: tags{"aws:autoscaling:groupName": "asg1"}, privateIp: "1.2.3.5", vpcId: "1", state: runningState},
+				testInstance{id: "bar1", tags: tags{"aws:autoscaling:groupName": "asg2"}, privateIp: "2.1.1.1", vpcId: "1", state: runningState},
+				testInstance{id: "bar2", tags: tags{"aws:autoscaling:groupName": "asg2"}, privateIp: "2.2.2.2", vpcId: "1", state: runningState},
+				testInstance{id: "baz1", tags: tags{"aws:autoscaling:groupName": "asg3"}, privateIp: "3.1.1.1", vpcId: "1", state: runningState},
 			), nil)},
 			autoscalingMockOutputs{
 				describeAutoScalingGroups: R(mockDASGOutput(map[string]asgtags{"asg3": {"foo": "baz"}}), nil),
 			},
+			6,
 			[]string{"asg1", "asg2", "asg3"},
+			[]string{},
+			[]string{},
+			[]string{},
 			false,
 		},
 		{
 			"add-node-without-asg",
-			[]string{"1.2.3.4", "1.2.3.5", "2.1.1.1", "2.2.2.2", "3.1.1.1", "0.1.1.1"},
 			ec2MockOutputs{describeInstances: R(mockDIOutput(
-				testInstance{id: "bar1", tags: tags{"Name": "node"}, privateIp: "0.1.1.1", vpcId: "1", state: runningState},
+				testInstance{id: "foo0", tags: tags{"aws:autoscaling:groupName": "asg1"}, privateIp: "1.2.3.3", vpcId: "1", state: runningState},
+				testInstance{id: "foo1", tags: tags{"aws:autoscaling:groupName": "asg1"}, privateIp: "1.2.3.4", vpcId: "1", state: runningState},
+				testInstance{id: "foo2", tags: tags{"aws:autoscaling:groupName": "asg1"}, privateIp: "1.2.3.5", vpcId: "1", state: runningState},
+				testInstance{id: "bar1", tags: tags{"aws:autoscaling:groupName": "asg2"}, privateIp: "2.1.1.1", vpcId: "1", state: runningState},
+				testInstance{id: "bar2", tags: tags{"aws:autoscaling:groupName": "asg2"}, privateIp: "2.2.2.2", vpcId: "1", state: runningState},
+				testInstance{id: "baz1", tags: tags{"aws:autoscaling:groupName": "asg3"}, privateIp: "3.1.1.1", vpcId: "1", state: runningState},
+				testInstance{id: "sgl1", tags: tags{"Name": "node1"}, privateIp: "0.1.1.1", vpcId: "1", state: runningState},
 			), nil)},
 			autoscalingMockOutputs{},
+			7,
 			[]string{"asg1", "asg2", "asg3"},
+			[]string{"sgl1"},
+			[]string{"sgl1"},
+			[]string{},
 			false,
 		},
 		{
-			"remove-third-asg-node",
-			[]string{"1.2.3.4", "1.2.3.5", "2.1.1.1", "2.2.2.2", "0.1.1.1"},
+			"add-stopped-node-without-asg",
 			ec2MockOutputs{describeInstances: R(mockDIOutput(
-				testInstance{id: "bar1", tags: tags{"Name": "node"}, privateIp: "0.1.1.1", vpcId: "1", state: runningState},
+				testInstance{id: "foo0", tags: tags{"aws:autoscaling:groupName": "asg1"}, privateIp: "1.2.3.3", vpcId: "1", state: runningState},
+				testInstance{id: "foo1", tags: tags{"aws:autoscaling:groupName": "asg1"}, privateIp: "1.2.3.4", vpcId: "1", state: runningState},
+				testInstance{id: "foo2", tags: tags{"aws:autoscaling:groupName": "asg1"}, privateIp: "1.2.3.5", vpcId: "1", state: runningState},
+				testInstance{id: "bar1", tags: tags{"aws:autoscaling:groupName": "asg2"}, privateIp: "2.1.1.1", vpcId: "1", state: runningState},
+				testInstance{id: "bar2", tags: tags{"aws:autoscaling:groupName": "asg2"}, privateIp: "2.2.2.2", vpcId: "1", state: runningState},
+				testInstance{id: "baz1", tags: tags{"aws:autoscaling:groupName": "asg3"}, privateIp: "3.1.1.1", vpcId: "1", state: runningState},
+				testInstance{id: "sgl1", tags: tags{"Name": "node1"}, privateIp: "0.1.1.1", vpcId: "1", state: runningState},
+				testInstance{id: "sgl2", tags: tags{"Name": "node2"}, privateIp: "0.1.1.2", vpcId: "1", state: stoppedState},
 			), nil)},
 			autoscalingMockOutputs{},
+			8,
+			[]string{"asg1", "asg2", "asg3"},
+			[]string{"sgl1", "sgl2"},
+			[]string{"sgl1"},
+			[]string{},
+			false,
+		},
+		{
+			"remove-third-asg-node-and-stopped-instance",
+			ec2MockOutputs{describeInstances: R(mockDIOutput(
+				testInstance{id: "foo0", tags: tags{"aws:autoscaling:groupName": "asg1"}, privateIp: "1.2.3.3", vpcId: "1", state: runningState},
+				testInstance{id: "foo1", tags: tags{"aws:autoscaling:groupName": "asg1"}, privateIp: "1.2.3.4", vpcId: "1", state: runningState},
+				testInstance{id: "foo2", tags: tags{"aws:autoscaling:groupName": "asg1"}, privateIp: "1.2.3.5", vpcId: "1", state: runningState},
+				testInstance{id: "bar1", tags: tags{"aws:autoscaling:groupName": "asg2"}, privateIp: "2.1.1.1", vpcId: "1", state: runningState},
+				testInstance{id: "bar2", tags: tags{"aws:autoscaling:groupName": "asg2"}, privateIp: "2.2.2.2", vpcId: "1", state: runningState},
+				testInstance{id: "sgl1", tags: tags{"Name": "node1"}, privateIp: "0.1.1.1", vpcId: "1", state: runningState},
+			), nil)},
+			autoscalingMockOutputs{},
+			6,
 			[]string{"asg1", "asg2"},
+			[]string{"sgl1"},
+			[]string{"sgl1"},
+			[]string{"sgl2"},
 			false,
 		},
 		{
 			"error-fetching-instance",
-			[]string{"1.2.3.4", "1.2.3.5", "2.1.1.1", "2.2.2.2", "0.1.1.1", "0.2.2.2"},
-			ec2MockOutputs{describeInstances: R(mockDIOutput(), nil)},
+			ec2MockOutputs{describeInstances: R(mockDIOutput(), dummyErr)},
 			autoscalingMockOutputs{},
+			6,
 			[]string{"asg1", "asg2"},
+			[]string{"sgl1"},
+			[]string{"sgl1"},
+			[]string{"sgl2"},
 			true,
 		},
 		{
 			"error-fetching-asg",
-			[]string{"1.2.3.4", "1.2.3.5", "2.1.1.1", "2.2.2.2", "0.1.1.1", "0.2.2.2"},
 			ec2MockOutputs{describeInstances: R(mockDIOutput(
-				testInstance{id: "foo2", tags: tags{"aws:autoscaling:groupName": "none"}, privateIp: "0.2.2.2", vpcId: "1"},
+				testInstance{id: "foo0", tags: tags{"aws:autoscaling:groupName": "asg1"}, privateIp: "1.2.3.3", vpcId: "1", state: runningState},
+				testInstance{id: "foo1", tags: tags{"aws:autoscaling:groupName": "asg1"}, privateIp: "1.2.3.4", vpcId: "1", state: runningState},
+				testInstance{id: "foo2", tags: tags{"aws:autoscaling:groupName": "asg1"}, privateIp: "1.2.3.5", vpcId: "1", state: runningState},
+				testInstance{id: "bar1", tags: tags{"aws:autoscaling:groupName": "asg2"}, privateIp: "2.1.1.1", vpcId: "1", state: runningState},
+				testInstance{id: "bar2", tags: tags{"aws:autoscaling:groupName": "asg2"}, privateIp: "2.2.2.2", vpcId: "1", state: runningState},
+				testInstance{id: "sgl1", tags: tags{"Name": "node1"}, privateIp: "0.1.1.1", vpcId: "1", state: runningState},
+				testInstance{id: "fail", tags: tags{"aws:autoscaling:groupName": "none"}, privateIp: "0.2.2.2", vpcId: "1", state: runningState},
 			), nil)},
 			autoscalingMockOutputs{
-				describeAutoScalingGroups: R(mockDASGOutput(map[string]asgtags{"asg": {"foo": "baz"}}), nil),
+				describeAutoScalingGroups: R(mockDASGOutput(map[string]asgtags{}), dummyErr),
 			},
+			7,
 			[]string{"asg1", "asg2"},
-			true,
+			[]string{"sgl1"},
+			[]string{"sgl1"},
+			[]string{"sgl2"},
+			false,
 		},
 		{
 			"add-back-third-asg",
-			[]string{"1.2.3.4", "1.2.3.5", "2.1.1.1", "2.2.2.2", "3.1.1.1", "0.1.1.1"},
 			ec2MockOutputs{describeInstances: R(mockDIOutput(
-				testInstance{id: "bar1", tags: tags{"aws:autoscaling:groupName": "asg3"}, privateIp: "3.1.1.1", vpcId: "1"},
+				testInstance{id: "foo0", tags: tags{"aws:autoscaling:groupName": "asg1"}, privateIp: "1.2.3.3", vpcId: "1", state: runningState},
+				testInstance{id: "foo1", tags: tags{"aws:autoscaling:groupName": "asg1"}, privateIp: "1.2.3.4", vpcId: "1", state: runningState},
+				testInstance{id: "foo2", tags: tags{"aws:autoscaling:groupName": "asg1"}, privateIp: "1.2.3.5", vpcId: "1", state: runningState},
+				testInstance{id: "bar1", tags: tags{"aws:autoscaling:groupName": "asg2"}, privateIp: "2.1.1.1", vpcId: "1", state: runningState},
+				testInstance{id: "bar2", tags: tags{"aws:autoscaling:groupName": "asg2"}, privateIp: "2.2.2.2", vpcId: "1", state: runningState},
+				testInstance{id: "baz1", tags: tags{"aws:autoscaling:groupName": "asg3"}, privateIp: "3.1.1.1", vpcId: "1", state: runningState},
+				testInstance{id: "sgl1", tags: tags{"Name": "node1"}, privateIp: "0.1.1.1", vpcId: "1", state: runningState},
 			), nil)},
 			autoscalingMockOutputs{
 				describeAutoScalingGroups: R(mockDASGOutput(map[string]asgtags{"asg3": {"foo": "baz"}}), nil),
 			},
+			7,
 			[]string{"asg1", "asg2", "asg3"},
+			[]string{"sgl1"},
+			[]string{"sgl1"},
+			[]string{"sgl2"},
 			false,
 		},
 		{
 			"remove-all-except-first-asg",
-			[]string{"1.2.3.4", "1.2.3.5"},
-			ec2MockOutputs{describeInstances: R(mockDIOutput(), nil)},
+			ec2MockOutputs{describeInstances: R(mockDIOutput(
+				testInstance{id: "foo0", tags: tags{"aws:autoscaling:groupName": "asg1"}, privateIp: "1.2.3.3", vpcId: "1", state: runningState},
+				testInstance{id: "foo1", tags: tags{"aws:autoscaling:groupName": "asg1"}, privateIp: "1.2.3.4", vpcId: "1", state: runningState},
+				testInstance{id: "foo2", tags: tags{"aws:autoscaling:groupName": "asg1"}, privateIp: "1.2.3.5", vpcId: "1", state: runningState},
+			), nil)},
 			autoscalingMockOutputs{},
+			3,
 			[]string{"asg1"},
+			[]string{},
+			[]string{},
+			[]string{"sgl2", "sgl1"},
 			false,
 		},
 		{
 			"add-remove-simultaneously",
-			[]string{"1.2.3.4", "0.1.1.1"},
 			ec2MockOutputs{describeInstances: R(mockDIOutput(
-				testInstance{id: "bar1", tags: tags{"Name": "node"}, privateIp: "0.1.1.1", vpcId: "1"},
+				testInstance{id: "foo0", tags: tags{"aws:autoscaling:groupName": "asg1"}, privateIp: "1.2.3.3", vpcId: "1", state: runningState},
+				testInstance{id: "sgl1", tags: tags{"Name": "node1"}, privateIp: "0.1.1.1", vpcId: "1", state: runningState},
 			), nil)},
 			autoscalingMockOutputs{},
+			2,
 			[]string{"asg1"},
+			[]string{"sgl1"},
+			[]string{"sgl1"},
+			[]string{"sgl2", "sgl1"},
 			false,
 		},
 	} {
 		tt.Run(fmt.Sprintf("%v", test.name), func(t *testing.T) {
-			ec2 := &mockEc2Client{outputs: test.ec2responses}
-			autoscaling := &mockAutoScalingClient{outputs: test.asgresponses}
-			a.ec2 = ec2
-			a.autoscaling = autoscaling
+			a.ec2 = &mockEc2Client{outputs: test.ec2responses}
+			a.autoscaling = &mockAutoScalingClient{outputs: test.asgresponses}
 			tt.Log(test.name)
-			err := a.UpdateAutoScalingGroupsWithInstanceCache(test.input)
+			err := a.UpdateAutoScalingGroupsAndInstances()
 			if test.wantError && err == nil {
-				t.Errorf("expected error, got nothing with input - %q", test.input)
+				t.Errorf("expected error, got nothing")
 			}
 			if !test.wantError && err != nil {
-				t.Errorf("unexpected error '%s' with input - %q", err, test.input)
+				t.Errorf("unexpected error '%s'", err)
 			}
 			if !test.wantError && err == nil {
-				adapterIps := make([]string, 0, len(a.instancesDetails))
-				for ip := range a.instancesDetails {
-					adapterIps = append(adapterIps, ip)
-				}
-				asgs := make([]string, 0, len(a.autoScalingGroups))
-				for name := range a.autoScalingGroups {
-					asgs = append(asgs, name)
-				}
-				sort.Strings(test.input)
-				sort.Strings(adapterIps)
-				if !reflect.DeepEqual(test.input, adapterIps) {
-					t.Errorf("unexpected instancesDetails result. wanted %+v, got %+v", test.input, adapterIps)
-				}
-				sort.Strings(test.wantAsgs)
+				adapterSingleIds := a.SingleInstances()
+				adapterRunningIds := a.RunningSingleInstances()
+				adapterObsoleteIds := a.ObsoleteSingleInstances()
+				asgs := a.AutoScalingGroupNames()
+				sort.Strings(adapterSingleIds)
+				sort.Strings(adapterRunningIds)
+				sort.Strings(adapterObsoleteIds)
 				sort.Strings(asgs)
+				sort.Strings(test.wantSingleInstances)
+				sort.Strings(test.wantRunningSingleInstances)
+				sort.Strings(test.wantObsoleteInstances)
+				sort.Strings(test.wantAsgs)
+				if !reflect.DeepEqual(test.wantSingleInstances, adapterSingleIds) {
+					t.Errorf("unexpected singleInstances result. wanted %#v, got %#v", test.wantSingleInstances, adapterSingleIds)
+				}
+				if !reflect.DeepEqual(test.wantRunningSingleInstances, adapterRunningIds) {
+					t.Errorf("unexpected runningInstances result. wanted %#v, got %#v", test.wantRunningSingleInstances, adapterRunningIds)
+				}
+				if !reflect.DeepEqual(test.wantObsoleteInstances, adapterObsoleteIds) {
+					t.Errorf("unexpected obsoleteInstances result. wanted %#v, got %#v", test.wantObsoleteInstances, adapterObsoleteIds)
+				}
 				if !reflect.DeepEqual(test.wantAsgs, asgs) {
 					t.Errorf("unexpected autoScalingGroups result. wanted %+v, got %+v", test.wantAsgs, asgs)
+				}
+				if a.CachedInstances() != test.cacheSize {
+					t.Errorf("wrong cache size. wanted %d, got %d", a.CachedInstances(), test.cacheSize)
 				}
 			}
 		})
