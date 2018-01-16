@@ -14,45 +14,39 @@ import (
 
 func TesGenerateDefaultFilters(tt *testing.T) {
 	for _, test := range []struct {
-		name string
-		tags map[string]string
+		name      string
+		clusterId string
 	}{
 		{
-			"empty-tags",
-			map[string]string{},
+			"empty-cluster-id",
+			"",
 		},
 		{
 			"set1",
-			map[string]string{
-				"KubernetesCluster": "test1",
-			},
+			"test1",
 		},
 		{
 			"set2",
-			map[string]string{
-				"KubernetesCluster": "test2",
-			},
+			"test2+test2",
 		},
 		{
 			"set3",
-			map[string]string{
-				"Cluster": "something",
-			},
+			"=  = ",
 		},
 	} {
 		tt.Run(fmt.Sprintf("%v", test.name), func(t *testing.T) {
 			tt.Log(test.name)
-			filters := generateDefaultFilters(test.tags)
+			filters := generateDefaultFilters(test.clusterId)
 			if len(filters) != 2 {
 				t.Errorf("generateDefaultFilters returned %d filters instead of 2", len(filters))
 			}
-			if aws.StringValue(filters[0].Name) != "tag:"+kubernetesClusterTag {
+			if aws.StringValue(filters[0].Name) != "tag:"+clusterIDTagPrefix+test.clusterId {
 				t.Errorf("generateDefaultFilters first filter has wrong name %s", aws.StringValue(filters[0].Name))
 			}
 			if len(filters[0].Values) != 1 {
 				t.Errorf("generateDefaultFilters first filter has %d values instead of 1", len(filters[0].Values))
 			}
-			if aws.StringValue(filters[0].Values[0]) != test.tags["KubernetesCluster"] {
+			if aws.StringValue(filters[0].Values[0]) != resourceLifecycleOwned {
 				t.Errorf("generateDefaultFilters first filter has wrong value %s", aws.StringValue(filters[0].Values[0]))
 			}
 			if aws.StringValue(filters[1].Name) != "tag-key" {
@@ -72,19 +66,17 @@ func TestParseFilters(tt *testing.T) {
 	for _, test := range []struct {
 		name            string
 		customFilter    *string
-		tags            map[string]string
+		clusterId       string
 		expectedFilters []*ec2.Filter
 	}{
 		{
 			"no-custom-filter",
 			nil,
-			map[string]string{
-				kubernetesClusterTag: "cluster",
-			},
+			"cluster",
 			[]*ec2.Filter{
 				{
-					Name:   aws.String("tag:" + kubernetesClusterTag),
-					Values: aws.StringSlice([]string{"cluster"}),
+					Name:   aws.String("tag:" + clusterIDTagPrefix + "cluster"),
+					Values: aws.StringSlice([]string{resourceLifecycleOwned}),
 				},
 				{
 					Name:   aws.String("tag-key"),
@@ -95,9 +87,7 @@ func TestParseFilters(tt *testing.T) {
 		{
 			"custom-filter1",
 			aws.String("tag:Test=test"),
-			map[string]string{
-				kubernetesClusterTag: "cluster",
-			},
+			"cluster",
 			[]*ec2.Filter{
 				{
 					Name:   aws.String("tag:Test"),
@@ -108,9 +98,7 @@ func TestParseFilters(tt *testing.T) {
 		{
 			"custom-filter2",
 			aws.String("tag:Test=test vpc-id=id1,id2"),
-			map[string]string{
-				kubernetesClusterTag: "cluster",
-			},
+			"cluster",
 			[]*ec2.Filter{
 				{
 					Name:   aws.String("tag:Test"),
@@ -125,9 +113,7 @@ func TestParseFilters(tt *testing.T) {
 		{
 			"custom-filter3",
 			aws.String("tag:Test=test tag:Test=test1,test2  tag-key=key1,key2,key3"),
-			map[string]string{
-				kubernetesClusterTag: "cluster",
-			},
+			"cluster",
 			[]*ec2.Filter{
 				{
 					Name:   aws.String("tag:Test"),
@@ -146,13 +132,11 @@ func TestParseFilters(tt *testing.T) {
 		{
 			"illegal1",
 			aws.String("test"),
-			map[string]string{
-				kubernetesClusterTag: "cluster",
-			},
+			"cluster",
 			[]*ec2.Filter{
 				{
-					Name:   aws.String("tag:" + kubernetesClusterTag),
-					Values: aws.StringSlice([]string{"cluster"}),
+					Name:   aws.String("tag:" + clusterIDTagPrefix + "cluster"),
+					Values: aws.StringSlice([]string{resourceLifecycleOwned}),
 				},
 				{
 					Name:   aws.String("tag-key"),
@@ -168,7 +152,7 @@ func TestParseFilters(tt *testing.T) {
 			} else {
 				os.Unsetenv(customTagFilterEnvVarName)
 			}
-			output := parseFilters(test.tags)
+			output := parseFilters(test.clusterId)
 			if !reflect.DeepEqual(test.expectedFilters, output) {
 				t.Errorf("unexpected result. wanted %q, got %q", test.expectedFilters, output)
 			}
@@ -186,15 +170,15 @@ func TestFiltersString(tt *testing.T) {
 			"test1",
 			[]*ec2.Filter{
 				{
-					Name:   aws.String("tag:" + kubernetesClusterTag),
-					Values: aws.StringSlice([]string{"cluster"}),
+					Name:   aws.String("tag:" + clusterIDTagPrefix + "cluster"),
+					Values: aws.StringSlice([]string{resourceLifecycleOwned}),
 				},
 				{
 					Name:   aws.String("tag-key"),
 					Values: aws.StringSlice([]string{kubernetesNodeRoleTag}),
 				},
 			},
-			"tag:" + kubernetesClusterTag + "=cluster tag-key=" + kubernetesNodeRoleTag,
+			"tag:" + clusterIDTagPrefix + "cluster=" + resourceLifecycleOwned + " tag-key=" + kubernetesNodeRoleTag,
 		},
 		{
 			"test2",

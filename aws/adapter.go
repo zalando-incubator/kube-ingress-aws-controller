@@ -72,9 +72,6 @@ const (
 
 	certificateARNTag = "ingress:certificate-arn"
 
-	kubernetesClusterTag  = "KubernetesCluster"
-	kubernetesNodeRoleTag = "k8s.io/role/node"
-
 	customTagFilterEnvVarName = "CUSTOM_TAG_FILTER"
 )
 
@@ -97,8 +94,6 @@ var (
 	ErrNoRunningInstances = errors.New("no reservations or instances in the running state")
 	// ErrFailedToParsePEM is used to signal that the PEM block for a certificate failed to be parsed
 	ErrFailedToParsePEM = errors.New("failed to parse certificate PEM")
-	// ErrFailedToParseCustomTagsFilter is used to signal that parse of custom tags filter env variable failed
-	//ErrFailedToParsePEM = errors.New("failed to parse custom tags filter")
 )
 
 var configProvider = defaultConfigProvider
@@ -407,7 +402,7 @@ func buildManifest(awsAdapter *Adapter) (*manifest, error) {
 		securityGroup: securityGroupDetails,
 		instance:      instanceDetails,
 		subnets:       subnets,
-		filters:       parseFilters(instanceDetails.tags),
+		filters:       parseFilters(clusterID),
 	}, nil
 }
 
@@ -541,7 +536,7 @@ func (a *Adapter) UpdateAutoScalingGroupsAndInstances() error {
 // later on each cycle. Filter is based on value of customTagFilterEnvVarName environment
 // veriable. If it is undefined or could not be parsed, default filter is returned which
 // filters on kubernetesClusterTag tag value and kubernetesNodeRoleTag existance.
-func parseFilters(tags map[string]string) []*ec2.Filter {
+func parseFilters(clusterId string) []*ec2.Filter {
 	if filter, ok := os.LookupEnv(customTagFilterEnvVarName); ok {
 		terms := strings.Fields(filter)
 		filters := make([]*ec2.Filter, len(terms))
@@ -549,7 +544,7 @@ func parseFilters(tags map[string]string) []*ec2.Filter {
 			parts := strings.Split(term, "=")
 			if len(parts) != 2 {
 				log.Printf("failed parsing %s, falling back to default", customTagFilterEnvVarName)
-				return generateDefaultFilters(tags)
+				return generateDefaultFilters(clusterId)
 			}
 			filters[i] = &ec2.Filter{
 				Name:   aws.String(parts[0]),
@@ -558,16 +553,16 @@ func parseFilters(tags map[string]string) []*ec2.Filter {
 		}
 		return filters
 	}
-	return generateDefaultFilters(tags)
+	return generateDefaultFilters(clusterId)
 }
 
 // Generate default EC2 filter for usage with ECs DescribeInstances call based on EC2 tags
 // of instance where Ingress Controller pod was started.
-func generateDefaultFilters(tags map[string]string) []*ec2.Filter {
+func generateDefaultFilters(clusterId string) []*ec2.Filter {
 	return []*ec2.Filter{
 		{
-			Name:   aws.String("tag:" + kubernetesClusterTag),
-			Values: []*string{aws.String(tags[kubernetesClusterTag])},
+			Name:   aws.String("tag:" + clusterIDTagPrefix + clusterId),
+			Values: []*string{aws.String(resourceLifecycleOwned)},
 		},
 		{
 			Name:   aws.String("tag-key"),

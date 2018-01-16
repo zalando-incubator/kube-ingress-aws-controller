@@ -22,6 +22,7 @@ const (
 	stoppedState               = 80 // See https://github.com/aws/aws-sdk-go/blob/master/service/ec2/api.go, type InstanceState
 	elbRoleTagName             = "kubernetes.io/role/elb"
 	internalELBRoleTagName     = "kubernetes.io/role/internal-elb"
+	kubernetesNodeRoleTag      = "k8s.io/role/node"
 )
 
 type securityGroupDetails struct {
