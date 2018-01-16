@@ -27,4 +27,4 @@ import:
   version: ~0.8.0
   subpackages:
   - prometheus/promhttp
-- package: gopkg.in/yaml.v2
+- package: github.com/mweagle/go-cloudformation

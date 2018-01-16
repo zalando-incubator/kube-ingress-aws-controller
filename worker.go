@@ -151,7 +151,7 @@ func doWork(certsProvider certs.CertificatesProvider, awsAdapter *aws.Adapter, k
 
 func buildManagedModel(certsProvider certs.CertificatesProvider, ingresses []*kubernetes.Ingress, stacks []*aws.Stack) []*managedItem {
 	sort.Slice(stacks, func(i, j int) bool {
-		return len(stacks[i].CertificateARNs) > len(stacks[j].CertificateARNs)
+		return len(stacks[i].CertificateARNs()) > len(stacks[j].CertificateARNs())
 	})
 	model := make([]*managedItem, 0, len(stacks))
 	for _, stack := range stacks {

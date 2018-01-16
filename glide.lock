@@ -1,5 +1,5 @@
-hash: 1bde642ef645e303b10371bde9d4cfcef6a81344f98361cb23c5c28a0e9aef16
-updated: 2017-12-17T00:49:39.216937612+01:00
+hash: d5654c5e1559afc77695283e79645f2612400ac5a8f15e00a949393886a0a029
+updated: 2017-12-18T23:48:25.430534888+01:00
 imports:
 - name: bitbucket.org/ww/goautoneg
   version: 75cd24fc2f2c2a2088577d12123ddee5f54e0675
@@ -49,6 +49,12 @@ imports:
   - quantile
 - name: github.com/go-ini/ini
   version: e7fea39b01aea8d5671f6858f0532f56e8bff3a5
+- name: github.com/go-playground/locales
+  version: e4cbcb5d0652150d40ad0646651076b6bd2be4f6
+  subpackages:
+  - currency
+- name: github.com/go-playground/universal-translator
+  version: 71201497bace774495daed26a3874fd339e0b538
 - name: github.com/golang/protobuf
   version: 8616e8ee5e20a1704615e6c8d7afcdac06087a67
   subpackages:
@@ -61,6 +67,8 @@ imports:
   version: fc2b8d3a73c4867e51861bbdd5ae3c1f0869dd6a
   subpackages:
   - pbutil
+- name: github.com/mweagle/go-cloudformation
+  version: d4d39d439140cd56c1580db1f56decfcf380c9f2
 - name: github.com/pkg/errors
   version: 645ef00459ed84a119197bfb8d8205042c6df63d
 - name: github.com/prometheus/client_golang
@@ -79,6 +87,8 @@ imports:
   - model
 - name: github.com/prometheus/procfs
   version: 454a56f35412459b5e684fd5ec0f9211b94f002a
+- name: gopkg.in/go-playground/validator.v9
+  version: b1f51f36f1c98cc97f777d6fc9d4b05eaa0cabb5
+testImports:
 - name: gopkg.in/yaml.v2
   version: cd8b52f8269e0feb286dfeef29f8fe4d5b397e0b
-testImports: []

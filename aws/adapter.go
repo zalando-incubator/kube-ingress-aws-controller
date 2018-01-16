@@ -70,7 +70,6 @@ const (
 
 	nameTag = "Name"
 
-	certificateARNsTag        = "ingress:certificate-arns"
 	customTagFilterEnvVarName = "CUSTOM_FILTERS"
 )
 
