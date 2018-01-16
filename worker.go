@@ -301,16 +301,3 @@ func markToDeleteStack(awsAdapter *aws.Adapter, item *managedItem) {
 		log.Printf("marked stack %q to be deleted at %v", stackName, ts)
 	}
 }
-
-// Extract internal IPs of Kubernetes nodes. Skip nodes with empty
-// internal IP.
-func extractIps(nodes []*kubernetes.Node) []string {
-	result := make([]string, 0, len(nodes))
-	for _, node := range nodes {
-		ip := node.InternalIp()
-		if ip != "" {
-			result = append(result, ip)
-		}
-	}
-	return result
-}

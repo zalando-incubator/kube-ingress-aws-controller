@@ -3,6 +3,7 @@ package kubernetes
 import (
 	"errors"
 	"fmt"
+
 	"github.com/aws/aws-sdk-go/service/elbv2"
 )
 
@@ -78,22 +79,6 @@ func (i *Ingress) SetScheme(scheme string) {
 	i.scheme = scheme
 }
 
-// Node is a node in K8S cluster.
-type Node struct {
-	name       string
-	internalIp string
-}
-
-// Getter for node name.
-func (n *Node) Name() string {
-	return n.name
-}
-
-// Getter for node internal IP.
-func (n *Node) InternalIp() string {
-	return n.internalIp
-}
-
 func newIngressFromKube(kubeIngress *ingress) *Ingress {
 	var host, certHostname, scheme string
 	for _, ingressLoadBalancer := range kubeIngress.Status.LoadBalancer.Ingress {
@@ -130,13 +115,6 @@ func newIngressFromKube(kubeIngress *ingress) *Ingress {
 		hostName:       host,
 		scheme:         scheme,
 		certHostname:   certHostname,
-	}
-}
-
-func newNodeFromKube(kubeNode *node) *Node {
-	return &Node{
-		name:       kubeNode.Metadata.Name,
-		internalIp: kubeNode.getAddress(nodeAddressTypeInternalIP),
 	}
 }
 
@@ -193,19 +171,4 @@ func (a *Adapter) UpdateIngressLoadBalancer(ingress *Ingress, loadBalancerDNSNam
 	}
 
 	return updateIngressLoadBalancer(a.kubeClient, newIngressForKube(ingress), loadBalancerDNSName)
-}
-
-// ListNode can be used to obtain the list of node resources.
-func (a *Adapter) ListNode() ([]*Node, error) {
-	il, err := listNode(a.kubeClient)
-	if err != nil {
-		return nil, err
-	}
-	ret := make([]*Node, 0, len(il.Items))
-	for _, node := range il.Items {
-		if node.Metadata.Labels[nodeRoleLabelName] != nodeRoleLabelValueMaster {
-			ret = append(ret, newNodeFromKube(node))
-		}
-	}
-	return ret, nil
 }
