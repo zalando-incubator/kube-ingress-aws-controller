@@ -94,7 +94,7 @@ During startup phase EC2 filter is constructed as follows:
 * If `CUSTOM_TAG_FILTER` environment variable is set, it is expected to be in the form
   of `FILTER_NAME=FILTER_VALUE1,FILTER_VALUE2... FILTER2_NAME=FILTER2_VALUE1,FILTER2_VALUE2... ...`.
 * If `CUSTOM_TAG_FILTER` environment variable is not set or could not be parsed, then default
-  filters are `tag:KubernetesCluster=<value-from-instance> tag-key=k8s.io/role/node` where `<value-from-instance>`
+  filters are `tag:kubernetes.io/cluster/<cluster-id>=owned tag-key=k8s.io/role/node` where `<cluster-id>`
   is determined from EC2 tags of instance on which Ingress Controller pod is started.
 
 Every poll cycle EC2 is queried with filters that were constructed during startup.
