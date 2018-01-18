@@ -102,7 +102,7 @@ Each new discovered instance is scanned for Auto Scaling Group tag. Each Target
 Group created by this Ingress controller is then added to each known Auto Scaling Group.
 Each Auto Scaling Group information is fetched only once when first node of it is discovered for first time.
 If instance does not belong to Auto Scaling Group (does not have `aws:autoscaling:groupName` tag) it is stored in separate list of
-Single Instances. On each cycle instances on this list are registered as tartgets in all Target Groups managed by this controller.
+Single Instances. On each cycle instances on this list are registered as targets in all Target Groups managed by this controller.
 If call to get instances from EC2 did not return previously known Single Instance, it is deregistered from Target Group and removed from list of Single Instances.
 Call to deregister instances is aggregated so that maximum 1 call to deregister is issued in poll cycle.
 

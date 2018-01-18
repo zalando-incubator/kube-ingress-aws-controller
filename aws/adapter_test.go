@@ -235,7 +235,7 @@ func TestFiltersString(tt *testing.T) {
 
 func TestUpdateAutoScalingGroupsAndInstances(tt *testing.T) {
 	a := Adapter{
-		instancesDetails:  map[string]*instanceDetails{},
+		ec2Details:  map[string]*instanceDetails{},
 		autoScalingGroups: make(map[string]*autoScalingGroupDetails),
 		singleInstances:   make(map[string]*instanceDetails),
 		obsoleteInstances: make([]string, 0),

@@ -46,7 +46,7 @@ type Adapter struct {
 	creationTimeout     time.Duration
 	stackTTL            time.Duration
 	autoScalingGroups   map[string]*autoScalingGroupDetails
-	instancesDetails    map[string]*instanceDetails
+	ec2Details          map[string]*instanceDetails
 	singleInstances     map[string]*instanceDetails
 	obsoleteInstances   []string
 }
@@ -128,7 +128,7 @@ func NewAdapter() (adapter *Adapter, err error) {
 		creationTimeout:     DefaultCreationTimeout,
 		stackTTL:            DefaultStackTTL,
 		autoScalingGroups:   make(map[string]*autoScalingGroupDetails),
-		instancesDetails:    make(map[string]*instanceDetails),
+		ec2Details:          make(map[string]*instanceDetails),
 		singleInstances:     make(map[string]*instanceDetails),
 		obsoleteInstances:   make([]string, 0),
 	}
@@ -242,7 +242,7 @@ func (a *Adapter) ObsoleteSingleInstances() []string {
 
 // Get number of instances in cache.
 func (a *Adapter) CachedInstances() int {
-	return len(a.instancesDetails)
+	return len(a.ec2Details)
 }
 
 // Get EC2 filters that are used to filter instances that are loaded using DescribeInstances.
@@ -269,9 +269,9 @@ func (a *Adapter) FindManagedStacks() ([]*Stack, error) {
 	return stacks, nil
 }
 
-// Update Auto Scaling Groups to have relevant Target Groups. Also
-// register/deregister single instances (that do not belong to ASG) in
-// relevant Target Groups.
+// UpdateTargetGroupsAndAutoScalingGroups updates Auto Scaling Groups
+// config to have relevant Target Groups and registers/deregisters single
+// instances (that do not belong to ASG) in relevant Target Groups.
 func (a *Adapter) UpdateTargetGroupsAndAutoScalingGroups(stacks []*Stack) {
 	targetGroupARNs := make([]string, len(stacks))
 	for i, stack := range stacks {
@@ -477,22 +477,22 @@ func getTag(tags map[string]string, tagName string) (string, error) {
 	return "<missing tag>", ErrMissingTag
 }
 
-// Update list of known ASGs and EC2 instances.
+// UpdateAutoScalingGroupsAndInstances updates list of known ASGs and EC2 instances.
 func (a *Adapter) UpdateAutoScalingGroupsAndInstances() error {
 	var err error
-	a.instancesDetails, err = getInstancesDetailsWithFilters(a.ec2, a.manifest.filters)
+	a.ec2Details, err = getInstancesDetailsWithFilters(a.ec2, a.manifest.filters)
 	if err != nil {
 		return err
 	}
 
 	newSingleInstances := make(map[string]*instanceDetails)
-	for instanceId, details := range a.singleInstances {
-		if _, ok := a.instancesDetails[instanceId]; !ok {
+	for instanceID, details := range a.singleInstances {
+		if _, ok := a.ec2Details[instanceID]; !ok {
 			// Instance does not exist on EC2 anymore, add it to list of obsolete instances
-			a.obsoleteInstances = append(a.obsoleteInstances, instanceId)
+			a.obsoleteInstances = append(a.obsoleteInstances, instanceID)
 		} else {
 			// Instance exists, so keep it in the list of single instances
-			newSingleInstances[instanceId] = details
+			newSingleInstances[instanceID] = details
 		}
 	}
 	a.singleInstances = newSingleInstances
@@ -500,11 +500,11 @@ func (a *Adapter) UpdateAutoScalingGroupsAndInstances() error {
 	// update ASGs (create new map to get rid of deleted ASGs)
 	newAutoScalingGroups := make(map[string]*autoScalingGroupDetails)
 	autoScalingGroupsToFetch := make([]string, 0)
-	for instanceId, details := range a.instancesDetails {
+	for instanceID, details := range a.ec2Details {
 		asgName, err := getAutoScalingGroupName(details.tags)
 		if err != nil {
 			// Instance is not in ASG, save in single instances list.
-			a.singleInstances[instanceId] = details
+			a.singleInstances[instanceID] = details
 			continue
 		}
 		if _, ok := newAutoScalingGroups[asgName]; !ok {
