@@ -235,7 +235,7 @@ func TestFiltersString(tt *testing.T) {
 
 func TestUpdateAutoScalingGroupsAndInstances(tt *testing.T) {
 	a := Adapter{
-		ec2Details:  map[string]*instanceDetails{},
+		ec2Details:        map[string]*instanceDetails{},
 		autoScalingGroups: make(map[string]*autoScalingGroupDetails),
 		singleInstances:   make(map[string]*instanceDetails),
 		obsoleteInstances: make([]string, 0),
@@ -254,10 +254,11 @@ func TestUpdateAutoScalingGroupsAndInstances(tt *testing.T) {
 	}{
 		{
 			"initial",
-			ec2MockOutputs{describeInstances: R(mockDIOutput(
+			ec2MockOutputs{describeInstancesPages: mockDIPOutput(
+				nil,
 				testInstance{id: "foo0", tags: tags{"aws:autoscaling:groupName": "asg1"}, privateIp: "1.2.3.3", vpcId: "1", state: runningState},
 				testInstance{id: "foo1", tags: tags{"aws:autoscaling:groupName": "asg1"}, privateIp: "1.2.3.4", vpcId: "1", state: runningState},
-			), nil)},
+			)},
 			autoscalingMockOutputs{
 				describeAutoScalingGroups: R(mockDASGOutput(map[string]asgtags{"asg1": {"foo": "bar"}}), nil),
 			},
@@ -270,11 +271,12 @@ func TestUpdateAutoScalingGroupsAndInstances(tt *testing.T) {
 		},
 		{
 			"add-node-same-asg",
-			ec2MockOutputs{describeInstances: R(mockDIOutput(
+			ec2MockOutputs{describeInstancesPages: mockDIPOutput(
+				nil,
 				testInstance{id: "foo0", tags: tags{"aws:autoscaling:groupName": "asg1"}, privateIp: "1.2.3.3", vpcId: "1", state: runningState},
 				testInstance{id: "foo1", tags: tags{"aws:autoscaling:groupName": "asg1"}, privateIp: "1.2.3.4", vpcId: "1", state: 0},
 				testInstance{id: "foo2", tags: tags{"aws:autoscaling:groupName": "asg1"}, privateIp: "1.2.3.5", vpcId: "1", state: runningState},
-			), nil)},
+			)},
 			autoscalingMockOutputs{},
 			3,
 			[]string{"asg1"},
@@ -285,12 +287,13 @@ func TestUpdateAutoScalingGroupsAndInstances(tt *testing.T) {
 		},
 		{
 			"add-node-second-asg",
-			ec2MockOutputs{describeInstances: R(mockDIOutput(
+			ec2MockOutputs{describeInstancesPages: mockDIPOutput(
+				nil,
 				testInstance{id: "foo0", tags: tags{"aws:autoscaling:groupName": "asg1"}, privateIp: "1.2.3.3", vpcId: "1", state: runningState},
 				testInstance{id: "foo1", tags: tags{"aws:autoscaling:groupName": "asg1"}, privateIp: "1.2.3.4", vpcId: "1", state: runningState},
 				testInstance{id: "foo2", tags: tags{"aws:autoscaling:groupName": "asg1"}, privateIp: "1.2.3.5", vpcId: "1", state: runningState},
 				testInstance{id: "bar1", tags: tags{"aws:autoscaling:groupName": "asg2"}, privateIp: "2.1.1.1", vpcId: "1", state: runningState},
-			), nil)},
+			)},
 			autoscalingMockOutputs{
 				describeAutoScalingGroups: R(mockDASGOutput(map[string]asgtags{"asg2": {"foo": "baz"}}), nil),
 			},
@@ -303,13 +306,14 @@ func TestUpdateAutoScalingGroupsAndInstances(tt *testing.T) {
 		},
 		{
 			"add-another-node-second-asg",
-			ec2MockOutputs{describeInstances: R(mockDIOutput(
+			ec2MockOutputs{describeInstancesPages: mockDIPOutput(
+				nil,
 				testInstance{id: "foo0", tags: tags{"aws:autoscaling:groupName": "asg1"}, privateIp: "1.2.3.3", vpcId: "1", state: runningState},
 				testInstance{id: "foo1", tags: tags{"aws:autoscaling:groupName": "asg1"}, privateIp: "1.2.3.4", vpcId: "1", state: runningState},
 				testInstance{id: "foo2", tags: tags{"aws:autoscaling:groupName": "asg1"}, privateIp: "1.2.3.5", vpcId: "1", state: runningState},
 				testInstance{id: "bar1", tags: tags{"aws:autoscaling:groupName": "asg2"}, privateIp: "2.1.1.1", vpcId: "1", state: runningState},
 				testInstance{id: "bar2", tags: tags{"aws:autoscaling:groupName": "asg2"}, privateIp: "2.2.2.2", vpcId: "1", state: runningState},
-			), nil)},
+			)},
 			autoscalingMockOutputs{},
 			5,
 			[]string{"asg1", "asg2"},
@@ -320,14 +324,15 @@ func TestUpdateAutoScalingGroupsAndInstances(tt *testing.T) {
 		},
 		{
 			"add-node-third-asg",
-			ec2MockOutputs{describeInstances: R(mockDIOutput(
+			ec2MockOutputs{describeInstancesPages: mockDIPOutput(
+				nil,
 				testInstance{id: "foo0", tags: tags{"aws:autoscaling:groupName": "asg1"}, privateIp: "1.2.3.3", vpcId: "1", state: runningState},
 				testInstance{id: "foo1", tags: tags{"aws:autoscaling:groupName": "asg1"}, privateIp: "1.2.3.4", vpcId: "1", state: runningState},
 				testInstance{id: "foo2", tags: tags{"aws:autoscaling:groupName": "asg1"}, privateIp: "1.2.3.5", vpcId: "1", state: runningState},
 				testInstance{id: "bar1", tags: tags{"aws:autoscaling:groupName": "asg2"}, privateIp: "2.1.1.1", vpcId: "1", state: runningState},
 				testInstance{id: "bar2", tags: tags{"aws:autoscaling:groupName": "asg2"}, privateIp: "2.2.2.2", vpcId: "1", state: runningState},
 				testInstance{id: "baz1", tags: tags{"aws:autoscaling:groupName": "asg3"}, privateIp: "3.1.1.1", vpcId: "1", state: runningState},
-			), nil)},
+			)},
 			autoscalingMockOutputs{
 				describeAutoScalingGroups: R(mockDASGOutput(map[string]asgtags{"asg3": {"foo": "baz"}}), nil),
 			},
@@ -340,7 +345,8 @@ func TestUpdateAutoScalingGroupsAndInstances(tt *testing.T) {
 		},
 		{
 			"add-node-without-asg",
-			ec2MockOutputs{describeInstances: R(mockDIOutput(
+			ec2MockOutputs{describeInstancesPages: mockDIPOutput(
+				nil,
 				testInstance{id: "foo0", tags: tags{"aws:autoscaling:groupName": "asg1"}, privateIp: "1.2.3.3", vpcId: "1", state: runningState},
 				testInstance{id: "foo1", tags: tags{"aws:autoscaling:groupName": "asg1"}, privateIp: "1.2.3.4", vpcId: "1", state: runningState},
 				testInstance{id: "foo2", tags: tags{"aws:autoscaling:groupName": "asg1"}, privateIp: "1.2.3.5", vpcId: "1", state: runningState},
@@ -348,7 +354,7 @@ func TestUpdateAutoScalingGroupsAndInstances(tt *testing.T) {
 				testInstance{id: "bar2", tags: tags{"aws:autoscaling:groupName": "asg2"}, privateIp: "2.2.2.2", vpcId: "1", state: runningState},
 				testInstance{id: "baz1", tags: tags{"aws:autoscaling:groupName": "asg3"}, privateIp: "3.1.1.1", vpcId: "1", state: runningState},
 				testInstance{id: "sgl1", tags: tags{"Name": "node1"}, privateIp: "0.1.1.1", vpcId: "1", state: runningState},
-			), nil)},
+			)},
 			autoscalingMockOutputs{},
 			7,
 			[]string{"asg1", "asg2", "asg3"},
@@ -359,7 +365,8 @@ func TestUpdateAutoScalingGroupsAndInstances(tt *testing.T) {
 		},
 		{
 			"add-stopped-node-without-asg",
-			ec2MockOutputs{describeInstances: R(mockDIOutput(
+			ec2MockOutputs{describeInstancesPages: mockDIPOutput(
+				nil,
 				testInstance{id: "foo0", tags: tags{"aws:autoscaling:groupName": "asg1"}, privateIp: "1.2.3.3", vpcId: "1", state: runningState},
 				testInstance{id: "foo1", tags: tags{"aws:autoscaling:groupName": "asg1"}, privateIp: "1.2.3.4", vpcId: "1", state: runningState},
 				testInstance{id: "foo2", tags: tags{"aws:autoscaling:groupName": "asg1"}, privateIp: "1.2.3.5", vpcId: "1", state: runningState},
@@ -368,7 +375,7 @@ func TestUpdateAutoScalingGroupsAndInstances(tt *testing.T) {
 				testInstance{id: "baz1", tags: tags{"aws:autoscaling:groupName": "asg3"}, privateIp: "3.1.1.1", vpcId: "1", state: runningState},
 				testInstance{id: "sgl1", tags: tags{"Name": "node1"}, privateIp: "0.1.1.1", vpcId: "1", state: runningState},
 				testInstance{id: "sgl2", tags: tags{"Name": "node2"}, privateIp: "0.1.1.2", vpcId: "1", state: stoppedState},
-			), nil)},
+			)},
 			autoscalingMockOutputs{},
 			8,
 			[]string{"asg1", "asg2", "asg3"},
@@ -379,14 +386,15 @@ func TestUpdateAutoScalingGroupsAndInstances(tt *testing.T) {
 		},
 		{
 			"remove-third-asg-node-and-stopped-instance",
-			ec2MockOutputs{describeInstances: R(mockDIOutput(
+			ec2MockOutputs{describeInstancesPages: mockDIPOutput(
+				nil,
 				testInstance{id: "foo0", tags: tags{"aws:autoscaling:groupName": "asg1"}, privateIp: "1.2.3.3", vpcId: "1", state: runningState},
 				testInstance{id: "foo1", tags: tags{"aws:autoscaling:groupName": "asg1"}, privateIp: "1.2.3.4", vpcId: "1", state: runningState},
 				testInstance{id: "foo2", tags: tags{"aws:autoscaling:groupName": "asg1"}, privateIp: "1.2.3.5", vpcId: "1", state: runningState},
 				testInstance{id: "bar1", tags: tags{"aws:autoscaling:groupName": "asg2"}, privateIp: "2.1.1.1", vpcId: "1", state: runningState},
 				testInstance{id: "bar2", tags: tags{"aws:autoscaling:groupName": "asg2"}, privateIp: "2.2.2.2", vpcId: "1", state: runningState},
 				testInstance{id: "sgl1", tags: tags{"Name": "node1"}, privateIp: "0.1.1.1", vpcId: "1", state: runningState},
-			), nil)},
+			)},
 			autoscalingMockOutputs{},
 			6,
 			[]string{"asg1", "asg2"},
@@ -397,7 +405,10 @@ func TestUpdateAutoScalingGroupsAndInstances(tt *testing.T) {
 		},
 		{
 			"error-fetching-instance",
-			ec2MockOutputs{describeInstances: R(mockDIOutput(), dummyErr)},
+			ec2MockOutputs{describeInstancesPages: mockDIPOutput(
+				dummyErr,
+				testInstance{},
+			)},
 			autoscalingMockOutputs{},
 			6,
 			[]string{"asg1", "asg2"},
@@ -408,7 +419,8 @@ func TestUpdateAutoScalingGroupsAndInstances(tt *testing.T) {
 		},
 		{
 			"error-fetching-asg",
-			ec2MockOutputs{describeInstances: R(mockDIOutput(
+			ec2MockOutputs{describeInstancesPages: mockDIPOutput(
+				nil,
 				testInstance{id: "foo0", tags: tags{"aws:autoscaling:groupName": "asg1"}, privateIp: "1.2.3.3", vpcId: "1", state: runningState},
 				testInstance{id: "foo1", tags: tags{"aws:autoscaling:groupName": "asg1"}, privateIp: "1.2.3.4", vpcId: "1", state: runningState},
 				testInstance{id: "foo2", tags: tags{"aws:autoscaling:groupName": "asg1"}, privateIp: "1.2.3.5", vpcId: "1", state: runningState},
@@ -416,7 +428,7 @@ func TestUpdateAutoScalingGroupsAndInstances(tt *testing.T) {
 				testInstance{id: "bar2", tags: tags{"aws:autoscaling:groupName": "asg2"}, privateIp: "2.2.2.2", vpcId: "1", state: runningState},
 				testInstance{id: "sgl1", tags: tags{"Name": "node1"}, privateIp: "0.1.1.1", vpcId: "1", state: runningState},
 				testInstance{id: "fail", tags: tags{"aws:autoscaling:groupName": "none"}, privateIp: "0.2.2.2", vpcId: "1", state: runningState},
-			), nil)},
+			)},
 			autoscalingMockOutputs{
 				describeAutoScalingGroups: R(mockDASGOutput(map[string]asgtags{}), dummyErr),
 			},
@@ -429,7 +441,8 @@ func TestUpdateAutoScalingGroupsAndInstances(tt *testing.T) {
 		},
 		{
 			"add-back-third-asg",
-			ec2MockOutputs{describeInstances: R(mockDIOutput(
+			ec2MockOutputs{describeInstancesPages: mockDIPOutput(
+				nil,
 				testInstance{id: "foo0", tags: tags{"aws:autoscaling:groupName": "asg1"}, privateIp: "1.2.3.3", vpcId: "1", state: runningState},
 				testInstance{id: "foo1", tags: tags{"aws:autoscaling:groupName": "asg1"}, privateIp: "1.2.3.4", vpcId: "1", state: runningState},
 				testInstance{id: "foo2", tags: tags{"aws:autoscaling:groupName": "asg1"}, privateIp: "1.2.3.5", vpcId: "1", state: runningState},
@@ -437,7 +450,7 @@ func TestUpdateAutoScalingGroupsAndInstances(tt *testing.T) {
 				testInstance{id: "bar2", tags: tags{"aws:autoscaling:groupName": "asg2"}, privateIp: "2.2.2.2", vpcId: "1", state: runningState},
 				testInstance{id: "baz1", tags: tags{"aws:autoscaling:groupName": "asg3"}, privateIp: "3.1.1.1", vpcId: "1", state: runningState},
 				testInstance{id: "sgl1", tags: tags{"Name": "node1"}, privateIp: "0.1.1.1", vpcId: "1", state: runningState},
-			), nil)},
+			)},
 			autoscalingMockOutputs{
 				describeAutoScalingGroups: R(mockDASGOutput(map[string]asgtags{"asg3": {"foo": "baz"}}), nil),
 			},
@@ -450,12 +463,15 @@ func TestUpdateAutoScalingGroupsAndInstances(tt *testing.T) {
 		},
 		{
 			"remove-all-except-first-asg",
-			ec2MockOutputs{describeInstances: R(mockDIOutput(
+			ec2MockOutputs{describeInstancesPages: mockDIPOutput(
+				nil,
 				testInstance{id: "foo0", tags: tags{"aws:autoscaling:groupName": "asg1"}, privateIp: "1.2.3.3", vpcId: "1", state: runningState},
 				testInstance{id: "foo1", tags: tags{"aws:autoscaling:groupName": "asg1"}, privateIp: "1.2.3.4", vpcId: "1", state: runningState},
 				testInstance{id: "foo2", tags: tags{"aws:autoscaling:groupName": "asg1"}, privateIp: "1.2.3.5", vpcId: "1", state: runningState},
-			), nil)},
-			autoscalingMockOutputs{},
+			)},
+			autoscalingMockOutputs{
+				describeAutoScalingGroups: R(mockDASGOutput(map[string]asgtags{}), nil),
+			},
 			3,
 			[]string{"asg1"},
 			[]string{},
@@ -465,11 +481,14 @@ func TestUpdateAutoScalingGroupsAndInstances(tt *testing.T) {
 		},
 		{
 			"add-remove-simultaneously",
-			ec2MockOutputs{describeInstances: R(mockDIOutput(
+			ec2MockOutputs{describeInstancesPages: mockDIPOutput(
+				nil,
 				testInstance{id: "foo0", tags: tags{"aws:autoscaling:groupName": "asg1"}, privateIp: "1.2.3.3", vpcId: "1", state: runningState},
 				testInstance{id: "sgl1", tags: tags{"Name": "node1"}, privateIp: "0.1.1.1", vpcId: "1", state: runningState},
-			), nil)},
-			autoscalingMockOutputs{},
+			)},
+			autoscalingMockOutputs{
+				describeAutoScalingGroups: R(mockDASGOutput(map[string]asgtags{}), nil),
+			},
 			2,
 			[]string{"asg1"},
 			[]string{"sgl1"},
@@ -514,7 +533,7 @@ func TestUpdateAutoScalingGroupsAndInstances(tt *testing.T) {
 					t.Errorf("unexpected autoScalingGroups result. wanted %+v, got %+v", test.wantAsgs, asgs)
 				}
 				if a.CachedInstances() != test.cacheSize {
-					t.Errorf("wrong cache size. wanted %d, got %d", a.CachedInstances(), test.cacheSize)
+					t.Errorf("wrong cache size. wanted %d, got %d", test.cacheSize, a.CachedInstances())
 				}
 			}
 		})

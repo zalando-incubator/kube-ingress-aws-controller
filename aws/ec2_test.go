@@ -242,11 +242,12 @@ func TestGetInstancesDetailsWithFilters(t *testing.T) {
 					},
 				},
 			},
-			ec2MockOutputs{describeInstances: R(mockDIOutput(
+			ec2MockOutputs{describeInstancesPages: mockDIPOutput(
+				nil,
 				testInstance{id: "foo1", tags: tags{"bar": "baz"}, privateIp: "1.2.3.4", vpcId: "1", state: 16},
 				testInstance{id: "foo2", tags: tags{"bar": "baz"}, privateIp: "1.2.3.5", vpcId: "1", state: 32},
 				testInstance{id: "foo3", tags: tags{"aaa": "zzz"}, privateIp: "1.2.3.6", vpcId: "1", state: 80},
-			), nil)},
+			)},
 			map[string]*instanceDetails{
 				"foo1": &instanceDetails{id: "foo1", tags: map[string]string{"bar": "baz"}, ip: "1.2.3.4", vpcID: "1", running: true},
 				"foo2": &instanceDetails{id: "foo2", tags: map[string]string{"bar": "baz"}, ip: "1.2.3.5", vpcID: "1", running: false},
@@ -257,10 +258,11 @@ func TestGetInstancesDetailsWithFilters(t *testing.T) {
 		{
 			"success-empty-filters",
 			[]*ec2.Filter{},
-			ec2MockOutputs{describeInstances: R(mockDIOutput(
+			ec2MockOutputs{describeInstancesPages: mockDIPOutput(
+				nil,
 				testInstance{id: "foo1", tags: tags{"bar": "baz"}, privateIp: "1.2.3.4", vpcId: "1", state: 16},
 				testInstance{id: "foo3", tags: tags{"aaa": "zzz"}, privateIp: "1.2.3.6", vpcId: "1", state: 80},
-			), nil)},
+			)},
 			map[string]*instanceDetails{
 				"foo1": &instanceDetails{id: "foo1", tags: map[string]string{"bar": "baz"}, ip: "1.2.3.4", vpcID: "1", running: true},
 				"foo3": &instanceDetails{id: "foo3", tags: map[string]string{"aaa": "zzz"}, ip: "1.2.3.6", vpcID: "1", running: false},
@@ -277,7 +279,7 @@ func TestGetInstancesDetailsWithFilters(t *testing.T) {
 					},
 				},
 			},
-			ec2MockOutputs{describeInstances: R(mockDIOutput(), nil)},
+			ec2MockOutputs{describeInstancesPages: mockDIPOutput(nil)},
 			map[string]*instanceDetails{},
 			false,
 		},
@@ -291,7 +293,7 @@ func TestGetInstancesDetailsWithFilters(t *testing.T) {
 					},
 				},
 			},
-			ec2MockOutputs{describeInstances: R(nil, dummyErr)},
+			ec2MockOutputs{describeInstancesPages: mockDIPOutput(dummyErr, testInstance{})},
 			nil,
 			true,
 		},

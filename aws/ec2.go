@@ -117,23 +117,25 @@ func getInstancesDetailsWithFilters(ec2Service ec2iface.EC2API, filters []*ec2.F
 	params := &ec2.DescribeInstancesInput{
 		Filters: filters,
 	}
-	resp, err := ec2Service.DescribeInstances(params)
+	result := make(map[string]*instanceDetails)
+	err := ec2Service.DescribeInstancesPages(params, func(resp *ec2.DescribeInstancesOutput, lastPage bool) bool {
+		for _, reservation := range resp.Reservations {
+			for _, instance := range reservation.Instances {
+				result[aws.StringValue(instance.InstanceId)] = &instanceDetails{
+					id:      aws.StringValue(instance.InstanceId),
+					ip:      aws.StringValue(instance.PrivateIpAddress),
+					vpcID:   aws.StringValue(instance.VpcId),
+					tags:    convertEc2Tags(instance.Tags),
+					running: aws.Int64Value(instance.State.Code)&0xff == runningState,
+				}
+			}
+		}
+		return true
+	})
 	if err != nil {
 		return nil, fmt.Errorf("failed getting instance list from EC2: %v", err)
 	}
 
-	result := make(map[string]*instanceDetails)
-	for _, reservation := range resp.Reservations {
-		for _, instance := range reservation.Instances {
-			result[aws.StringValue(instance.InstanceId)] = &instanceDetails{
-				id:      aws.StringValue(instance.InstanceId),
-				ip:      aws.StringValue(instance.PrivateIpAddress),
-				vpcID:   aws.StringValue(instance.VpcId),
-				tags:    convertEc2Tags(instance.Tags),
-				running: aws.Int64Value(instance.State.Code)&0xff == runningState,
-			}
-		}
-	}
 	return result, nil
 }
 
