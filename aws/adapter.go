@@ -224,7 +224,7 @@ func (a *Adapter) SingleInstances() []string {
 
 // RunningSingleInstances returns list of IDs of running instances that do
 // not belong to any Auto Scaling Group and should be managed manually.
-func (a *Adapter) RunningSingleInstances() []string {
+func (a Adapter) RunningSingleInstances() []string {
 	instances := make([]string, 0, len(a.singleInstances))
 	for id, details := range a.singleInstances {
 		if details.running {
@@ -236,17 +236,17 @@ func (a *Adapter) RunningSingleInstances() []string {
 
 // ObsoleteSingleInstances returns list of IDs of instances that should be deregistered
 // from all Target Groups.
-func (a *Adapter) ObsoleteSingleInstances() []string {
+func (a Adapter) ObsoleteSingleInstances() []string {
 	return a.obsoleteInstances
 }
 
 // Get number of instances in cache.
-func (a *Adapter) CachedInstances() int {
+func (a Adapter) CachedInstances() int {
 	return len(a.ec2Details)
 }
 
 // Get EC2 filters that are used to filter instances that are loaded using DescribeInstances.
-func (a *Adapter) FiltersString() string {
+func (a Adapter) FiltersString() string {
 	result := ""
 	for _, filter := range a.manifest.filters {
 		result += fmt.Sprintf("%s=%s ", aws.StringValue(filter.Name), strings.Join(aws.StringValueSlice(filter.Values), ","))
