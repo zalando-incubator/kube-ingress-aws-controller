@@ -499,7 +499,7 @@ func (a *Adapter) UpdateAutoScalingGroupsAndInstances() error {
 
 	// update ASGs (create new map to get rid of deleted ASGs)
 	newAutoScalingGroups := make(map[string]*autoScalingGroupDetails)
-	autoScalingGroupsToFetch := make([]string, 0)
+	autoScalingGroupsToFetchMap := make(map[string]bool)
 	for instanceID, details := range a.ec2Details {
 		asgName, err := getAutoScalingGroupName(details.tags)
 		if err != nil {
@@ -511,10 +511,15 @@ func (a *Adapter) UpdateAutoScalingGroupsAndInstances() error {
 			if _, ok := a.autoScalingGroups[asgName]; ok {
 				newAutoScalingGroups[asgName] = a.autoScalingGroups[asgName]
 			} else {
-				// Save ASGs that have to be loaded to loaded all of them in one API call
-				autoScalingGroupsToFetch = append(autoScalingGroupsToFetch, asgName)
+				// Save ASGs that have to be loaded to load all of them in one API call
+				autoScalingGroupsToFetchMap[asgName] = true
 			}
 		}
+	}
+
+	autoScalingGroupsToFetch := make([]string, 0, len(autoScalingGroupsToFetchMap))
+	for asgName := range autoScalingGroupsToFetchMap {
+		autoScalingGroupsToFetch = append(autoScalingGroupsToFetch, asgName)
 	}
 
 	if len(autoScalingGroupsToFetch) != 0 {
