@@ -89,13 +89,22 @@ This is achieved using AWS CloudFormation. For more details check our [CloudForm
 The controller *will not* manage the security groups required to allow access from the Internet to the load balancers.
 It assumes that their lifecycle is external to the controller itself.
 
-During startup phase EC2 filter is constructed as follows:
+During startup phase EC2 filters are constructed as follows:
 
-* If `CUSTOM_TAG_FILTER` environment variable is set, it is expected to be in the form
-  of `FILTER_NAME=FILTER_VALUE1,FILTER_VALUE2... FILTER2_NAME=FILTER2_VALUE1,FILTER2_VALUE2... ...`.
-* If `CUSTOM_TAG_FILTER` environment variable is not set or could not be parsed, then default
+* If `CUSTOM_FILTERS` environment variable is set, it is used to generate filters that are later used
+  to fetch instances from EC2.
+* If `CUSTOM_FILTERS` environment variable is not set or could not be parsed, then default
   filters are `tag:kubernetes.io/cluster/<cluster-id>=owned tag-key=k8s.io/role/node` where `<cluster-id>`
   is determined from EC2 tags of instance on which Ingress Controller pod is started.
+
+`CUSTOM_FILTERS` is a list of filters separated by spaces. Each filter has a form of `name=value` where name is one
+of names that are recognized of EC2 API (you can find list [here](https://docs.aws.amazon.com/AWSEC2/latest/APIReference/API_DescribeInstances.html))
+and value is value of a filter. For example:
+
+* `tag-key=test` will filter instances that has tag named `test`.
+* `vpc-id=vpc-1a2b3c4d` will filter instances that belong to specific VPC.
+* Default filter `tag:kubernetes.io/cluster/<cluster-id>=owned tag-key=k8s.io/role/node` filters instances
+  that has tag `kubernetes.io/cluster/<cluster-id>` with value `owned` and have tag named `tag-key=k8s.io/role/node`.
 
 Every poll cycle EC2 is queried with filters that were constructed during startup.
 Each new discovered instance is scanned for Auto Scaling Group tag. Each Target

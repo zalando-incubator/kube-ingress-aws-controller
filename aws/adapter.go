@@ -72,7 +72,7 @@ const (
 
 	certificateARNTag = "ingress:certificate-arn"
 
-	customTagFilterEnvVarName = "CUSTOM_TAG_FILTER"
+	customTagFilterEnvVarName = "CUSTOM_FILTERS"
 )
 
 var (
