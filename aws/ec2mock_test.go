@@ -6,7 +6,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/ec2/ec2iface"
 )
 
-const DIP_SPLIT_SIZE = 2
+const dipSplitSize = 2
 
 type ec2MockOutputs struct {
 	describeSecurityGroups *apiResponse
@@ -101,13 +101,13 @@ func mockDIOutput(mockedInstances ...testInstance) *ec2.DescribeInstancesOutput 
 }
 
 func mockDIPOutput(e error, mockedInstances ...testInstance) []*apiResponse {
-	pages := len(mockedInstances) / DIP_SPLIT_SIZE
+	pages := len(mockedInstances) / dipSplitSize
 	result := make([]*apiResponse, pages, pages+1)
 	for i := 0; i < pages; i++ {
-		result[i] = R(mockDIOutput(mockedInstances[i*DIP_SPLIT_SIZE:(i+1)*DIP_SPLIT_SIZE]...), e)
+		result[i] = R(mockDIOutput(mockedInstances[i*dipSplitSize:(i+1)*dipSplitSize]...), e)
 	}
-	if len(mockedInstances)%DIP_SPLIT_SIZE != 0 {
-		result = append(result, R(mockDIOutput(mockedInstances[pages*DIP_SPLIT_SIZE:]...), e))
+	if len(mockedInstances)%dipSplitSize != 0 {
+		result = append(result, R(mockDIOutput(mockedInstances[pages*dipSplitSize:]...), e))
 	}
 	return result
 }
