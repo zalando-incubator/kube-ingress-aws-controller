@@ -98,7 +98,7 @@ During startup phase EC2 filters are constructed as follows:
   is determined from EC2 tags of instance on which Ingress Controller pod is started.
 
 `CUSTOM_FILTERS` is a list of filters separated by spaces. Each filter has a form of `name=value` where name is one
-of names that are recognized of EC2 API (you can find list [here](https://docs.aws.amazon.com/AWSEC2/latest/APIReference/API_DescribeInstances.html))
+of names that are recognized by the EC2 API (you can find list [here](https://docs.aws.amazon.com/AWSEC2/latest/APIReference/API_DescribeInstances.html))
 and value is value of a filter. For example:
 
 * `tag-key=test` will filter instances that has tag named `test`.
