@@ -51,3 +51,38 @@ build.docker:
 
 build.push: build.docker
 	docker push "$(IMAGE):$(TAG)"
+
+define TEST_CNF
+[req]
+default_bits       = 2048
+default_md         = sha256
+distinguished_name = req_distinguished_name
+x509_extensions    = x509_ext
+req_extensions     = v3_req
+string_mask        = utf8only
+[req_distinguished_name]
+commonName         = Common Name (e.g. server FQDN or YOUR name)
+commonName_default = /
+[x509_ext]
+subjectKeyIdentifier    = hash
+authorityKeyIdentifier  = keyid,issuer
+basicConstraints        = CA:TRUE
+keyUsage                = nonRepudiation, digitalSignature, keyEncipherment
+subjectAltName          = @alt_names
+[v3_req]
+subjectKeyIdentifier = hash
+basicConstraints     = CA:TRUE
+keyUsage             = nonRepudiation, digitalSignature, keyEncipherment
+subjectAltName       = @alt_names
+[alt_names]
+DNS.1 = *.domain.name
+IP.1  = 127.0.0.1
+endef
+
+recreate.ca: recreate.cnf
+	openssl req -config kubernetes/testdata/test.cnf -new -x509 -sha256 -nodes -keyout kubernetes/testdata/key.pem -days $$((10*365)) -out kubernetes/testdata/ca.crt -subj "/"
+	cp kubernetes/testdata/ca.crt kubernetes/testdata/cert.pem
+
+export TEST_CNF
+recreate.cnf:
+	@echo "$$TEST_CNF" > kubernetes/testdata/test.cnf
