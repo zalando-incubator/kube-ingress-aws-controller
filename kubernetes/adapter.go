@@ -3,7 +3,8 @@ package kubernetes
 import (
 	"errors"
 	"fmt"
-        "github.com/aws/aws-sdk-go/service/elbv2"
+
+	"github.com/aws/aws-sdk-go/service/elbv2"
 )
 
 type Adapter struct {
@@ -59,7 +60,7 @@ func (i *Ingress) Hostname() string {
 
 // Scheme returns the scheme associated with the ingress
 func (i *Ingress) Scheme() string {
-       return i.scheme
+	return i.scheme
 }
 
 // CertHostname returns the DNS hostname associated with the ingress
@@ -75,7 +76,7 @@ func (i *Ingress) SetCertificateARN(arn string) {
 
 // SetScheme sets Ingress.scheme to the scheme as specified.
 func (i *Ingress) SetScheme(scheme string) {
-       i.scheme = scheme
+	i.scheme = scheme
 }
 
 func newIngressFromKube(kubeIngress *ingress) *Ingress {
@@ -96,10 +97,10 @@ func newIngressFromKube(kubeIngress *ingress) *Ingress {
 
 	// Set schema to default if annotation value is not valid
 	switch kubeIngress.getAnnotationsString(ingressSchemeAnnotation, "") {
-		case elbv2.LoadBalancerSchemeEnumInternal:
-			scheme = elbv2.LoadBalancerSchemeEnumInternal
-		default:
-			scheme = elbv2.LoadBalancerSchemeEnumInternetFacing
+	case elbv2.LoadBalancerSchemeEnumInternal:
+		scheme = elbv2.LoadBalancerSchemeEnumInternal
+	default:
+		scheme = elbv2.LoadBalancerSchemeEnumInternetFacing
 	}
 
 	certDomain := kubeIngress.getAnnotationsString(ingressCertificateDomainAnnotation, "")
@@ -124,7 +125,7 @@ func newIngressForKube(i *Ingress) *ingress {
 			Name:      i.name,
 			Annotations: map[string]interface{}{
 				ingressCertificateARNAnnotation: i.certificateARN,
-				ingressSchemeAnnotation: i.scheme,
+				ingressSchemeAnnotation:         i.scheme,
 			},
 		},
 		Status: ingressStatus{

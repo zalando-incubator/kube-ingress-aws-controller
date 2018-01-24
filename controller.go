@@ -161,10 +161,10 @@ func main() {
 	log.Printf("\tCluster ID: %s", awsAdapter.ClusterID())
 	log.Printf("\tvpc id: %s", awsAdapter.VpcID())
 	log.Printf("\tinstance id: %s", awsAdapter.InstanceID())
-	log.Printf("\tauto scaling group name: %s", awsAdapter.AutoScalingGroupName())
 	log.Printf("\tsecurity group id: %s", awsAdapter.SecurityGroupID())
 	log.Printf("\tinternal subnet ids: %s", awsAdapter.FindLBSubnets(elbv2.LoadBalancerSchemeEnumInternal))
 	log.Printf("\tpublic subnet ids: %s", awsAdapter.FindLBSubnets(elbv2.LoadBalancerSchemeEnumInternetFacing))
+	log.Printf("\tEC2 filters: %s", awsAdapter.FiltersString())
 
 	go serveMetrics(metricsAddress)
 	quitCH := make(chan struct{})

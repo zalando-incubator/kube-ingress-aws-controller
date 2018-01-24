@@ -2,12 +2,10 @@ package aws
 
 import (
 	"errors"
+	"fmt"
+	"log"
 	"strings"
 	"time"
-
-	"fmt"
-
-	"log"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/client"
@@ -22,16 +20,19 @@ import (
 	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/aws/aws-sdk-go/service/ec2/ec2iface"
 	"github.com/aws/aws-sdk-go/service/elbv2"
+	"github.com/aws/aws-sdk-go/service/elbv2/elbv2iface"
 	"github.com/aws/aws-sdk-go/service/iam"
 	"github.com/aws/aws-sdk-go/service/iam/iamiface"
 	"github.com/linki/instrumented_http"
 	"github.com/zalando-incubator/kube-ingress-aws-controller/certs"
+	"os"
 )
 
 // An Adapter can be used to orchestrate and obtain information from Amazon Web Services.
 type Adapter struct {
 	ec2metadata    *ec2metadata.EC2Metadata
 	ec2            ec2iface.EC2API
+	elbv2          elbv2iface.ELBV2API
 	autoscaling    autoscalingiface.AutoScalingAPI
 	acm            acmiface.ACMAPI
 	iam            iamiface.IAMAPI
@@ -44,13 +45,17 @@ type Adapter struct {
 	healthCheckInterval time.Duration
 	creationTimeout     time.Duration
 	stackTTL            time.Duration
+	autoScalingGroups   map[string]*autoScalingGroupDetails
+	ec2Details          map[string]*instanceDetails
+	singleInstances     map[string]*instanceDetails
+	obsoleteInstances   []string
 }
 
 type manifest struct {
-	securityGroup    *securityGroupDetails
-	instance         *instanceDetails
-	autoScalingGroup *autoScalingGroupDetails
-	subnets          []*subnetDetails
+	securityGroup *securityGroupDetails
+	instance      *instanceDetails
+	subnets       []*subnetDetails
+	filters       []*ec2.Filter
 }
 
 type configProviderFunc func() client.ConfigProvider
@@ -66,6 +71,8 @@ const (
 	nameTag = "Name"
 
 	certificateARNTag = "ingress:certificate-arn"
+
+	customTagFilterEnvVarName = "CUSTOM_FILTERS"
 )
 
 var (
@@ -109,6 +116,7 @@ func NewAdapter() (adapter *Adapter, err error) {
 	p := configProvider()
 	adapter = &Adapter{
 		ec2:                 ec2.New(p),
+		elbv2:               elbv2.New(p),
 		ec2metadata:         ec2metadata.New(p),
 		autoscaling:         autoscaling.New(p),
 		acm:                 acm.New(p),
@@ -119,6 +127,10 @@ func NewAdapter() (adapter *Adapter, err error) {
 		healthCheckInterval: DefaultHealthCheckInterval,
 		creationTimeout:     DefaultCreationTimeout,
 		stackTTL:            DefaultStackTTL,
+		autoScalingGroups:   make(map[string]*autoScalingGroupDetails),
+		ec2Details:          make(map[string]*instanceDetails),
+		singleInstances:     make(map[string]*instanceDetails),
+		obsoleteInstances:   make([]string, 0),
 	}
 
 	adapter.manifest, err = buildManifest(adapter)
@@ -172,7 +184,7 @@ func (a *Adapter) WithCustomTemplate(template string) *Adapter {
 	return a
 }
 
-// ClusterStackName returns the ClusterID tag that all resources from the same Kubernetes cluster share.
+// ClusterID returns the ClusterID tag that all resources from the same Kubernetes cluster share.
 // It's taken from the current ec2 instance.
 func (a *Adapter) ClusterID() string {
 	return a.manifest.instance.clusterID()
@@ -188,9 +200,58 @@ func (a *Adapter) InstanceID() string {
 	return a.manifest.instance.id
 }
 
-// AutoScalingGroupName returns the name of the Auto Scaling Group the current node belongs to
-func (a *Adapter) AutoScalingGroupName() string {
-	return a.manifest.autoScalingGroup.name
+// AutoScalingGroupNames returns names of the Auto Scaling Groups that
+// kubernetes nodes belong to.
+func (a *Adapter) AutoScalingGroupNames() []string {
+	result := make([]string, len(a.autoScalingGroups))
+	i := 0
+	for name := range a.autoScalingGroups {
+		result[i] = name
+		i++
+	}
+	return result
+}
+
+// SingleInstances returns list of IDs of instances that do not belong to any
+// Auto Scaling Group and should be managed manually.
+func (a *Adapter) SingleInstances() []string {
+	instances := make([]string, 0, len(a.singleInstances))
+	for id := range a.singleInstances {
+		instances = append(instances, id)
+	}
+	return instances
+}
+
+// RunningSingleInstances returns list of IDs of running instances that do
+// not belong to any Auto Scaling Group and should be managed manually.
+func (a Adapter) RunningSingleInstances() []string {
+	instances := make([]string, 0, len(a.singleInstances))
+	for id, details := range a.singleInstances {
+		if details.running {
+			instances = append(instances, id)
+		}
+	}
+	return instances
+}
+
+// ObsoleteSingleInstances returns list of IDs of instances that should be deregistered
+// from all Target Groups.
+func (a Adapter) ObsoleteSingleInstances() []string {
+	return a.obsoleteInstances
+}
+
+// Get number of instances in cache.
+func (a Adapter) CachedInstances() int {
+	return len(a.ec2Details)
+}
+
+// Get EC2 filters that are used to filter instances that are loaded using DescribeInstances.
+func (a Adapter) FiltersString() string {
+	result := ""
+	for _, filter := range a.manifest.filters {
+		result += fmt.Sprintf("%s=%s ", aws.StringValue(filter.Name), strings.Join(aws.StringValueSlice(filter.Values), ","))
+	}
+	return strings.TrimSpace(result)
 }
 
 // SecurityGroupID returns the security group ID that should be used to create Load Balancers.
@@ -205,15 +266,38 @@ func (a *Adapter) FindManagedStacks() ([]*Stack, error) {
 	if err != nil {
 		return nil, err
 	}
+	return stacks, nil
+}
+
+// UpdateTargetGroupsAndAutoScalingGroups updates Auto Scaling Groups
+// config to have relevant Target Groups and registers/deregisters single
+// instances (that do not belong to ASG) in relevant Target Groups.
+func (a *Adapter) UpdateTargetGroupsAndAutoScalingGroups(stacks []*Stack) {
 	targetGroupARNs := make([]string, len(stacks))
 	for i, stack := range stacks {
 		targetGroupARNs[i] = stack.targetGroupARN
 	}
-	// This call is idempotent and safe to execute every time
-	if err := attachTargetGroupsToAutoScalingGroup(a.autoscaling, targetGroupARNs, a.AutoScalingGroupName()); err != nil {
-		log.Printf("FindManagedStacks() failed to attach target groups to ASG: %v", err)
+	for _, asg := range a.autoScalingGroups {
+		// This call is idempotent and safe to execute every time
+		if err := attachTargetGroupsToAutoScalingGroup(a.autoscaling, targetGroupARNs, asg.name); err != nil {
+			log.Printf("UpdateTargetGroupsAndAutoScalingGroups() failed to attach target groups to ASG: %v", err)
+		}
 	}
-	return stacks, nil
+	runningSingleInstances := a.RunningSingleInstances()
+	if len(runningSingleInstances) != 0 {
+		// This call is idempotent too
+		if err := registerTargetsOnTargetGroups(a.elbv2, targetGroupARNs, runningSingleInstances); err != nil {
+			log.Printf("UpdateTargetGroupsAndAutoScalingGroups() failed to register instances %q in target groups: %v", runningSingleInstances, err)
+		}
+	}
+	if len(a.obsoleteInstances) != 0 {
+		// Deregister instances from target groups and clean up list of obsolete instances
+		if err := deregisterTargetsOnTargetGroups(a.elbv2, targetGroupARNs, a.obsoleteInstances); err != nil {
+			log.Printf("UpdateTargetGroupsAndAutoScalingGroups() failed to deregister instances %q in target groups: %v", a.obsoleteInstances, err)
+		} else {
+			a.obsoleteInstances = make([]string, 0)
+		}
+	}
 }
 
 // CreateStack creates a new Application Load Balancer using CloudFormation. The stack name is derived
@@ -278,8 +362,10 @@ func (a *Adapter) MarkToDeleteStack(stack *Stack) (time.Time, error) {
 
 // DeleteStack deletes the CloudFormation stack with the given name
 func (a *Adapter) DeleteStack(stack *Stack) error {
-	if err := detachTargetGroupFromAutoScalingGroup(a.autoscaling, stack.TargetGroupARN(), a.AutoScalingGroupName()); err != nil {
-		return fmt.Errorf("DeleteStack failed to detach: %v", err)
+	for _, asg := range a.autoScalingGroups {
+		if err := detachTargetGroupFromAutoScalingGroup(a.autoscaling, stack.TargetGroupARN(), asg.name); err != nil {
+			return fmt.Errorf("DeleteStack failed to detach: %v", err)
+		}
 	}
 
 	return deleteStack(a.cloudformation, stack.Name())
@@ -293,15 +379,6 @@ func buildManifest(awsAdapter *Adapter) (*manifest, error) {
 		return nil, err
 	}
 	instanceDetails, err := getInstanceDetails(awsAdapter.ec2, myID)
-	if err != nil {
-		return nil, err
-	}
-
-	autoScalingGroupName, err := getAutoScalingGroupName(instanceDetails.tags)
-	if err != nil {
-		return nil, err
-	}
-	autoScalingGroupDetails, err := getAutoScalingGroupByName(awsAdapter.autoscaling, autoScalingGroupName)
 	if err != nil {
 		return nil, err
 	}
@@ -322,10 +399,10 @@ func buildManifest(awsAdapter *Adapter) (*manifest, error) {
 	}
 
 	return &manifest{
-		securityGroup:    securityGroupDetails,
-		instance:         instanceDetails,
-		autoScalingGroup: autoScalingGroupDetails,
-		subnets:          subnets,
+		securityGroup: securityGroupDetails,
+		instance:      instanceDetails,
+		subnets:       subnets,
+		filters:       parseFilters(clusterID),
 	}, nil
 }
 
@@ -398,4 +475,103 @@ func getTag(tags map[string]string, tagName string) (string, error) {
 		return name, nil
 	}
 	return "<missing tag>", ErrMissingTag
+}
+
+// UpdateAutoScalingGroupsAndInstances updates list of known ASGs and EC2 instances.
+func (a *Adapter) UpdateAutoScalingGroupsAndInstances() error {
+	var err error
+	a.ec2Details, err = getInstancesDetailsWithFilters(a.ec2, a.manifest.filters)
+	if err != nil {
+		return err
+	}
+
+	newSingleInstances := make(map[string]*instanceDetails)
+	for instanceID, details := range a.singleInstances {
+		if _, ok := a.ec2Details[instanceID]; !ok {
+			// Instance does not exist on EC2 anymore, add it to list of obsolete instances
+			a.obsoleteInstances = append(a.obsoleteInstances, instanceID)
+		} else {
+			// Instance exists, so keep it in the list of single instances
+			newSingleInstances[instanceID] = details
+		}
+	}
+	a.singleInstances = newSingleInstances
+
+	// update ASGs (create new map to get rid of deleted ASGs)
+	newAutoScalingGroups := make(map[string]*autoScalingGroupDetails)
+	autoScalingGroupsToFetchMap := make(map[string]bool)
+	for instanceID, details := range a.ec2Details {
+		asgName, err := getAutoScalingGroupName(details.tags)
+		if err != nil {
+			// Instance is not in ASG, save in single instances list.
+			a.singleInstances[instanceID] = details
+			continue
+		}
+		if _, ok := newAutoScalingGroups[asgName]; !ok {
+			if _, ok := a.autoScalingGroups[asgName]; ok {
+				newAutoScalingGroups[asgName] = a.autoScalingGroups[asgName]
+			} else {
+				// Save ASGs that have to be loaded to load all of them in one API call
+				autoScalingGroupsToFetchMap[asgName] = true
+			}
+		}
+	}
+
+	autoScalingGroupsToFetch := make([]string, 0, len(autoScalingGroupsToFetchMap))
+	for asgName := range autoScalingGroupsToFetchMap {
+		autoScalingGroupsToFetch = append(autoScalingGroupsToFetch, asgName)
+	}
+
+	if len(autoScalingGroupsToFetch) != 0 {
+		fetchedAutoScalingGroups, err := getAutoScalingGroupsByName(a.autoscaling, autoScalingGroupsToFetch)
+		if err != nil {
+			log.Printf("failed fetching Auto Scaling Groups details: %v", err)
+		} else {
+			for name, asg := range fetchedAutoScalingGroups {
+				newAutoScalingGroups[name] = asg
+			}
+		}
+	}
+
+	a.autoScalingGroups = newAutoScalingGroups
+	return nil
+}
+
+// Create EC2 filter that will be used to filter instances when calling DescribeInstances
+// later on each cycle. Filter is based on value of customTagFilterEnvVarName environment
+// veriable. If it is undefined or could not be parsed, default filter is returned which
+// filters on kubernetesClusterTag tag value and kubernetesNodeRoleTag existance.
+func parseFilters(clusterId string) []*ec2.Filter {
+	if filter, ok := os.LookupEnv(customTagFilterEnvVarName); ok {
+		terms := strings.Fields(filter)
+		filters := make([]*ec2.Filter, len(terms))
+		for i, term := range terms {
+			parts := strings.Split(term, "=")
+			if len(parts) != 2 {
+				log.Printf("failed parsing %s, falling back to default", customTagFilterEnvVarName)
+				return generateDefaultFilters(clusterId)
+			}
+			filters[i] = &ec2.Filter{
+				Name:   aws.String(parts[0]),
+				Values: aws.StringSlice(strings.Split(parts[1], ",")),
+			}
+		}
+		return filters
+	}
+	return generateDefaultFilters(clusterId)
+}
+
+// Generate default EC2 filter for usage with ECs DescribeInstances call based on EC2 tags
+// of instance where Ingress Controller pod was started.
+func generateDefaultFilters(clusterId string) []*ec2.Filter {
+	return []*ec2.Filter{
+		{
+			Name:   aws.String("tag:" + clusterIDTagPrefix + clusterId),
+			Values: []*string{aws.String(resourceLifecycleOwned)},
+		},
+		{
+			Name:   aws.String("tag-key"),
+			Values: []*string{aws.String(kubernetesNodeRoleTag)},
+		},
+	}
 }

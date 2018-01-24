@@ -25,7 +25,7 @@ func TestMappingRoundtrip(t *testing.T) {
 		Name:      "foo",
 		Annotations: map[string]interface{}{
 			ingressCertificateARNAnnotation: "zbr",
-			ingressSchemeAnnotation: "internal",
+			ingressSchemeAnnotation:         "internal",
 		},
 	}
 	kubeStatus := ingressStatus{

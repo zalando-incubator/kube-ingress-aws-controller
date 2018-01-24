@@ -6,9 +6,12 @@ import (
 	"github.com/aws/aws-sdk-go/service/ec2/ec2iface"
 )
 
+const dipSplitSize = 2
+
 type ec2MockOutputs struct {
 	describeSecurityGroups *apiResponse
 	describeInstances      *apiResponse
+	describeInstancesPages []*apiResponse
 	describeSubnets        *apiResponse
 	describeRouteTables    *apiResponse
 }
@@ -30,6 +33,18 @@ func (m *mockEc2Client) DescribeInstances(*ec2.DescribeInstancesInput) (*ec2.Des
 		return out, m.outputs.describeInstances.err
 	}
 	return nil, m.outputs.describeInstances.err
+}
+
+func (m *mockEc2Client) DescribeInstancesPages(params *ec2.DescribeInstancesInput, f func(*ec2.DescribeInstancesOutput, bool) bool) error {
+	for _, resp := range m.outputs.describeInstancesPages {
+		if out, ok := resp.response.(*ec2.DescribeInstancesOutput); ok {
+			f(out, true)
+		}
+	}
+	if len(m.outputs.describeInstancesPages) != 0 {
+		return m.outputs.describeInstancesPages[0].err
+	}
+	return nil
 }
 
 func (m *mockEc2Client) DescribeSubnets(*ec2.DescribeSubnetsInput) (*ec2.DescribeSubnetsOutput, error) {
@@ -59,9 +74,11 @@ func mockDSGOutput(sgs map[string]string) *ec2.DescribeSecurityGroupsOutput {
 }
 
 type testInstance struct {
-	id    string
-	tags  tags
-	state int64
+	id        string
+	tags      tags
+	privateIp string
+	vpcId     string
+	state     int64
 }
 
 func mockDIOutput(mockedInstances ...testInstance) *ec2.DescribeInstancesOutput {
@@ -72,13 +89,27 @@ func mockDIOutput(mockedInstances ...testInstance) *ec2.DescribeInstancesOutput 
 			tags = append(tags, &ec2.Tag{Key: aws.String(k), Value: aws.String(v)})
 		}
 		instance := &ec2.Instance{
-			InstanceId: aws.String(i.id),
-			Tags:       tags,
-			State:      &ec2.InstanceState{Code: aws.Int64(i.state)},
+			InstanceId:       aws.String(i.id),
+			Tags:             tags,
+			State:            &ec2.InstanceState{Code: aws.Int64(i.state)},
+			PrivateIpAddress: aws.String(i.privateIp),
+			VpcId:            aws.String(i.vpcId),
 		}
 		instances = append(instances, instance)
 	}
 	return &ec2.DescribeInstancesOutput{Reservations: []*ec2.Reservation{{Instances: instances}}}
+}
+
+func mockDIPOutput(e error, mockedInstances ...testInstance) []*apiResponse {
+	pages := len(mockedInstances) / dipSplitSize
+	result := make([]*apiResponse, pages, pages+1)
+	for i := 0; i < pages; i++ {
+		result[i] = R(mockDIOutput(mockedInstances[i*dipSplitSize:(i+1)*dipSplitSize]...), e)
+	}
+	if len(mockedInstances)%dipSplitSize != 0 {
+		result = append(result, R(mockDIOutput(mockedInstances[pages*dipSplitSize:]...), e))
+	}
+	return result
 }
 
 type testSubnet struct {

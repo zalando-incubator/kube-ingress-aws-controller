@@ -19,8 +19,10 @@ const (
 	kubernetesCreatorValue     = "kube-ingress-aws-controller"
 	autoScalingGroupNameTag    = "aws:autoscaling:groupName"
 	runningState               = 16 // See https://github.com/aws/aws-sdk-go/blob/master/service/ec2/api.go, type InstanceState
+	stoppedState               = 80 // See https://github.com/aws/aws-sdk-go/blob/master/service/ec2/api.go, type InstanceState
 	elbRoleTagName             = "kubernetes.io/role/elb"
 	internalELBRoleTagName     = "kubernetes.io/role/internal-elb"
+	kubernetesNodeRoleTag      = "k8s.io/role/node"
 )
 
 type securityGroupDetails struct {
@@ -29,9 +31,11 @@ type securityGroupDetails struct {
 }
 
 type instanceDetails struct {
-	id    string
-	vpcID string
-	tags  map[string]string
+	id      string
+	ip      string
+	vpcID   string
+	tags    map[string]string
+	running bool
 }
 
 func (id *instanceDetails) clusterID() string {
@@ -101,10 +105,38 @@ func getInstanceDetails(ec2Service ec2iface.EC2API, instanceID string) (*instanc
 	}
 
 	return &instanceDetails{
-		id:    aws.StringValue(i.InstanceId),
-		vpcID: aws.StringValue(i.VpcId),
-		tags:  convertEc2Tags(i.Tags),
+		id:      aws.StringValue(i.InstanceId),
+		ip:      aws.StringValue(i.PrivateIpAddress),
+		vpcID:   aws.StringValue(i.VpcId),
+		tags:    convertEc2Tags(i.Tags),
+		running: aws.Int64Value(i.State.Code)&0xff == runningState,
 	}, nil
+}
+
+func getInstancesDetailsWithFilters(ec2Service ec2iface.EC2API, filters []*ec2.Filter) (map[string]*instanceDetails, error) {
+	params := &ec2.DescribeInstancesInput{
+		Filters: filters,
+	}
+	result := make(map[string]*instanceDetails)
+	err := ec2Service.DescribeInstancesPages(params, func(resp *ec2.DescribeInstancesOutput, lastPage bool) bool {
+		for _, reservation := range resp.Reservations {
+			for _, instance := range reservation.Instances {
+				result[aws.StringValue(instance.InstanceId)] = &instanceDetails{
+					id:      aws.StringValue(instance.InstanceId),
+					ip:      aws.StringValue(instance.PrivateIpAddress),
+					vpcID:   aws.StringValue(instance.VpcId),
+					tags:    convertEc2Tags(instance.Tags),
+					running: aws.Int64Value(instance.State.Code)&0xff == runningState,
+				}
+			}
+		}
+		return true
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed getting instance list from EC2: %v", err)
+	}
+
+	return result, nil
 }
 
 func findFirstRunningInstance(resp *ec2.DescribeInstancesOutput) (*ec2.Instance, error) {

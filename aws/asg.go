@@ -48,6 +48,40 @@ func getAutoScalingGroupByName(service autoscalingiface.AutoScalingAPI, autoScal
 	return nil, fmt.Errorf("auto scaling group %q not found", autoScalingGroupName)
 }
 
+func getAutoScalingGroupsByName(service autoscalingiface.AutoScalingAPI, autoScalingGroupNames []string) (map[string]*autoScalingGroupDetails, error) {
+	params := &autoscaling.DescribeAutoScalingGroupsInput{
+		AutoScalingGroupNames: aws.StringSlice(autoScalingGroupNames),
+	}
+	resp, err := service.DescribeAutoScalingGroups(params)
+	if err != nil {
+		return nil, err
+	}
+
+	result := make(map[string]*autoScalingGroupDetails)
+	for _, g := range resp.AutoScalingGroups {
+		name := aws.StringValue(g.AutoScalingGroupName)
+		tags := make(map[string]string)
+		for _, td := range g.Tags {
+			tags[aws.StringValue(td.Key)] = aws.StringValue(td.Value)
+		}
+		result[name] = &autoScalingGroupDetails{
+			name: name,
+			arn:  aws.StringValue(g.AutoScalingGroupARN),
+			launchConfigurationName: aws.StringValue(g.LaunchConfigurationName),
+			targetGroups:            aws.StringValueSlice(g.TargetGroupARNs),
+			tags:                    tags,
+		}
+	}
+
+	for _, name := range autoScalingGroupNames {
+		if _, ok := result[name]; !ok {
+			return nil, fmt.Errorf("auto scaling group %q not found", name)
+		}
+	}
+
+	return result, nil
+}
+
 func attachTargetGroupsToAutoScalingGroup(svc autoscalingiface.AutoScalingAPI, targetGroupARNs []string, autoScalingGroupName string) error {
 	params := &autoscaling.AttachLoadBalancerTargetGroupsInput{
 		AutoScalingGroupName: aws.String(autoScalingGroupName),
