@@ -23,10 +23,12 @@ import (
 type managedItem struct {
 	ingresses []*kubernetes.Ingress
 	stack     *aws.Stack
+	Update    bool
 }
 
 const (
 	ready int = iota
+	update
 	missing
 	marktodelete
 	orphan
@@ -46,6 +48,9 @@ func (item *managedItem) Status() int {
 	if len(item.ingresses) != 0 && item.stack == nil {
 		return missing
 	}
+	if item.Update && item.stack.IsComplete() {
+		return update
+	}
 	return ready
 }
 
@@ -55,9 +60,8 @@ func waitForTerminationSignals(signals ...os.Signal) chan os.Signal {
 	return c
 }
 
-func startPolling(quitCH chan struct{}, certsProvider certs.CertificatesProvider, awsAdapter *aws.Adapter, kubeAdapter *kubernetes.Adapter, pollingInterval, updateStackInterval time.Duration) {
+func startPolling(quitCH chan struct{}, certsProvider certs.CertificatesProvider, awsAdapter *aws.Adapter, kubeAdapter *kubernetes.Adapter, pollingInterval time.Duration) {
 	items := make(chan *managedItem, maxTargetGroupSupported)
-	go updateStacks(awsAdapter, updateStackInterval, items)
 	for {
 		log.Printf("Start polling sleep %s", pollingInterval)
 		select {
@@ -68,30 +72,6 @@ func startPolling(quitCH chan struct{}, certsProvider certs.CertificatesProvider
 			if err := doWork(certsProvider, awsAdapter, kubeAdapter, items); err != nil {
 				log.Println(err)
 			}
-		}
-	}
-}
-
-func updateStacks(awsAdapter *aws.Adapter, interval time.Duration, items <-chan *managedItem) {
-	for {
-		itemsMap := map[string]*managedItem{}
-		done := make(chan struct{})
-		go func() {
-			for {
-				select {
-				case item := <-items:
-					if _, ok := itemsMap[item.stack.CertificateARN()]; !ok {
-						itemsMap[item.stack.CertificateARN()] = item
-					}
-				case <-done:
-					return
-				}
-			}
-		}()
-		time.Sleep(interval)
-		done <- struct{}{}
-		for _, item := range itemsMap {
-			updateStack(awsAdapter, item)
 		}
 	}
 }
@@ -140,7 +120,9 @@ func doWork(certsProvider certs.CertificatesProvider, awsAdapter *aws.Adapter, k
 			createStack(awsAdapter, managedItem)
 			updateIngress(kubeAdapter, managedItem)
 		case ready:
-			items <- managedItem
+			updateIngress(kubeAdapter, managedItem)
+		case update:
+			updateStack(awsAdapter, managedItem)
 			updateIngress(kubeAdapter, managedItem)
 		}
 	}
@@ -175,8 +157,12 @@ func buildManagedModel(certsProvider certs.CertificatesProvider, ingresses []*ku
 		}
 		if item, ok := model[certificateARN+"/"+ingress.Scheme()]; ok {
 			item.ingresses = append(item.ingresses, ingress)
+			item.Update = true
 		} else {
-			model[certificateARN+"/"+ingress.Scheme()] = &managedItem{ingresses: []*kubernetes.Ingress{ingress}}
+			model[certificateARN+"/"+ingress.Scheme()] = &managedItem{
+				ingresses: []*kubernetes.Ingress{ingress},
+				Update:    true,
+			}
 		}
 	}
 	return model

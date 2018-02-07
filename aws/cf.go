@@ -21,6 +21,7 @@ const (
 // Stack is a simple wrapper around a CloudFormation Stack.
 type Stack struct {
 	name           string
+	status         string
 	dnsName        string
 	scheme         string
 	targetGroupARN string
@@ -46,6 +47,14 @@ func (s *Stack) CertificateARN() string {
 
 func (s *Stack) TargetGroupARN() string {
 	return s.targetGroupARN
+}
+
+// IsComplete returns true if the stack status is a complete state.
+func (s *Stack) IsComplete() bool {
+	if s == nil {
+		return false
+	}
+	return isComplete(s.status)
 }
 
 // IsDeleteInProgress returns true if the stack has already a tag
@@ -290,10 +299,8 @@ func getCFStackByName(svc cloudformationiface.CloudFormationAPI, stackName strin
 
 	var stack *cloudformation.Stack
 	for _, s := range resp.Stacks {
-		if isComplete(s.StackStatus) {
-			stack = s
-			break
-		}
+		stack = s
+		break
 	}
 	if stack == nil {
 		return nil, ErrLoadBalancerStackNotReady
@@ -314,14 +321,15 @@ func mapToManagedStack(stack *cloudformation.Stack) *Stack {
 		scheme:         parameters[parameterLoadBalancerSchemeParameter],
 		certificateARN: tags[certificateARNTag],
 		tags:           tags,
+		status:         aws.StringValue(stack.StackStatus),
 	}
 }
 
 // isComplete returns false by design on all other status, because
 // updateIngress will ignore not completed stacks.
 // Stack can never be in rollback state by design.
-func isComplete(stackStatus *string) bool {
-	switch aws.StringValue(stackStatus) {
+func isComplete(stackStatus string) bool {
+	switch stackStatus {
 	case cloudformation.StackStatusCreateComplete:
 		return true
 	case cloudformation.StackStatusUpdateComplete:
@@ -336,10 +344,6 @@ func findManagedStacks(svc cloudformationiface.CloudFormationAPI, clusterID stri
 	err := svc.DescribeStacksPages(&cloudformation.DescribeStacksInput{},
 		func(page *cloudformation.DescribeStacksOutput, lastPage bool) bool {
 			for _, s := range page.Stacks {
-				if !isComplete(s.StackStatus) {
-					continue
-				}
-
 				if isManagedStack(s.Tags, clusterID) {
 					stacks = append(stacks, mapToManagedStack(s))
 				}

@@ -106,7 +106,7 @@ func TestStackReadiness(t *testing.T) {
 		{"dummy-status", false},
 	} {
 		t.Run(ti.given, func(t *testing.T) {
-			got := isComplete(aws.String(ti.given))
+			got := isComplete(ti.given)
 			if ti.want != got {
 				t.Errorf("unexpected result. wanted %+v, got %+v", ti.want, got)
 			}
@@ -195,7 +195,7 @@ func TestConvertStackParameters(t *testing.T) {
 
 }
 
-func TestFindingManagedStacks(t *testing.T) {
+func TestFindManagedStacks(t *testing.T) {
 	for _, ti := range []struct {
 		name    string
 		given   cfMockOutputs
@@ -203,13 +203,14 @@ func TestFindingManagedStacks(t *testing.T) {
 		wantErr bool
 	}{
 		{
-			"successful-call",
-			cfMockOutputs{
+			name: "successful-call",
+			given: cfMockOutputs{
 				describeStackPages: R(nil, nil),
 				describeStacks: R(&cloudformation.DescribeStacksOutput{
 					Stacks: []*cloudformation.Stack{
 						{
-							StackName: aws.String("managed-stack-not-ready"),
+							StackName:   aws.String("managed-stack-not-ready"),
+							StackStatus: aws.String(cloudformation.StackStatusUpdateInProgress),
 							Tags: []*cloudformation.Tag{
 								cfTag(kubernetesCreatorTag, kubernetesCreatorValue),
 								cfTag(clusterIDTagPrefix+"test-cluster", resourceLifecycleOwned),
@@ -234,7 +235,8 @@ func TestFindingManagedStacks(t *testing.T) {
 							},
 						},
 						{
-							StackName: aws.String("managed-stack-not-ready"),
+							StackName:   aws.String("managed-stack-not-ready"),
+							StackStatus: aws.String(cloudformation.StackStatusUpdateInProgress),
 							Tags: []*cloudformation.Tag{
 								cfTag(kubernetesCreatorTag, kubernetesCreatorValue),
 								cfTag(clusterIDTagPrefix+"test-cluster", resourceLifecycleOwned),
@@ -262,7 +264,19 @@ func TestFindingManagedStacks(t *testing.T) {
 					},
 				}, nil),
 			},
-			[]*Stack{
+			want: []*Stack{
+				{
+					name:           "managed-stack-not-ready",
+					dnsName:        "example-notready.com",
+					certificateARN: "cert-arn",
+					targetGroupARN: "tg-arn",
+					tags: map[string]string{
+						kubernetesCreatorTag:                kubernetesCreatorValue,
+						clusterIDTagPrefix + "test-cluster": resourceLifecycleOwned,
+						certificateARNTag:                   "cert-arn",
+					},
+					status: cloudformation.StackStatusUpdateInProgress,
+				},
 				{
 					name:           "managed-stack",
 					dnsName:        "example.com",
@@ -273,13 +287,22 @@ func TestFindingManagedStacks(t *testing.T) {
 						clusterIDTagPrefix + "test-cluster": resourceLifecycleOwned,
 						certificateARNTag:                   "cert-arn",
 					},
+					status: cloudformation.StackStatusCreateComplete,
+				},
+				{
+					name: "managed-stack-not-ready",
+					tags: map[string]string{
+						kubernetesCreatorTag:                kubernetesCreatorValue,
+						clusterIDTagPrefix + "test-cluster": resourceLifecycleOwned,
+					},
+					status: cloudformation.StackStatusUpdateInProgress,
 				},
 			},
-			false,
+			wantErr: false,
 		},
 		{
-			"no-ready-stacks",
-			cfMockOutputs{
+			name: "no-ready-stacks",
+			given: cfMockOutputs{
 				describeStackPages: R(nil, nil),
 				describeStacks: R(&cloudformation.DescribeStacksOutput{
 					Stacks: []*cloudformation.Stack{
@@ -310,8 +333,29 @@ func TestFindingManagedStacks(t *testing.T) {
 					},
 				}, nil),
 			},
-			[]*Stack{},
-			true,
+			want: []*Stack{
+				{
+					name:           "managed-stack-not-ready",
+					dnsName:        "example-notready.com",
+					targetGroupARN: "tg-arn",
+					tags: map[string]string{
+						kubernetesCreatorTag:                kubernetesCreatorValue,
+						clusterIDTagPrefix + "test-cluster": resourceLifecycleOwned,
+					},
+					status: cloudformation.StackStatusReviewInProgress,
+				},
+				{
+					name:           "managed-stack",
+					dnsName:        "example.com",
+					targetGroupARN: "tg-arn",
+					tags: map[string]string{
+						kubernetesCreatorTag:                kubernetesCreatorValue,
+						clusterIDTagPrefix + "test-cluster": resourceLifecycleOwned,
+					},
+					status: cloudformation.StackStatusRollbackComplete,
+				},
+			},
+			wantErr: false,
 		},
 		{
 			"failed-paging",
@@ -343,18 +387,94 @@ func TestFindingManagedStacks(t *testing.T) {
 					t.Errorf("unexpected result. wanted %+v, got %+v", ti.want, got)
 				}
 			}
+		})
+	}
+}
 
+func TestGetStack(t *testing.T) {
+	for _, ti := range []struct {
+		name    string
+		given   cfMockOutputs
+		want    *Stack
+		wantErr bool
+	}{
+		{
+			name: "successful-call",
+			given: cfMockOutputs{
+				describeStackPages: R(nil, nil),
+				describeStacks: R(&cloudformation.DescribeStacksOutput{
+					Stacks: []*cloudformation.Stack{
+						{
+							StackName:   aws.String("managed-stack"),
+							StackStatus: aws.String(cloudformation.StackStatusCreateComplete),
+							Tags: []*cloudformation.Tag{
+								cfTag(kubernetesCreatorTag, kubernetesCreatorValue),
+								cfTag(clusterIDTagPrefix+"test-cluster", resourceLifecycleOwned),
+								cfTag(certificateARNTag, "cert-arn"),
+							},
+							Outputs: []*cloudformation.Output{
+								{OutputKey: aws.String(outputLoadBalancerDNSName), OutputValue: aws.String("example.com")},
+								{OutputKey: aws.String(outputTargetGroupARN), OutputValue: aws.String("tg-arn")},
+							},
+						},
+					},
+				}, nil),
+			},
+			want: &Stack{
+				name:           "managed-stack",
+				dnsName:        "example.com",
+				certificateARN: "cert-arn",
+				targetGroupARN: "tg-arn",
+				tags: map[string]string{
+					kubernetesCreatorTag:                kubernetesCreatorValue,
+					clusterIDTagPrefix + "test-cluster": resourceLifecycleOwned,
+					certificateARNTag:                   "cert-arn",
+				},
+				status: cloudformation.StackStatusCreateComplete,
+			},
+			wantErr: false,
+		},
+		{
+			name: "no-ready-stacks",
+			given: cfMockOutputs{
+				describeStackPages: R(nil, nil),
+				describeStacks: R(&cloudformation.DescribeStacksOutput{
+					Stacks: []*cloudformation.Stack{},
+				}, nil),
+			},
+			want:    nil,
+			wantErr: true,
+		},
+		{
+			"failed-paging",
+			cfMockOutputs{
+				describeStackPages: R(nil, dummyErr),
+				describeStacks:     R(&cloudformation.DescribeStacksOutput{}, nil),
+			},
+			nil,
+			true,
+		},
+		{
+			"failed-describe-page",
+			cfMockOutputs{
+				describeStacks: R(nil, dummyErr),
+			},
+			nil,
+			true,
+		},
+	} {
+		t.Run(ti.name, func(t *testing.T) {
+			c := &mockCloudFormationClient{outputs: ti.given}
 			s, err := getStack(c, "dontcare")
 			if err != nil {
 				if !ti.wantErr {
 					t.Error("unexpected error", err)
 				}
 			} else {
-				if !reflect.DeepEqual(ti.want[0], s) {
-					t.Errorf("unexpected result. wanted %+v, got %+v", ti.want[0], got)
+				if !reflect.DeepEqual(ti.want, s) {
+					t.Errorf("unexpected result. wanted %+v, got %+v", ti.want, s)
 				}
 			}
-
 		})
 	}
 }
@@ -477,4 +597,16 @@ func TestDeleteTime(t *testing.T) {
 		})
 	}
 
+}
+
+func TestIsComplete(t *testing.T) {
+	var s *Stack
+	if s.IsComplete() {
+		t.Errorf("expected the stack to not be complete")
+	}
+
+	s = &Stack{status: cloudformation.StackStatusCreateComplete}
+	if !s.IsComplete() {
+		t.Errorf("expected the stack to be complete")
+	}
 }
