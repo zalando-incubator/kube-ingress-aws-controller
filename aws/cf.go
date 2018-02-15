@@ -22,10 +22,11 @@ const (
 // Stack is a simple wrapper around a CloudFormation Stack.
 type Stack struct {
 	name            string
+	status          string
 	dnsName         string
 	scheme          string
 	targetGroupARN  string
-	certificateARNs []string
+	certificateARNs map[string]time.Time
 	tags            map[string]string
 }
 
@@ -33,7 +34,7 @@ func (s *Stack) Name() string {
 	return s.name
 }
 
-func (s *Stack) CertificateARNs() []string {
+func (s *Stack) CertificateARNs() map[string]time.Time {
 	return s.certificateARNs
 }
 
@@ -47,6 +48,22 @@ func (s *Stack) Scheme() string {
 
 func (s *Stack) TargetGroupARN() string {
 	return s.targetGroupARN
+}
+
+// IsComplete returns true if the stack status is a complete state.
+func (s *Stack) IsComplete() bool {
+	if s == nil {
+		return false
+	}
+
+	switch s.status {
+	case cloudformation.StackStatusCreateComplete:
+		return true
+	case cloudformation.StackStatusUpdateComplete:
+		return true
+
+	}
+	return false
 }
 
 // IsDeleteInProgress returns true if the stack has already a tag
@@ -137,7 +154,7 @@ type stackSpec struct {
 	name             string
 	scheme           string
 	subnets          []string
-	certificateARNs  []string
+	certificateARNs  map[string]time.Time
 	securityGroupID  string
 	clusterID        string
 	vpcID            string
@@ -166,7 +183,6 @@ func createStack(svc cloudformationiface.CloudFormationAPI, spec *stackSpec) (st
 			cfParam(parameterLoadBalancerSecurityGroupParameter, spec.securityGroupID),
 			cfParam(parameterLoadBalancerSubnetsParameter, strings.Join(spec.subnets, ",")),
 			cfParam(parameterTargetGroupVPCIDParameter, spec.vpcID),
-			// cfParam(parameterListenerCertificatesParameter, strings.Join(spec.certificateARNs, ",")),
 		},
 		Tags: []*cloudformation.Tag{
 			cfTag(kubernetesCreatorTag, kubernetesCreatorValue),
@@ -176,8 +192,8 @@ func createStack(svc cloudformationiface.CloudFormationAPI, spec *stackSpec) (st
 		TimeoutInMinutes: aws.Int64(int64(spec.timeoutInMinutes)),
 	}
 
-	for _, certARN := range spec.certificateARNs {
-		params.Tags = append(params.Tags, cfTag(certificateARNTagPrefix+certARN, "used"))
+	for certARN, ttl := range spec.certificateARNs {
+		params.Tags = append(params.Tags, cfTag(certificateARNTagPrefix+certARN, ttl.Format(time.RFC3339)))
 	}
 
 	if spec.healthCheck != nil {
@@ -208,7 +224,6 @@ func updateStack(svc cloudformationiface.CloudFormationAPI, spec *stackSpec) (st
 			cfParam(parameterLoadBalancerSecurityGroupParameter, spec.securityGroupID),
 			cfParam(parameterLoadBalancerSubnetsParameter, strings.Join(spec.subnets, ",")),
 			cfParam(parameterTargetGroupVPCIDParameter, spec.vpcID),
-			// cfParam(parameterListenerCertificatesParameter, strings.Join(spec.certificateARNs, ",")),
 		},
 		Tags: []*cloudformation.Tag{
 			cfTag(kubernetesCreatorTag, kubernetesCreatorValue),
@@ -217,8 +232,8 @@ func updateStack(svc cloudformationiface.CloudFormationAPI, spec *stackSpec) (st
 		TemplateBody: aws.String(template),
 	}
 
-	for _, certARN := range spec.certificateARNs {
-		params.Tags = append(params.Tags, cfTag(certificateARNTagPrefix+certARN, "used"))
+	for certARN, ttl := range spec.certificateARNs {
+		params.Tags = append(params.Tags, cfTag(certificateARNTagPrefix+certARN, ttl.Format(time.RFC3339)))
 	}
 
 	if spec.healthCheck != nil {
@@ -297,10 +312,8 @@ func getCFStackByName(svc cloudformationiface.CloudFormationAPI, stackName strin
 
 	var stack *cloudformation.Stack
 	for _, s := range resp.Stacks {
-		if isComplete(s.StackStatus) {
-			stack = s
-			break
-		}
+		stack = s
+		break
 	}
 	if stack == nil {
 		return nil, ErrLoadBalancerStackNotReady
@@ -314,11 +327,15 @@ func mapToManagedStack(stack *cloudformation.Stack) *Stack {
 	tags := convertCloudFormationTags(stack.Tags)
 	parameters := convertStackParameters(stack.Parameters)
 
-	certificateARNs := make([]string, 0, len(tags))
-	for key, _ := range tags {
+	certificateARNs := make(map[string]time.Time, len(tags))
+	for key, value := range tags {
 		if strings.HasPrefix(key, certificateARNTagPrefix) {
 			arn := strings.TrimPrefix(key, certificateARNTagPrefix)
-			certificateARNs = append(certificateARNs, arn)
+			ttl, err := time.Parse(time.RFC3339, value)
+			if err != nil {
+				ttl = time.Time{} // zero value
+			}
+			certificateARNs[arn] = ttl
 		}
 	}
 
@@ -329,21 +346,8 @@ func mapToManagedStack(stack *cloudformation.Stack) *Stack {
 		scheme:          parameters[parameterLoadBalancerSchemeParameter],
 		certificateARNs: certificateARNs,
 		tags:            tags,
+		status:          aws.StringValue(stack.StackStatus),
 	}
-}
-
-// isComplete returns false by design on all other status, because
-// updateIngress will ignore not completed stacks.
-// Stack can never be in rollback state by design.
-func isComplete(stackStatus *string) bool {
-	switch aws.StringValue(stackStatus) {
-	case cloudformation.StackStatusCreateComplete:
-		return true
-	case cloudformation.StackStatusUpdateComplete:
-		return true
-
-	}
-	return false
 }
 
 func findManagedStacks(svc cloudformationiface.CloudFormationAPI, clusterID string) ([]*Stack, error) {
@@ -351,10 +355,6 @@ func findManagedStacks(svc cloudformationiface.CloudFormationAPI, clusterID stri
 	err := svc.DescribeStacksPages(&cloudformation.DescribeStacksInput{},
 		func(page *cloudformation.DescribeStacksOutput, lastPage bool) bool {
 			for _, s := range page.Stacks {
-				if !isComplete(s.StackStatus) {
-					continue
-				}
-
 				if isManagedStack(s.Tags, clusterID) {
 					stacks = append(stacks, mapToManagedStack(s))
 				}

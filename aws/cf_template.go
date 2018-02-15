@@ -2,11 +2,12 @@ package aws
 
 import (
 	"encoding/json"
+	"time"
 
 	"github.com/mweagle/go-cloudformation"
 )
 
-func generateTemplate(certs []string) (string, error) {
+func generateTemplate(certs map[string]time.Time) (string, error) {
 	template := cloudformation.NewTemplate()
 	template.Description = "Load Balancer for Kubernetes Ingress"
 	template.Parameters = map[string]*cloudformation.Parameter{
@@ -42,15 +43,7 @@ func generateTemplate(certs []string) (string, error) {
 			Type:        "AWS::EC2::VPC::Id",
 			Description: "The VPCID for the TargetGroup",
 		},
-		// "ListenerCertificatesParameter": &cloudformation.Parameter{
-		// 	Type:        "String",
-		// 	Description: "The HTTPS Listener certificate ARNs (IAM/ACM)",
-		// 	Default:     "",
-		// },
 	}
-	// template.Conditions = map[string]interface{}{
-	// 	"": "",
-	// }
 	template.AddResource("HTTPListener", &cloudformation.ElasticLoadBalancingV2Listener{
 		DefaultActions: &cloudformation.ElasticLoadBalancingV2ListenerActionList{
 			{
@@ -64,34 +57,40 @@ func generateTemplate(certs []string) (string, error) {
 	})
 
 	if len(certs) > 0 {
-		defaultCertificateARN := cloudformation.ElasticLoadBalancingV2ListenerCertificatePropertyList{
-			{
-				CertificateArn: cloudformation.String(certs[0]),
-			},
-		}
-
-		template.AddResource("HTTPSListener", &cloudformation.ElasticLoadBalancingV2Listener{
-			DefaultActions: &cloudformation.ElasticLoadBalancingV2ListenerActionList{
-				{
-					Type:           cloudformation.String("forward"),
-					TargetGroupArn: cloudformation.Ref("TG").String(),
-				},
-			},
-			Certificates:    &defaultCertificateARN,
-			LoadBalancerArn: cloudformation.Ref("LB").String(),
-			Port:            cloudformation.Integer(443),
-			Protocol:        cloudformation.String("HTTPS"),
-		})
-
-		if len(certs) > 1 {
-			certificateARNs := make(cloudformation.ElasticLoadBalancingV2ListenerCertificateCertificateList, 0, len(certs)-1)
-			for _, cert := range certs[1:] {
-				c := cloudformation.ElasticLoadBalancingV2ListenerCertificateCertificate{
-					CertificateArn: cloudformation.String(cert),
+		certificateARNs := make(cloudformation.ElasticLoadBalancingV2ListenerCertificateCertificateList, 0, len(certs)-1)
+		first := true
+		for certARN, _ := range certs {
+			if first {
+				defaultCertificateARN := cloudformation.ElasticLoadBalancingV2ListenerCertificatePropertyList{
+					{
+						CertificateArn: cloudformation.String(certARN),
+					},
 				}
-				certificateARNs = append(certificateARNs, c)
+
+				template.AddResource("HTTPSListener", &cloudformation.ElasticLoadBalancingV2Listener{
+					DefaultActions: &cloudformation.ElasticLoadBalancingV2ListenerActionList{
+						{
+							Type:           cloudformation.String("forward"),
+							TargetGroupArn: cloudformation.Ref("TG").String(),
+						},
+					},
+					Certificates:    &defaultCertificateARN,
+					LoadBalancerArn: cloudformation.Ref("LB").String(),
+					Port:            cloudformation.Integer(443),
+					Protocol:        cloudformation.String("HTTPS"),
+				})
+
+				first = false
+				continue
 			}
 
+			c := cloudformation.ElasticLoadBalancingV2ListenerCertificateCertificate{
+				CertificateArn: cloudformation.String(certARN),
+			}
+			certificateARNs = append(certificateARNs, c)
+		}
+
+		if len(certificateARNs) > 0 {
 			template.AddResource("HTTPSListenerCertificate", &cloudformation.ElasticLoadBalancingV2ListenerCertificate{
 				Certificates: &certificateARNs,
 				ListenerArn:  cloudformation.Ref("HTTPSListener").String(),

@@ -21,6 +21,10 @@ import (
 	"github.com/zalando-incubator/kube-ingress-aws-controller/kubernetes"
 )
 
+const (
+	defaultCertARNTTL = 5 * time.Minute
+)
+
 type managedItem struct {
 	ingresses map[string][]*kubernetes.Ingress
 	scheme    string
@@ -29,6 +33,7 @@ type managedItem struct {
 
 const (
 	ready int = iota
+	update
 	missing
 	marktodelete
 	orphan
@@ -49,7 +54,25 @@ func (item *managedItem) Status() int {
 	if len(item.ingresses) != 0 && item.stack == nil {
 		return missing
 	}
+	if !item.certsEqual() && item.stack.IsComplete() {
+		return update
+	}
 	return ready
+}
+
+// certsEqual checks if the certs found for the ingresses match those already
+// defined on the LB stack.
+func (item *managedItem) certsEqual() bool {
+	if len(item.ingresses) != len(item.stack.CertificateARNs()) {
+		return false
+	}
+
+	for arn, _ := range item.ingresses {
+		if ttl, ok := item.stack.CertificateARNs()[arn]; !ok || !ttl.IsZero() {
+			return false
+		}
+	}
+	return true
 }
 
 func waitForTerminationSignals(signals ...os.Signal) chan os.Signal {
@@ -58,9 +81,8 @@ func waitForTerminationSignals(signals ...os.Signal) chan os.Signal {
 	return c
 }
 
-func startPolling(quitCH chan struct{}, certsProvider certs.CertificatesProvider, awsAdapter *aws.Adapter, kubeAdapter *kubernetes.Adapter, pollingInterval, updateStackInterval time.Duration) {
+func startPolling(quitCH chan struct{}, certsProvider certs.CertificatesProvider, awsAdapter *aws.Adapter, kubeAdapter *kubernetes.Adapter, pollingInterval time.Duration) {
 	items := make(chan *managedItem, maxTargetGroupSupported)
-	go updateStacks(awsAdapter, updateStackInterval, items)
 	for {
 		log.Printf("Start polling sleep %s", pollingInterval)
 		select {
@@ -71,28 +93,6 @@ func startPolling(quitCH chan struct{}, certsProvider certs.CertificatesProvider
 			if err := doWork(certsProvider, awsAdapter, kubeAdapter, items); err != nil {
 				log.Println(err)
 			}
-		}
-	}
-}
-
-func updateStacks(awsAdapter *aws.Adapter, interval time.Duration, items <-chan *managedItem) {
-	for {
-		itemsMap := map[string]*managedItem{}
-		done := make(chan struct{})
-		go func() {
-			for {
-				select {
-				case item := <-items:
-					itemsMap[item.stack.Name()] = item
-				case <-done:
-					return
-				}
-			}
-		}()
-		time.Sleep(interval)
-		done <- struct{}{}
-		for _, item := range itemsMap {
-			updateStack(awsAdapter, item)
 		}
 	}
 }
@@ -141,7 +141,9 @@ func doWork(certsProvider certs.CertificatesProvider, awsAdapter *aws.Adapter, k
 			createStack(awsAdapter, managedItem)
 			updateIngress(kubeAdapter, managedItem)
 		case ready:
-			items <- managedItem
+			updateIngress(kubeAdapter, managedItem)
+		case update:
+			updateStack(awsAdapter, managedItem)
 			updateIngress(kubeAdapter, managedItem)
 		}
 	}
@@ -271,11 +273,21 @@ func createStack(awsAdapter *aws.Adapter, item *managedItem) {
 }
 
 func updateStack(awsAdapter *aws.Adapter, item *managedItem) {
-	certificates := make([]string, 0, len(item.ingresses))
-	for cert, _ := range item.ingresses {
-		certificates = append(certificates, cert)
+	certificates := make(map[string]time.Time, len(item.ingresses))
+	for arn, ttl := range item.stack.CertificateARNs() {
+		if _, ok := item.ingresses[arn]; !ok {
+			if ttl.IsZero() {
+				certificates[arn] = time.Now().UTC().Add(defaultCertARNTTL)
+			} else if ttl.Before(time.Now().UTC()) {
+				certificates[arn] = ttl
+			}
+			continue
+		}
+
+		certificates[arn] = time.Time{}
 	}
-	log.Printf("updating %q stack for certificates %q / ingress %q", item.scheme, certificates, item.ingresses)
+
+	log.Printf("updating %q stack for %d certificates / %d ingresses", item.scheme, len(certificates), len(item.ingresses))
 
 	stackId, err := awsAdapter.UpdateStack(item.stack.Name(), certificates, item.scheme)
 	if isNoUpdatesToBePerformedError(err) {

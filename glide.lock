@@ -1,5 +1,5 @@
-hash: d5654c5e1559afc77695283e79645f2612400ac5a8f15e00a949393886a0a029
-updated: 2017-12-18T23:48:25.430534888+01:00
+hash: 193d96396c6fb12cba493b6c70116f4f428c9c1efbba8e18c3c7152f9c29213b
+updated: 2018-02-15T01:11:31.164349405+01:00
 imports:
 - name: bitbucket.org/ww/goautoneg
   version: 75cd24fc2f2c2a2088577d12123ddee5f54e0675
@@ -40,6 +40,7 @@ imports:
   - service/ec2
   - service/ec2/ec2iface
   - service/elbv2
+  - service/elbv2/elbv2iface
   - service/iam
   - service/iam/iamiface
   - service/sts
@@ -59,6 +60,8 @@ imports:
   version: 8616e8ee5e20a1704615e6c8d7afcdac06087a67
   subpackages:
   - proto
+- name: github.com/google/uuid
+  version: 064e2069ce9c359c118179501254f67d7d37ba24
 - name: github.com/jmespath/go-jmespath
   version: bd40a432e4c76585ef6b72d3fd96fb9b6dc7b68d
 - name: github.com/linki/instrumented_http
@@ -89,6 +92,4 @@ imports:
   version: 454a56f35412459b5e684fd5ec0f9211b94f002a
 - name: gopkg.in/go-playground/validator.v9
   version: b1f51f36f1c98cc97f777d6fc9d4b05eaa0cabb5
-testImports:
-- name: gopkg.in/yaml.v2
-  version: cd8b52f8269e0feb286dfeef29f8fe4d5b397e0b
+testImports: []

@@ -305,10 +305,15 @@ func (a *Adapter) UpdateTargetGroupsAndAutoScalingGroups(stacks []*Stack) {
 // transactional fashion.
 // Failure to create the stack causes it to be deleted automatically.
 func (a *Adapter) CreateStack(certificateARNs []string, scheme string) (string, error) {
+	certARNs := make(map[string]time.Time, len(certificateARNs))
+	for _, arn := range certificateARNs {
+		certARNs[arn] = time.Time{}
+	}
+
 	spec := &stackSpec{
-		name:            a.stackName(certificateARNs, scheme),
+		name:            a.stackName(),
 		scheme:          scheme,
-		certificateARNs: certificateARNs,
+		certificateARNs: certARNs,
 		securityGroupID: a.SecurityGroupID(),
 		subnets:         a.FindLBSubnets(scheme),
 		vpcID:           a.VpcID(),
@@ -324,7 +329,7 @@ func (a *Adapter) CreateStack(certificateARNs []string, scheme string) (string, 
 	return createStack(a.cloudformation, spec)
 }
 
-func (a *Adapter) UpdateStack(stackName string, certificateARNs []string, scheme string) (string, error) {
+func (a *Adapter) UpdateStack(stackName string, certificateARNs map[string]time.Time, scheme string) (string, error) {
 	spec := &stackSpec{
 		name:            stackName,
 		scheme:          scheme,
@@ -344,8 +349,8 @@ func (a *Adapter) UpdateStack(stackName string, certificateARNs []string, scheme
 	return updateStack(a.cloudformation, spec)
 }
 
-func (a *Adapter) stackName(certificateARNs []string, scheme string) string {
-	return normalizeStackName(a.ClusterID(), certificateARNs, scheme)
+func (a *Adapter) stackName() string {
+	return normalizeStackName(a.ClusterID())
 }
 
 // GetStack returns the CloudFormation stack details with the name or ID from the argument

@@ -28,3 +28,5 @@ import:
   subpackages:
   - prometheus/promhttp
 - package: github.com/mweagle/go-cloudformation
+- package: github.com/google/uuid
+  version: ~0.2.0
