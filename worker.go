@@ -274,6 +274,10 @@ func createStack(awsAdapter *aws.Adapter, item *managedItem) {
 
 func updateStack(awsAdapter *aws.Adapter, item *managedItem) {
 	certificates := make(map[string]time.Time, len(item.ingresses))
+	for arn := range item.ingresses {
+		certificates[arn] = time.Time{}
+	}
+
 	for arn, ttl := range item.stack.CertificateARNs() {
 		if _, ok := item.ingresses[arn]; !ok {
 			if ttl.IsZero() {
@@ -281,10 +285,7 @@ func updateStack(awsAdapter *aws.Adapter, item *managedItem) {
 			} else if ttl.Before(time.Now().UTC()) {
 				certificates[arn] = ttl
 			}
-			continue
 		}
-
-		certificates[arn] = time.Time{}
 	}
 
 	log.Printf("updating %q stack for %d certificates / %d ingresses", item.scheme, len(certificates), len(item.ingresses))
