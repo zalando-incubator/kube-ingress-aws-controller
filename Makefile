@@ -20,7 +20,7 @@ clean:
 	rm -rf build
 	rm -f aws/cftemplate.go
 
-test: aws/cftemplate.go
+test:
 	go test -v -race -cover $(GOPKGS)
 
 fmt:
@@ -33,9 +33,6 @@ check:
 build.local: build/$(BINARY)
 build.linux: build/linux/$(BINARY)
 build.osx: build/osx/$(BINARY)
-
-aws/cftemplate.go: aws/ingress-cf-template.yaml aws/cf.go
-	go generate aws/cf.go
 
 build/$(BINARY): $(SOURCES)
 	go build -o build/$(BINARY) $(BUILD_FLAGS) -ldflags "$(LDFLAGS)" .

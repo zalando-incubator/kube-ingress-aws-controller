@@ -1,7 +1,5 @@
 package aws
 
-//go:generate go run gencftemplate.go
-
 import (
 	"fmt"
 	"log"
