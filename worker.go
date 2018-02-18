@@ -279,7 +279,7 @@ func updateStack(awsAdapter *aws.Adapter, item *managedItem) {
 	}
 
 	for arn, ttl := range item.stack.CertificateARNs() {
-		if _, ok := item.ingresses[arn]; !ok {
+		if _, ok := certificates[arn]; !ok {
 			if ttl.IsZero() {
 				certificates[arn] = time.Now().UTC().Add(defaultCertARNTTL)
 			} else if ttl.Before(time.Now().UTC()) {

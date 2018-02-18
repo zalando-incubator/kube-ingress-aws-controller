@@ -14,6 +14,7 @@ import (
 
 const (
 	deleteScheduled         = "deleteScheduled"
+	certificateARNTagLegacy = "ingress:certificate-arn"
 	certificateARNTagPrefix = "ingress:certificate-arn/"
 )
 
@@ -334,6 +335,12 @@ func mapToManagedStack(stack *cloudformation.Stack) *Stack {
 				ttl = time.Time{} // zero value
 			}
 			certificateARNs[arn] = ttl
+		}
+
+		// TODO(mlarsen): used for migrating from old format to new.
+		// Should be removed in a later version.
+		if key == certificateARNTagLegacy {
+			certificateARNs[value] = time.Time{}
 		}
 	}
 
