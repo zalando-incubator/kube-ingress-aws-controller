@@ -19,7 +19,15 @@ func TestCreatingStack(t *testing.T) {
 	}{
 		{
 			"successful-call",
-			stackSpec{name: "foo", securityGroupID: "bar", vpcID: "baz"},
+			stackSpec{
+				name:            "foo",
+				securityGroupID: "bar",
+				vpcID:           "baz",
+				certificateARNs: map[string]time.Time{
+					"arn-default": time.Time{},
+					"arn-second":  time.Time{},
+				},
+			},
 			cfMockOutputs{createStack: R(mockCSOutput("fake-stack-id"), nil)},
 			"fake-stack-id",
 			false,
