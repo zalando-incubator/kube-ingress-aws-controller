@@ -358,13 +358,6 @@ func (a *Adapter) GetStack(stackID string) (*Stack, error) {
 	return getStack(a.cloudformation, stackID)
 }
 
-// MarkToDeleteStack adds a "deleteScheduled" Tag to the CloudFormation stack with the given name
-func (a *Adapter) MarkToDeleteStack(stack *Stack) (time.Time, error) {
-	t0 := time.Now().Add(a.stackTTL)
-
-	return t0, markToDeleteStack(a.cloudformation, stack.Name(), t0.Format(time.RFC3339))
-}
-
 // DeleteStack deletes the CloudFormation stack with the given name
 func (a *Adapter) DeleteStack(stack *Stack) error {
 	for _, asg := range a.autoScalingGroups {

@@ -12,7 +12,6 @@ import (
 )
 
 const (
-	deleteScheduled         = "deleteScheduled"
 	certificateARNTagLegacy = "ingress:certificate-arn"
 	certificateARNTagPrefix = "ingress:certificate-arn/"
 )
@@ -242,25 +241,6 @@ func cfTag(key, value string) *cloudformation.Tag {
 func deleteStack(svc cloudformationiface.CloudFormationAPI, stackName string) error {
 	params := &cloudformation.DeleteStackInput{StackName: aws.String(stackName)}
 	_, err := svc.DeleteStack(params)
-	return err
-}
-
-// maybe use https://docs.aws.amazon.com/AWSCloudFormation/latest/APIReference/API_CreateChangeSet.html instead
-func markToDeleteStack(svc cloudformationiface.CloudFormationAPI, stackName, ts string) error {
-	stack, err := getCFStackByName(svc, stackName)
-	if err != nil {
-		return err
-	}
-	tags := append(stack.Tags, cfTag(deleteScheduled, ts))
-
-	params := &cloudformation.UpdateStackInput{
-		StackName:           aws.String(stackName),
-		Tags:                tags,
-		Parameters:          stack.Parameters,
-		UsePreviousTemplate: aws.Bool(true),
-	}
-
-	_, err = svc.UpdateStack(params)
 	return err
 }
 
