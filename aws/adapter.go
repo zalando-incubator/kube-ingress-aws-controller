@@ -271,9 +271,9 @@ func (a *Adapter) FindManagedStacks() ([]*Stack, error) {
 // config to have relevant Target Groups and registers/deregisters single
 // instances (that do not belong to ASG) in relevant Target Groups.
 func (a *Adapter) UpdateTargetGroupsAndAutoScalingGroups(stacks []*Stack) {
-	targetGroupARNs := make([]string, len(stacks))
-	for i, stack := range stacks {
-		targetGroupARNs[i] = stack.targetGroupARN
+	targetGroupARNs := make([]string, 0, len(stacks))
+	for _, stack := range stacks {
+		targetGroupARNs = append(targetGroupARNs, stack.targetGroupARNs...)
 	}
 	for _, asg := range a.autoScalingGroups {
 		// This call is idempotent and safe to execute every time
@@ -304,7 +304,7 @@ func (a *Adapter) UpdateTargetGroupsAndAutoScalingGroups(stacks []*Stack) {
 // All the required resources (listeners and target group) are created in a
 // transactional fashion.
 // Failure to create the stack causes it to be deleted automatically.
-func (a *Adapter) CreateStack(certificateARNs []string, scheme string) (string, error) {
+func (a *Adapter) CreateStack(certificateARNs []string, hostnames map[string]struct{}, scheme string) (string, error) {
 	certARNs := make(map[string]time.Time, len(certificateARNs))
 	for _, arn := range certificateARNs {
 		certARNs[arn] = time.Time{}
@@ -314,6 +314,7 @@ func (a *Adapter) CreateStack(certificateARNs []string, scheme string) (string, 
 		name:            a.stackName(),
 		scheme:          scheme,
 		certificateARNs: certARNs,
+		hostnames:       hostnames,
 		securityGroupID: a.SecurityGroupID(),
 		subnets:         a.FindLBSubnets(scheme),
 		vpcID:           a.VpcID(),
@@ -329,11 +330,12 @@ func (a *Adapter) CreateStack(certificateARNs []string, scheme string) (string, 
 	return createStack(a.cloudformation, spec)
 }
 
-func (a *Adapter) UpdateStack(stackName string, certificateARNs map[string]time.Time, scheme string) (string, error) {
+func (a *Adapter) UpdateStack(stackName string, certificateARNs map[string]time.Time, hostnames map[string]struct{}, scheme string) (string, error) {
 	spec := &stackSpec{
 		name:            stackName,
 		scheme:          scheme,
 		certificateARNs: certificateARNs,
+		hostnames:       hostnames,
 		securityGroupID: a.SecurityGroupID(),
 		subnets:         a.FindLBSubnets(scheme),
 		vpcID:           a.VpcID(),
@@ -361,7 +363,7 @@ func (a *Adapter) GetStack(stackID string) (*Stack, error) {
 // DeleteStack deletes the CloudFormation stack with the given name
 func (a *Adapter) DeleteStack(stack *Stack) error {
 	for _, asg := range a.autoScalingGroups {
-		if err := detachTargetGroupFromAutoScalingGroup(a.autoscaling, stack.TargetGroupARN(), asg.name); err != nil {
+		if err := detachTargetGroupsFromAutoScalingGroup(a.autoscaling, stack.TargetGroupARNs(), asg.name); err != nil {
 			return fmt.Errorf("DeleteStack failed to detach: %v", err)
 		}
 	}

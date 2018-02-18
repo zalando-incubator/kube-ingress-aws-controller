@@ -95,10 +95,10 @@ func attachTargetGroupsToAutoScalingGroup(svc autoscalingiface.AutoScalingAPI, t
 	return nil
 }
 
-func detachTargetGroupFromAutoScalingGroup(svc autoscalingiface.AutoScalingAPI, targetGroupARN string, autoScalingGroupName string) error {
+func detachTargetGroupsFromAutoScalingGroup(svc autoscalingiface.AutoScalingAPI, targetGroupARNs []string, autoScalingGroupName string) error {
 	params := &autoscaling.DetachLoadBalancerTargetGroupsInput{
 		AutoScalingGroupName: aws.String(autoScalingGroupName),
-		TargetGroupARNs:      aws.StringSlice([]string{targetGroupARN}),
+		TargetGroupARNs:      aws.StringSlice(targetGroupARNs),
 	}
 	_, err := svc.DetachLoadBalancerTargetGroups(params)
 	if err != nil {

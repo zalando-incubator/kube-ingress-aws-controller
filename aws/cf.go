@@ -14,6 +14,7 @@ import (
 const (
 	certificateARNTagLegacy = "ingress:certificate-arn"
 	certificateARNTagPrefix = "ingress:certificate-arn/"
+	hostnameTagPrefix       = "ingress:hostname/"
 )
 
 // Stack is a simple wrapper around a CloudFormation Stack.
@@ -22,8 +23,9 @@ type Stack struct {
 	status          string
 	dnsName         string
 	scheme          string
-	targetGroupARN  string
+	targetGroupARNs []string
 	certificateARNs map[string]time.Time
+	hostnames       map[string]struct{}
 	tags            map[string]string
 }
 
@@ -35,6 +37,10 @@ func (s *Stack) CertificateARNs() map[string]time.Time {
 	return s.certificateARNs
 }
 
+func (s *Stack) Hostnames() map[string]struct{} {
+	return s.hostnames
+}
+
 func (s *Stack) DNSName() string {
 	return s.dnsName
 }
@@ -43,8 +49,8 @@ func (s *Stack) Scheme() string {
 	return s.scheme
 }
 
-func (s *Stack) TargetGroupARN() string {
-	return s.targetGroupARN
+func (s *Stack) TargetGroupARNs() []string {
+	return s.targetGroupARNs
 }
 
 // IsComplete returns true if the stack status is a complete state.
@@ -94,8 +100,11 @@ func (o stackOutput) dnsName() string {
 	return o[outputLoadBalancerDNSName]
 }
 
-func (o stackOutput) targetGroupARN() string {
-	return o[outputTargetGroupARN]
+func (o stackOutput) targetGroupARNs() []string {
+	if o[outputTargetGroupARNs] == "" {
+		return nil
+	}
+	return strings.Split(o[outputTargetGroupARNs], ",")
 }
 
 // convertStackParameters converts a list of cloudformation stack parameters to
@@ -111,7 +120,7 @@ func convertStackParameters(parameters []*cloudformation.Parameter) map[string]s
 const (
 	// The following constants should be part of the Output section of the CloudFormation template
 	outputLoadBalancerDNSName = "LoadBalancerDNSName"
-	outputTargetGroupARN      = "TargetGroupARN"
+	outputTargetGroupARNs     = "TargetGroupARNs"
 
 	parameterLoadBalancerSchemeParameter             = "LoadBalancerSchemeParameter"
 	parameterLoadBalancerSecurityGroupParameter      = "LoadBalancerSecurityGroupParameter"
@@ -128,6 +137,7 @@ type stackSpec struct {
 	scheme           string
 	subnets          []string
 	certificateARNs  map[string]time.Time
+	hostnames        map[string]struct{}
 	securityGroupID  string
 	clusterID        string
 	vpcID            string
@@ -143,7 +153,7 @@ type healthCheck struct {
 }
 
 func createStack(svc cloudformationiface.CloudFormationAPI, spec *stackSpec) (string, error) {
-	template, err := generateTemplate(spec.certificateARNs)
+	template, err := generateTemplate(spec.certificateARNs, spec.hostnames)
 	if err != nil {
 		return "", err
 	}
@@ -169,6 +179,10 @@ func createStack(svc cloudformationiface.CloudFormationAPI, spec *stackSpec) (st
 		params.Tags = append(params.Tags, cfTag(certificateARNTagPrefix+certARN, ttl.Format(time.RFC3339)))
 	}
 
+	for hostname := range spec.hostnames {
+		params.Tags = append(params.Tags, cfTag(hostnameTagPrefix+hostname, "used"))
+	}
+
 	if spec.healthCheck != nil {
 		params.Parameters = append(params.Parameters,
 			cfParam(parameterTargetGroupHealthCheckPathParameter, spec.healthCheck.path),
@@ -185,7 +199,7 @@ func createStack(svc cloudformationiface.CloudFormationAPI, spec *stackSpec) (st
 }
 
 func updateStack(svc cloudformationiface.CloudFormationAPI, spec *stackSpec) (string, error) {
-	template, err := generateTemplate(spec.certificateARNs)
+	template, err := generateTemplate(spec.certificateARNs, spec.hostnames)
 	if err != nil {
 		return "", err
 	}
@@ -207,6 +221,10 @@ func updateStack(svc cloudformationiface.CloudFormationAPI, spec *stackSpec) (st
 
 	for certARN, ttl := range spec.certificateARNs {
 		params.Tags = append(params.Tags, cfTag(certificateARNTagPrefix+certARN, ttl.Format(time.RFC3339)))
+	}
+
+	for hostname := range spec.hostnames {
+		params.Tags = append(params.Tags, cfTag(hostnameTagPrefix+hostname, "used"))
 	}
 
 	if spec.healthCheck != nil {
@@ -282,7 +300,9 @@ func mapToManagedStack(stack *cloudformation.Stack) *Stack {
 	parameters := convertStackParameters(stack.Parameters)
 
 	certificateARNs := make(map[string]time.Time, len(tags))
+	hostnames := make(map[string]struct{}, len(tags))
 	for key, value := range tags {
+		// parse certificate tags
 		if strings.HasPrefix(key, certificateARNTagPrefix) {
 			arn := strings.TrimPrefix(key, certificateARNTagPrefix)
 			ttl, err := time.Parse(time.RFC3339, value)
@@ -290,21 +310,30 @@ func mapToManagedStack(stack *cloudformation.Stack) *Stack {
 				ttl = time.Time{} // zero value
 			}
 			certificateARNs[arn] = ttl
+			continue
 		}
 
 		// TODO(mlarsen): used for migrating from old format to new.
 		// Should be removed in a later version.
 		if key == certificateARNTagLegacy {
 			certificateARNs[value] = time.Time{}
+			continue
+		}
+
+		// parse hostname tags
+		if strings.HasPrefix(key, hostnameTagPrefix) {
+			hostname := strings.TrimPrefix(key, hostnameTagPrefix)
+			hostnames[hostname] = struct{}{}
 		}
 	}
 
 	return &Stack{
 		name:            aws.StringValue(stack.StackName),
 		dnsName:         outputs.dnsName(),
-		targetGroupARN:  outputs.targetGroupARN(),
+		targetGroupARNs: outputs.targetGroupARNs(),
 		scheme:          parameters[parameterLoadBalancerSchemeParameter],
 		certificateARNs: certificateARNs,
+		hostnames:       hostnames,
 		tags:            tags,
 		status:          aws.StringValue(stack.StackStatus),
 	}

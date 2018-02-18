@@ -1,13 +1,15 @@
 package aws
 
 import (
+	"crypto/sha1"
 	"encoding/json"
+	"fmt"
 	"time"
 
 	"github.com/mweagle/go-cloudformation"
 )
 
-func generateTemplate(certs map[string]time.Time) (string, error) {
+func generateTemplate(certs map[string]time.Time, hostnames map[string]struct{}) (string, error) {
 	template := cloudformation.NewTemplate()
 	template.Description = "Load Balancer for Kubernetes Ingress"
 	template.Parameters = map[string]*cloudformation.Parameter{
@@ -108,6 +110,7 @@ func generateTemplate(certs map[string]time.Time) (string, error) {
 			},
 		},
 	})
+	// default Target group
 	template.AddResource("TG", &cloudformation.ElasticLoadBalancingV2TargetGroup{
 		HealthCheckIntervalSeconds: cloudformation.Ref("TargetGroupHealthCheckIntervalParameter").Integer(),
 		HealthCheckPath:            cloudformation.Ref("TargetGroupHealthCheckPathParameter").String(),
@@ -116,14 +119,54 @@ func generateTemplate(certs map[string]time.Time) (string, error) {
 		VPCID:                      cloudformation.Ref("TargetGroupVPCIDParameter").String(),
 	})
 
+	targetGroupARNs := make([]cloudformation.Stringable, 0, len(hostnames)+1)
+	targetGroupARNs = append(targetGroupARNs, cloudformation.Ref("TG").String())
+
+	// add target group per hostname
+	i := int64(1)
+	for hostname := range hostnames {
+		h := sha1.New()
+		h.Write([]byte(hostname))
+		resourceHash := fmt.Sprintf("%x", h.Sum(nil))
+
+		template.AddResource(resourceHash+"TG", &cloudformation.ElasticLoadBalancingV2TargetGroup{
+			HealthCheckIntervalSeconds: cloudformation.Ref("TargetGroupHealthCheckIntervalParameter").Integer(),
+			HealthCheckPath:            cloudformation.Ref("TargetGroupHealthCheckPathParameter").String(),
+			Port:                       cloudformation.Ref("TargetGroupHealthCheckPortParameter").Integer(),
+			Protocol:                   cloudformation.String("HTTP"),
+			VPCID:                      cloudformation.Ref("TargetGroupVPCIDParameter").String(),
+		})
+
+		targetGroupARNs = append(targetGroupARNs, cloudformation.Ref(resourceHash+"TG").String())
+
+		template.AddResource(resourceHash+"LR", &cloudformation.ElasticLoadBalancingV2ListenerRule{
+			Actions: &cloudformation.ElasticLoadBalancingV2ListenerRuleActionList{
+				{
+					Type:           cloudformation.String("forward"),
+					TargetGroupArn: cloudformation.Ref(resourceHash + "TG").String(),
+				},
+			},
+			Conditions: &cloudformation.ElasticLoadBalancingV2ListenerRuleRuleConditionList{
+				{
+					Field:  cloudformation.String("host-header"),
+					Values: cloudformation.StringList(cloudformation.String(hostname)),
+				},
+			},
+			ListenerArn: cloudformation.Ref("HTTPSListener").String(),
+			Priority:    cloudformation.Integer(i),
+		})
+
+		i++
+	}
+
 	template.Outputs = map[string]*cloudformation.Output{
 		"LoadBalancerDNSName": &cloudformation.Output{
 			Description: "DNS name for the LoadBalancer",
 			Value:       cloudformation.GetAtt("LB", "DNSName").String(),
 		},
-		"TargetGroupARN": &cloudformation.Output{
-			Description: "The ARN of the TargetGroup",
-			Value:       cloudformation.Ref("TG").String(),
+		"TargetGroupARNs": &cloudformation.Output{
+			Description: "The ARN of the TargetGroups",
+			Value:       cloudformation.Join(",", targetGroupARNs...),
 		},
 	}
 

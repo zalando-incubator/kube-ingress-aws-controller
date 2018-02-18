@@ -227,7 +227,7 @@ func TestFindManagedStacks(t *testing.T) {
 							},
 							Outputs: []*cloudformation.Output{
 								{OutputKey: aws.String(outputLoadBalancerDNSName), OutputValue: aws.String("example-notready.com")},
-								{OutputKey: aws.String(outputTargetGroupARN), OutputValue: aws.String("tg-arn")},
+								{OutputKey: aws.String(outputTargetGroupARNs), OutputValue: aws.String("tg-arn")},
 							},
 						},
 						{
@@ -240,7 +240,7 @@ func TestFindManagedStacks(t *testing.T) {
 							},
 							Outputs: []*cloudformation.Output{
 								{OutputKey: aws.String(outputLoadBalancerDNSName), OutputValue: aws.String("example.com")},
-								{OutputKey: aws.String(outputTargetGroupARN), OutputValue: aws.String("tg-arn")},
+								{OutputKey: aws.String(outputTargetGroupARNs), OutputValue: aws.String("tg-arn")},
 							},
 						},
 						{
@@ -280,7 +280,8 @@ func TestFindManagedStacks(t *testing.T) {
 					certificateARNs: map[string]time.Time{
 						"cert-arn": time.Time{},
 					},
-					targetGroupARN: "tg-arn",
+					hostnames:       map[string]struct{}{},
+					targetGroupARNs: []string{"tg-arn"},
 					tags: map[string]string{
 						kubernetesCreatorTag:                 kubernetesCreatorValue,
 						clusterIDTagPrefix + "test-cluster":  resourceLifecycleOwned,
@@ -294,7 +295,8 @@ func TestFindManagedStacks(t *testing.T) {
 					certificateARNs: map[string]time.Time{
 						"cert-arn": time.Time{},
 					},
-					targetGroupARN: "tg-arn",
+					hostnames:       map[string]struct{}{},
+					targetGroupARNs: []string{"tg-arn"},
 					tags: map[string]string{
 						kubernetesCreatorTag:                 kubernetesCreatorValue,
 						clusterIDTagPrefix + "test-cluster":  resourceLifecycleOwned,
@@ -305,6 +307,7 @@ func TestFindManagedStacks(t *testing.T) {
 				{
 					name:            "managed-stack-not-ready",
 					certificateARNs: map[string]time.Time{},
+					hostnames:       map[string]struct{}{},
 					tags: map[string]string{
 						kubernetesCreatorTag:                kubernetesCreatorValue,
 						clusterIDTagPrefix + "test-cluster": resourceLifecycleOwned,
@@ -329,7 +332,7 @@ func TestFindManagedStacks(t *testing.T) {
 							},
 							Outputs: []*cloudformation.Output{
 								{OutputKey: aws.String(outputLoadBalancerDNSName), OutputValue: aws.String("example-notready.com")},
-								{OutputKey: aws.String(outputTargetGroupARN), OutputValue: aws.String("tg-arn")},
+								{OutputKey: aws.String(outputTargetGroupARNs), OutputValue: aws.String("tg-arn")},
 							},
 						},
 						{
@@ -341,7 +344,7 @@ func TestFindManagedStacks(t *testing.T) {
 							},
 							Outputs: []*cloudformation.Output{
 								{OutputKey: aws.String(outputLoadBalancerDNSName), OutputValue: aws.String("example.com")},
-								{OutputKey: aws.String(outputTargetGroupARN), OutputValue: aws.String("tg-arn")},
+								{OutputKey: aws.String(outputTargetGroupARNs), OutputValue: aws.String("tg-arn")},
 							},
 						},
 					},
@@ -351,8 +354,9 @@ func TestFindManagedStacks(t *testing.T) {
 				{
 					name:            "managed-stack-not-ready",
 					dnsName:         "example-notready.com",
-					targetGroupARN:  "tg-arn",
+					targetGroupARNs: []string{"tg-arn"},
 					certificateARNs: map[string]time.Time{},
+					hostnames:       map[string]struct{}{},
 					tags: map[string]string{
 						kubernetesCreatorTag:                kubernetesCreatorValue,
 						clusterIDTagPrefix + "test-cluster": resourceLifecycleOwned,
@@ -362,8 +366,9 @@ func TestFindManagedStacks(t *testing.T) {
 				{
 					name:            "managed-stack",
 					dnsName:         "example.com",
-					targetGroupARN:  "tg-arn",
+					targetGroupARNs: []string{"tg-arn"},
 					certificateARNs: map[string]time.Time{},
+					hostnames:       map[string]struct{}{},
 					tags: map[string]string{
 						kubernetesCreatorTag:                kubernetesCreatorValue,
 						clusterIDTagPrefix + "test-cluster": resourceLifecycleOwned,
@@ -430,7 +435,7 @@ func TestGetStack(t *testing.T) {
 							},
 							Outputs: []*cloudformation.Output{
 								{OutputKey: aws.String(outputLoadBalancerDNSName), OutputValue: aws.String("example.com")},
-								{OutputKey: aws.String(outputTargetGroupARN), OutputValue: aws.String("tg-arn")},
+								{OutputKey: aws.String(outputTargetGroupARNs), OutputValue: aws.String("tg-arn")},
 							},
 						},
 					},
@@ -442,7 +447,8 @@ func TestGetStack(t *testing.T) {
 				certificateARNs: map[string]time.Time{
 					"cert-arn": time.Time{},
 				},
-				targetGroupARN: "tg-arn",
+				hostnames:       map[string]struct{}{},
+				targetGroupARNs: []string{"tg-arn"},
 				tags: map[string]string{
 					kubernetesCreatorTag:                 kubernetesCreatorValue,
 					clusterIDTagPrefix + "test-cluster":  resourceLifecycleOwned,

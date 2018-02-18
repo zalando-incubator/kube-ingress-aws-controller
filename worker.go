@@ -41,6 +41,7 @@ const (
 const (
 	maxTargetGroupSupported = 1000
 	maxCertsPerALBSupported = 25
+	maxRulesPerALBSupported = 100 // maximum number of rules for the ALB (https://docs.aws.amazon.com/elasticloadbalancing/latest/application/load-balancer-limits.html)
 )
 
 func (item *managedItem) Status() int {
@@ -50,7 +51,7 @@ func (item *managedItem) Status() int {
 	if len(item.ingresses) != 0 && item.stack == nil {
 		return missing
 	}
-	if !item.certsEqual() && item.stack.IsComplete() {
+	if (!item.certsEqual() || !item.hostnamesEqual()) && item.stack.IsComplete() {
 		return update
 	}
 	return ready
@@ -77,6 +78,10 @@ func (item *managedItem) certsEqual() bool {
 // certificates (25 max) or if the scheme doesn't match.
 func (item *managedItem) AddIngress(certificateARN string, ingress *kubernetes.Ingress) bool {
 	if item.scheme != ingress.Scheme() {
+		return false
+	}
+
+	if len(item.Hostnames()) >= maxRulesPerALBSupported {
 		return false
 	}
 
@@ -110,6 +115,35 @@ func (item *managedItem) CertificateARNs() map[string]time.Time {
 	}
 
 	return certificates
+}
+
+// hostnamesEqual checks if the hostnames found for the ingresses match those
+// already defined on the LB stack.
+func (item *managedItem) hostnamesEqual() bool {
+	if len(item.stack.Hostnames()) != len(item.Hostnames()) {
+		return false
+	}
+
+	ingressHostnames := item.Hostnames()
+
+	for hostname := range item.stack.Hostnames() {
+		if _, ok := ingressHostnames[hostname]; !ok {
+			return false
+		}
+	}
+	return true
+}
+
+// Hostnames returns a set of hostnames associated with the ingress LB.
+func (item *managedItem) Hostnames() map[string]struct{} {
+	hostnames := make(map[string]struct{}, len(item.ingresses))
+	for _, ingresses := range item.ingresses {
+		for _, ingress := range ingresses {
+			hostnames[ingress.CertHostname()] = struct{}{}
+		}
+	}
+
+	return hostnames
 }
 
 func waitForTerminationSignals(signals ...os.Signal) chan os.Signal {
@@ -282,13 +316,13 @@ func checkCertificate(certsProvider certs.CertificatesProvider, arn string) erro
 
 func createStack(awsAdapter *aws.Adapter, item *managedItem) {
 	certificates := make([]string, 0, len(item.ingresses))
-	for cert, _ := range item.ingresses {
+	for cert := range item.ingresses {
 		certificates = append(certificates, cert)
 	}
 
 	log.Printf("creating stack for certificates %q / ingress %q", certificates, item.ingresses)
 
-	stackId, err := awsAdapter.CreateStack(certificates, item.scheme)
+	stackId, err := awsAdapter.CreateStack(certificates, item.Hostnames(), item.scheme)
 	if err != nil {
 		if isAlreadyExistsError(err) {
 			item.stack, err = awsAdapter.GetStack(stackId)
@@ -307,7 +341,7 @@ func updateStack(awsAdapter *aws.Adapter, item *managedItem) {
 
 	log.Printf("updating %q stack for %d certificates / %d ingresses", item.scheme, len(certificates), len(item.ingresses))
 
-	stackId, err := awsAdapter.UpdateStack(item.stack.Name(), certificates, item.scheme)
+	stackId, err := awsAdapter.UpdateStack(item.stack.Name(), certificates, item.Hostnames(), item.scheme)
 	if isNoUpdatesToBePerformedError(err) {
 		log.Printf("stack(%q) is already up to date", certificates)
 	} else if err != nil {

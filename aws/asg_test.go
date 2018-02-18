@@ -218,7 +218,7 @@ func TestDetach(t *testing.T) {
 	} {
 		t.Run(fmt.Sprintf("%v", test.name), func(t *testing.T) {
 			mockSvc := &mockAutoScalingClient{outputs: test.responses}
-			err := detachTargetGroupFromAutoScalingGroup(mockSvc, "foo", "bar")
+			err := detachTargetGroupsFromAutoScalingGroup(mockSvc, []string{"foo"}, "bar")
 			if test.wantError {
 				if err == nil {
 					t.Error("wanted an error but call seemed to have succeeded")
