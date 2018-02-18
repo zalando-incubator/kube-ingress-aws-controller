@@ -35,8 +35,7 @@ const (
 	ready int = iota
 	update
 	missing
-	marktodelete
-	orphan
+	delete
 )
 
 const (
@@ -46,10 +45,7 @@ const (
 
 func (item *managedItem) Status() int {
 	if item.stack.ShouldDelete() {
-		return orphan
-	}
-	if item.stack != nil && len(item.ingresses) == 0 && !item.stack.IsDeleteInProgress() {
-		return marktodelete
+		return delete
 	}
 	if len(item.ingresses) != 0 && item.stack == nil {
 		return missing
@@ -133,10 +129,8 @@ func doWork(certsProvider certs.CertificatesProvider, awsAdapter *aws.Adapter, k
 	log.Printf("Have %d models", len(model))
 	for _, managedItem := range model {
 		switch managedItem.Status() {
-		case orphan:
+		case delete:
 			deleteStack(awsAdapter, managedItem)
-		case marktodelete:
-			markToDeleteStack(awsAdapter, managedItem)
 		case missing:
 			createStack(awsAdapter, managedItem)
 			updateIngress(kubeAdapter, managedItem)
@@ -282,7 +276,7 @@ func updateStack(awsAdapter *aws.Adapter, item *managedItem) {
 		if _, ok := certificates[arn]; !ok {
 			if ttl.IsZero() {
 				certificates[arn] = time.Now().UTC().Add(defaultCertARNTTL)
-			} else if ttl.Before(time.Now().UTC()) {
+			} else if ttl.After(time.Now().UTC()) {
 				certificates[arn] = ttl
 			}
 		}
@@ -343,15 +337,5 @@ func deleteStack(awsAdapter *aws.Adapter, item *managedItem) {
 		log.Printf("deleteStack failed to delete stack %q: %v", stackName, err)
 	} else {
 		log.Printf("deleted orphaned stack %q", stackName)
-	}
-}
-
-func markToDeleteStack(awsAdapter *aws.Adapter, item *managedItem) {
-	stackName := item.stack.Name()
-	ts, err := awsAdapter.MarkToDeleteStack(item.stack)
-	if err != nil {
-		log.Printf("markToDeleteStack failed to tag stack %q, at %v: %v", stackName, ts, err)
-	} else {
-		log.Printf("marked stack %q to be deleted at %v", stackName, ts)
 	}
 }

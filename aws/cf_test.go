@@ -489,38 +489,6 @@ func TestGetStack(t *testing.T) {
 	}
 }
 
-func TestIsDeleteInProgress(t *testing.T) {
-	for _, ti := range []struct {
-		msg   string
-		given *Stack
-		want  bool
-	}{
-		{
-			"DeleteInProgress",
-			&Stack{tags: map[string]string{deleteScheduled: time.Now().Add(1 * time.Minute).Format(time.RFC3339)}},
-			true,
-		},
-		{
-			"EmptyStack",
-			&Stack{},
-			false,
-		},
-		{
-			"StackNil",
-			nil,
-			false,
-		},
-	} {
-		t.Run(ti.msg, func(t *testing.T) {
-			got := ti.given.IsDeleteInProgress()
-			if ti.want != got {
-				t.Errorf("unexpected result. wanted %+v, got %+v", ti.want, got)
-			}
-		})
-	}
-
-}
-
 func TestShouldDelete(t *testing.T) {
 	for _, ti := range []struct {
 		msg   string
@@ -529,27 +497,28 @@ func TestShouldDelete(t *testing.T) {
 	}{
 		{
 			"DeleteInProgress",
-			&Stack{tags: map[string]string{deleteScheduled: time.Now().Add(1 * time.Minute).Format(time.RFC3339)}},
+			&Stack{certificateARNs: map[string]time.Time{"test-arn": time.Now().UTC().Add(1 * time.Minute)}},
 			false,
 		},
 		{
 			"DeleteInProgressSecond",
-			&Stack{tags: map[string]string{deleteScheduled: time.Now().Add(1 * time.Second).Format(time.RFC3339)}},
+			&Stack{certificateARNs: map[string]time.Time{"test-arn": time.Now().UTC().Add(1 * time.Second)}},
 			false,
 		},
 		{
 			"ShouldDelete",
-			&Stack{tags: map[string]string{deleteScheduled: time.Now().Add(-1 * time.Second).Format(time.RFC3339)}},
+			&Stack{certificateARNs: map[string]time.Time{"test-arn": time.Now().UTC().Add(-1 * time.Second)}},
 			true,
 		},
 		{
 			"ShouldDeleteMinute",
-			&Stack{tags: map[string]string{deleteScheduled: time.Now().Add(-1 * time.Minute).Format(time.RFC3339)}},
+			&Stack{certificateARNs: map[string]time.Time{"test-arn": time.Now().UTC().Add(-1 * time.Minute)}},
 			true,
-		}, {
+		},
+		{
 			"EmptyStack",
 			&Stack{},
-			false,
+			true,
 		},
 		{
 			"StackNil",
@@ -560,48 +529,6 @@ func TestShouldDelete(t *testing.T) {
 		t.Run(ti.msg, func(t *testing.T) {
 			got := ti.given.ShouldDelete()
 			if ti.want != got {
-				t.Errorf("unexpected result for %s. wanted %+v, got %+v", ti.msg, ti.want, got)
-			}
-		})
-	}
-
-}
-
-func TestDeleteTime(t *testing.T) {
-	now := time.Now()
-	for _, ti := range []struct {
-		msg   string
-		given *Stack
-		want  *time.Time
-	}{
-		{
-			"GetCorrectTime",
-			&Stack{tags: map[string]string{deleteScheduled: now.Format(time.RFC3339Nano)}},
-			&now,
-		},
-		{
-			"IncorrectTime",
-			&Stack{tags: map[string]string{deleteScheduled: "foo"}},
-			nil,
-		},
-		{
-			"EmptyStack",
-			&Stack{},
-			nil,
-		},
-		{
-			"StackNil",
-			nil,
-			nil,
-		},
-	} {
-		t.Run(ti.msg, func(t *testing.T) {
-			got := ti.given.deleteTime()
-			if ti.want != nil {
-				if !ti.want.Equal(*got) {
-					t.Errorf("unexpected result for non nil %s. wanted %+v, got %+v", ti.msg, ti.want, got)
-				}
-			} else if ti.want != got {
 				t.Errorf("unexpected result for %s. wanted %+v, got %+v", ti.msg, ti.want, got)
 			}
 		})

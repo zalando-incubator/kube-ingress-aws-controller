@@ -2,7 +2,6 @@ package aws
 
 import (
 	"fmt"
-	"log"
 	"strings"
 
 	"time"
@@ -65,45 +64,21 @@ func (s *Stack) IsComplete() bool {
 	return false
 }
 
-// IsDeleteInProgress returns true if the stack has already a tag
-// deleteScheduled.
-func (s *Stack) IsDeleteInProgress() bool {
-	if s == nil {
-		return false
-	}
-	_, ok := s.tags[deleteScheduled]
-	return ok
-}
-
-// ShouldDelete returns true if stack is marked to delete and the
-// deleteScheduled tag is after time.Now(). In all other cases it
-// returns false.
+// ShouldDelete returns true if stack is to be deleted because there are no
+// valid certificates attached anymore.
 func (s *Stack) ShouldDelete() bool {
 	if s == nil {
 		return false
 	}
-	t0 := s.deleteTime()
-	if t0 == nil {
-		return false
-	}
-	now := time.Now()
-	return now.After(*t0)
-}
 
-func (s *Stack) deleteTime() *time.Time {
-	if s == nil {
-		return nil
+	now := time.Now().UTC()
+	for _, t := range s.certificateARNs {
+		if t.IsZero() || t.After(now) {
+			return false
+		}
 	}
-	ts, ok := s.tags[deleteScheduled]
-	if !ok {
-		return nil
-	}
-	t, err := time.Parse(time.RFC3339, ts)
-	if err != nil {
-		log.Printf("Failed to parse time: %v", err)
-		return nil
-	}
-	return &t
+
+	return true
 }
 
 type stackOutput map[string]string
