@@ -28,7 +28,6 @@ var (
 	healthCheckPort     uint
 	healthcheckInterval time.Duration
 	metricsAddress      string
-	updateStackInterval time.Duration
 )
 
 func loadSettings() error {
@@ -37,7 +36,6 @@ func loadSettings() error {
 		"server base url. If empty will try to use the configuration from the running cluster, else it will use InsecureConfig, that does not use encryption or authentication (use case to develop with kubectl proxy).")
 	flag.DurationVar(&pollingInterval, "polling-interval", 30*time.Second, "sets the polling interval for "+
 		"ingress resources. The flag accepts a value acceptable to time.ParseDuration")
-	flag.DurationVar(&updateStackInterval, "update-stack-interval", 1*time.Hour, "sets the interval for update AWS ALB stack resources, which can fix migrations, if you add for example one subnet to your VPC your ALB has not interface in that. An update stack will add these interfaces automatically. The flag accepts a value acceptable to time.ParseDuration")
 	flag.StringVar(&cfCustomTemplate, "cf-custom-template", "",
 		"filename for a custom cloud formation template to use instead of the built in")
 	flag.DurationVar(&creationTimeout, "creation-timeout", aws.DefaultCreationTimeout,
@@ -62,9 +60,6 @@ func loadSettings() error {
 	}
 
 	if err := loadDurationFromEnv("POLLING_INTERVAL", &pollingInterval); err != nil {
-		return err
-	}
-	if err := loadDurationFromEnv("UPDATE_STACK_INTERVAL", &updateStackInterval); err != nil {
 		return err
 	}
 
@@ -168,7 +163,7 @@ func main() {
 
 	go serveMetrics(metricsAddress)
 	quitCH := make(chan struct{})
-	go startPolling(quitCH, certificatesProvider, awsAdapter, kubeAdapter, pollingInterval, updateStackInterval)
+	go startPolling(quitCH, certificatesProvider, awsAdapter, kubeAdapter, pollingInterval)
 	<-quitCH
 
 	log.Printf("terminating %s", os.Args[0])

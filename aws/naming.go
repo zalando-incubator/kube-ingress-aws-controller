@@ -1,33 +1,15 @@
 package aws
 
 import (
-	"crypto/sha1"
-	"encoding/binary"
-	"encoding/hex"
 	"fmt"
 	"regexp"
 	"strings"
+
+	"github.com/google/uuid"
 )
-
-// The Namer interface defines the behavior of types that are able to apply custom constraints to names of resources
-type Namer interface {
-	// Returns a normalized name from the combination of the arguments
-	Normalize(clusterID, certificateARN, scheme string) string
-}
-
-// SHA1 Hash ARN, keep last 7 hex chars
-// Prepend maxLen - shortHashLen - 1 chars from normalized ClusterID with a '-' as separator
-// Normalization of ClusterID replaces all non valid chars
-// Valid sets: a-z,A-Z,0-9,-
-// Separator: -
-// Squeeze and strip from beginning and/or end
-type awsResourceNamer struct {
-	maxLen int
-}
 
 const (
 	shortHashLen = 7
-	emptyARN     = 0xBADA55
 
 	maxLoadBalancerNameLen = 32
 	maxStackNameLen        = 128
@@ -40,39 +22,17 @@ var (
 	squeezeDashesRegex = regexp.MustCompile("[-]{2,}")
 )
 
-// Normalize returns a normalized name which replaces invalid characters from the ClusterID with '-' and appends the
-// last 7 chars of the SHA1 hash of the certificateARN. If the length of the normalized clusterID exceeds 24 chars, the
-// it is truncated so that its concatenation with a '-' char and the hash part don't exceed 32 chars.
-func (n *awsResourceNamer) Normalize(clusterID, certificateARN, scheme string) string {
-	hasher := sha1.New()
-	if certificateARN == "" {
-		binary.Write(hasher, binary.BigEndian, emptyARN)
-	} else {
-		hasher.Write([]byte(certificateARN))
-	}
-	hash := strings.ToLower(hex.EncodeToString(hasher.Sum(nil)))
-	hashLen := len(hash)
-	if hashLen > shortHashLen {
-		hash = hash[hashLen-shortHashLen:]
-	}
-
+// normalizeStackName normalizes the stackName by normalizing the clusterID and
+// adding a uuid suffix.
+func normalizeStackName(clusterID string) string {
 	normalizedClusterID := squeezeDashesRegex.ReplaceAllString(
 		normalizationRegex.ReplaceAllString(clusterID, nameSeparator), nameSeparator)
 	lenClusterID := len(normalizedClusterID)
-	maxClusterIDLen := n.maxLen - shortHashLen - 1
+	maxClusterIDLen := maxStackNameLen - shortHashLen - 1
 	if lenClusterID > maxClusterIDLen {
 		normalizedClusterID = normalizedClusterID[lenClusterID-maxClusterIDLen:]
 	}
 	normalizedClusterID = strings.Trim(normalizedClusterID, nameSeparator) // trim leading/trailing separators
 
-	return fmt.Sprintf("%s%s%s-%s", normalizedClusterID, nameSeparator, hash, scheme)
-}
-
-var (
-	stackNamer        = &awsResourceNamer{maxLen: maxStackNameLen}
-	loadBalancerNamer = &awsResourceNamer{maxLen: maxLoadBalancerNameLen}
-)
-
-func normalizeStackName(clusterID, certificateARN, scheme string) string {
-	return stackNamer.Normalize(clusterID, certificateARN, scheme)
+	return fmt.Sprintf("%s%s%s", normalizedClusterID, nameSeparator, uuid.New().String())
 }

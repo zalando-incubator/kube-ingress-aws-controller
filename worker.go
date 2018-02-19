@@ -4,6 +4,7 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"sort"
 	"syscall"
 	"time"
 
@@ -20,33 +21,95 @@ import (
 	"github.com/zalando-incubator/kube-ingress-aws-controller/kubernetes"
 )
 
+const (
+	defaultCertARNTTL = 5 * time.Minute
+)
+
 type managedItem struct {
-	ingresses []*kubernetes.Ingress
+	ingresses map[string][]*kubernetes.Ingress
+	scheme    string
 	stack     *aws.Stack
 }
 
 const (
 	ready int = iota
+	update
 	missing
-	marktodelete
-	orphan
+	delete
 )
 
 const (
 	maxTargetGroupSupported = 1000
+	maxCertsPerALBSupported = 25
 )
 
 func (item *managedItem) Status() int {
 	if item.stack.ShouldDelete() {
-		return orphan
-	}
-	if item.stack != nil && len(item.ingresses) == 0 && !item.stack.IsDeleteInProgress() {
-		return marktodelete
+		return delete
 	}
 	if len(item.ingresses) != 0 && item.stack == nil {
 		return missing
 	}
+	if !item.certsEqual() && item.stack.IsComplete() {
+		return update
+	}
 	return ready
+}
+
+// certsEqual checks if the certs found for the ingresses match those already
+// defined on the LB stack.
+func (item *managedItem) certsEqual() bool {
+	if len(item.ingresses) != len(item.stack.CertificateARNs()) {
+		return false
+	}
+
+	for arn, _ := range item.ingresses {
+		if ttl, ok := item.stack.CertificateARNs()[arn]; !ok || !ttl.IsZero() {
+			return false
+		}
+	}
+	return true
+}
+
+// AddIngress adds an ingress object to the managed item.
+// The function returns true when the ingress was successfully added. The
+// adding can fail in case the managed item reached its limit of ingress
+// certificates (25 max) or if the scheme doesn't match.
+func (item *managedItem) AddIngress(certificateARN string, ingress *kubernetes.Ingress) bool {
+	if item.scheme != ingress.Scheme() {
+		return false
+	}
+
+	if ingresses, ok := item.ingresses[certificateARN]; ok {
+		item.ingresses[certificateARN] = append(ingresses, ingress)
+	} else {
+		if len(item.ingresses) >= maxCertsPerALBSupported {
+			return false
+		}
+		item.ingresses[certificateARN] = []*kubernetes.Ingress{ingress}
+	}
+
+	return true
+}
+
+// CertificateARNs returns a map of certificates and their expiry times.
+func (item *managedItem) CertificateARNs() map[string]time.Time {
+	certificates := make(map[string]time.Time, len(item.ingresses))
+	for arn := range item.ingresses {
+		certificates[arn] = time.Time{}
+	}
+
+	for arn, ttl := range item.stack.CertificateARNs() {
+		if _, ok := certificates[arn]; !ok {
+			if ttl.IsZero() {
+				certificates[arn] = time.Now().UTC().Add(defaultCertARNTTL)
+			} else if ttl.After(time.Now().UTC()) {
+				certificates[arn] = ttl
+			}
+		}
+	}
+
+	return certificates
 }
 
 func waitForTerminationSignals(signals ...os.Signal) chan os.Signal {
@@ -55,9 +118,8 @@ func waitForTerminationSignals(signals ...os.Signal) chan os.Signal {
 	return c
 }
 
-func startPolling(quitCH chan struct{}, certsProvider certs.CertificatesProvider, awsAdapter *aws.Adapter, kubeAdapter *kubernetes.Adapter, pollingInterval, updateStackInterval time.Duration) {
+func startPolling(quitCH chan struct{}, certsProvider certs.CertificatesProvider, awsAdapter *aws.Adapter, kubeAdapter *kubernetes.Adapter, pollingInterval time.Duration) {
 	items := make(chan *managedItem, maxTargetGroupSupported)
-	go updateStacks(awsAdapter, updateStackInterval, items)
 	for {
 		log.Printf("Start polling sleep %s", pollingInterval)
 		select {
@@ -68,30 +130,6 @@ func startPolling(quitCH chan struct{}, certsProvider certs.CertificatesProvider
 			if err := doWork(certsProvider, awsAdapter, kubeAdapter, items); err != nil {
 				log.Println(err)
 			}
-		}
-	}
-}
-
-func updateStacks(awsAdapter *aws.Adapter, interval time.Duration, items <-chan *managedItem) {
-	for {
-		itemsMap := map[string]*managedItem{}
-		done := make(chan struct{})
-		go func() {
-			for {
-				select {
-				case item := <-items:
-					if _, ok := itemsMap[item.stack.CertificateARN()]; !ok {
-						itemsMap[item.stack.CertificateARN()] = item
-					}
-				case <-done:
-					return
-				}
-			}
-		}()
-		time.Sleep(interval)
-		done <- struct{}{}
-		for _, item := range itemsMap {
-			updateStack(awsAdapter, item)
 		}
 	}
 }
@@ -132,15 +170,15 @@ func doWork(certsProvider certs.CertificatesProvider, awsAdapter *aws.Adapter, k
 	log.Printf("Have %d models", len(model))
 	for _, managedItem := range model {
 		switch managedItem.Status() {
-		case orphan:
+		case delete:
 			deleteStack(awsAdapter, managedItem)
-		case marktodelete:
-			markToDeleteStack(awsAdapter, managedItem)
 		case missing:
 			createStack(awsAdapter, managedItem)
 			updateIngress(kubeAdapter, managedItem)
 		case ready:
-			items <- managedItem
+			updateIngress(kubeAdapter, managedItem)
+		case update:
+			updateStack(awsAdapter, managedItem)
 			updateIngress(kubeAdapter, managedItem)
 		}
 	}
@@ -148,10 +186,22 @@ func doWork(certsProvider certs.CertificatesProvider, awsAdapter *aws.Adapter, k
 	return nil
 }
 
-func buildManagedModel(certsProvider certs.CertificatesProvider, ingresses []*kubernetes.Ingress, stacks []*aws.Stack) map[string]*managedItem {
-	model := make(map[string]*managedItem)
+func buildManagedModel(certsProvider certs.CertificatesProvider, ingresses []*kubernetes.Ingress, stacks []*aws.Stack) []*managedItem {
+	sort.Slice(stacks, func(i, j int) bool {
+		if len(stacks[i].CertificateARNs()) == len(stacks[j].CertificateARNs()) {
+			return stacks[i].Name() < stacks[j].Name()
+		}
+		return len(stacks[i].CertificateARNs()) > len(stacks[j].CertificateARNs())
+	})
+
+	model := make([]*managedItem, 0, len(stacks))
 	for _, stack := range stacks {
-		model[stack.CertificateARN()+"/"+stack.Scheme()] = &managedItem{stack: stack}
+		item := &managedItem{
+			stack:     stack,
+			ingresses: make(map[string][]*kubernetes.Ingress),
+			scheme:    stack.Scheme(),
+		}
+		model = append(model, item)
 	}
 
 	var (
@@ -173,12 +223,28 @@ func buildManagedModel(certsProvider certs.CertificatesProvider, ingresses []*ku
 				continue
 			}
 		}
-		if item, ok := model[certificateARN+"/"+ingress.Scheme()]; ok {
-			item.ingresses = append(item.ingresses, ingress)
-		} else {
-			model[certificateARN+"/"+ingress.Scheme()] = &managedItem{ingresses: []*kubernetes.Ingress{ingress}}
+
+		// try to add ingress to existing ALB stacks until certificate
+		// limit is exeeded.
+		added := false
+		for _, item := range model {
+			if item.AddIngress(certificateARN, ingress) {
+				added = true
+				break
+			}
+		}
+
+		// if the ingress was not added to the ALB stack because of
+		// non-matching scheme or too many certificates, add a new
+		// stack.
+		if !added {
+			i := map[string][]*kubernetes.Ingress{
+				certificateARN: []*kubernetes.Ingress{ingress},
+			}
+			model = append(model, &managedItem{ingresses: i, scheme: ingress.Scheme()})
 		}
 	}
+
 	return model
 }
 
@@ -215,11 +281,14 @@ func checkCertificate(certsProvider certs.CertificatesProvider, arn string) erro
 }
 
 func createStack(awsAdapter *aws.Adapter, item *managedItem) {
-	certificateARN := item.ingresses[0].CertificateARN()
-	scheme := item.ingresses[0].Scheme()
-	log.Printf("creating %q stack for certificate %q / ingress %q", scheme, certificateARN, item.ingresses)
+	certificates := make([]string, 0, len(item.ingresses))
+	for cert, _ := range item.ingresses {
+		certificates = append(certificates, cert)
+	}
 
-	stackId, err := awsAdapter.CreateStack(certificateARN, scheme)
+	log.Printf("creating stack for certificates %q / ingress %q", certificates, item.ingresses)
+
+	stackId, err := awsAdapter.CreateStack(certificates, item.scheme)
 	if err != nil {
 		if isAlreadyExistsError(err) {
 			item.stack, err = awsAdapter.GetStack(stackId)
@@ -227,24 +296,24 @@ func createStack(awsAdapter *aws.Adapter, item *managedItem) {
 				return
 			}
 		}
-		log.Printf("createStack(%q) failed: %v", certificateARN, err)
+		log.Printf("createStack(%q) failed: %v", certificates, err)
 	} else {
-		log.Printf("stack %q for certificate %q created", stackId, certificateARN)
+		log.Printf("stack %q for certificates %q created", stackId, certificates)
 	}
 }
 
 func updateStack(awsAdapter *aws.Adapter, item *managedItem) {
-	certificateARN := item.ingresses[0].CertificateARN()
-	scheme := item.ingresses[0].Scheme()
-	log.Printf("updating %q stack for certificate %q / ingress %q", scheme, certificateARN, item.ingresses)
+	certificates := item.CertificateARNs()
 
-	stackId, err := awsAdapter.UpdateStack(item.stack.Name(), certificateARN, scheme)
+	log.Printf("updating %q stack for %d certificates / %d ingresses", item.scheme, len(certificates), len(item.ingresses))
+
+	stackId, err := awsAdapter.UpdateStack(item.stack.Name(), certificates, item.scheme)
 	if isNoUpdatesToBePerformedError(err) {
-		log.Printf("stack(%q) is already up to date", certificateARN)
+		log.Printf("stack(%q) is already up to date", certificates)
 	} else if err != nil {
-		log.Printf("updateStack(%q) failed: %v", certificateARN, err)
+		log.Printf("updateStack(%q) failed: %v", certificates, err)
 	} else {
-		log.Printf("stack %q for certificate %q updated", stackId, certificateARN)
+		log.Printf("stack %q for certificate %q updated", stackId, certificates)
 	}
 }
 
@@ -270,15 +339,17 @@ func updateIngress(kubeAdapter *kubernetes.Adapter, item *managedItem) {
 		return
 	}
 	dnsName := strings.ToLower(item.stack.DNSName()) // lower case to satisfy Kubernetes reqs
-	for _, ing := range item.ingresses {
-		if err := kubeAdapter.UpdateIngressLoadBalancer(ing, dnsName); err != nil {
-			if err != kubernetes.ErrUpdateNotNeeded {
-				log.Println(err)
+	for _, ingresses := range item.ingresses {
+		for _, ing := range ingresses {
+			if err := kubeAdapter.UpdateIngressLoadBalancer(ing, dnsName); err != nil {
+				if err == kubernetes.ErrUpdateNotNeeded {
+					log.Printf("Ingress update not needed %v with DNS name %q", ing, dnsName)
+				} else {
+					log.Printf("Failed to update ingress: %v", err)
+				}
 			} else {
-				log.Printf("updated ingress not needed %v with DNS name %q", ing, dnsName)
+				log.Printf("updated ingress %v with DNS name %q", ing, dnsName)
 			}
-		} else {
-			log.Printf("updated ingress %v with DNS name %q", ing, dnsName)
 		}
 	}
 }
@@ -289,15 +360,5 @@ func deleteStack(awsAdapter *aws.Adapter, item *managedItem) {
 		log.Printf("deleteStack failed to delete stack %q: %v", stackName, err)
 	} else {
 		log.Printf("deleted orphaned stack %q", stackName)
-	}
-}
-
-func markToDeleteStack(awsAdapter *aws.Adapter, item *managedItem) {
-	stackName := item.stack.Name()
-	ts, err := awsAdapter.MarkToDeleteStack(item.stack)
-	if err != nil {
-		log.Printf("markToDeleteStack failed to tag stack %q, at %v: %v", stackName, ts, err)
-	} else {
-		log.Printf("marked stack %q to be deleted at %v", stackName, ts)
 	}
 }

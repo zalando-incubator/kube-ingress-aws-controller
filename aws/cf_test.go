@@ -19,7 +19,15 @@ func TestCreatingStack(t *testing.T) {
 	}{
 		{
 			"successful-call",
-			stackSpec{name: "foo", securityGroupID: "bar", vpcID: "baz"},
+			stackSpec{
+				name:            "foo",
+				securityGroupID: "bar",
+				vpcID:           "baz",
+				certificateARNs: map[string]time.Time{
+					"arn-default": time.Time{},
+					"arn-second":  time.Time{},
+				},
+			},
 			cfMockOutputs{createStack: R(mockCSOutput("fake-stack-id"), nil)},
 			"fake-stack-id",
 			false,
@@ -86,7 +94,7 @@ func TestDeleteStack(t *testing.T) {
 	}
 }
 
-func TestStackReadiness(t *testing.T) {
+func TestIsComplete(t *testing.T) {
 	for _, ti := range []struct {
 		given string
 		want  bool
@@ -106,7 +114,8 @@ func TestStackReadiness(t *testing.T) {
 		{"dummy-status", false},
 	} {
 		t.Run(ti.given, func(t *testing.T) {
-			got := isComplete(aws.String(ti.given))
+			stack := &Stack{status: ti.given}
+			got := stack.IsComplete()
 			if ti.want != got {
 				t.Errorf("unexpected result. wanted %+v, got %+v", ti.want, got)
 			}
@@ -195,7 +204,7 @@ func TestConvertStackParameters(t *testing.T) {
 
 }
 
-func TestFindingManagedStacks(t *testing.T) {
+func TestFindManagedStacks(t *testing.T) {
 	for _, ti := range []struct {
 		name    string
 		given   cfMockOutputs
@@ -203,17 +212,18 @@ func TestFindingManagedStacks(t *testing.T) {
 		wantErr bool
 	}{
 		{
-			"successful-call",
-			cfMockOutputs{
+			name: "successful-call",
+			given: cfMockOutputs{
 				describeStackPages: R(nil, nil),
 				describeStacks: R(&cloudformation.DescribeStacksOutput{
 					Stacks: []*cloudformation.Stack{
 						{
-							StackName: aws.String("managed-stack-not-ready"),
+							StackName:   aws.String("managed-stack-not-ready"),
+							StackStatus: aws.String(cloudformation.StackStatusUpdateInProgress),
 							Tags: []*cloudformation.Tag{
 								cfTag(kubernetesCreatorTag, kubernetesCreatorValue),
 								cfTag(clusterIDTagPrefix+"test-cluster", resourceLifecycleOwned),
-								cfTag(certificateARNTag, "cert-arn"),
+								cfTag(certificateARNTagPrefix+"cert-arn", time.Time{}.Format(time.RFC3339)),
 							},
 							Outputs: []*cloudformation.Output{
 								{OutputKey: aws.String(outputLoadBalancerDNSName), OutputValue: aws.String("example-notready.com")},
@@ -226,7 +236,7 @@ func TestFindingManagedStacks(t *testing.T) {
 							Tags: []*cloudformation.Tag{
 								cfTag(kubernetesCreatorTag, kubernetesCreatorValue),
 								cfTag(clusterIDTagPrefix+"test-cluster", resourceLifecycleOwned),
-								cfTag(certificateARNTag, "cert-arn"),
+								cfTag(certificateARNTagPrefix+"cert-arn", time.Time{}.Format(time.RFC3339)),
 							},
 							Outputs: []*cloudformation.Output{
 								{OutputKey: aws.String(outputLoadBalancerDNSName), OutputValue: aws.String("example.com")},
@@ -234,7 +244,8 @@ func TestFindingManagedStacks(t *testing.T) {
 							},
 						},
 						{
-							StackName: aws.String("managed-stack-not-ready"),
+							StackName:   aws.String("managed-stack-not-ready"),
+							StackStatus: aws.String(cloudformation.StackStatusUpdateInProgress),
 							Tags: []*cloudformation.Tag{
 								cfTag(kubernetesCreatorTag, kubernetesCreatorValue),
 								cfTag(clusterIDTagPrefix+"test-cluster", resourceLifecycleOwned),
@@ -262,24 +273,50 @@ func TestFindingManagedStacks(t *testing.T) {
 					},
 				}, nil),
 			},
-			[]*Stack{
+			want: []*Stack{
 				{
-					name:           "managed-stack",
-					dnsName:        "example.com",
-					certificateARN: "cert-arn",
+					name:    "managed-stack-not-ready",
+					dnsName: "example-notready.com",
+					certificateARNs: map[string]time.Time{
+						"cert-arn": time.Time{},
+					},
 					targetGroupARN: "tg-arn",
+					tags: map[string]string{
+						kubernetesCreatorTag:                 kubernetesCreatorValue,
+						clusterIDTagPrefix + "test-cluster":  resourceLifecycleOwned,
+						certificateARNTagPrefix + "cert-arn": time.Time{}.Format(time.RFC3339),
+					},
+					status: cloudformation.StackStatusUpdateInProgress,
+				},
+				{
+					name:    "managed-stack",
+					dnsName: "example.com",
+					certificateARNs: map[string]time.Time{
+						"cert-arn": time.Time{},
+					},
+					targetGroupARN: "tg-arn",
+					tags: map[string]string{
+						kubernetesCreatorTag:                 kubernetesCreatorValue,
+						clusterIDTagPrefix + "test-cluster":  resourceLifecycleOwned,
+						certificateARNTagPrefix + "cert-arn": time.Time{}.Format(time.RFC3339),
+					},
+					status: cloudformation.StackStatusCreateComplete,
+				},
+				{
+					name:            "managed-stack-not-ready",
+					certificateARNs: map[string]time.Time{},
 					tags: map[string]string{
 						kubernetesCreatorTag:                kubernetesCreatorValue,
 						clusterIDTagPrefix + "test-cluster": resourceLifecycleOwned,
-						certificateARNTag:                   "cert-arn",
 					},
+					status: cloudformation.StackStatusUpdateInProgress,
 				},
 			},
-			false,
+			wantErr: false,
 		},
 		{
-			"no-ready-stacks",
-			cfMockOutputs{
+			name: "no-ready-stacks",
+			given: cfMockOutputs{
 				describeStackPages: R(nil, nil),
 				describeStacks: R(&cloudformation.DescribeStacksOutput{
 					Stacks: []*cloudformation.Stack{
@@ -310,8 +347,31 @@ func TestFindingManagedStacks(t *testing.T) {
 					},
 				}, nil),
 			},
-			[]*Stack{},
-			true,
+			want: []*Stack{
+				{
+					name:            "managed-stack-not-ready",
+					dnsName:         "example-notready.com",
+					targetGroupARN:  "tg-arn",
+					certificateARNs: map[string]time.Time{},
+					tags: map[string]string{
+						kubernetesCreatorTag:                kubernetesCreatorValue,
+						clusterIDTagPrefix + "test-cluster": resourceLifecycleOwned,
+					},
+					status: cloudformation.StackStatusReviewInProgress,
+				},
+				{
+					name:            "managed-stack",
+					dnsName:         "example.com",
+					targetGroupARN:  "tg-arn",
+					certificateARNs: map[string]time.Time{},
+					tags: map[string]string{
+						kubernetesCreatorTag:                kubernetesCreatorValue,
+						clusterIDTagPrefix + "test-cluster": resourceLifecycleOwned,
+					},
+					status: cloudformation.StackStatusRollbackComplete,
+				},
+			},
+			wantErr: false,
 		},
 		{
 			"failed-paging",
@@ -343,52 +403,98 @@ func TestFindingManagedStacks(t *testing.T) {
 					t.Errorf("unexpected result. wanted %+v, got %+v", ti.want, got)
 				}
 			}
+		})
+	}
+}
 
+func TestGetStack(t *testing.T) {
+	for _, ti := range []struct {
+		name    string
+		given   cfMockOutputs
+		want    *Stack
+		wantErr bool
+	}{
+		{
+			name: "successful-call",
+			given: cfMockOutputs{
+				describeStackPages: R(nil, nil),
+				describeStacks: R(&cloudformation.DescribeStacksOutput{
+					Stacks: []*cloudformation.Stack{
+						{
+							StackName:   aws.String("managed-stack"),
+							StackStatus: aws.String(cloudformation.StackStatusCreateComplete),
+							Tags: []*cloudformation.Tag{
+								cfTag(kubernetesCreatorTag, kubernetesCreatorValue),
+								cfTag(clusterIDTagPrefix+"test-cluster", resourceLifecycleOwned),
+								cfTag(certificateARNTagPrefix+"cert-arn", time.Time{}.Format(time.RFC3339)),
+							},
+							Outputs: []*cloudformation.Output{
+								{OutputKey: aws.String(outputLoadBalancerDNSName), OutputValue: aws.String("example.com")},
+								{OutputKey: aws.String(outputTargetGroupARN), OutputValue: aws.String("tg-arn")},
+							},
+						},
+					},
+				}, nil),
+			},
+			want: &Stack{
+				name:    "managed-stack",
+				dnsName: "example.com",
+				certificateARNs: map[string]time.Time{
+					"cert-arn": time.Time{},
+				},
+				targetGroupARN: "tg-arn",
+				tags: map[string]string{
+					kubernetesCreatorTag:                 kubernetesCreatorValue,
+					clusterIDTagPrefix + "test-cluster":  resourceLifecycleOwned,
+					certificateARNTagPrefix + "cert-arn": time.Time{}.Format(time.RFC3339),
+				},
+				status: cloudformation.StackStatusCreateComplete,
+			},
+			wantErr: false,
+		},
+		{
+			name: "no-ready-stacks",
+			given: cfMockOutputs{
+				describeStackPages: R(nil, nil),
+				describeStacks: R(&cloudformation.DescribeStacksOutput{
+					Stacks: []*cloudformation.Stack{},
+				}, nil),
+			},
+			want:    nil,
+			wantErr: true,
+		},
+		{
+			"failed-paging",
+			cfMockOutputs{
+				describeStackPages: R(nil, dummyErr),
+				describeStacks:     R(&cloudformation.DescribeStacksOutput{}, nil),
+			},
+			nil,
+			true,
+		},
+		{
+			"failed-describe-page",
+			cfMockOutputs{
+				describeStacks: R(nil, dummyErr),
+			},
+			nil,
+			true,
+		},
+	} {
+		t.Run(ti.name, func(t *testing.T) {
+			c := &mockCloudFormationClient{outputs: ti.given}
 			s, err := getStack(c, "dontcare")
 			if err != nil {
 				if !ti.wantErr {
 					t.Error("unexpected error", err)
 				}
 			} else {
-				if !reflect.DeepEqual(ti.want[0], s) {
-					t.Errorf("unexpected result. wanted %+v, got %+v", ti.want[0], got)
+				if !reflect.DeepEqual(ti.want, s) {
+					t.Errorf("unexpected result. wanted %+v, got %+v", ti.want, s)
 				}
 			}
-
 		})
 	}
-}
-
-func TestIsDeleteInProgress(t *testing.T) {
-	for _, ti := range []struct {
-		msg   string
-		given *Stack
-		want  bool
-	}{
-		{
-			"DeleteInProgress",
-			&Stack{tags: map[string]string{deleteScheduled: time.Now().Add(1 * time.Minute).Format(time.RFC3339)}},
-			true,
-		},
-		{
-			"EmptyStack",
-			&Stack{},
-			false,
-		},
-		{
-			"StackNil",
-			nil,
-			false,
-		},
-	} {
-		t.Run(ti.msg, func(t *testing.T) {
-			got := ti.given.IsDeleteInProgress()
-			if ti.want != got {
-				t.Errorf("unexpected result. wanted %+v, got %+v", ti.want, got)
-			}
-		})
-	}
-
 }
 
 func TestShouldDelete(t *testing.T) {
@@ -399,27 +505,28 @@ func TestShouldDelete(t *testing.T) {
 	}{
 		{
 			"DeleteInProgress",
-			&Stack{tags: map[string]string{deleteScheduled: time.Now().Add(1 * time.Minute).Format(time.RFC3339)}},
+			&Stack{certificateARNs: map[string]time.Time{"test-arn": time.Now().UTC().Add(1 * time.Minute)}},
 			false,
 		},
 		{
 			"DeleteInProgressSecond",
-			&Stack{tags: map[string]string{deleteScheduled: time.Now().Add(1 * time.Second).Format(time.RFC3339)}},
+			&Stack{certificateARNs: map[string]time.Time{"test-arn": time.Now().UTC().Add(1 * time.Second)}},
 			false,
 		},
 		{
 			"ShouldDelete",
-			&Stack{tags: map[string]string{deleteScheduled: time.Now().Add(-1 * time.Second).Format(time.RFC3339)}},
+			&Stack{certificateARNs: map[string]time.Time{"test-arn": time.Now().UTC().Add(-1 * time.Second)}},
 			true,
 		},
 		{
 			"ShouldDeleteMinute",
-			&Stack{tags: map[string]string{deleteScheduled: time.Now().Add(-1 * time.Minute).Format(time.RFC3339)}},
+			&Stack{certificateARNs: map[string]time.Time{"test-arn": time.Now().UTC().Add(-1 * time.Minute)}},
 			true,
-		}, {
+		},
+		{
 			"EmptyStack",
 			&Stack{},
-			false,
+			true,
 		},
 		{
 			"StackNil",
@@ -430,48 +537,6 @@ func TestShouldDelete(t *testing.T) {
 		t.Run(ti.msg, func(t *testing.T) {
 			got := ti.given.ShouldDelete()
 			if ti.want != got {
-				t.Errorf("unexpected result for %s. wanted %+v, got %+v", ti.msg, ti.want, got)
-			}
-		})
-	}
-
-}
-
-func TestDeleteTime(t *testing.T) {
-	now := time.Now()
-	for _, ti := range []struct {
-		msg   string
-		given *Stack
-		want  *time.Time
-	}{
-		{
-			"GetCorrectTime",
-			&Stack{tags: map[string]string{deleteScheduled: now.Format(time.RFC3339Nano)}},
-			&now,
-		},
-		{
-			"IncorrectTime",
-			&Stack{tags: map[string]string{deleteScheduled: "foo"}},
-			nil,
-		},
-		{
-			"EmptyStack",
-			&Stack{},
-			nil,
-		},
-		{
-			"StackNil",
-			nil,
-			nil,
-		},
-	} {
-		t.Run(ti.msg, func(t *testing.T) {
-			got := ti.given.deleteTime()
-			if ti.want != nil {
-				if !ti.want.Equal(*got) {
-					t.Errorf("unexpected result for non nil %s. wanted %+v, got %+v", ti.msg, ti.want, got)
-				}
-			} else if ti.want != got {
 				t.Errorf("unexpected result for %s. wanted %+v, got %+v", ti.msg, ti.want, got)
 			}
 		})

@@ -70,8 +70,6 @@ const (
 
 	nameTag = "Name"
 
-	certificateARNTag = "ingress:certificate-arn"
-
 	customTagFilterEnvVarName = "CUSTOM_FILTERS"
 )
 
@@ -300,15 +298,22 @@ func (a *Adapter) UpdateTargetGroupsAndAutoScalingGroups(stacks []*Stack) {
 	}
 }
 
-// CreateStack creates a new Application Load Balancer using CloudFormation. The stack name is derived
-// from the Cluster ID and the certificate ARN (when available).
-// All the required resources (listeners and target group) are created in a transactional fashion.
+// CreateStack creates a new Application Load Balancer using CloudFormation.
+// The stack name is derived from the Cluster ID and a has of the certificate
+// ARNs (when available).
+// All the required resources (listeners and target group) are created in a
+// transactional fashion.
 // Failure to create the stack causes it to be deleted automatically.
-func (a *Adapter) CreateStack(certificateARN, scheme string) (string, error) {
+func (a *Adapter) CreateStack(certificateARNs []string, scheme string) (string, error) {
+	certARNs := make(map[string]time.Time, len(certificateARNs))
+	for _, arn := range certificateARNs {
+		certARNs[arn] = time.Time{}
+	}
+
 	spec := &stackSpec{
-		name:            a.stackName(certificateARN, scheme),
+		name:            a.stackName(),
 		scheme:          scheme,
-		certificateARN:  certificateARN,
+		certificateARNs: certARNs,
 		securityGroupID: a.SecurityGroupID(),
 		subnets:         a.FindLBSubnets(scheme),
 		vpcID:           a.VpcID(),
@@ -324,11 +329,11 @@ func (a *Adapter) CreateStack(certificateARN, scheme string) (string, error) {
 	return createStack(a.cloudformation, spec)
 }
 
-func (a *Adapter) UpdateStack(stackName, certificateARN, scheme string) (string, error) {
+func (a *Adapter) UpdateStack(stackName string, certificateARNs map[string]time.Time, scheme string) (string, error) {
 	spec := &stackSpec{
 		name:            stackName,
 		scheme:          scheme,
-		certificateARN:  certificateARN,
+		certificateARNs: certificateARNs,
 		securityGroupID: a.SecurityGroupID(),
 		subnets:         a.FindLBSubnets(scheme),
 		vpcID:           a.VpcID(),
@@ -344,20 +349,13 @@ func (a *Adapter) UpdateStack(stackName, certificateARN, scheme string) (string,
 	return updateStack(a.cloudformation, spec)
 }
 
-func (a *Adapter) stackName(certificateARN, scheme string) string {
-	return normalizeStackName(a.ClusterID(), certificateARN, scheme)
+func (a *Adapter) stackName() string {
+	return normalizeStackName(a.ClusterID())
 }
 
 // GetStack returns the CloudFormation stack details with the name or ID from the argument
 func (a *Adapter) GetStack(stackID string) (*Stack, error) {
 	return getStack(a.cloudformation, stackID)
-}
-
-// MarkToDeleteStack adds a "deleteScheduled" Tag to the CloudFormation stack with the given name
-func (a *Adapter) MarkToDeleteStack(stack *Stack) (time.Time, error) {
-	t0 := time.Now().Add(a.stackTTL)
-
-	return t0, markToDeleteStack(a.cloudformation, stack.Name(), t0.Format(time.RFC3339))
 }
 
 // DeleteStack deletes the CloudFormation stack with the given name
