@@ -24,8 +24,20 @@ This information is used to manage AWS resources for each ingress objects of the
 - Support for multiple Auto Scaling Groups
 - Support for instances that are not part of Auto Scaling Group
 - Can be used in clusters created by [Kops](https://github.com/kubernetes/kops), see our [deployment guide for Kops](deploy/kops.md)
+- [Support Multiple TLS Certificates per ALB (SNI)](https://aws.amazon.com/blogs/aws/new-application-load-balancer-sni/).
 
 ## Upgrade
+
+### <v0.6.0 to >=v0.6.0
+
+Version `v0.6.0` introduced support for Multiple TLS Certificates per ALB
+(SNI). When upgrading your ALBs will automatically be aggregated to a single
+ALB with multiple certificates configured.
+It also adds support for attaching single EC2 instances and multiple
+AutoScalingGroups to the ALBs therefore you must ensure you have the correct
+instance filter defined before upgrading. The default filter is
+`tag:kubernetes.io/cluster/<cluster-id>=owned tag-key=k8s.io/role/node` see
+[How it works](#how-it-works) for more information on how to configure this.
 
 ### <v0.5.0 to >=v0.5.0
 
