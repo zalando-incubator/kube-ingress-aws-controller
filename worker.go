@@ -323,10 +323,10 @@ func updateIngress(kubeAdapter *kubernetes.Adapter, item *managedItem) {
 	for _, ingresses := range item.ingresses {
 		for _, ing := range ingresses {
 			if err := kubeAdapter.UpdateIngressLoadBalancer(ing, dnsName); err != nil {
-				if err != kubernetes.ErrUpdateNotNeeded {
-					log.Println(err)
+				if err == kubernetes.ErrUpdateNotNeeded {
+					log.Printf("Ingress update not needed %v with DNS name %q", ing, dnsName)
 				} else {
-					log.Printf("updated ingress not needed %v with DNS name %q", ing, dnsName)
+					log.Printf("Failed to update ingress: %v", err)
 				}
 			} else {
 				log.Printf("updated ingress %v with DNS name %q", ing, dnsName)
