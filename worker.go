@@ -92,6 +92,26 @@ func (item *managedItem) AddIngress(certificateARN string, ingress *kubernetes.I
 	return true
 }
 
+// CertificateARNs returns a map of certificates and their expiry times.
+func (item *managedItem) CertificateARNs() map[string]time.Time {
+	certificates := make(map[string]time.Time, len(item.ingresses))
+	for arn := range item.ingresses {
+		certificates[arn] = time.Time{}
+	}
+
+	for arn, ttl := range item.stack.CertificateARNs() {
+		if _, ok := certificates[arn]; !ok {
+			if ttl.IsZero() {
+				certificates[arn] = time.Now().UTC().Add(defaultCertARNTTL)
+			} else if ttl.After(time.Now().UTC()) {
+				certificates[arn] = ttl
+			}
+		}
+	}
+
+	return certificates
+}
+
 func waitForTerminationSignals(signals ...os.Signal) chan os.Signal {
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, signals...)
@@ -283,20 +303,7 @@ func createStack(awsAdapter *aws.Adapter, item *managedItem) {
 }
 
 func updateStack(awsAdapter *aws.Adapter, item *managedItem) {
-	certificates := make(map[string]time.Time, len(item.ingresses))
-	for arn := range item.ingresses {
-		certificates[arn] = time.Time{}
-	}
-
-	for arn, ttl := range item.stack.CertificateARNs() {
-		if _, ok := certificates[arn]; !ok {
-			if ttl.IsZero() {
-				certificates[arn] = time.Now().UTC().Add(defaultCertARNTTL)
-			} else if ttl.After(time.Now().UTC()) {
-				certificates[arn] = ttl
-			}
-		}
-	}
+	certificates := item.CertificateARNs()
 
 	log.Printf("updating %q stack for %d certificates / %d ingresses", item.scheme, len(certificates), len(item.ingresses))
 
