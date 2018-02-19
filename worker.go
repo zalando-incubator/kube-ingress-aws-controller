@@ -71,6 +71,27 @@ func (item *managedItem) certsEqual() bool {
 	return true
 }
 
+// AddIngress adds an ingress object to the managed item.
+// The function returns true when the ingress was successfully added. The
+// adding can fail in case the managed item reached its limit of ingress
+// certificates (25 max) or if the scheme doesn't match.
+func (item *managedItem) AddIngress(certificateARN string, ingress *kubernetes.Ingress) bool {
+	if item.scheme != ingress.Scheme() {
+		return false
+	}
+
+	if ingresses, ok := item.ingresses[certificateARN]; ok {
+		item.ingresses[certificateARN] = append(ingresses, ingress)
+	} else {
+		if len(item.ingresses) >= maxCertsPerALBSupported {
+			return false
+		}
+		item.ingresses[certificateARN] = []*kubernetes.Ingress{ingress}
+	}
+
+	return true
+}
+
 func waitForTerminationSignals(signals ...os.Signal) chan os.Signal {
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, signals...)
@@ -186,25 +207,16 @@ func buildManagedModel(certsProvider certs.CertificatesProvider, ingresses []*ku
 		// try to add ingress to existing ALB stacks until certificate
 		// limit is exeeded.
 		added := false
-		for _, m := range model {
-			if m.scheme != ingress.Scheme() {
-				continue
+		for _, item := range model {
+			if item.AddIngress(certificateARN, ingress) {
+				added = true
+				break
 			}
-
-			if ingresses, ok := m.ingresses[certificateARN]; ok {
-				m.ingresses[certificateARN] = append(ingresses, ingress)
-			} else {
-				if len(m.ingresses) >= maxCertsPerALBSupported {
-					continue
-				}
-				m.ingresses[certificateARN] = []*kubernetes.Ingress{ingress}
-			}
-			added = true
-			break
 		}
 
-		// if there were no existing ALB stack with room for one more
-		// certificate, add a new one.
+		// if the ingress was not added to the ALB stack because of
+		// non-matching scheme or too many certificates, add a new
+		// stack.
 		if !added {
 			i := map[string][]*kubernetes.Ingress{
 				certificateARN: []*kubernetes.Ingress{ingress},
