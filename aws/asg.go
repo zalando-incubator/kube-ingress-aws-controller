@@ -82,23 +82,48 @@ func getAutoScalingGroupsByName(service autoscalingiface.AutoScalingAPI, autoSca
 	return result, nil
 }
 
-func attachTargetGroupsToAutoScalingGroup(svc autoscalingiface.AutoScalingAPI, targetGroupARNs []string, autoScalingGroupName string) error {
-	params := &autoscaling.AttachLoadBalancerTargetGroupsInput{
+func updateTargetGroupsForAutoScalingGroup(svc autoscalingiface.AutoScalingAPI, targetGroupARNs []string, autoScalingGroupName string) error {
+	params := &autoscaling.DescribeLoadBalancerTargetGroupsInput{
+		AutoScalingGroupName: aws.String(autoScalingGroupName),
+	}
+
+	resp, err := svc.DescribeLoadBalancerTargetGroups(params)
+	if err != nil {
+		return err
+	}
+
+	// find obsolete target groups which should be detached
+	detachARNs := make([]string, 0, len(targetGroupARNs))
+	for _, tg := range resp.LoadBalancerTargetGroups {
+		tgARN := aws.StringValue(tg.LoadBalancerTargetGroupARN)
+		if !inStrSlice(tgARN, targetGroupARNs) {
+			detachARNs = append(detachARNs, tgARN)
+		}
+	}
+
+	attachParams := &autoscaling.AttachLoadBalancerTargetGroupsInput{
 		AutoScalingGroupName: aws.String(autoScalingGroupName),
 		TargetGroupARNs:      aws.StringSlice(targetGroupARNs),
 	}
-	_, err := svc.AttachLoadBalancerTargetGroups(params)
+	_, err = svc.AttachLoadBalancerTargetGroups(attachParams)
 	if err != nil {
 		return err
+	}
+
+	if len(detachARNs) > 0 {
+		err = detachTargetGroupsFromAutoScalingGroup(svc, detachARNs, autoScalingGroupName)
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil
 }
 
-func detachTargetGroupFromAutoScalingGroup(svc autoscalingiface.AutoScalingAPI, targetGroupARN string, autoScalingGroupName string) error {
+func detachTargetGroupsFromAutoScalingGroup(svc autoscalingiface.AutoScalingAPI, targetGroupARNs []string, autoScalingGroupName string) error {
 	params := &autoscaling.DetachLoadBalancerTargetGroupsInput{
 		AutoScalingGroupName: aws.String(autoScalingGroupName),
-		TargetGroupARNs:      aws.StringSlice([]string{targetGroupARN}),
+		TargetGroupARNs:      aws.StringSlice(targetGroupARNs),
 	}
 	_, err := svc.DetachLoadBalancerTargetGroups(params)
 	if err != nil {
@@ -106,4 +131,13 @@ func detachTargetGroupFromAutoScalingGroup(svc autoscalingiface.AutoScalingAPI, 
 	}
 
 	return nil
+}
+
+func inStrSlice(item string, slice []string) bool {
+	for _, str := range slice {
+		if str == item {
+			return true
+		}
+	}
+	return false
 }

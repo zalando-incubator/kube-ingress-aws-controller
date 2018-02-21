@@ -7,9 +7,10 @@ import (
 )
 
 type autoscalingMockOutputs struct {
-	describeAutoScalingGroups      *apiResponse
-	attachLoadBalancerTargetGroups *apiResponse
-	detachLoadBalancerTargetGroups *apiResponse
+	describeAutoScalingGroups        *apiResponse
+	attachLoadBalancerTargetGroups   *apiResponse
+	detachLoadBalancerTargetGroups   *apiResponse
+	describeLoadBalancerTargetGroups *apiResponse
 }
 
 type mockAutoScalingClient struct {
@@ -22,6 +23,13 @@ func (m *mockAutoScalingClient) DescribeAutoScalingGroups(*autoscaling.DescribeA
 		return out, m.outputs.describeAutoScalingGroups.err
 	}
 	return nil, m.outputs.describeAutoScalingGroups.err
+}
+
+func (m *mockAutoScalingClient) DescribeLoadBalancerTargetGroups(*autoscaling.DescribeLoadBalancerTargetGroupsInput) (*autoscaling.DescribeLoadBalancerTargetGroupsOutput, error) {
+	if out, ok := m.outputs.describeLoadBalancerTargetGroups.response.(*autoscaling.DescribeLoadBalancerTargetGroupsOutput); ok {
+		return out, m.outputs.describeLoadBalancerTargetGroups.err
+	}
+	return nil, m.outputs.describeLoadBalancerTargetGroups.err
 }
 
 func (m *mockAutoScalingClient) AttachLoadBalancerTargetGroups(*autoscaling.AttachLoadBalancerTargetGroupsInput) (*autoscaling.AttachLoadBalancerTargetGroupsOutput, error) {

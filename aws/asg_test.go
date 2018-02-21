@@ -4,6 +4,9 @@ import (
 	"fmt"
 	"reflect"
 	"testing"
+
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/service/autoscaling"
 )
 
 type asgtags map[string]string
@@ -183,14 +186,80 @@ func TestAttach(t *testing.T) {
 		responses autoscalingMockOutputs
 		wantError bool
 	}{
-		{"success-attach", autoscalingMockOutputs{attachLoadBalancerTargetGroups: R(nil, nil)},
-			false},
-		{"failed-attach", autoscalingMockOutputs{attachLoadBalancerTargetGroups: R(nil, dummyErr)},
-			true},
+		{
+			name: "describe-failed",
+			responses: autoscalingMockOutputs{
+				describeLoadBalancerTargetGroups: R(nil, dummyErr),
+			},
+			wantError: true,
+		},
+		{
+			name: "success-attach",
+			responses: autoscalingMockOutputs{
+				attachLoadBalancerTargetGroups: R(nil, nil),
+				describeLoadBalancerTargetGroups: R(&autoscaling.DescribeLoadBalancerTargetGroupsOutput{
+					LoadBalancerTargetGroups: []*autoscaling.LoadBalancerTargetGroupState{
+						{
+							LoadBalancerTargetGroupARN: aws.String("foo"),
+						},
+					},
+				}, nil)},
+			wantError: false,
+		},
+		{
+			name: "failed-attach",
+			responses: autoscalingMockOutputs{
+				attachLoadBalancerTargetGroups: R(nil, dummyErr),
+				describeLoadBalancerTargetGroups: R(&autoscaling.DescribeLoadBalancerTargetGroupsOutput{
+					LoadBalancerTargetGroups: []*autoscaling.LoadBalancerTargetGroupState{
+						{
+							LoadBalancerTargetGroupARN: aws.String("foo"),
+						},
+					},
+				}, nil),
+			},
+			wantError: true,
+		},
+		{
+			name: "detach-obsolete",
+			responses: autoscalingMockOutputs{
+				attachLoadBalancerTargetGroups: R(nil, nil),
+				describeLoadBalancerTargetGroups: R(&autoscaling.DescribeLoadBalancerTargetGroupsOutput{
+					LoadBalancerTargetGroups: []*autoscaling.LoadBalancerTargetGroupState{
+						{
+							LoadBalancerTargetGroupARN: aws.String("foo"),
+						},
+						{
+							LoadBalancerTargetGroupARN: aws.String("bar"),
+						},
+					},
+				}, nil),
+				detachLoadBalancerTargetGroups: R(nil, nil),
+			},
+			wantError: false,
+		},
+		{
+			name: "failed-detach",
+			responses: autoscalingMockOutputs{
+				attachLoadBalancerTargetGroups: R(nil, nil),
+				describeLoadBalancerTargetGroups: R(&autoscaling.DescribeLoadBalancerTargetGroupsOutput{
+					LoadBalancerTargetGroups: []*autoscaling.LoadBalancerTargetGroupState{
+						{
+							LoadBalancerTargetGroupARN: aws.String("foo"),
+						},
+						{
+							LoadBalancerTargetGroupARN: aws.String("bar"),
+						},
+					},
+				}, nil),
+				detachLoadBalancerTargetGroups: R(nil, dummyErr),
+			},
+			wantError: true,
+		},
 	} {
 		t.Run(fmt.Sprintf("%v", test.name), func(t *testing.T) {
 			mockSvc := &mockAutoScalingClient{outputs: test.responses}
-			err := attachTargetGroupsToAutoScalingGroup(mockSvc, []string{"foo"}, "bar")
+			err := updateTargetGroupsForAutoScalingGroup(mockSvc, []string{"foo"}, "bar")
 			if test.wantError {
 				if err == nil {
 					t.Error("wanted an error but call seemed to have succeeded")
@@ -218,7 +287,7 @@ func TestDetach(t *testing.T) {
 	} {
 		t.Run(fmt.Sprintf("%v", test.name), func(t *testing.T) {
 			mockSvc := &mockAutoScalingClient{outputs: test.responses}
-			err := detachTargetGroupFromAutoScalingGroup(mockSvc, "foo", "bar")
+			err := detachTargetGroupsFromAutoScalingGroup(mockSvc, []string{"foo"}, "bar")
 			if test.wantError {
 				if err == nil {
 					t.Error("wanted an error but call seemed to have succeeded")
