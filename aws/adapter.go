@@ -277,7 +277,7 @@ func (a *Adapter) UpdateTargetGroupsAndAutoScalingGroups(stacks []*Stack) {
 	}
 	for _, asg := range a.autoScalingGroups {
 		// This call is idempotent and safe to execute every time
-		if err := attachTargetGroupsToAutoScalingGroup(a.autoscaling, targetGroupARNs, asg.name); err != nil {
+		if err := updateTargetGroupsForAutoScalingGroup(a.autoscaling, targetGroupARNs, asg.name); err != nil {
 			log.Printf("UpdateTargetGroupsAndAutoScalingGroups() failed to attach target groups to ASG: %v", err)
 		}
 	}
@@ -361,7 +361,7 @@ func (a *Adapter) GetStack(stackID string) (*Stack, error) {
 // DeleteStack deletes the CloudFormation stack with the given name
 func (a *Adapter) DeleteStack(stack *Stack) error {
 	for _, asg := range a.autoScalingGroups {
-		if err := detachTargetGroupFromAutoScalingGroup(a.autoscaling, stack.TargetGroupARN(), asg.name); err != nil {
+		if err := detachTargetGroupsFromAutoScalingGroup(a.autoscaling, []string{stack.TargetGroupARN()}, asg.name); err != nil {
 			return fmt.Errorf("DeleteStack failed to detach: %v", err)
 		}
 	}
