@@ -21,15 +21,12 @@ import (
 	"github.com/zalando-incubator/kube-ingress-aws-controller/kubernetes"
 )
 
-const (
-	defaultCertARNTTL = 5 * time.Minute
-)
-
 type managedItem struct {
 	ingresses map[string][]*kubernetes.Ingress
 	scheme    string
 	stack     *aws.Stack
 	shared    bool
+	certTTL   time.Duration
 }
 
 const (
@@ -113,7 +110,7 @@ func (item *managedItem) CertificateARNs() map[string]time.Time {
 	for arn, ttl := range item.stack.CertificateARNs() {
 		if _, ok := certificates[arn]; !ok {
 			if ttl.IsZero() {
-				certificates[arn] = time.Now().UTC().Add(defaultCertARNTTL)
+				certificates[arn] = time.Now().UTC().Add(item.certTTL)
 			} else if ttl.After(time.Now().UTC()) {
 				certificates[arn] = ttl
 			}
@@ -146,7 +143,7 @@ func waitForTerminationSignals(signals ...os.Signal) chan os.Signal {
 	return c
 }
 
-func startPolling(quitCH chan struct{}, certsProvider certs.CertificatesProvider, certsPerALB int, awsAdapter *aws.Adapter, kubeAdapter *kubernetes.Adapter, pollingInterval time.Duration) {
+func startPolling(quitCH chan struct{}, certsProvider certs.CertificatesProvider, certsPerALB int, certTTL time.Duration, awsAdapter *aws.Adapter, kubeAdapter *kubernetes.Adapter, pollingInterval time.Duration) {
 	items := make(chan *managedItem, maxTargetGroupSupported)
 	for {
 		log.Printf("Start polling sleep %s", pollingInterval)
@@ -155,14 +152,14 @@ func startPolling(quitCH chan struct{}, certsProvider certs.CertificatesProvider
 			quitCH <- struct{}{}
 			return
 		case <-time.After(pollingInterval):
-			if err := doWork(certsProvider, certsPerALB, awsAdapter, kubeAdapter, items); err != nil {
+			if err := doWork(certsProvider, certsPerALB, certTTL, awsAdapter, kubeAdapter, items); err != nil {
 				log.Println(err)
 			}
 		}
 	}
 }
 
-func doWork(certsProvider certs.CertificatesProvider, certsPerALB int, awsAdapter *aws.Adapter, kubeAdapter *kubernetes.Adapter, items chan<- *managedItem) error {
+func doWork(certsProvider certs.CertificatesProvider, certsPerALB int, certTTL time.Duration, awsAdapter *aws.Adapter, kubeAdapter *kubernetes.Adapter, items chan<- *managedItem) error {
 	defer func() error {
 		if r := recover(); r != nil {
 			log.Println("shit has hit the fan:", errors.Wrap(r.(error), "panic caused by"))
@@ -194,7 +191,7 @@ func doWork(certsProvider certs.CertificatesProvider, certsPerALB int, awsAdapte
 	log.Printf("Found %d single instances", len(awsAdapter.SingleInstances()))
 	log.Printf("Found %d EC2 instances", awsAdapter.CachedInstances())
 
-	model := buildManagedModel(certsProvider, certsPerALB, ingresses, stacks)
+	model := buildManagedModel(certsProvider, certsPerALB, certTTL, ingresses, stacks)
 	log.Printf("Have %d models", len(model))
 	for _, managedItem := range model {
 		switch managedItem.Status() {
@@ -214,7 +211,7 @@ func doWork(certsProvider certs.CertificatesProvider, certsPerALB int, awsAdapte
 	return nil
 }
 
-func buildManagedModel(certsProvider certs.CertificatesProvider, certsPerALB int, ingresses []*kubernetes.Ingress, stacks []*aws.Stack) []*managedItem {
+func buildManagedModel(certsProvider certs.CertificatesProvider, certsPerALB int, certTTL time.Duration, ingresses []*kubernetes.Ingress, stacks []*aws.Stack) []*managedItem {
 	sort.Slice(stacks, func(i, j int) bool {
 		if len(stacks[i].CertificateARNs()) == len(stacks[j].CertificateARNs()) {
 			return stacks[i].Name() < stacks[j].Name()
@@ -229,6 +226,7 @@ func buildManagedModel(certsProvider certs.CertificatesProvider, certsPerALB int
 			ingresses: make(map[string][]*kubernetes.Ingress),
 			scheme:    stack.Scheme(),
 			shared:    stack.OwnerIngress() == "",
+			certTTL:   certTTL,
 		}
 		model = append(model, item)
 	}
