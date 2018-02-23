@@ -18,6 +18,7 @@ func TestMappingRoundtrip(t *testing.T) {
 		hostName:       "bar",
 		scheme:         "internal",
 		certificateARN: "zbr",
+		shared:         true,
 	}
 
 	kubeMeta := ingressItemMetadata{
