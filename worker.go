@@ -75,7 +75,7 @@ func (item *managedItem) certsEqual() bool {
 // The function returns true when the ingress was successfully added. The
 // adding can fail in case the managed item reached its limit of ingress
 // certificates (25 max) or if the scheme doesn't match.
-func (item *managedItem) AddIngress(certificateARN string, ingress *kubernetes.Ingress) bool {
+func (item *managedItem) AddIngress(certificateARN string, ingress *kubernetes.Ingress, maxCerts int) bool {
 	if item.scheme != ingress.Scheme() {
 		return false
 	}
@@ -83,7 +83,7 @@ func (item *managedItem) AddIngress(certificateARN string, ingress *kubernetes.I
 	if ingresses, ok := item.ingresses[certificateARN]; ok {
 		item.ingresses[certificateARN] = append(ingresses, ingress)
 	} else {
-		if len(item.ingresses) >= maxCertsPerALBSupported {
+		if len(item.ingresses) >= maxCerts {
 			return false
 		}
 		item.ingresses[certificateARN] = []*kubernetes.Ingress{ingress}
@@ -118,7 +118,7 @@ func waitForTerminationSignals(signals ...os.Signal) chan os.Signal {
 	return c
 }
 
-func startPolling(quitCH chan struct{}, certsProvider certs.CertificatesProvider, awsAdapter *aws.Adapter, kubeAdapter *kubernetes.Adapter, pollingInterval time.Duration) {
+func startPolling(quitCH chan struct{}, certsProvider certs.CertificatesProvider, certsPerALB int, awsAdapter *aws.Adapter, kubeAdapter *kubernetes.Adapter, pollingInterval time.Duration) {
 	items := make(chan *managedItem, maxTargetGroupSupported)
 	for {
 		log.Printf("Start polling sleep %s", pollingInterval)
@@ -127,14 +127,14 @@ func startPolling(quitCH chan struct{}, certsProvider certs.CertificatesProvider
 			quitCH <- struct{}{}
 			return
 		case <-time.After(pollingInterval):
-			if err := doWork(certsProvider, awsAdapter, kubeAdapter, items); err != nil {
+			if err := doWork(certsProvider, certsPerALB, awsAdapter, kubeAdapter, items); err != nil {
 				log.Println(err)
 			}
 		}
 	}
 }
 
-func doWork(certsProvider certs.CertificatesProvider, awsAdapter *aws.Adapter, kubeAdapter *kubernetes.Adapter, items chan<- *managedItem) error {
+func doWork(certsProvider certs.CertificatesProvider, certsPerALB int, awsAdapter *aws.Adapter, kubeAdapter *kubernetes.Adapter, items chan<- *managedItem) error {
 	defer func() error {
 		if r := recover(); r != nil {
 			log.Println("shit has hit the fan:", errors.Wrap(r.(error), "panic caused by"))
@@ -166,7 +166,7 @@ func doWork(certsProvider certs.CertificatesProvider, awsAdapter *aws.Adapter, k
 	log.Printf("Found %d single instances", len(awsAdapter.SingleInstances()))
 	log.Printf("Found %d EC2 instances", awsAdapter.CachedInstances())
 
-	model := buildManagedModel(certsProvider, ingresses, stacks)
+	model := buildManagedModel(certsProvider, certsPerALB, ingresses, stacks)
 	log.Printf("Have %d models", len(model))
 	for _, managedItem := range model {
 		switch managedItem.Status() {
@@ -186,7 +186,7 @@ func doWork(certsProvider certs.CertificatesProvider, awsAdapter *aws.Adapter, k
 	return nil
 }
 
-func buildManagedModel(certsProvider certs.CertificatesProvider, ingresses []*kubernetes.Ingress, stacks []*aws.Stack) []*managedItem {
+func buildManagedModel(certsProvider certs.CertificatesProvider, certsPerALB int, ingresses []*kubernetes.Ingress, stacks []*aws.Stack) []*managedItem {
 	sort.Slice(stacks, func(i, j int) bool {
 		if len(stacks[i].CertificateARNs()) == len(stacks[j].CertificateARNs()) {
 			return stacks[i].Name() < stacks[j].Name()
@@ -228,7 +228,7 @@ func buildManagedModel(certsProvider certs.CertificatesProvider, ingresses []*ku
 		// limit is exeeded.
 		added := false
 		for _, item := range model {
-			if item.AddIngress(certificateARN, ingress) {
+			if item.AddIngress(certificateARN, ingress, certsPerALB) {
 				added = true
 				break
 			}
