@@ -18,6 +18,10 @@ import (
 	"github.com/zalando-incubator/kube-ingress-aws-controller/kubernetes"
 )
 
+const (
+	defaultDisableSNISupport = false
+)
+
 var (
 	apiServerBaseURL    string
 	pollingInterval     time.Duration
@@ -28,6 +32,7 @@ var (
 	healthCheckPort     uint
 	healthcheckInterval time.Duration
 	metricsAddress      string
+	disableSNISupport   bool
 )
 
 func loadSettings() error {
@@ -44,6 +49,7 @@ func loadSettings() error {
 	flag.DurationVar(&certPollingInterval, "cert-polling-interval", aws.DefaultCertificateUpdateInterval,
 		"sets the polling interval for the certificates cache refresh. The flag accepts a value "+
 			"acceptable to time.ParseDuration")
+	flag.BoolVar(&disableSNISupport, "disable-sni-support", defaultDisableSNISupport, "disables SNI support limiting the number of certificates per ALB to 1.")
 	flag.StringVar(&healthCheckPath, "health-check-path", aws.DefaultHealthCheckPath,
 		"sets the health check path for the created target groups")
 	flag.UintVar(&healthCheckPort, "health-check-port", aws.DefaultHealthCheckPort,
@@ -151,6 +157,11 @@ func main() {
 		log.Fatal(err)
 	}
 
+	certificatesPerALB := maxCertsPerALBSupported
+	if disableSNISupport {
+		certificatesPerALB = 1
+	}
+
 	log.Println("controller manifest:")
 	log.Printf("\tkubernetes API server: %s", apiServerBaseURL)
 	log.Printf("\tCluster ID: %s", awsAdapter.ClusterID())
@@ -160,10 +171,11 @@ func main() {
 	log.Printf("\tinternal subnet ids: %s", awsAdapter.FindLBSubnets(elbv2.LoadBalancerSchemeEnumInternal))
 	log.Printf("\tpublic subnet ids: %s", awsAdapter.FindLBSubnets(elbv2.LoadBalancerSchemeEnumInternetFacing))
 	log.Printf("\tEC2 filters: %s", awsAdapter.FiltersString())
+	log.Printf("\tCetificates Per ALB (SNI: %t): %d", certificatesPerALB > 1, certificatesPerALB)
 
 	go serveMetrics(metricsAddress)
 	quitCH := make(chan struct{})
-	go startPolling(quitCH, certificatesProvider, awsAdapter, kubeAdapter, pollingInterval)
+	go startPolling(quitCH, certificatesProvider, certificatesPerALB, awsAdapter, kubeAdapter, pollingInterval)
 	<-quitCH
 
 	log.Printf("terminating %s", os.Args[0])
