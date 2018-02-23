@@ -143,6 +143,12 @@ func newIngressFromKube(kubeIngress *ingress) *Ingress {
 }
 
 func newIngressForKube(i *Ingress) *ingress {
+	shared := "true"
+
+	if !i.shared {
+		shared = "false"
+	}
+
 	return &ingress{
 		Metadata: ingressItemMetadata{
 			Namespace: i.namespace,
@@ -150,6 +156,7 @@ func newIngressForKube(i *Ingress) *ingress {
 			Annotations: map[string]interface{}{
 				ingressCertificateARNAnnotation: i.certificateARN,
 				ingressSchemeAnnotation:         i.scheme,
+				ingressSharedAnnotation:         shared,
 			},
 		},
 		Status: ingressStatus{
