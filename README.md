@@ -241,6 +241,12 @@ spec:
 
 You can only select from `internet-facing` (default) and `internal` options.
 
+By default the ingress-controller will aggregate all ingresses under as few
+Application Load Balancers as possible (unless running with
+`-disable-sni-support`). If you like to provision an Application Load Balancer
+that is unique for an ingress you can use the annotation
+`zalando.org/aws-load-balancer-shared: "false"`.
+
 The new Application Load Balancers have a custom tag marking them as *managed* load balancers to differentiate them
 from other load balancers. The tag looks like this:
 

@@ -39,6 +39,7 @@ type Ingress struct {
 	hostName       string
 	scheme         string
 	certHostname   string
+	shared         bool
 }
 
 // CertificateARN returns the AWS certificate (IAM or ACM) ARN found in the ingress resource metadata.
@@ -79,6 +80,21 @@ func (i *Ingress) SetScheme(scheme string) {
 	i.scheme = scheme
 }
 
+// Shared return true if the ingress can share ALB with other ingresses.
+func (i *Ingress) Shared() bool {
+	return i.shared
+}
+
+// Name returns the ingress name.
+func (i *Ingress) Name() string {
+	return i.name
+}
+
+// Namespace returns the ingress namespace.
+func (i *Ingress) Namespace() string {
+	return i.namespace
+}
+
 func newIngressFromKube(kubeIngress *ingress) *Ingress {
 	var host, certHostname, scheme string
 	for _, ingressLoadBalancer := range kubeIngress.Status.LoadBalancer.Ingress {
@@ -108,6 +124,13 @@ func newIngressFromKube(kubeIngress *ingress) *Ingress {
 		certHostname = certDomain
 	}
 
+	shared := true
+
+	sharedValue := kubeIngress.getAnnotationsString(ingressSharedAnnotation, "")
+	if sharedValue == "false" {
+		shared = false
+	}
+
 	return &Ingress{
 		certificateARN: kubeIngress.getAnnotationsString(ingressCertificateARNAnnotation, ""),
 		namespace:      kubeIngress.Metadata.Namespace,
@@ -115,10 +138,17 @@ func newIngressFromKube(kubeIngress *ingress) *Ingress {
 		hostName:       host,
 		scheme:         scheme,
 		certHostname:   certHostname,
+		shared:         shared,
 	}
 }
 
 func newIngressForKube(i *Ingress) *ingress {
+	shared := "true"
+
+	if !i.shared {
+		shared = "false"
+	}
+
 	return &ingress{
 		Metadata: ingressItemMetadata{
 			Namespace: i.namespace,
@@ -126,6 +156,7 @@ func newIngressForKube(i *Ingress) *ingress {
 			Annotations: map[string]interface{}{
 				ingressCertificateARNAnnotation: i.certificateARN,
 				ingressSchemeAnnotation:         i.scheme,
+				ingressSharedAnnotation:         shared,
 			},
 		},
 		Status: ingressStatus{

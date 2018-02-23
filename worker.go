@@ -29,6 +29,7 @@ type managedItem struct {
 	ingresses map[string][]*kubernetes.Ingress
 	scheme    string
 	stack     *aws.Stack
+	shared    bool
 }
 
 const (
@@ -80,6 +81,14 @@ func (item *managedItem) AddIngress(certificateARN string, ingress *kubernetes.I
 		return false
 	}
 
+	resourceName := fmt.Sprintf("%s/%s", ingress.Namespace(), ingress.Name())
+
+	owner := item.stack.OwnerIngress()
+
+	if !ingress.Shared() && resourceName != owner {
+		return false
+	}
+
 	if ingresses, ok := item.ingresses[certificateARN]; ok {
 		item.ingresses[certificateARN] = append(ingresses, ingress)
 	} else {
@@ -88,6 +97,8 @@ func (item *managedItem) AddIngress(certificateARN string, ingress *kubernetes.I
 		}
 		item.ingresses[certificateARN] = []*kubernetes.Ingress{ingress}
 	}
+
+	item.shared = ingress.Shared()
 
 	return true
 }
@@ -110,6 +121,23 @@ func (item *managedItem) CertificateARNs() map[string]time.Time {
 	}
 
 	return certificates
+}
+
+// Owner returns the ingress resource owning the item. If there are no owners
+// it will return an empty string meaning the item is shared between multiple
+// ingresses.
+func (item *managedItem) Owner() string {
+	if item.shared {
+		return ""
+	}
+
+	for _, ingresses := range item.ingresses {
+		for _, ingress := range ingresses {
+			return fmt.Sprintf("%s/%s", ingress.Namespace(), ingress.Name())
+		}
+	}
+
+	return ""
 }
 
 func waitForTerminationSignals(signals ...os.Signal) chan os.Signal {
@@ -200,6 +228,7 @@ func buildManagedModel(certsProvider certs.CertificatesProvider, certsPerALB int
 			stack:     stack,
 			ingresses: make(map[string][]*kubernetes.Ingress),
 			scheme:    stack.Scheme(),
+			shared:    stack.OwnerIngress() == "",
 		}
 		model = append(model, item)
 	}
@@ -241,7 +270,7 @@ func buildManagedModel(certsProvider certs.CertificatesProvider, certsPerALB int
 			i := map[string][]*kubernetes.Ingress{
 				certificateARN: []*kubernetes.Ingress{ingress},
 			}
-			model = append(model, &managedItem{ingresses: i, scheme: ingress.Scheme()})
+			model = append(model, &managedItem{ingresses: i, scheme: ingress.Scheme(), shared: ingress.Shared()})
 		}
 	}
 
@@ -288,7 +317,7 @@ func createStack(awsAdapter *aws.Adapter, item *managedItem) {
 
 	log.Printf("creating stack for certificates %q / ingress %q", certificates, item.ingresses)
 
-	stackId, err := awsAdapter.CreateStack(certificates, item.scheme)
+	stackId, err := awsAdapter.CreateStack(certificates, item.scheme, item.Owner())
 	if err != nil {
 		if isAlreadyExistsError(err) {
 			item.stack, err = awsAdapter.GetStack(stackId)

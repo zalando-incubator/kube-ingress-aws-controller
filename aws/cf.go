@@ -14,6 +14,7 @@ import (
 const (
 	certificateARNTagLegacy = "ingress:certificate-arn"
 	certificateARNTagPrefix = "ingress:certificate-arn/"
+	ingressOwnerTag         = "ingress:owner"
 )
 
 // Stack is a simple wrapper around a CloudFormation Stack.
@@ -24,6 +25,7 @@ type Stack struct {
 	scheme          string
 	targetGroupARN  string
 	certificateARNs map[string]time.Time
+	ownerIngress    string
 	tags            map[string]string
 }
 
@@ -45,6 +47,10 @@ func (s *Stack) Scheme() string {
 
 func (s *Stack) TargetGroupARN() string {
 	return s.targetGroupARN
+}
+
+func (s *Stack) OwnerIngress() string {
+	return s.ownerIngress
 }
 
 // IsComplete returns true if the stack status is a complete state.
@@ -126,6 +132,7 @@ const (
 type stackSpec struct {
 	name             string
 	scheme           string
+	ownerIngress     string
 	subnets          []string
 	certificateARNs  map[string]time.Time
 	securityGroupID  string
@@ -176,6 +183,11 @@ func createStack(svc cloudformationiface.CloudFormationAPI, spec *stackSpec) (st
 			cfParam(parameterTargetGroupHealthCheckIntervalParameter, fmt.Sprintf("%.0f", spec.healthCheck.interval.Seconds())),
 		)
 	}
+
+	if spec.ownerIngress != "" {
+		params.Tags = append(params.Tags, cfTag(ingressOwnerTag, spec.ownerIngress))
+	}
+
 	resp, err := svc.CreateStack(params)
 	if err != nil {
 		return spec.name, err
@@ -216,6 +228,11 @@ func updateStack(svc cloudformationiface.CloudFormationAPI, spec *stackSpec) (st
 			cfParam(parameterTargetGroupHealthCheckIntervalParameter, fmt.Sprintf("%.0f", spec.healthCheck.interval.Seconds())),
 		)
 	}
+
+	if spec.ownerIngress != "" {
+		params.Tags = append(params.Tags, cfTag(ingressOwnerTag, spec.ownerIngress))
+	}
+
 	resp, err := svc.UpdateStack(params)
 	if err != nil {
 		return spec.name, err
@@ -282,6 +299,7 @@ func mapToManagedStack(stack *cloudformation.Stack) *Stack {
 	parameters := convertStackParameters(stack.Parameters)
 
 	certificateARNs := make(map[string]time.Time, len(tags))
+	ownerIngress := ""
 	for key, value := range tags {
 		if strings.HasPrefix(key, certificateARNTagPrefix) {
 			arn := strings.TrimPrefix(key, certificateARNTagPrefix)
@@ -297,6 +315,10 @@ func mapToManagedStack(stack *cloudformation.Stack) *Stack {
 		if key == certificateARNTagLegacy {
 			certificateARNs[value] = time.Time{}
 		}
+
+		if key == ingressOwnerTag {
+			ownerIngress = value
+		}
 	}
 
 	return &Stack{
@@ -306,6 +328,7 @@ func mapToManagedStack(stack *cloudformation.Stack) *Stack {
 		scheme:          parameters[parameterLoadBalancerSchemeParameter],
 		certificateARNs: certificateARNs,
 		tags:            tags,
+		ownerIngress:    ownerIngress,
 		status:          aws.StringValue(stack.StackStatus),
 	}
 }
