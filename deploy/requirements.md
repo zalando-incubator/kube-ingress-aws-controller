@@ -54,6 +54,11 @@ Please also note that the worker nodes will need the right permission to describ
     "Effect": "Allow"
 },
 {
+    "Action": "autoscaling:DescribeLoadBalancerTargetGroups",
+    "Resource": "*",
+    "Effect": "Allow"
+},
+{
     "Action": "elasticloadbalancing:DescribeLoadBalancers",
     "Resource": "*",
     "Effect": "Allow"
