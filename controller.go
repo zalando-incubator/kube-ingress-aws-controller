@@ -20,6 +20,7 @@ import (
 
 const (
 	defaultDisableSNISupport = false
+	defaultCertTTL           = 30 * time.Minute
 )
 
 var (
@@ -33,6 +34,7 @@ var (
 	healthcheckInterval time.Duration
 	metricsAddress      string
 	disableSNISupport   bool
+	certTTL             time.Duration
 )
 
 func loadSettings() error {
@@ -50,6 +52,8 @@ func loadSettings() error {
 		"sets the polling interval for the certificates cache refresh. The flag accepts a value "+
 			"acceptable to time.ParseDuration")
 	flag.BoolVar(&disableSNISupport, "disable-sni-support", defaultDisableSNISupport, "disables SNI support limiting the number of certificates per ALB to 1.")
+	flag.DurationVar(&certTTL, "cert-ttl-timeout", defaultCertTTL,
+		"sets the timeout of how long a certificate is kept on an old ALB to be decommissioned.")
 	flag.StringVar(&healthCheckPath, "health-check-path", aws.DefaultHealthCheckPath,
 		"sets the health check path for the created target groups")
 	flag.UintVar(&healthCheckPort, "health-check-port", aws.DefaultHealthCheckPort,
@@ -175,7 +179,7 @@ func main() {
 
 	go serveMetrics(metricsAddress)
 	quitCH := make(chan struct{})
-	go startPolling(quitCH, certificatesProvider, certificatesPerALB, awsAdapter, kubeAdapter, pollingInterval)
+	go startPolling(quitCH, certificatesProvider, certificatesPerALB, certTTL, awsAdapter, kubeAdapter, pollingInterval)
 	<-quitCH
 
 	log.Printf("terminating %s", os.Args[0])
