@@ -24,17 +24,18 @@ const (
 )
 
 var (
-	apiServerBaseURL    string
-	pollingInterval     time.Duration
-	cfCustomTemplate    string
-	creationTimeout     time.Duration
-	certPollingInterval time.Duration
-	healthCheckPath     string
-	healthCheckPort     uint
-	healthcheckInterval time.Duration
-	metricsAddress      string
-	disableSNISupport   bool
-	certTTL             time.Duration
+	apiServerBaseURL           string
+	pollingInterval            time.Duration
+	cfCustomTemplate           string
+	creationTimeout            time.Duration
+	certPollingInterval        time.Duration
+	healthCheckPath            string
+	healthCheckPort            uint
+	healthcheckInterval        time.Duration
+	metricsAddress             string
+	disableSNISupport          bool
+	certTTL                    time.Duration
+	stackTerminationProtection bool
 )
 
 func loadSettings() error {
@@ -52,6 +53,7 @@ func loadSettings() error {
 		"sets the polling interval for the certificates cache refresh. The flag accepts a value "+
 			"acceptable to time.ParseDuration")
 	flag.BoolVar(&disableSNISupport, "disable-sni-support", defaultDisableSNISupport, "disables SNI support limiting the number of certificates per ALB to 1.")
+	flag.BoolVar(&stackTerminationProtection, "stack-termination-protection", false, "enables stack termination protection for the stacks managed by the controller.")
 	flag.DurationVar(&certTTL, "cert-ttl-timeout", defaultCertTTL,
 		"sets the timeout of how long a certificate is kept on an old ALB to be decommissioned.")
 	flag.StringVar(&healthCheckPath, "health-check-path", aws.DefaultHealthCheckPath,
@@ -137,7 +139,8 @@ func main() {
 		WithHealthCheckPath(healthCheckPath).
 		WithHealthCheckPort(healthCheckPort).
 		WithCreationTimeout(creationTimeout).
-		WithCustomTemplate(cfCustomTemplate)
+		WithCustomTemplate(cfCustomTemplate).
+		WithStackTerminationProtection(stackTerminationProtection)
 
 	certificatesProvider, err := certs.NewCachingProvider(
 		certPollingInterval,

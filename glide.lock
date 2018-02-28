@@ -1,10 +1,10 @@
-hash: 193d96396c6fb12cba493b6c70116f4f428c9c1efbba8e18c3c7152f9c29213b
-updated: 2018-02-15T01:11:31.164349405+01:00
+hash: daa66bbd8c5cb55619791c64a264055de9a8ed87d29f4274d4de0170f033399d
+updated: 2018-02-27T22:41:20.013074127+01:00
 imports:
 - name: bitbucket.org/ww/goautoneg
   version: 75cd24fc2f2c2a2088577d12123ddee5f54e0675
 - name: github.com/aws/aws-sdk-go
-  version: 96358b8282b1a3aa66836d2f2fe66216cc419668
+  version: ce48e67ca697079662aee65a13202f37a185962b
   subpackages:
   - aws
   - aws/awserr
@@ -22,6 +22,7 @@ imports:
   - aws/request
   - aws/session
   - aws/signer/v4
+  - internal/sdkrand
   - internal/shareddefaults
   - private/protocol
   - private/protocol/ec2query

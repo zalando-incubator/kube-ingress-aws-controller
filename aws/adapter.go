@@ -38,17 +38,18 @@ type Adapter struct {
 	iam            iamiface.IAMAPI
 	cloudformation cloudformationiface.CloudFormationAPI
 
-	customTemplate      string
-	manifest            *manifest
-	healthCheckPath     string
-	healthCheckPort     uint
-	healthCheckInterval time.Duration
-	creationTimeout     time.Duration
-	stackTTL            time.Duration
-	autoScalingGroups   map[string]*autoScalingGroupDetails
-	ec2Details          map[string]*instanceDetails
-	singleInstances     map[string]*instanceDetails
-	obsoleteInstances   []string
+	customTemplate             string
+	manifest                   *manifest
+	healthCheckPath            string
+	healthCheckPort            uint
+	healthCheckInterval        time.Duration
+	creationTimeout            time.Duration
+	stackTTL                   time.Duration
+	autoScalingGroups          map[string]*autoScalingGroupDetails
+	ec2Details                 map[string]*instanceDetails
+	singleInstances            map[string]*instanceDetails
+	obsoleteInstances          []string
+	stackTerminationProtection bool
 }
 
 type manifest struct {
@@ -179,6 +180,13 @@ func (a *Adapter) WithCreationTimeout(interval time.Duration) *Adapter {
 // to create Load Balancer stacks
 func (a *Adapter) WithCustomTemplate(template string) *Adapter {
 	a.customTemplate = template
+	return a
+}
+
+// WithStackTerminationProtection returns the receiver adapter after changing
+// the stack termination protection value.
+func (a *Adapter) WithStackTerminationProtection(terminationProtection bool) *Adapter {
+	a.stackTerminationProtection = terminationProtection
 	return a
 }
 
@@ -324,7 +332,8 @@ func (a *Adapter) CreateStack(certificateARNs []string, scheme, owner string) (s
 			port:     a.healthCheckPort,
 			interval: a.healthCheckInterval,
 		},
-		timeoutInMinutes: uint(a.creationTimeout.Minutes()),
+		timeoutInMinutes:           uint(a.creationTimeout.Minutes()),
+		stackTerminationProtection: a.stackTerminationProtection,
 	}
 
 	return createStack(a.cloudformation, spec)
@@ -344,7 +353,8 @@ func (a *Adapter) UpdateStack(stackName string, certificateARNs map[string]time.
 			port:     a.healthCheckPort,
 			interval: a.healthCheckInterval,
 		},
-		timeoutInMinutes: uint(a.creationTimeout.Minutes()),
+		timeoutInMinutes:           uint(a.creationTimeout.Minutes()),
+		stackTerminationProtection: a.stackTerminationProtection,
 	}
 
 	return updateStack(a.cloudformation, spec)
