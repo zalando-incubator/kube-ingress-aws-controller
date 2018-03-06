@@ -270,8 +270,18 @@ func cfTag(key, value string) *cloudformation.Tag {
 }
 
 func deleteStack(svc cloudformationiface.CloudFormationAPI, stackName string) error {
+	termParams := &cloudformation.UpdateTerminationProtectionInput{
+		StackName:                   aws.String(stackName),
+		EnableTerminationProtection: aws.Bool(false),
+	}
+
+	_, err := svc.UpdateTerminationProtection(termParams)
+	if err != nil {
+		return err
+	}
+
 	params := &cloudformation.DeleteStackInput{StackName: aws.String(stackName)}
-	_, err := svc.DeleteStack(params)
+	_, err = svc.DeleteStack(params)
 	return err
 }
 
