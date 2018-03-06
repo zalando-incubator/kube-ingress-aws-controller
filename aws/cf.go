@@ -130,17 +130,18 @@ const (
 )
 
 type stackSpec struct {
-	name             string
-	scheme           string
-	ownerIngress     string
-	subnets          []string
-	certificateARNs  map[string]time.Time
-	securityGroupID  string
-	clusterID        string
-	vpcID            string
-	healthCheck      *healthCheck
-	timeoutInMinutes uint
-	customTemplate   string
+	name                       string
+	scheme                     string
+	ownerIngress               string
+	subnets                    []string
+	certificateARNs            map[string]time.Time
+	securityGroupID            string
+	clusterID                  string
+	vpcID                      string
+	healthCheck                *healthCheck
+	timeoutInMinutes           uint
+	customTemplate             string
+	stackTerminationProtection bool
 }
 
 type healthCheck struct {
@@ -168,8 +169,9 @@ func createStack(svc cloudformationiface.CloudFormationAPI, spec *stackSpec) (st
 			cfTag(kubernetesCreatorTag, kubernetesCreatorValue),
 			cfTag(clusterIDTagPrefix+spec.clusterID, resourceLifecycleOwned),
 		},
-		TemplateBody:     aws.String(template),
-		TimeoutInMinutes: aws.Int64(int64(spec.timeoutInMinutes)),
+		TemplateBody:                aws.String(template),
+		TimeoutInMinutes:            aws.Int64(int64(spec.timeoutInMinutes)),
+		EnableTerminationProtection: aws.Bool(spec.stackTerminationProtection),
 	}
 
 	for certARN, ttl := range spec.certificateARNs {
@@ -233,6 +235,18 @@ func updateStack(svc cloudformationiface.CloudFormationAPI, spec *stackSpec) (st
 		params.Tags = append(params.Tags, cfTag(ingressOwnerTag, spec.ownerIngress))
 	}
 
+	if spec.stackTerminationProtection {
+		params := &cloudformation.UpdateTerminationProtectionInput{
+			StackName:                   aws.String(spec.name),
+			EnableTerminationProtection: aws.Bool(spec.stackTerminationProtection),
+		}
+
+		_, err := svc.UpdateTerminationProtection(params)
+		if err != nil {
+			return spec.name, err
+		}
+	}
+
 	resp, err := svc.UpdateStack(params)
 	if err != nil {
 		return spec.name, err
@@ -256,8 +270,18 @@ func cfTag(key, value string) *cloudformation.Tag {
 }
 
 func deleteStack(svc cloudformationiface.CloudFormationAPI, stackName string) error {
+	termParams := &cloudformation.UpdateTerminationProtectionInput{
+		StackName:                   aws.String(stackName),
+		EnableTerminationProtection: aws.Bool(false),
+	}
+
+	_, err := svc.UpdateTerminationProtection(termParams)
+	if err != nil {
+		return err
+	}
+
 	params := &cloudformation.DeleteStackInput{StackName: aws.String(stackName)}
-	_, err := svc.DeleteStack(params)
+	_, err = svc.DeleteStack(params)
 	return err
 }
 

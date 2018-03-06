@@ -7,10 +7,11 @@ import (
 )
 
 type cfMockOutputs struct {
-	describeStackPages *apiResponse
-	describeStacks     *apiResponse
-	createStack        *apiResponse
-	deleteStack        *apiResponse
+	describeStackPages          *apiResponse
+	describeStacks              *apiResponse
+	createStack                 *apiResponse
+	deleteStack                 *apiResponse
+	updateTerminationProtection *apiResponse
 }
 
 type mockCloudFormationClient struct {
@@ -65,4 +66,11 @@ func (m *mockCloudFormationClient) DeleteStack(params *cloudformation.DeleteStac
 
 func mockDeleteStackOutput(stackId string) *cloudformation.DeleteStackOutput {
 	return &cloudformation.DeleteStackOutput{}
+}
+
+func (m *mockCloudFormationClient) UpdateTerminationProtection(params *cloudformation.UpdateTerminationProtectionInput) (*cloudformation.UpdateTerminationProtectionOutput, error) {
+	if out, ok := m.outputs.updateTerminationProtection.response.(*cloudformation.UpdateTerminationProtectionOutput); ok {
+		return out, m.outputs.updateTerminationProtection.err
+	}
+	return nil, m.outputs.updateTerminationProtection.err
 }

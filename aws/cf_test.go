@@ -73,13 +73,19 @@ func TestDeleteStack(t *testing.T) {
 		{
 			"delete-existing-stack",
 			stackSpec{name: "existing-stack-id"},
-			cfMockOutputs{deleteStack: R(mockDeleteStackOutput("existing-stack-id"), nil)},
+			cfMockOutputs{
+				deleteStack:                 R(mockDeleteStackOutput("existing-stack-id"), nil),
+				updateTerminationProtection: R(nil, nil),
+			},
 			false,
 		},
 		{
 			"delete-non-existing-stack",
 			stackSpec{name: "non-existing-stack-id"},
-			cfMockOutputs{deleteStack: R(mockDeleteStackOutput("existing-stack-id"), nil)},
+			cfMockOutputs{
+				deleteStack:                 R(mockDeleteStackOutput("existing-stack-id"), nil),
+				updateTerminationProtection: R(nil, nil),
+			},
 			false,
 		},
 	} {

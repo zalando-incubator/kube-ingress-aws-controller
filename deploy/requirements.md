@@ -224,6 +224,11 @@ Please also note that the worker nodes will need the right permission to describ
     "Effect": "Allow"
 },
 {
+    "Action": "cloudformation:Update*",
+    "Resource": "*",
+    "Effect": "Allow"
+},
+{
     "Action": "cloudformation:Delete*",
     "Resource": "*",
     "Effect": "Allow"
