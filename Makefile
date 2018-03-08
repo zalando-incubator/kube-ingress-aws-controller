@@ -8,7 +8,7 @@ SOURCES       = $(shell find . -name '*.go')
 DOCKERFILE    ?= Dockerfile
 GOPKGS        = $(shell go list ./...)
 BUILD_FLAGS   ?= -v
-LDFLAGS       ?= -X controller.version=$(VERSION) -w -s
+LDFLAGS       ?= -X main.version=$(VERSION) -X main.buildstamp=$(shell date -u '+%Y-%m-%d_%I:%M:%S%p') -X main.githash=$(shell git rev-parse HEAD) -w -s
 
 
 default: build.local
