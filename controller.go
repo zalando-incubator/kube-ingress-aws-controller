@@ -5,6 +5,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"path"
 
 	"flag"
 	"time"
@@ -24,6 +25,10 @@ const (
 )
 
 var (
+	buildstamp                 = "Not set"
+	githash                    = "Not set"
+	version                    = "Not set"
+	versionFlag                bool
 	apiServerBaseURL           string
 	pollingInterval            time.Duration
 	cfCustomTemplate           string
@@ -40,6 +45,7 @@ var (
 
 func loadSettings() error {
 	flag.Usage = usage
+	flag.BoolVar(&versionFlag, "version", false, "Print version and exit")
 	flag.StringVar(&apiServerBaseURL, "api-server-base-url", "", "sets the kubernetes api "+
 		"server base url. If empty will try to use the configuration from the running cluster, else it will use InsecureConfig, that does not use encryption or authentication (use case to develop with kubectl proxy).")
 	flag.DurationVar(&pollingInterval, "polling-interval", 30*time.Second, "sets the polling interval for "+
@@ -129,6 +135,16 @@ func main() {
 	)
 	if err = loadSettings(); err != nil {
 		log.Fatal(err)
+	}
+
+	if versionFlag {
+		fmt.Printf(`%s
+===========================
+  Version: %s
+  Buildtime: %s
+  GitHash: %s
+`, path.Base(os.Args[0]), version, buildstamp, githash)
+		os.Exit(0)
 	}
 
 	awsAdapter, err = aws.NewAdapter()
