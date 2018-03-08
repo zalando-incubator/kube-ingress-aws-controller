@@ -80,7 +80,7 @@ func (item *managedItem) AddIngress(certificateARN string, ingress *kubernetes.I
 
 	resourceName := fmt.Sprintf("%s/%s", ingress.Namespace(), ingress.Name())
 
-	owner := item.stack.OwnerIngress() //FIXME <-- callstack of nil ptr deref
+	owner := item.stack.OwnerIngress()
 
 	if !ingress.Shared() && resourceName != owner {
 		return false
@@ -191,7 +191,7 @@ func doWork(certsProvider certs.CertificatesProvider, certsPerALB int, certTTL t
 	log.Printf("Found %d single instances", len(awsAdapter.SingleInstances()))
 	log.Printf("Found %d EC2 instances", awsAdapter.CachedInstances())
 
-	model := buildManagedModel(certsProvider, certsPerALB, certTTL, ingresses, stacks) //FIXME <-- callstack of nil ptr deref (len(stacks)==0 printed 10 lines before)
+	model := buildManagedModel(certsProvider, certsPerALB, certTTL, ingresses, stacks)
 	log.Printf("Have %d models", len(model))
 	for _, managedItem := range model {
 		switch managedItem.Status() {
@@ -220,9 +220,9 @@ func buildManagedModel(certsProvider certs.CertificatesProvider, certsPerALB int
 	})
 
 	model := make([]*managedItem, 0, len(stacks))
-	for _, stack := range stacks { // FIXME: 0 stacks
+	for _, stack := range stacks {
 		item := &managedItem{
-			stack:     stack, // FIXME: one stack is nil
+			stack:     stack,
 			ingresses: make(map[string][]*kubernetes.Ingress),
 			scheme:    stack.Scheme(),
 			shared:    stack.OwnerIngress() == "",
@@ -255,7 +255,7 @@ func buildManagedModel(certsProvider certs.CertificatesProvider, certsPerALB int
 		// limit is exeeded.
 		added := false
 		for _, item := range model {
-			if item.AddIngress(certificateARN, ingress, certsPerALB) { //FIXME <-- callstack of nil ptr deref (item.stack is nil)
+			if item.AddIngress(certificateARN, ingress, certsPerALB) {
 				added = true
 				break
 			}
