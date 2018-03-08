@@ -49,7 +49,7 @@ func (s *Stack) TargetGroupARN() string {
 	return s.targetGroupARN
 }
 
-func (s *Stack) OwnerIngress() string {
+func (s *Stack) OwnerIngress() string { //FIXME <-- nil ptr deref -> s is nil
 	return s.ownerIngress
 }
 
