@@ -50,6 +50,9 @@ func (s *Stack) TargetGroupARN() string {
 }
 
 func (s *Stack) OwnerIngress() string {
+	if s == nil {
+		return ""
+	}
 	return s.ownerIngress
 }
 
