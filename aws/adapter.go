@@ -283,6 +283,12 @@ func (a *Adapter) UpdateTargetGroupsAndAutoScalingGroups(stacks []*Stack) {
 	for i, stack := range stacks {
 		targetGroupARNs[i] = stack.targetGroupARN
 	}
+
+	// don't do anything if there are no target groups
+	if len(targetGroupARNs) == 0 {
+		return
+	}
+
 	for _, asg := range a.autoScalingGroups {
 		// This call is idempotent and safe to execute every time
 		if err := updateTargetGroupsForAutoScalingGroup(a.autoscaling, targetGroupARNs, asg.name); err != nil {
