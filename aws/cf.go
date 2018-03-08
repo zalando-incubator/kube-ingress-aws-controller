@@ -50,6 +50,9 @@ func (s *Stack) TargetGroupARN() string {
 }
 
 func (s *Stack) OwnerIngress() string { //FIXME <-- nil ptr deref -> s is nil
+	if s == nil {
+		return ""
+	}
 	return s.ownerIngress
 }
 
