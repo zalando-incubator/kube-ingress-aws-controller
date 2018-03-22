@@ -38,7 +38,7 @@ type Ingress struct {
 	name           string
 	hostName       string
 	scheme         string
-	certHostname   string
+	certHostnames  []string
 	shared         bool
 }
 
@@ -64,15 +64,10 @@ func (i *Ingress) Scheme() string {
 	return i.scheme
 }
 
-// CertHostname returns the DNS hostname associated with the ingress
+// CertHostnames returns the DNS hostnames associated with the ingress
 // gotten from Kubernetes Spec
-func (i *Ingress) CertHostname() string {
-	return i.certHostname
-}
-
-// SetCertificateARN sets Ingress.certificateARN to the arn as specified.
-func (i *Ingress) SetCertificateARN(arn string) {
-	i.certificateARN = arn
+func (i *Ingress) CertHostnames() []string {
+	return i.certHostnames
 }
 
 // SetScheme sets Ingress.scheme to the scheme as specified.
@@ -96,7 +91,8 @@ func (i *Ingress) Namespace() string {
 }
 
 func newIngressFromKube(kubeIngress *ingress) *Ingress {
-	var host, certHostname, scheme string
+	var host, scheme string
+	var certHostnames []string
 	for _, ingressLoadBalancer := range kubeIngress.Status.LoadBalancer.Ingress {
 		if ingressLoadBalancer.Hostname != "" {
 			host = ingressLoadBalancer.Hostname
@@ -106,8 +102,7 @@ func newIngressFromKube(kubeIngress *ingress) *Ingress {
 
 	for _, rule := range kubeIngress.Spec.Rules {
 		if rule.Host != "" {
-			certHostname = rule.Host
-			break
+			certHostnames = append(certHostnames, rule.Host)
 		}
 	}
 
@@ -121,7 +116,7 @@ func newIngressFromKube(kubeIngress *ingress) *Ingress {
 
 	certDomain := kubeIngress.getAnnotationsString(ingressCertificateDomainAnnotation, "")
 	if certDomain != "" {
-		certHostname = certDomain
+		certHostnames = []string{certDomain}
 	}
 
 	shared := true
@@ -137,7 +132,7 @@ func newIngressFromKube(kubeIngress *ingress) *Ingress {
 		name:           kubeIngress.Metadata.Name,
 		hostName:       host,
 		scheme:         scheme,
-		certHostname:   certHostname,
+		certHostnames:  certHostnames,
 		shared:         shared,
 	}
 }

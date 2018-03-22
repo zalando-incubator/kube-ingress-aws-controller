@@ -121,8 +121,8 @@ func TestCertDomainAnnotation(t *testing.T) {
 	}
 
 	got := newIngressFromKube(kubeIngress)
-	if got.CertHostname() != certDomain {
-		t.Errorf("expected cert hostname %s, got %s", certDomain, got.CertHostname())
+	if got.CertHostnames()[0] != certDomain {
+		t.Errorf("expected cert hostname %s, got %s", certDomain, got.CertHostnames()[0])
 	}
 }
 
