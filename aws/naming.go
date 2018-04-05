@@ -12,7 +12,7 @@ const (
 	maxStackNameLen = 128
 	uuidLen         = 36
 	nameSeparator   = "-"
-	stackNamePrefix = "ingress-alb"
+	stackNamePrefix = "kube-ingress-aws-controller"
 )
 
 var (
