@@ -26,6 +26,7 @@ func TestMappingRoundtrip(tt *testing.T) {
 				scheme:         "internal",
 				certificateARN: "zbr",
 				shared:         true,
+				hostnames:      []string{"domain.example.org"},
 			},
 			kubeIngress: &ingress{
 				Metadata: ingressItemMetadata{
@@ -35,6 +36,13 @@ func TestMappingRoundtrip(tt *testing.T) {
 						ingressCertificateARNAnnotation: "zbr",
 						ingressSchemeAnnotation:         "internal",
 						ingressSharedAnnotation:         "true",
+					},
+				},
+				Spec: ingressSpec{
+					Rules: []ingressItemRule{
+						{
+							Host: "domain.example.org",
+						},
 					},
 				},
 				Status: ingressStatus{
@@ -98,8 +106,11 @@ func TestMappingRoundtrip(tt *testing.T) {
 
 			tc.kubeIngress.Status.LoadBalancer.Ingress = tc.kubeIngress.Status.LoadBalancer.Ingress[1:]
 			gotKube := newIngressForKube(got)
-			if !reflect.DeepEqual(tc.kubeIngress, gotKube) {
-				t.Errorf("mapping from adapter to kubernetes ingress failed. wanted %v, got %v", tc.kubeIngress, gotKube)
+			if !reflect.DeepEqual(tc.kubeIngress.Metadata, gotKube.Metadata) {
+				t.Errorf("mapping from adapter to kubernetes ingress failed. wanted %v, got %#v", tc.kubeIngress.Metadata, gotKube.Metadata)
+			}
+			if !reflect.DeepEqual(tc.kubeIngress.Status, gotKube.Status) {
+				t.Errorf("mapping from adapter to kubernetes ingress failed. wanted %v, got %#v", tc.kubeIngress.Status, gotKube.Status)
 			}
 		})
 	}
@@ -121,8 +132,8 @@ func TestCertDomainAnnotation(t *testing.T) {
 	}
 
 	got := newIngressFromKube(kubeIngress)
-	if got.CertHostnames()[0] != certDomain {
-		t.Errorf("expected cert hostname %s, got %s", certDomain, got.CertHostnames()[0])
+	if got.Hostnames()[0] != certDomain {
+		t.Errorf("expected cert hostname %s, got %s", certDomain, got.Hostnames()[0])
 	}
 }
 

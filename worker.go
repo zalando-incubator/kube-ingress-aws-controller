@@ -246,7 +246,7 @@ func buildManagedModel(certsProvider certs.CertificatesProvider, certsPerALB int
 		if len(certificateARN) == 0 { // do discovery
 			certificateARNs, err = discoverCertificates(certsProvider, ingress)
 			if err != nil {
-				log.Printf("failed to find certificates for %v: %v", ingress.CertHostnames(), err)
+				log.Printf("failed to find certificates for %v: %v", ingress.Hostnames(), err)
 				continue
 			}
 		} else { // validate that certificateARN exists
@@ -288,10 +288,10 @@ func discoverCertificates(certsProvider certs.CertificatesProvider, ingress *kub
 		return nil, fmt.Errorf("discoverCertificateAndUpdateIngress failed to obtain certificates: %v", err)
 	}
 
-	certificateSummaries, err := certs.FindBestMatchingCertificates(knownCertificates, ingress.CertHostnames())
+	certificateSummaries, err := certs.FindBestMatchingCertificates(knownCertificates, ingress.Hostnames())
 	if err != nil {
 		return nil, fmt.Errorf("discoverCertificateAndUpdateIngress failed to find a certificate for %q: %v",
-			ingress.CertHostnames(), err)
+			ingress.Hostnames(), err)
 	}
 
 	certs := make([]string, 0, len(certificateSummaries))
