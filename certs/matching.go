@@ -2,6 +2,7 @@ package certs
 
 import (
 	"errors"
+	"log"
 	"strings"
 	"time"
 )
@@ -18,13 +19,14 @@ var ErrNoMatchingCertificateFound = errors.New("no matching certificate found")
 
 // FindBestMatchingCertificates uses a suffix search, best match operation, in
 // order to find the best matching certificates for a given hostnames.
-func FindBestMatchingCertificates(certs []*CertificateSummary, hostnames []string) ([]*CertificateSummary, error) {
+func FindBestMatchingCertificates(certs []*CertificateSummary, hostnames []string) []*CertificateSummary {
 	certsMap := make(map[string]*CertificateSummary)
 
 	for _, hostname := range hostnames {
 		certSummary, err := FindBestMatchingCertificate(certs, hostname)
 		if err != nil {
-			return nil, err
+			log.Printf("Failed to find certificate for hostname %s: %v", hostname, err)
+			continue
 		}
 		certsMap[certSummary.ID()] = certSummary
 	}
@@ -34,7 +36,7 @@ func FindBestMatchingCertificates(certs []*CertificateSummary, hostnames []strin
 		matchedCerts = append(matchedCerts, cert)
 	}
 
-	return matchedCerts, nil
+	return matchedCerts
 }
 
 // FindBestMatchingCertificate uses a suffix search, best match operation, in order to find the best matching

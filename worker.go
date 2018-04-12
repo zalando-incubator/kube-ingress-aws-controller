@@ -288,10 +288,10 @@ func discoverCertificates(certsProvider certs.CertificatesProvider, ingress *kub
 		return nil, fmt.Errorf("discoverCertificateAndUpdateIngress failed to obtain certificates: %v", err)
 	}
 
-	certificateSummaries, err := certs.FindBestMatchingCertificates(knownCertificates, ingress.Hostnames())
-	if err != nil {
-		return nil, fmt.Errorf("discoverCertificateAndUpdateIngress failed to find a certificate for %q: %v",
-			ingress.Hostnames(), err)
+	certificateSummaries := certs.FindBestMatchingCertificates(knownCertificates, ingress.Hostnames())
+
+	if len(certificateSummaries) < 1 {
+		return nil, fmt.Errorf("Failed to find any certificates for hostnames: %s", ingress.Hostnames())
 	}
 
 	certs := make([]string, 0, len(certificateSummaries))
