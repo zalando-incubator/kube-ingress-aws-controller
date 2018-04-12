@@ -2,6 +2,7 @@ package certs
 
 import (
 	"errors"
+	"log"
 	"strings"
 	"time"
 )
@@ -15,6 +16,28 @@ const (
 
 // ErrNoMatchingCertificateFound is used if there is no matching ACM certificate found
 var ErrNoMatchingCertificateFound = errors.New("no matching certificate found")
+
+// FindBestMatchingCertificates uses a suffix search, best match operation, in
+// order to find the best matching certificates for a given hostnames.
+func FindBestMatchingCertificates(certs []*CertificateSummary, hostnames []string) []*CertificateSummary {
+	certsMap := make(map[string]*CertificateSummary)
+
+	for _, hostname := range hostnames {
+		certSummary, err := FindBestMatchingCertificate(certs, hostname)
+		if err != nil {
+			log.Printf("Failed to find certificate for hostname %s: %v", hostname, err)
+			continue
+		}
+		certsMap[certSummary.ID()] = certSummary
+	}
+
+	matchedCerts := make([]*CertificateSummary, 0, len(certsMap))
+	for _, cert := range certsMap {
+		matchedCerts = append(matchedCerts, cert)
+	}
+
+	return matchedCerts
+}
 
 // FindBestMatchingCertificate uses a suffix search, best match operation, in order to find the best matching
 // certificate for a given hostname.

@@ -73,7 +73,7 @@ func (item *managedItem) certsEqual() bool {
 // The function returns true when the ingress was successfully added. The
 // adding can fail in case the managed item reached its limit of ingress
 // certificates (25 max) or if the scheme doesn't match.
-func (item *managedItem) AddIngress(certificateARN string, ingress *kubernetes.Ingress, maxCerts int) bool {
+func (item *managedItem) AddIngress(certificateARNs []string, ingress *kubernetes.Ingress, maxCerts int) bool {
 	if item.scheme != ingress.Scheme() {
 		return false
 	}
@@ -86,13 +86,15 @@ func (item *managedItem) AddIngress(certificateARN string, ingress *kubernetes.I
 		return false
 	}
 
-	if ingresses, ok := item.ingresses[certificateARN]; ok {
-		item.ingresses[certificateARN] = append(ingresses, ingress)
-	} else {
-		if len(item.ingresses) >= maxCerts {
-			return false
+	for _, certificateARN := range certificateARNs {
+		if ingresses, ok := item.ingresses[certificateARN]; ok {
+			item.ingresses[certificateARN] = append(ingresses, ingress)
+		} else {
+			if len(item.ingresses) >= maxCerts {
+				return false
+			}
+			item.ingresses[certificateARN] = []*kubernetes.Ingress{ingress}
 		}
-		item.ingresses[certificateARN] = []*kubernetes.Ingress{ingress}
 	}
 
 	item.shared = ingress.Shared()
@@ -232,21 +234,25 @@ func buildManagedModel(certsProvider certs.CertificatesProvider, certsPerALB int
 	}
 
 	var (
-		certificateARN string
-		err            error
+		certificateARNs []string
+		err             error
 	)
 	for _, ingress := range ingresses {
-		certificateARN = ingress.CertificateARN()
-		if certificateARN == "" { // do discovery
-			certificateARN, err = discoverCertificateAndUpdateIngress(certsProvider, ingress)
+		certificateARN := ingress.CertificateARN()
+		if certificateARN != "" {
+			certificateARNs = append(certificateARNs, certificateARN)
+		}
+
+		if len(certificateARN) == 0 { // do discovery
+			certificateARNs, err = discoverCertificates(certsProvider, ingress)
 			if err != nil {
-				log.Printf("failed to find a certificate for %v: %v", ingress.CertHostname(), err)
+				log.Printf("failed to find certificates for %v: %v", ingress.Hostnames(), err)
 				continue
 			}
 		} else { // validate that certificateARN exists
 			err := checkCertificate(certsProvider, certificateARN)
 			if err != nil {
-				log.Printf("Failed to find certificate with ARN %s: %v", certificateARN, err)
+				log.Printf("Failed to find certificates with ARN %s: %v", certificateARNs, err)
 				continue
 			}
 		}
@@ -255,7 +261,7 @@ func buildManagedModel(certsProvider certs.CertificatesProvider, certsPerALB int
 		// limit is exeeded.
 		added := false
 		for _, item := range model {
-			if item.AddIngress(certificateARN, ingress, certsPerALB) {
+			if item.AddIngress(certificateARNs, ingress, certsPerALB) {
 				added = true
 				break
 			}
@@ -265,8 +271,9 @@ func buildManagedModel(certsProvider certs.CertificatesProvider, certsPerALB int
 		// non-matching scheme or too many certificates, add a new
 		// stack.
 		if !added {
-			i := map[string][]*kubernetes.Ingress{
-				certificateARN: []*kubernetes.Ingress{ingress},
+			i := make(map[string][]*kubernetes.Ingress, len(certificateARNs))
+			for _, certificateARN := range certificateARNs {
+				i[certificateARN] = []*kubernetes.Ingress{ingress}
 			}
 			model = append(model, &managedItem{ingresses: i, scheme: ingress.Scheme(), shared: ingress.Shared()})
 		}
@@ -275,19 +282,24 @@ func buildManagedModel(certsProvider certs.CertificatesProvider, certsPerALB int
 	return model
 }
 
-func discoverCertificateAndUpdateIngress(certsProvider certs.CertificatesProvider, ingress *kubernetes.Ingress) (string, error) {
+func discoverCertificates(certsProvider certs.CertificatesProvider, ingress *kubernetes.Ingress) ([]string, error) {
 	knownCertificates, err := certsProvider.GetCertificates()
 	if err != nil {
-		return "", fmt.Errorf("discoverCertificateAndUpdateIngress failed to obtain certificates: %v", err)
+		return nil, fmt.Errorf("discoverCertificateAndUpdateIngress failed to obtain certificates: %v", err)
 	}
 
-	certificateSummary, err := certs.FindBestMatchingCertificate(knownCertificates, ingress.CertHostname())
-	if err != nil {
-		return "", fmt.Errorf("discoverCertificateAndUpdateIngress failed to find a certificate for %q: %v",
-			ingress.CertHostname(), err)
+	certificateSummaries := certs.FindBestMatchingCertificates(knownCertificates, ingress.Hostnames())
+
+	if len(certificateSummaries) < 1 {
+		return nil, fmt.Errorf("Failed to find any certificates for hostnames: %s", ingress.Hostnames())
 	}
-	ingress.SetCertificateARN(certificateSummary.ID())
-	return certificateSummary.ID(), nil
+
+	certs := make([]string, 0, len(certificateSummaries))
+	for _, cert := range certificateSummaries {
+		certs = append(certs, cert.ID())
+	}
+
+	return certs, nil
 }
 
 // checkCertificate checks that a certificate with the specified ARN exists in

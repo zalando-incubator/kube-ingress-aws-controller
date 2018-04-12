@@ -150,8 +150,8 @@ On startup, the controller discovers the AWS resources required for the controll
 
 ### Creating Load Balancers
 
-When the controller learns about new ingress resources, it uses the host specified in it to automatically determine
-the most specific, valid certificate to use. The certificate has to be valid for at least 7 days. An example ingress:
+When the controller learns about new ingress resources, it uses the hosts specified in it to automatically determine
+the most specific, valid certificates to use. The certificates has to be valid for at least 7 days. An example ingress:
 
 ```yaml
 apiVersion: extensions/v1beta1
@@ -169,12 +169,13 @@ spec:
 ```
 
 The Application Load Balancer created by the controller will have both an HTTP listener and an HTTPS listener. The
-latter will use the automatically selected certificate.
+latter will use the automatically selected certificates.
 
 Alternatively, you can specify a domain used for automatically selecting a
 certificate with an annotation like the one shown below. This is useful if you
-have multiple hosts rules defined and want to make sure to select a certificate
-for the right hostname.
+have multiple host rules defined and want to only select one certificate for a
+specific hostname. Generally it's better to let the controller select all
+matching certificates.
 
 ```yaml
 apiVersion: extensions/v1beta1
