@@ -41,6 +41,7 @@ var (
 	disableSNISupport          bool
 	certTTL                    time.Duration
 	stackTerminationProtection bool
+	idleConnectionTimeout      time.Duration
 )
 
 func loadSettings() error {
@@ -69,6 +70,8 @@ func loadSettings() error {
 	flag.DurationVar(&healthcheckInterval, "health-check-interval", aws.DefaultHealthCheckInterval,
 		"sets the health check interval for the created target groups. The flag accepts a value "+
 			"acceptable to time.ParseDuration")
+	flag.DurationVar(&idleConnectionTimeout, "idle-connection-timeout", aws.DefaultIdleConnectionTimeout,
+		"sets the idle connection timeout if the ALB, The flag accepts a value acceptable to time.ParseDuration")
 	flag.StringVar(&metricsAddress, "metrics-address", ":7979", "defines where to serve metrics")
 
 	flag.Parse()
@@ -156,7 +159,8 @@ func main() {
 		WithHealthCheckPort(healthCheckPort).
 		WithCreationTimeout(creationTimeout).
 		WithCustomTemplate(cfCustomTemplate).
-		WithStackTerminationProtection(stackTerminationProtection)
+		WithStackTerminationProtection(stackTerminationProtection).
+		WithIdleConnectionTimeout(idleConnectionTimeout)
 
 	certificatesProvider, err := certs.NewCachingProvider(
 		certPollingInterval,

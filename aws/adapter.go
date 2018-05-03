@@ -7,6 +7,8 @@ import (
 	"strings"
 	"time"
 
+	"os"
+
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/client"
 	"github.com/aws/aws-sdk-go/aws/ec2metadata"
@@ -25,7 +27,6 @@ import (
 	"github.com/aws/aws-sdk-go/service/iam/iamiface"
 	"github.com/linki/instrumented_http"
 	"github.com/zalando-incubator/kube-ingress-aws-controller/certs"
-	"os"
 )
 
 // An Adapter can be used to orchestrate and obtain information from Amazon Web Services.
@@ -44,6 +45,7 @@ type Adapter struct {
 	healthCheckPort            uint
 	healthCheckInterval        time.Duration
 	creationTimeout            time.Duration
+	idleConnectionTimeout      time.Duration
 	stackTTL                   time.Duration
 	autoScalingGroups          map[string]*autoScalingGroupDetails
 	ec2Details                 map[string]*instanceDetails
@@ -68,6 +70,7 @@ const (
 	DefaultCertificateUpdateInterval = 30 * time.Minute
 	DefaultCreationTimeout           = 5 * time.Minute
 	DefaultStackTTL                  = 5 * time.Minute
+	DefaultIdleConnectionTimeout     = 1 * time.Minute
 
 	nameTag = "Name"
 
@@ -173,6 +176,18 @@ func (a *Adapter) WithHealthCheckInterval(interval time.Duration) *Adapter {
 // time for the creation of all the required AWS resources for a given Ingress
 func (a *Adapter) WithCreationTimeout(interval time.Duration) *Adapter {
 	a.creationTimeout = interval
+	return a
+}
+
+// WithIdleConnectionTimeout returns the receiver adapter after
+// changing the idle connection timeout that is used to change the
+// corresponding LoadBalancerAttributes in the CloudFormation stack
+// that creates the LoadBalancers.
+// https://docs.aws.amazon.com/elasticloadbalancing/latest/application/application-load-balancers.html#connection-idle-timeout
+func (a *Adapter) WithIdleConnectionTimeout(interval time.Duration) *Adapter {
+	if 1*time.Second <= interval && interval <= 4000*time.Second {
+		a.idleConnectionTimeout = interval
+	}
 	return a
 }
 
@@ -338,8 +353,9 @@ func (a *Adapter) CreateStack(certificateARNs []string, scheme, owner string) (s
 			port:     a.healthCheckPort,
 			interval: a.healthCheckInterval,
 		},
-		timeoutInMinutes:           uint(a.creationTimeout.Minutes()),
-		stackTerminationProtection: a.stackTerminationProtection,
+		timeoutInMinutes:             uint(a.creationTimeout.Minutes()),
+		stackTerminationProtection:   a.stackTerminationProtection,
+		idleConnectionTimeoutSeconds: uint(a.idleConnectionTimeout.Seconds()),
 	}
 
 	return createStack(a.cloudformation, spec)
@@ -359,8 +375,9 @@ func (a *Adapter) UpdateStack(stackName string, certificateARNs map[string]time.
 			port:     a.healthCheckPort,
 			interval: a.healthCheckInterval,
 		},
-		timeoutInMinutes:           uint(a.creationTimeout.Minutes()),
-		stackTerminationProtection: a.stackTerminationProtection,
+		timeoutInMinutes:             uint(a.creationTimeout.Minutes()),
+		stackTerminationProtection:   a.stackTerminationProtection,
+		idleConnectionTimeoutSeconds: uint(a.idleConnectionTimeout.Seconds()),
 	}
 
 	return updateStack(a.cloudformation, spec)
