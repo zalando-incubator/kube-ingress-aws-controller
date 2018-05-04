@@ -71,7 +71,7 @@ func loadSettings() error {
 		"sets the health check interval for the created target groups. The flag accepts a value "+
 			"acceptable to time.ParseDuration")
 	flag.DurationVar(&idleConnectionTimeout, "idle-connection-timeout", aws.DefaultIdleConnectionTimeout,
-		"sets the idle connection timeout if the ALB, The flag accepts a value acceptable to time.ParseDuration")
+		"sets the idle connection timeout of all ALBs. The flag accepts a value acceptable to time.ParseDuration and are between 1s and 4000s.")
 	flag.StringVar(&metricsAddress, "metrics-address", ":7979", "defines where to serve metrics")
 
 	flag.Parse()

@@ -100,7 +100,10 @@ func generateTemplate(certs map[string]time.Time, idleConnectionTimeoutSeconds u
 	}
 	template.AddResource("LB", &cloudformation.ElasticLoadBalancingV2LoadBalancer{
 		LoadBalancerAttributes: &cloudformation.ElasticLoadBalancingV2LoadBalancerLoadBalancerAttributeList{
-			cfAttribute("idle_timeout.timeout_seconds", fmt.Sprintf("%d", idleConnectionTimeoutSeconds)),
+			cloudformation.ElasticLoadBalancingV2LoadBalancerLoadBalancerAttribute{
+				Key:   cloudformation.String("idle_timeout.timeout_seconds"),
+				Value: cloudformation.String(fmt.Sprintf("%d", idleConnectionTimeoutSeconds)),
+			},
 		},
 
 		Scheme:         cloudformation.Ref("LoadBalancerSchemeParameter").String(),
@@ -138,11 +141,4 @@ func generateTemplate(certs map[string]time.Time, idleConnectionTimeoutSeconds u
 	}
 
 	return string(stackTemplate), nil
-}
-
-func cfAttribute(key, value string) cloudformation.ElasticLoadBalancingV2LoadBalancerLoadBalancerAttribute {
-	return cloudformation.ElasticLoadBalancingV2LoadBalancerLoadBalancerAttribute{
-		Key:   cloudformation.String(key),
-		Value: cloudformation.String(value),
-	}
 }
