@@ -21,7 +21,11 @@ func TestListIngresses(t *testing.T) {
 	}))
 	defer testServer.Close()
 	kubeClient, _ := newSimpleClient(&Config{BaseURL: testServer.URL})
-	want := newList(newIngress("fixture01", nil, "example.org", "fixture01"))
+	want := newList(
+		newIngress("fixture01", nil, "example.org", "fixture01"),
+		newIngress("fixture02", map[string]interface{}{ingressClassAnnotation: "skipper"}, "skipper.example.org", "fixture02"),
+		newIngress("fixture03", map[string]interface{}{ingressClassAnnotation: "other"}, "other.example.org", "fixture03"),
+	)
 	got, err := listIngress(kubeClient)
 	if err != nil {
 		t.Errorf("unexpected error from listIngresses: %v", err)
@@ -169,7 +173,11 @@ func newIngress(name string, annotations map[string]interface{}, hostname string
 		},
 	}
 	if arn != "" {
-		ret.Metadata.Annotations = map[string]interface{}{ingressCertificateARNAnnotation: arn}
+		if annotations == nil {
+			ret.Metadata.Annotations = map[string]interface{}{ingressCertificateARNAnnotation: arn}
+		} else {
+			ret.Metadata.Annotations[ingressCertificateARNAnnotation] = arn
+		}
 	}
 	if hostname != "" {
 		ret.Status.LoadBalancer = ingressLoadBalancerStatus{

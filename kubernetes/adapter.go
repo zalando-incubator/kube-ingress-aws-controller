@@ -9,6 +9,7 @@ import (
 
 type Adapter struct {
 	kubeClient client
+	ingressFilters []string
 }
 
 var (
@@ -165,7 +166,7 @@ func newIngressForKube(i *Ingress) *ingress {
 }
 
 // NewAdapter creates an Adapter for Kubernetes using a given configuration.
-func NewAdapter(config *Config) (*Adapter, error) {
+func NewAdapter(config *Config, ingressClassFilters []string) (*Adapter, error) {
 	if config == nil || config.BaseURL == "" {
 		return nil, ErrInvalidConfiguration
 	}
@@ -173,7 +174,7 @@ func NewAdapter(config *Config) (*Adapter, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Adapter{kubeClient: c}, nil
+	return &Adapter{kubeClient: c, ingressFilters: ingressClassFilters}, nil
 }
 
 // ListIngress can be used to obtain the list of ingress resources for all namespaces.
@@ -182,10 +183,26 @@ func (a *Adapter) ListIngress() ([]*Ingress, error) {
 	if err != nil {
 		return nil, err
 	}
-	ret := make([]*Ingress, len(il.Items))
-	for i, ingress := range il.Items {
-		ret[i] = newIngressFromKube(ingress)
+	var ret []*Ingress
+	if (len(a.ingressFilters) > 0) {
+		ret = make([]*Ingress, 0)
+		for _, ingress := range il.Items {
+			ingressClass := ingress.getAnnotationsString(ingressClassAnnotation, "")
+			if ingressClass != "" {
+				for _, v := range a.ingressFilters {
+					if v == ingressClass {
+						ret = append(ret, newIngressFromKube(ingress))
+					}
+				}
+			}
+		}
+	} else {
+		ret = make([]*Ingress, len(il.Items))
+		for i, ingress := range il.Items {
+			ret[i] = newIngressFromKube(ingress)
+		}
 	}
+	fmt.Println(ret)
 	return ret, nil
 }
 
