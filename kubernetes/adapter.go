@@ -3,6 +3,7 @@ package kubernetes
 import (
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/aws/aws-sdk-go/service/elbv2"
 )
@@ -175,6 +176,12 @@ func NewAdapter(config *Config, ingressClassFilters []string) (*Adapter, error) 
 		return nil, err
 	}
 	return &Adapter{kubeClient: c, ingressFilters: ingressClassFilters}, nil
+}
+
+// Get ingress class filters that are used to filter ingresses acted upon.
+func (a *Adapter) IngressFiltersString() string {
+        result := fmt.Sprintf("%s", strings.Join(a.ingressFilters, ","))
+        return strings.TrimSpace(result)
 }
 
 // ListIngress can be used to obtain the list of ingress resources for all namespaces.

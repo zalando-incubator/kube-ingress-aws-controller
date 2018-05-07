@@ -182,7 +182,13 @@ func main() {
 	} else {
 		kubeConfig = kubernetes.InsecureConfig(apiServerBaseURL)
 	}
-	kubeAdapter, err = kubernetes.NewAdapter(kubeConfig, strings.Split(ingressClassFilters, ","))
+
+	if ingressClassFilters == "" {
+		kubeAdapter, err = kubernetes.NewAdapter(kubeConfig, []string{})
+	} else {
+		kubeAdapter, err = kubernetes.NewAdapter(kubeConfig, strings.Split(ingressClassFilters, ","))
+	}
+
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -202,6 +208,7 @@ func main() {
 	log.Printf("\tpublic subnet ids: %s", awsAdapter.FindLBSubnets(elbv2.LoadBalancerSchemeEnumInternetFacing))
 	log.Printf("\tEC2 filters: %s", awsAdapter.FiltersString())
 	log.Printf("\tCetificates Per ALB (SNI: %t): %d", certificatesPerALB > 1, certificatesPerALB)
+	log.Printf("\tIngress class filters: %s", kubeAdapter.IngressFiltersString())
 
 	go serveMetrics(metricsAddress)
 	quitCH := make(chan struct{})
