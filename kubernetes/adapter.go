@@ -202,7 +202,6 @@ func (a *Adapter) ListIngress() ([]*Ingress, error) {
 			ret[i] = newIngressFromKube(ingress)
 		}
 	}
-	fmt.Println(ret)
 	return ret, nil
 }
 
