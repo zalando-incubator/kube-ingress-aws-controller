@@ -180,8 +180,7 @@ func NewAdapter(config *Config, ingressClassFilters []string) (*Adapter, error) 
 
 // Get ingress class filters that are used to filter ingresses acted upon.
 func (a *Adapter) IngressFiltersString() string {
-        result := fmt.Sprintf("%s", strings.Join(a.ingressFilters, ","))
-        return strings.TrimSpace(result)
+        return strings.TrimSpace(strings.Join(a.ingressFilters, ","))
 }
 
 // ListIngress can be used to obtain the list of ingress resources for all namespaces.
