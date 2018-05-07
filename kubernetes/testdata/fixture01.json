@@ -26,6 +26,50 @@
           ]
         }
       }
+    },
+    {
+      "metadata": {
+        "name": "fixture02",
+        "namespace": "default",
+        "selfLink": "/apis/extensions/v1beta1/namespaces/default/ingresses/fixture02",
+        "uid": "fixture02",
+        "resourceVersion": "42",
+        "generation": 1,
+        "creationTimestamp": "2016-11-29T14:53:42Z",
+        "annotations": {
+          "zalando.org/aws-load-balancer-ssl-cert": "fixture02",
+          "kubernetes.io/ingress.class": "skipper"
+        }
+      },
+      "status": {
+        "loadBalancer": {
+          "ingress": [
+            {"hostname": "skipper.example.org"}
+          ]
+        }
+      }
+    },
+    {
+      "metadata": {
+        "name": "fixture03",
+        "namespace": "default",
+        "selfLink": "/apis/extensions/v1beta1/namespaces/default/ingresses/fixture03",
+        "uid": "fixture03",
+        "resourceVersion": "42",
+        "generation": 1,
+        "creationTimestamp": "2016-11-29T14:53:42Z",
+        "annotations": {
+          "zalando.org/aws-load-balancer-ssl-cert": "fixture03",
+          "kubernetes.io/ingress.class": "other"
+        }
+      },
+      "status": {
+        "loadBalancer": {
+          "ingress": [
+            {"hostname": "other.example.org"}
+          ]
+        }
+      }
     }
   ]
 }

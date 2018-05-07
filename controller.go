@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"path"
+	"strings"
 
 	"flag"
 	"time"
@@ -42,6 +43,7 @@ var (
 	certTTL                    time.Duration
 	stackTerminationProtection bool
 	idleConnectionTimeout      time.Duration
+	ingressClassFilters        string
 )
 
 func loadSettings() error {
@@ -73,6 +75,7 @@ func loadSettings() error {
 	flag.DurationVar(&idleConnectionTimeout, "idle-connection-timeout", aws.DefaultIdleConnectionTimeout,
 		"sets the idle connection timeout of all ALBs. The flag accepts a value acceptable to time.ParseDuration and are between 1s and 4000s.")
 	flag.StringVar(&metricsAddress, "metrics-address", ":7979", "defines where to serve metrics")
+	flag.StringVar(&ingressClassFilters, "ingress-class-filter", "", "optional comma-seperated list of kubernetes.io/ingress.class annotation values to filter behaviour on. ")
 
 	flag.Parse()
 
@@ -179,7 +182,13 @@ func main() {
 	} else {
 		kubeConfig = kubernetes.InsecureConfig(apiServerBaseURL)
 	}
-	kubeAdapter, err = kubernetes.NewAdapter(kubeConfig)
+
+	if ingressClassFilters == "" {
+		kubeAdapter, err = kubernetes.NewAdapter(kubeConfig, []string{})
+	} else {
+		kubeAdapter, err = kubernetes.NewAdapter(kubeConfig, strings.Split(ingressClassFilters, ","))
+	}
+
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -199,6 +208,7 @@ func main() {
 	log.Printf("\tpublic subnet ids: %s", awsAdapter.FindLBSubnets(elbv2.LoadBalancerSchemeEnumInternetFacing))
 	log.Printf("\tEC2 filters: %s", awsAdapter.FiltersString())
 	log.Printf("\tCetificates Per ALB (SNI: %t): %d", certificatesPerALB > 1, certificatesPerALB)
+	log.Printf("\tIngress class filters: %s", kubeAdapter.IngressFiltersString())
 
 	go serveMetrics(metricsAddress)
 	quitCH := make(chan struct{})

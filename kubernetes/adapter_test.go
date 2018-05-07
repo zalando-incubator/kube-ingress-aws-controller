@@ -176,9 +176,10 @@ func (c *mockClient) patch(res string, payload []byte) (io.ReadCloser, error) {
 }
 
 var testConfig = InsecureConfig("dummy-url")
+var testIngressFilter = []string{"skipper"}
 
 func TestListIngress(t *testing.T) {
-	a, _ := NewAdapter(testConfig)
+	a, _ := NewAdapter(testConfig, testIngressFilter)
 	client := &mockClient{}
 	a.kubeClient = client
 	ingresses, err := a.ListIngress()
@@ -196,7 +197,7 @@ func TestListIngress(t *testing.T) {
 }
 
 func TestUpdateIngressLoadBalancer(t *testing.T) {
-	a, _ := NewAdapter(testConfig)
+	a, _ := NewAdapter(testConfig, testIngressFilter)
 	client := &mockClient{}
 	a.kubeClient = client
 	ing := &Ingress{
@@ -231,7 +232,7 @@ func TestBrokenConfig(t *testing.T) {
 		{"broken-cert", &Config{BaseURL: "dontcare", TLSClientConfig: TLSClientConfig{CAFile: "testdata/broken.pem"}}},
 	} {
 		t.Run(fmt.Sprintf("%v", test.cfg), func(t *testing.T) {
-			_, err := NewAdapter(test.cfg)
+			_, err := NewAdapter(test.cfg, testIngressFilter)
 			if err == nil {
 				t.Error("expected an error")
 			}

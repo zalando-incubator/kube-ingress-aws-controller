@@ -65,6 +65,7 @@ const (
 	ingressCertificateDomainAnnotation = "zalando.org/aws-load-balancer-ssl-cert-domain"
 	ingressSchemeAnnotation            = "zalando.org/aws-load-balancer-scheme"
 	ingressSharedAnnotation            = "zalando.org/aws-load-balancer-shared"
+	ingressClassAnnotation             = "kubernetes.io/ingress.class"
 )
 
 func (i *ingress) getAnnotationsString(key string, defaultValue string) string {
