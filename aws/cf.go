@@ -133,18 +133,19 @@ const (
 )
 
 type stackSpec struct {
-	name                       string
-	scheme                     string
-	ownerIngress               string
-	subnets                    []string
-	certificateARNs            map[string]time.Time
-	securityGroupID            string
-	clusterID                  string
-	vpcID                      string
-	healthCheck                *healthCheck
-	timeoutInMinutes           uint
-	customTemplate             string
-	stackTerminationProtection bool
+	name                         string
+	scheme                       string
+	ownerIngress                 string
+	subnets                      []string
+	certificateARNs              map[string]time.Time
+	securityGroupID              string
+	clusterID                    string
+	vpcID                        string
+	healthCheck                  *healthCheck
+	timeoutInMinutes             uint
+	customTemplate               string
+	stackTerminationProtection   bool
+	idleConnectionTimeoutSeconds uint
 }
 
 type healthCheck struct {
@@ -154,7 +155,7 @@ type healthCheck struct {
 }
 
 func createStack(svc cloudformationiface.CloudFormationAPI, spec *stackSpec) (string, error) {
-	template, err := generateTemplate(spec.certificateARNs)
+	template, err := generateTemplate(spec.certificateARNs, spec.idleConnectionTimeoutSeconds)
 	if err != nil {
 		return "", err
 	}
@@ -202,7 +203,7 @@ func createStack(svc cloudformationiface.CloudFormationAPI, spec *stackSpec) (st
 }
 
 func updateStack(svc cloudformationiface.CloudFormationAPI, spec *stackSpec) (string, error) {
-	template, err := generateTemplate(spec.certificateARNs)
+	template, err := generateTemplate(spec.certificateARNs, spec.idleConnectionTimeoutSeconds)
 	if err != nil {
 		return "", err
 	}

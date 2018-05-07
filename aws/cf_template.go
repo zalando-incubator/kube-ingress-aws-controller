@@ -2,12 +2,13 @@ package aws
 
 import (
 	"encoding/json"
+	"fmt"
 	"time"
 
 	"github.com/mweagle/go-cloudformation"
 )
 
-func generateTemplate(certs map[string]time.Time) (string, error) {
+func generateTemplate(certs map[string]time.Time, idleConnectionTimeoutSeconds uint) (string, error) {
 	template := cloudformation.NewTemplate()
 	template.Description = "Load Balancer for Kubernetes Ingress"
 	template.Parameters = map[string]*cloudformation.Parameter{
@@ -98,6 +99,13 @@ func generateTemplate(certs map[string]time.Time) (string, error) {
 		}
 	}
 	template.AddResource("LB", &cloudformation.ElasticLoadBalancingV2LoadBalancer{
+		LoadBalancerAttributes: &cloudformation.ElasticLoadBalancingV2LoadBalancerLoadBalancerAttributeList{
+			cloudformation.ElasticLoadBalancingV2LoadBalancerLoadBalancerAttribute{
+				Key:   cloudformation.String("idle_timeout.timeout_seconds"),
+				Value: cloudformation.String(fmt.Sprintf("%d", idleConnectionTimeoutSeconds)),
+			},
+		},
+
 		Scheme:         cloudformation.Ref("LoadBalancerSchemeParameter").String(),
 		SecurityGroups: cloudformation.Ref("LoadBalancerSecurityGroupParameter").StringList(),
 		Subnets:        cloudformation.Ref("LoadBalancerSubnetsParameter").StringList(),
