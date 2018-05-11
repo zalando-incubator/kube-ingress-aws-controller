@@ -16,7 +16,6 @@ const (
 	clusterIDTagPrefix         = "kubernetes.io/cluster/"
 	resourceLifecycleOwned     = "owned"
 	kubernetesCreatorTag       = "kubernetes:application"
-	kubernetesCreatorValue     = "kube-ingress-aws-controller"
 	autoScalingGroupNameTag    = "aws:autoscaling:groupName"
 	runningState               = 16 // See https://github.com/aws/aws-sdk-go/blob/master/service/ec2/api.go, type InstanceState
 	stoppedState               = 80 // See https://github.com/aws/aws-sdk-go/blob/master/service/ec2/api.go, type InstanceState
@@ -288,7 +287,7 @@ func findSecurityGroupWithClusterID(svc ec2iface.EC2API, clusterID string) (*sec
 			{
 				Name: aws.String("tag-value"),
 				Values: []*string{
-					aws.String(kubernetesCreatorValue),
+					aws.String(DefaultControllerID),
 				},
 			},
 		},

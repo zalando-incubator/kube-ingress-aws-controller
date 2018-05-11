@@ -137,12 +137,12 @@ func TestManagementAssertion(t *testing.T) {
 		want  bool
 	}{
 		{"managed", []*cloudformation.Tag{
-			cfTag(kubernetesCreatorTag, kubernetesCreatorValue),
+			cfTag(kubernetesCreatorTag, DefaultControllerID),
 			cfTag(clusterIDTagPrefix+"test-cluster", resourceLifecycleOwned),
 			cfTag("foo", "bar"),
 		}, true},
 		{"missing-cluster-tag", []*cloudformation.Tag{
-			cfTag(kubernetesCreatorTag, kubernetesCreatorValue),
+			cfTag(kubernetesCreatorTag, DefaultControllerID),
 		}, false},
 		{"missing-kube-mgmt-tag", []*cloudformation.Tag{
 			cfTag(clusterIDTagPrefix+"test-cluster", resourceLifecycleOwned),
@@ -151,13 +151,18 @@ func TestManagementAssertion(t *testing.T) {
 			cfTag("foo", "bar"),
 		}, false},
 		{"mismatch-cluster-tag", []*cloudformation.Tag{
-			cfTag(kubernetesCreatorTag, kubernetesCreatorValue),
+			cfTag(kubernetesCreatorTag, DefaultControllerID),
+			cfTag(clusterIDTagPrefix+"other-cluster", resourceLifecycleOwned),
+			cfTag("foo", "bar"),
+		}, false},
+		{"mismatch-controller-id", []*cloudformation.Tag{
+			cfTag(kubernetesCreatorTag, "the-other-one"),
 			cfTag(clusterIDTagPrefix+"other-cluster", resourceLifecycleOwned),
 			cfTag("foo", "bar"),
 		}, false},
 	} {
 		t.Run(ti.name, func(t *testing.T) {
-			got := isManagedStack(ti.given, "test-cluster")
+			got := isManagedStack(ti.given, "test-cluster", DefaultControllerID)
 			if ti.want != got {
 				t.Errorf("unexpected result. wanted %+v, got %+v", ti.want, got)
 			}
@@ -227,7 +232,7 @@ func TestFindManagedStacks(t *testing.T) {
 							StackName:   aws.String("managed-stack-not-ready"),
 							StackStatus: aws.String(cloudformation.StackStatusUpdateInProgress),
 							Tags: []*cloudformation.Tag{
-								cfTag(kubernetesCreatorTag, kubernetesCreatorValue),
+								cfTag(kubernetesCreatorTag, DefaultControllerID),
 								cfTag(clusterIDTagPrefix+"test-cluster", resourceLifecycleOwned),
 								cfTag(certificateARNTagPrefix+"cert-arn", time.Time{}.Format(time.RFC3339)),
 							},
@@ -240,7 +245,7 @@ func TestFindManagedStacks(t *testing.T) {
 							StackName:   aws.String("managed-stack"),
 							StackStatus: aws.String(cloudformation.StackStatusCreateComplete),
 							Tags: []*cloudformation.Tag{
-								cfTag(kubernetesCreatorTag, kubernetesCreatorValue),
+								cfTag(kubernetesCreatorTag, DefaultControllerID),
 								cfTag(clusterIDTagPrefix+"test-cluster", resourceLifecycleOwned),
 								cfTag(certificateARNTagPrefix+"cert-arn", time.Time{}.Format(time.RFC3339)),
 							},
@@ -253,7 +258,7 @@ func TestFindManagedStacks(t *testing.T) {
 							StackName:   aws.String("managed-stack-not-ready"),
 							StackStatus: aws.String(cloudformation.StackStatusUpdateInProgress),
 							Tags: []*cloudformation.Tag{
-								cfTag(kubernetesCreatorTag, kubernetesCreatorValue),
+								cfTag(kubernetesCreatorTag, DefaultControllerID),
 								cfTag(clusterIDTagPrefix+"test-cluster", resourceLifecycleOwned),
 							},
 						},
@@ -266,13 +271,13 @@ func TestFindManagedStacks(t *testing.T) {
 						{
 							StackName: aws.String("another-unmanaged-stack"),
 							Tags: []*cloudformation.Tag{
-								cfTag(kubernetesCreatorTag, kubernetesCreatorValue),
+								cfTag(kubernetesCreatorTag, DefaultControllerID),
 							},
 						},
 						{
 							StackName: aws.String("belongs-to-other-cluster"),
 							Tags: []*cloudformation.Tag{
-								cfTag(kubernetesCreatorTag, kubernetesCreatorValue),
+								cfTag(kubernetesCreatorTag, DefaultControllerID),
 								cfTag(clusterIDTagPrefix+"other-cluster", resourceLifecycleOwned),
 							},
 						},
@@ -288,7 +293,7 @@ func TestFindManagedStacks(t *testing.T) {
 					},
 					targetGroupARN: "tg-arn",
 					tags: map[string]string{
-						kubernetesCreatorTag:                 kubernetesCreatorValue,
+						kubernetesCreatorTag:                 DefaultControllerID,
 						clusterIDTagPrefix + "test-cluster":  resourceLifecycleOwned,
 						certificateARNTagPrefix + "cert-arn": time.Time{}.Format(time.RFC3339),
 					},
@@ -302,7 +307,7 @@ func TestFindManagedStacks(t *testing.T) {
 					},
 					targetGroupARN: "tg-arn",
 					tags: map[string]string{
-						kubernetesCreatorTag:                 kubernetesCreatorValue,
+						kubernetesCreatorTag:                 DefaultControllerID,
 						clusterIDTagPrefix + "test-cluster":  resourceLifecycleOwned,
 						certificateARNTagPrefix + "cert-arn": time.Time{}.Format(time.RFC3339),
 					},
@@ -312,7 +317,7 @@ func TestFindManagedStacks(t *testing.T) {
 					name:            "managed-stack-not-ready",
 					certificateARNs: map[string]time.Time{},
 					tags: map[string]string{
-						kubernetesCreatorTag:                kubernetesCreatorValue,
+						kubernetesCreatorTag:                DefaultControllerID,
 						clusterIDTagPrefix + "test-cluster": resourceLifecycleOwned,
 					},
 					status: cloudformation.StackStatusUpdateInProgress,
@@ -330,7 +335,7 @@ func TestFindManagedStacks(t *testing.T) {
 							StackName:   aws.String("managed-stack-not-ready"),
 							StackStatus: aws.String(cloudformation.StackStatusReviewInProgress),
 							Tags: []*cloudformation.Tag{
-								cfTag(kubernetesCreatorTag, kubernetesCreatorValue),
+								cfTag(kubernetesCreatorTag, DefaultControllerID),
 								cfTag(clusterIDTagPrefix+"test-cluster", resourceLifecycleOwned),
 							},
 							Outputs: []*cloudformation.Output{
@@ -342,7 +347,7 @@ func TestFindManagedStacks(t *testing.T) {
 							StackName:   aws.String("managed-stack"),
 							StackStatus: aws.String(cloudformation.StackStatusRollbackComplete),
 							Tags: []*cloudformation.Tag{
-								cfTag(kubernetesCreatorTag, kubernetesCreatorValue),
+								cfTag(kubernetesCreatorTag, DefaultControllerID),
 								cfTag(clusterIDTagPrefix+"test-cluster", resourceLifecycleOwned),
 							},
 							Outputs: []*cloudformation.Output{
@@ -360,7 +365,7 @@ func TestFindManagedStacks(t *testing.T) {
 					targetGroupARN:  "tg-arn",
 					certificateARNs: map[string]time.Time{},
 					tags: map[string]string{
-						kubernetesCreatorTag:                kubernetesCreatorValue,
+						kubernetesCreatorTag:                DefaultControllerID,
 						clusterIDTagPrefix + "test-cluster": resourceLifecycleOwned,
 					},
 					status: cloudformation.StackStatusReviewInProgress,
@@ -371,7 +376,7 @@ func TestFindManagedStacks(t *testing.T) {
 					targetGroupARN:  "tg-arn",
 					certificateARNs: map[string]time.Time{},
 					tags: map[string]string{
-						kubernetesCreatorTag:                kubernetesCreatorValue,
+						kubernetesCreatorTag:                DefaultControllerID,
 						clusterIDTagPrefix + "test-cluster": resourceLifecycleOwned,
 					},
 					status: cloudformation.StackStatusRollbackComplete,
@@ -399,7 +404,7 @@ func TestFindManagedStacks(t *testing.T) {
 	} {
 		t.Run(ti.name, func(t *testing.T) {
 			c := &mockCloudFormationClient{outputs: ti.given}
-			got, err := findManagedStacks(c, "test-cluster")
+			got, err := findManagedStacks(c, "test-cluster", DefaultControllerID)
 			if err != nil {
 				if !ti.wantErr {
 					t.Error("unexpected error", err)
@@ -430,7 +435,7 @@ func TestGetStack(t *testing.T) {
 							StackName:   aws.String("managed-stack"),
 							StackStatus: aws.String(cloudformation.StackStatusCreateComplete),
 							Tags: []*cloudformation.Tag{
-								cfTag(kubernetesCreatorTag, kubernetesCreatorValue),
+								cfTag(kubernetesCreatorTag, DefaultControllerID),
 								cfTag(clusterIDTagPrefix+"test-cluster", resourceLifecycleOwned),
 								cfTag(certificateARNTagPrefix+"cert-arn", time.Time{}.Format(time.RFC3339)),
 							},
@@ -450,7 +455,7 @@ func TestGetStack(t *testing.T) {
 				},
 				targetGroupARN: "tg-arn",
 				tags: map[string]string{
-					kubernetesCreatorTag:                 kubernetesCreatorValue,
+					kubernetesCreatorTag:                 DefaultControllerID,
 					clusterIDTagPrefix + "test-cluster":  resourceLifecycleOwned,
 					certificateARNTagPrefix + "cert-arn": time.Time{}.Format(time.RFC3339),
 				},

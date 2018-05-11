@@ -146,6 +146,7 @@ type stackSpec struct {
 	customTemplate               string
 	stackTerminationProtection   bool
 	idleConnectionTimeoutSeconds uint
+	controllerID                 string
 }
 
 type healthCheck struct {
@@ -170,7 +171,7 @@ func createStack(svc cloudformationiface.CloudFormationAPI, spec *stackSpec) (st
 			cfParam(parameterTargetGroupVPCIDParameter, spec.vpcID),
 		},
 		Tags: []*cloudformation.Tag{
-			cfTag(kubernetesCreatorTag, kubernetesCreatorValue),
+			cfTag(kubernetesCreatorTag, spec.controllerID),
 			cfTag(clusterIDTagPrefix+spec.clusterID, resourceLifecycleOwned),
 		},
 		TemplateBody:                aws.String(template),
@@ -217,7 +218,7 @@ func updateStack(svc cloudformationiface.CloudFormationAPI, spec *stackSpec) (st
 			cfParam(parameterTargetGroupVPCIDParameter, spec.vpcID),
 		},
 		Tags: []*cloudformation.Tag{
-			cfTag(kubernetesCreatorTag, kubernetesCreatorValue),
+			cfTag(kubernetesCreatorTag, spec.controllerID),
 			cfTag(clusterIDTagPrefix+spec.clusterID, resourceLifecycleOwned),
 		},
 		TemplateBody: aws.String(template),
@@ -361,12 +362,12 @@ func mapToManagedStack(stack *cloudformation.Stack) *Stack {
 	}
 }
 
-func findManagedStacks(svc cloudformationiface.CloudFormationAPI, clusterID string) ([]*Stack, error) {
+func findManagedStacks(svc cloudformationiface.CloudFormationAPI, clusterID, controllerID string) ([]*Stack, error) {
 	stacks := make([]*Stack, 0)
 	err := svc.DescribeStacksPages(&cloudformation.DescribeStacksInput{},
 		func(page *cloudformation.DescribeStacksOutput, lastPage bool) bool {
 			for _, s := range page.Stacks {
-				if isManagedStack(s.Tags, clusterID) {
+				if isManagedStack(s.Tags, clusterID, controllerID) {
 					stacks = append(stacks, mapToManagedStack(s))
 				}
 			}
@@ -378,11 +379,13 @@ func findManagedStacks(svc cloudformationiface.CloudFormationAPI, clusterID stri
 	return stacks, nil
 }
 
-func isManagedStack(cfTags []*cloudformation.Tag, clusterID string) bool {
+func isManagedStack(cfTags []*cloudformation.Tag, clusterID string, controllerID string) bool {
 	tags := convertCloudFormationTags(cfTags)
-	if tags[kubernetesCreatorTag] != kubernetesCreatorValue {
+
+	if tags[kubernetesCreatorTag] != controllerID {
 		return false
 	}
+
 	// TODO(sszuecs): remove 2nd condition, only for migration
 	return tags[clusterIDTagPrefix+clusterID] == resourceLifecycleOwned || tags[clusterIDTag] == clusterID
 }
