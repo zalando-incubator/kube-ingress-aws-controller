@@ -128,6 +128,7 @@ const (
 	parameterTargetGroupHealthCheckPathParameter     = "TargetGroupHealthCheckPathParameter"
 	parameterTargetGroupHealthCheckPortParameter     = "TargetGroupHealthCheckPortParameter"
 	parameterTargetGroupHealthCheckIntervalParameter = "TargetGroupHealthCheckIntervalParameter"
+	parameterTargetUpstreamPortParameter             = "TargetGroupUpstreamPortParameter"
 	parameterTargetGroupVPCIDParameter               = "TargetGroupVPCIDParameter"
 	parameterListenerCertificatesParameter           = "ListenerCertificatesParameter"
 )
@@ -142,6 +143,7 @@ type stackSpec struct {
 	clusterID                    string
 	vpcID                        string
 	healthCheck                  *healthCheck
+	upstreamPort                 uint
 	timeoutInMinutes             uint
 	customTemplate               string
 	stackTerminationProtection   bool
@@ -169,6 +171,7 @@ func createStack(svc cloudformationiface.CloudFormationAPI, spec *stackSpec) (st
 			cfParam(parameterLoadBalancerSecurityGroupParameter, spec.securityGroupID),
 			cfParam(parameterLoadBalancerSubnetsParameter, strings.Join(spec.subnets, ",")),
 			cfParam(parameterTargetGroupVPCIDParameter, spec.vpcID),
+			cfParam(parameterTargetUpstreamPortParameter, fmt.Sprintf("%d", spec.upstreamPort)),
 		},
 		Tags: []*cloudformation.Tag{
 			cfTag(kubernetesCreatorTag, spec.controllerID),

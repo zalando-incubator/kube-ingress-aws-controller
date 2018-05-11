@@ -48,6 +48,11 @@ func generateTemplate(certs map[string]time.Time, idleConnectionTimeoutSeconds u
 			Description: "The healthcheck port",
 			Default:     "9999",
 		},
+		"TargetGroupUpstreamPortParameter": &cloudformation.Parameter{
+			Type:        "Number",
+			Description: "The upstream router port",
+			Default:     "9999",
+		},
 		"TargetGroupHealthCheckIntervalParameter": &cloudformation.Parameter{
 			Type:        "Number",
 			Description: "The healthcheck interval",
@@ -136,7 +141,8 @@ func generateTemplate(certs map[string]time.Time, idleConnectionTimeoutSeconds u
 	template.AddResource("TG", &cloudformation.ElasticLoadBalancingV2TargetGroup{
 		HealthCheckIntervalSeconds: cloudformation.Ref("TargetGroupHealthCheckIntervalParameter").Integer(),
 		HealthCheckPath:            cloudformation.Ref("TargetGroupHealthCheckPathParameter").String(),
-		Port:                       cloudformation.Ref("TargetGroupHealthCheckPortParameter").Integer(),
+		HealthCheckPort:            cloudformation.Ref("TargetGroupHealthCheckPortParameter").String(),
+		Port:                       cloudformation.Ref("TargetGroupUpstreamPortParameter").Integer(),
 		Protocol:                   cloudformation.String("HTTP"),
 		VPCID:                      cloudformation.Ref("TargetGroupVPCIDParameter").String(),
 	})

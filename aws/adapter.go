@@ -44,6 +44,7 @@ type Adapter struct {
 	healthCheckPath            string
 	healthCheckPort            uint
 	healthCheckInterval        time.Duration
+	upstreamPort               uint
 	creationTimeout            time.Duration
 	idleConnectionTimeout      time.Duration
 	stackTTL                   time.Duration
@@ -67,6 +68,7 @@ type configProviderFunc func() client.ConfigProvider
 const (
 	DefaultHealthCheckPath           = "/kube-system/healthz"
 	DefaultHealthCheckPort           = 9999
+	DefaultUpstreamPort              = 9999
 	DefaultHealthCheckInterval       = 10 * time.Second
 	DefaultCertificateUpdateInterval = 30 * time.Minute
 	DefaultCreationTimeout           = 5 * time.Minute
@@ -128,6 +130,7 @@ func NewAdapter() (adapter *Adapter, err error) {
 		cloudformation:      cloudformation.New(p),
 		healthCheckPath:     DefaultHealthCheckPath,
 		healthCheckPort:     DefaultHealthCheckPort,
+		upstreamPort:        DefaultUpstreamPort,
 		healthCheckInterval: DefaultHealthCheckInterval,
 		creationTimeout:     DefaultCreationTimeout,
 		stackTTL:            DefaultStackTTL,
@@ -165,6 +168,13 @@ func (a *Adapter) WithHealthCheckPath(path string) *Adapter {
 // the resources created by the adapter
 func (a *Adapter) WithHealthCheckPort(port uint) *Adapter {
 	a.healthCheckPort = port
+	return a
+}
+
+// WithUpstreamPort returns the receiver adapter after changing the upstream port that will be used by
+// the resources created by the adapter
+func (a *Adapter) WithUpstreamPort(port uint) *Adapter {
+	a.upstreamPort = port
 	return a
 }
 
@@ -363,6 +373,7 @@ func (a *Adapter) CreateStack(certificateARNs []string, scheme, owner string) (s
 			port:     a.healthCheckPort,
 			interval: a.healthCheckInterval,
 		},
+		upstreamPort:                 a.upstreamPort,
 		timeoutInMinutes:             uint(a.creationTimeout.Minutes()),
 		stackTerminationProtection:   a.stackTerminationProtection,
 		idleConnectionTimeoutSeconds: uint(a.idleConnectionTimeout.Seconds()),
@@ -386,6 +397,7 @@ func (a *Adapter) UpdateStack(stackName string, certificateARNs map[string]time.
 			port:     a.healthCheckPort,
 			interval: a.healthCheckInterval,
 		},
+		upstreamPort:                 a.upstreamPort,
 		timeoutInMinutes:             uint(a.creationTimeout.Minutes()),
 		stackTerminationProtection:   a.stackTerminationProtection,
 		idleConnectionTimeoutSeconds: uint(a.idleConnectionTimeout.Seconds()),
