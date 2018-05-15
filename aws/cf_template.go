@@ -109,7 +109,7 @@ func generateTemplate(certs map[string]time.Time, idleConnectionTimeoutSeconds u
 		}
 
 		// Use a new resource name every time to avoid a bug where CloudFormation fails to perform an update properly
-		resourceName := fmt.Sprintf("HTTPSListenerCertificate_%x", hashARNs(certificateARNs))
+		resourceName := fmt.Sprintf("HTTPSListenerCertificate%x", hashARNs(certificateARNs))
 		template.AddResource(resourceName, &cloudformation.ElasticLoadBalancingV2ListenerCertificate{
 			Certificates: &certificateList,
 			ListenerArn:  cloudformation.Ref("HTTPSListener").String(),
