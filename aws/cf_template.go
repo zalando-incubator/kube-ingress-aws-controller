@@ -6,7 +6,20 @@ import (
 	"time"
 
 	"github.com/mweagle/go-cloudformation"
+	"sort"
+	"crypto/sha256"
 )
+
+func hashARNs(certARNs []string) []byte {
+	hash := sha256.New()
+
+	for _, arn := range certARNs {
+		hash.Write([]byte(arn))
+		hash.Write([]byte{'\000'})
+	}
+
+	return hash.Sum(nil)
+}
 
 func generateTemplate(certs map[string]time.Time, idleConnectionTimeoutSeconds uint) (string, error) {
 	template := cloudformation.NewTemplate()
@@ -58,46 +71,51 @@ func generateTemplate(certs map[string]time.Time, idleConnectionTimeoutSeconds u
 	})
 
 	if len(certs) > 0 {
-		certificateARNs := make(cloudformation.ElasticLoadBalancingV2ListenerCertificateCertificateList, 0, len(certs)-1)
-		first := true
-		for certARN, _ := range certs {
-			if first {
-				defaultCertificateARN := cloudformation.ElasticLoadBalancingV2ListenerCertificatePropertyList{
-					{
-						CertificateArn: cloudformation.String(certARN),
-					},
-				}
+		// Sort the certificate names so we have a stable order. As a nice side effect, a wildcard cert will always
+		// be selected as the default one if it's present.
+		certificateARNs := make([]string, 0, len(certs))
+		for certARN := range certs {
+			certificateARNs = append(certificateARNs, certARN)
+		}
+		sort.Slice(certificateARNs, func(i, j int) bool {
+			return certificateARNs[i] < certificateARNs[j]
+		})
 
-				template.AddResource("HTTPSListener", &cloudformation.ElasticLoadBalancingV2Listener{
-					DefaultActions: &cloudformation.ElasticLoadBalancingV2ListenerActionList{
-						{
-							Type:           cloudformation.String("forward"),
-							TargetGroupArn: cloudformation.Ref("TG").String(),
-						},
-					},
-					Certificates:    &defaultCertificateARN,
-					LoadBalancerArn: cloudformation.Ref("LB").String(),
-					Port:            cloudformation.Integer(443),
-					Protocol:        cloudformation.String("HTTPS"),
-				})
+		// Add an HTTPS Listener resource with the first certificate as the default one
+		template.AddResource("HTTPSListener", &cloudformation.ElasticLoadBalancingV2Listener{
+			DefaultActions: &cloudformation.ElasticLoadBalancingV2ListenerActionList{
+				{
+					Type:           cloudformation.String("forward"),
+					TargetGroupArn: cloudformation.Ref("TG").String(),
+				},
+			},
+			Certificates: &cloudformation.ElasticLoadBalancingV2ListenerCertificatePropertyList{
+				{
+					CertificateArn: cloudformation.String(certificateARNs[0]),
+				},
+			},
+			LoadBalancerArn: cloudformation.Ref("LB").String(),
+			Port:            cloudformation.Integer(443),
+			Protocol:        cloudformation.String("HTTPS"),
+		})
 
-				first = false
-				continue
-			}
-
+		// Add a ListenerCertificate resource with all of the certificates, including the default one
+		certificateList := make(cloudformation.ElasticLoadBalancingV2ListenerCertificateCertificateList, 0, len(certificateARNs))
+		for _, certARN := range certificateARNs {
 			c := cloudformation.ElasticLoadBalancingV2ListenerCertificateCertificate{
 				CertificateArn: cloudformation.String(certARN),
 			}
-			certificateARNs = append(certificateARNs, c)
+			certificateList = append(certificateList, c)
 		}
 
-		if len(certificateARNs) > 0 {
-			template.AddResource("HTTPSListenerCertificate", &cloudformation.ElasticLoadBalancingV2ListenerCertificate{
-				Certificates: &certificateARNs,
-				ListenerArn:  cloudformation.Ref("HTTPSListener").String(),
-			})
-		}
+		// Use a new resource name every time to avoid a bug where CloudFormation fails to perform an update properly
+		resourceName := fmt.Sprintf("HTTPSListenerCertificate_%x", hashARNs(certificateARNs))
+		template.AddResource(resourceName, &cloudformation.ElasticLoadBalancingV2ListenerCertificate{
+			Certificates: &certificateList,
+			ListenerArn:  cloudformation.Ref("HTTPSListener").String(),
+		})
 	}
+
 	template.AddResource("LB", &cloudformation.ElasticLoadBalancingV2LoadBalancer{
 		LoadBalancerAttributes: &cloudformation.ElasticLoadBalancingV2LoadBalancerLoadBalancerAttributeList{
 			cloudformation.ElasticLoadBalancingV2LoadBalancerLoadBalancerAttribute{
