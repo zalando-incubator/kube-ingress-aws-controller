@@ -71,8 +71,7 @@ func generateTemplate(certs map[string]time.Time, idleConnectionTimeoutSeconds u
 	})
 
 	if len(certs) > 0 {
-		// Sort the certificate names so we have a stable order. As a nice side effect, a wildcard cert will always
-		// be selected as the default one if it's present.
+		// Sort the certificate names so we have a stable order.
 		certificateARNs := make([]string, 0, len(certs))
 		for certARN := range certs {
 			certificateARNs = append(certificateARNs, certARN)
