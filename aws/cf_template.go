@@ -71,8 +71,7 @@ func generateTemplate(certs map[string]time.Time, idleConnectionTimeoutSeconds u
 	})
 
 	if len(certs) > 0 {
-		// Sort the certificate names so we have a stable order. As a nice side effect, a wildcard cert will always
-		// be selected as the default one if it's present.
+		// Sort the certificate names so we have a stable order.
 		certificateARNs := make([]string, 0, len(certs))
 		for certARN := range certs {
 			certificateARNs = append(certificateARNs, certARN)
@@ -109,7 +108,7 @@ func generateTemplate(certs map[string]time.Time, idleConnectionTimeoutSeconds u
 		}
 
 		// Use a new resource name every time to avoid a bug where CloudFormation fails to perform an update properly
-		resourceName := fmt.Sprintf("HTTPSListenerCertificate_%x", hashARNs(certificateARNs))
+		resourceName := fmt.Sprintf("HTTPSListenerCertificate%x", hashARNs(certificateARNs))
 		template.AddResource(resourceName, &cloudformation.ElasticLoadBalancingV2ListenerCertificate{
 			Certificates: &certificateList,
 			ListenerArn:  cloudformation.Ref("HTTPSListener").String(),
