@@ -290,6 +290,21 @@ built from this codebase. You can deploy it with 2 easy steps:
 If you use [Kops](https://github.com/kubernetes/kops) to create your
 cluster, please use our [deployment guide for Kops](deploy/kops.md)
 
+## Running multiple instances
+
+In some cases it might be useful to run multiple instances of this controller:
+
+* Isolating internal vs external traffic
+* Using a different set of traffic processing nodes
+* Using different frontend routers (e.g.: Skipper and Traefik)
+
+You can use the flag `-operator-id` to set a token that will be used to isolate resources between controller instances.
+This value will be used to tag those resources.
+
+If you don't pass an ID, the default `kube-ingress-aws-controller` will be used.
+
+Usually you would want to combine this flag with `ingress-class-filter` so different types of ingresses are associated with the different controllers.
+
 ## Trying it out
 
 The Ingress Controller's responsibility is limited to managing load balancers, as described above. To have a fully

@@ -52,6 +52,7 @@ type Adapter struct {
 	singleInstances            map[string]*instanceDetails
 	obsoleteInstances          []string
 	stackTerminationProtection bool
+	controllerID               string
 }
 
 type manifest struct {
@@ -71,6 +72,7 @@ const (
 	DefaultCreationTimeout           = 5 * time.Minute
 	DefaultStackTTL                  = 5 * time.Minute
 	DefaultIdleConnectionTimeout     = 1 * time.Minute
+	DefaultControllerID              = "kube-ingress-aws-controller"
 
 	nameTag = "Name"
 
@@ -133,6 +135,7 @@ func NewAdapter() (adapter *Adapter, err error) {
 		ec2Details:          make(map[string]*instanceDetails),
 		singleInstances:     make(map[string]*instanceDetails),
 		obsoleteInstances:   make([]string, 0),
+		controllerID:        DefaultControllerID,
 	}
 
 	adapter.manifest, err = buildManifest(adapter)
@@ -195,6 +198,13 @@ func (a *Adapter) WithIdleConnectionTimeout(interval time.Duration) *Adapter {
 // to create Load Balancer stacks
 func (a *Adapter) WithCustomTemplate(template string) *Adapter {
 	a.customTemplate = template
+	return a
+}
+
+// WithControllerID returns the receiver adapter after changing the CloudFormation template that should be used
+// to create Load Balancer stacks
+func (a *Adapter) WithControllerID(id string) *Adapter {
+	a.controllerID = id
 	return a
 }
 
@@ -283,7 +293,7 @@ func (a *Adapter) SecurityGroupID() string {
 // FindManagedStacks returns all CloudFormation stacks containing the controller management tags
 // that match the current cluster and are ready to be used. The stack status is used to filter.
 func (a *Adapter) FindManagedStacks() ([]*Stack, error) {
-	stacks, err := findManagedStacks(a.cloudformation, a.ClusterID())
+	stacks, err := findManagedStacks(a.cloudformation, a.ClusterID(), a.controllerID)
 	if err != nil {
 		return nil, err
 	}
@@ -356,6 +366,7 @@ func (a *Adapter) CreateStack(certificateARNs []string, scheme, owner string) (s
 		timeoutInMinutes:             uint(a.creationTimeout.Minutes()),
 		stackTerminationProtection:   a.stackTerminationProtection,
 		idleConnectionTimeoutSeconds: uint(a.idleConnectionTimeout.Seconds()),
+		controllerID:                 a.controllerID,
 	}
 
 	return createStack(a.cloudformation, spec)
@@ -378,6 +389,7 @@ func (a *Adapter) UpdateStack(stackName string, certificateARNs map[string]time.
 		timeoutInMinutes:             uint(a.creationTimeout.Minutes()),
 		stackTerminationProtection:   a.stackTerminationProtection,
 		idleConnectionTimeoutSeconds: uint(a.idleConnectionTimeout.Seconds()),
+		controllerID:                 a.controllerID,
 	}
 
 	return updateStack(a.cloudformation, spec)

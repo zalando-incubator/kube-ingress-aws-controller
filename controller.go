@@ -44,6 +44,7 @@ var (
 	stackTerminationProtection bool
 	idleConnectionTimeout      time.Duration
 	ingressClassFilters        string
+	controllerID               string
 )
 
 func loadSettings() error {
@@ -76,6 +77,7 @@ func loadSettings() error {
 		"sets the idle connection timeout of all ALBs. The flag accepts a value acceptable to time.ParseDuration and are between 1s and 4000s.")
 	flag.StringVar(&metricsAddress, "metrics-address", ":7979", "defines where to serve metrics")
 	flag.StringVar(&ingressClassFilters, "ingress-class-filter", "", "optional comma-seperated list of kubernetes.io/ingress.class annotation values to filter behaviour on. ")
+	flag.StringVar(&controllerID, "controller-id", aws.DefaultControllerID, "controller ID used to differentiate resources from multiple aws ingress controller instances")
 
 	flag.Parse()
 
@@ -163,7 +165,8 @@ func main() {
 		WithCreationTimeout(creationTimeout).
 		WithCustomTemplate(cfCustomTemplate).
 		WithStackTerminationProtection(stackTerminationProtection).
-		WithIdleConnectionTimeout(idleConnectionTimeout)
+		WithIdleConnectionTimeout(idleConnectionTimeout).
+		WithControllerID(controllerID)
 
 	certificatesProvider, err := certs.NewCachingProvider(
 		certPollingInterval,
