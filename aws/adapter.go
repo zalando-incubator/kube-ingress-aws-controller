@@ -434,7 +434,7 @@ func buildManifest(awsAdapter *Adapter) (*manifest, error) {
 		return nil, err
 	}
 
-	subnets, err := getSubnets(awsAdapter.ec2, instanceDetails.vpcID)
+	subnets, err := getSubnets(awsAdapter.ec2, instanceDetails.vpcID, clusterID)
 	if err != nil {
 		return nil, err
 	}

@@ -218,7 +218,7 @@ func TestGetSubnets(t *testing.T) {
 	} {
 		t.Run(fmt.Sprintf("%v", test.name), func(t *testing.T) {
 			ec2 := &mockEc2Client{outputs: test.responses}
-			got, err := getSubnets(ec2, "foo")
+			got, err := getSubnets(ec2, "foo", "bar")
 			assertResultAndError(t, test.want, got, test.wantError, err)
 		})
 	}

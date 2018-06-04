@@ -151,7 +151,7 @@ func findFirstRunningInstance(resp *ec2.DescribeInstancesOutput) (*ec2.Instance,
 	return nil, ErrNoRunningInstances
 }
 
-func getSubnets(svc ec2iface.EC2API, vpcID string) ([]*subnetDetails, error) {
+func getSubnets(svc ec2iface.EC2API, vpcID string, clusterId string) ([]*subnetDetails, error) {
 	params := &ec2.DescribeSubnetsInput{
 		Filters: []*ec2.Filter{
 			{
@@ -160,6 +160,10 @@ func getSubnets(svc ec2iface.EC2API, vpcID string) ([]*subnetDetails, error) {
 					aws.String(vpcID),
 				},
 			},
+                        {
+                                Name:   aws.String("tag:" + clusterIDTagPrefix + clusterId),
+                                Values: []*string{aws.String(resourceLifecycleOwned)},
+                        },
 		},
 	}
 	resp, err := svc.DescribeSubnets(params)
