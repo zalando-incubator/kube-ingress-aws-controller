@@ -202,15 +202,15 @@ func main() {
 	}
 
 	log.Println("controller manifest:")
-	log.Printf("\tkubernetes API server: %s", apiServerBaseURL)
+	log.Printf("\tKubernetes API server: %s", apiServerBaseURL)
 	log.Printf("\tCluster ID: %s", awsAdapter.ClusterID())
-	log.Printf("\tvpc id: %s", awsAdapter.VpcID())
-	log.Printf("\tinstance id: %s", awsAdapter.InstanceID())
-	log.Printf("\tsecurity group id: %s", awsAdapter.SecurityGroupID())
-	log.Printf("\tinternal subnet ids: %s", awsAdapter.FindLBSubnets(elbv2.LoadBalancerSchemeEnumInternal))
-	log.Printf("\tpublic subnet ids: %s", awsAdapter.FindLBSubnets(elbv2.LoadBalancerSchemeEnumInternetFacing))
+	log.Printf("\tVPC ID: %s", awsAdapter.VpcID())
+	log.Printf("\tInstance ID: %s", awsAdapter.InstanceID())
+	log.Printf("\tSecurity group ID: %s", awsAdapter.SecurityGroupID())
+	log.Printf("\tInternal subnet IDs: %s", awsAdapter.FindLBSubnets(elbv2.LoadBalancerSchemeEnumInternal))
+	log.Printf("\tPublic subnet IDs: %s", awsAdapter.FindLBSubnets(elbv2.LoadBalancerSchemeEnumInternetFacing))
 	log.Printf("\tEC2 filters: %s", awsAdapter.FiltersString())
-	log.Printf("\tCetificates Per ALB (SNI: %t): %d", certificatesPerALB > 1, certificatesPerALB)
+	log.Printf("\tCertificates per ALB (SNI: %t): %d", certificatesPerALB > 1, certificatesPerALB)
 	log.Printf("\tIngress class filters: %s", kubeAdapter.IngressFiltersString())
 
 	go serveMetrics(metricsAddress)
