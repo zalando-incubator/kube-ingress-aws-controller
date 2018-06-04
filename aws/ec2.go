@@ -160,10 +160,6 @@ func getSubnets(svc ec2iface.EC2API, vpcID string, clusterId string) ([]*subnetD
 					aws.String(vpcID),
 				},
 			},
-                        {
-                                Name:   aws.String("tag:" + clusterIDTagPrefix + clusterId),
-                                Values: []*string{aws.String(resourceLifecycleOwned)},
-                        },
 		},
 	}
 	resp, err := svc.DescribeSubnets(params)
@@ -176,8 +172,8 @@ func getSubnets(svc ec2iface.EC2API, vpcID string, clusterId string) ([]*subnetD
 		return nil, err
 	}
 
-	ret := make([]*subnetDetails, len(resp.Subnets))
-	for i, sn := range resp.Subnets {
+	ret := make([]*subnetDetails, 0)
+	for _, sn := range resp.Subnets {
 		az := aws.StringValue(sn.AvailabilityZone)
 		subnetID := aws.StringValue(sn.SubnetId)
 		isPublic, err := isSubnetPublic(rt, subnetID)
@@ -185,11 +181,14 @@ func getSubnets(svc ec2iface.EC2API, vpcID string, clusterId string) ([]*subnetD
 			return nil, err
 		}
 		tags := convertEc2Tags(sn.Tags)
-		ret[i] = &subnetDetails{
-			id:               subnetID,
-			availabilityZone: az,
-			public:           isPublic,
-			tags:             tags,
+		_, subnetHasClusterTag := tags[clusterIDTagPrefix + clusterId]
+		if subnetHasClusterTag {
+			ret = append(ret, &subnetDetails{
+				id:               subnetID,
+				availabilityZone: az,
+				public:           isPublic,
+				tags:             tags,
+			})
 		}
 	}
 	return ret, nil

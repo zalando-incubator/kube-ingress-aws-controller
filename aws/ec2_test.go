@@ -175,8 +175,8 @@ func TestGetSubnets(t *testing.T) {
 			"success-call",
 			ec2MockOutputs{
 				describeSubnets: R(mockDSOutput(
-					testSubnet{id: "foo1", name: "bar1", az: "baz1", tags: map[string]string{elbRoleTagName: ""}},
-					testSubnet{id: "foo2", name: "bar2", az: "baz2"},
+					testSubnet{id: "foo1", name: "bar1", az: "baz1", tags: map[string]string{elbRoleTagName: "", clusterIDTagPrefix + "bar": "shared"}},
+					testSubnet{id: "foo2", name: "bar2", az: "baz2", tags: map[string]string{clusterIDTagPrefix + "bar": "shared"}},
 				), nil),
 				describeRouteTables: R(mockDRTOutput(
 					testRouteTable{subnetID: "foo1", gatewayIds: []string{"igw-foo1"}},
@@ -184,8 +184,8 @@ func TestGetSubnets(t *testing.T) {
 				), nil),
 			},
 			[]*subnetDetails{
-				{id: "foo1", availabilityZone: "baz1", public: true, tags: map[string]string{nameTag: "bar1", elbRoleTagName: ""}},
-				{id: "foo2", availabilityZone: "baz2", public: true, tags: map[string]string{nameTag: "bar2"}},
+				{id: "foo1", availabilityZone: "baz1", public: true, tags: map[string]string{nameTag: "bar1", elbRoleTagName: "", clusterIDTagPrefix + "bar": "shared"}},
+				{id: "foo2", availabilityZone: "baz2", public: true, tags: map[string]string{nameTag: "bar2", clusterIDTagPrefix + "bar": "shared"}},
 			},
 			false,
 		},
