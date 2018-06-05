@@ -181,8 +181,7 @@ func getSubnets(svc ec2iface.EC2API, vpcID, clusterId string) ([]*subnetDetails,
 			return nil, err
 		}
 		tags := convertEc2Tags(sn.Tags)
-		_, subnetHasClusterTag := tags[clusterIDTagPrefix + clusterId]
-		if subnetHasClusterTag {
+		if _, ok := tags[clusterIDTagPrefix + clusterId]; ok {
 			ret = append(ret, &subnetDetails{
 				id:               subnetID,
 				availabilityZone: az,
