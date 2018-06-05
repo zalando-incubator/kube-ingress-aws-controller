@@ -171,36 +171,7 @@ spec:
 The Application Load Balancer created by the controller will have both an HTTP listener and an HTTPS listener. The
 latter will use the automatically selected certificates.
 
-Alternatively, you can specify a domain used for automatically selecting a
-certificate with an annotation like the one shown below. This is useful if you
-have multiple host rules defined and want to only select one certificate for a
-specific hostname. Generally it's better to let the controller select all
-matching certificates.
-
-```yaml
-apiVersion: extensions/v1beta1
-kind: Ingress
-metadata:
-  name: myingress
-  annotations:
-    zalando.org/aws-load-balancer-ssl-cert-domain: alt.name.org
-spec:
-  rules:
-  - host: test-app.example.org
-    http:
-      paths:
-      - backend:
-          serviceName: test-app-service
-          servicePort: main-port
-  - host: alt.name.org
-    http:
-      paths:
-      - backend:
-          serviceName: test-app-service
-          servicePort: main-port
-```
-
-As a third option you can specify the [Amazon Resource Name](https://docs.aws.amazon.com/general/latest/gr/aws-arns-and-namespaces.html) (ARN)
+As a second option you can specify the [Amazon Resource Name](https://docs.aws.amazon.com/general/latest/gr/aws-arns-and-namespaces.html) (ARN)
 of the desired certificate with an annotation like the one shown here:
 
 ```yaml
