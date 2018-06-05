@@ -9,7 +9,7 @@ import (
 )
 
 type Adapter struct {
-	kubeClient client
+	kubeClient     client
 	ingressFilters []string
 }
 
@@ -116,15 +116,8 @@ func newIngressFromKube(kubeIngress *ingress) *Ingress {
 		scheme = elbv2.LoadBalancerSchemeEnumInternetFacing
 	}
 
-	certDomain := kubeIngress.getAnnotationsString(ingressCertificateDomainAnnotation, "")
-	if certDomain != "" {
-		hostnames = []string{certDomain}
-	}
-
 	shared := true
-
-	sharedValue := kubeIngress.getAnnotationsString(ingressSharedAnnotation, "")
-	if sharedValue == "false" {
+	if kubeIngress.getAnnotationsString(ingressSharedAnnotation, "") == "false" {
 		shared = false
 	}
 
@@ -180,7 +173,7 @@ func NewAdapter(config *Config, ingressClassFilters []string) (*Adapter, error) 
 
 // Get ingress class filters that are used to filter ingresses acted upon.
 func (a *Adapter) IngressFiltersString() string {
-        return strings.TrimSpace(strings.Join(a.ingressFilters, ","))
+	return strings.TrimSpace(strings.Join(a.ingressFilters, ","))
 }
 
 // ListIngress can be used to obtain the list of ingress resources for all namespaces.
@@ -190,7 +183,7 @@ func (a *Adapter) ListIngress() ([]*Ingress, error) {
 		return nil, err
 	}
 	var ret []*Ingress
-	if (len(a.ingressFilters) > 0) {
+	if len(a.ingressFilters) > 0 {
 		ret = make([]*Ingress, 0)
 		for _, ingress := range il.Items {
 			ingressClass := ingress.getAnnotationsString(ingressClassAnnotation, "")
