@@ -151,7 +151,7 @@ func findFirstRunningInstance(resp *ec2.DescribeInstancesOutput) (*ec2.Instance,
 	return nil, ErrNoRunningInstances
 }
 
-func getSubnets(svc ec2iface.EC2API, vpcID, clusterId string) ([]*subnetDetails, error) {
+func getSubnets(svc ec2iface.EC2API, vpcID, clusterID string) ([]*subnetDetails, error) {
 	params := &ec2.DescribeSubnetsInput{
 		Filters: []*ec2.Filter{
 			{
@@ -181,7 +181,7 @@ func getSubnets(svc ec2iface.EC2API, vpcID, clusterId string) ([]*subnetDetails,
 			return nil, err
 		}
 		tags := convertEc2Tags(sn.Tags)
-		if _, ok := tags[clusterIDTagPrefix + clusterId]; ok {
+		if _, ok := tags[clusterIDTagPrefix + clusterID]; ok {
 			ret = append(ret, &subnetDetails{
 				id:               subnetID,
 				availabilityZone: az,
