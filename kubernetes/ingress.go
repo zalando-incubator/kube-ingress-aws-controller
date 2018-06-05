@@ -59,13 +59,12 @@ type ingressLoadBalancer struct {
 }
 
 const (
-	ingressListResource                = "/apis/extensions/v1beta1/ingresses"
-	ingressPatchStatusResource         = "/apis/extensions/v1beta1/namespaces/%s/ingresses/%s/status"
-	ingressCertificateARNAnnotation    = "zalando.org/aws-load-balancer-ssl-cert"
-	ingressCertificateDomainAnnotation = "zalando.org/aws-load-balancer-ssl-cert-domain"
-	ingressSchemeAnnotation            = "zalando.org/aws-load-balancer-scheme"
-	ingressSharedAnnotation            = "zalando.org/aws-load-balancer-shared"
-	ingressClassAnnotation             = "kubernetes.io/ingress.class"
+	ingressListResource             = "/apis/extensions/v1beta1/ingresses"
+	ingressPatchStatusResource      = "/apis/extensions/v1beta1/namespaces/%s/ingresses/%s/status"
+	ingressCertificateARNAnnotation = "zalando.org/aws-load-balancer-ssl-cert"
+	ingressSchemeAnnotation         = "zalando.org/aws-load-balancer-scheme"
+	ingressSharedAnnotation         = "zalando.org/aws-load-balancer-shared"
+	ingressClassAnnotation          = "kubernetes.io/ingress.class"
 )
 
 func (i *ingress) getAnnotationsString(key string, defaultValue string) string {
