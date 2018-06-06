@@ -172,7 +172,25 @@ func TestGetSubnets(t *testing.T) {
 		wantError bool
 	}{
 		{
-			"success-call",
+			"success-call-nofilter",
+			ec2MockOutputs{
+				describeSubnets: R(mockDSOutput(
+					testSubnet{id: "foo1", name: "bar1", az: "baz1", tags: map[string]string{elbRoleTagName: ""}},
+					testSubnet{id: "foo2", name: "bar2", az: "baz2"},
+				), nil),
+				describeRouteTables: R(mockDRTOutput(
+					testRouteTable{subnetID: "foo1", gatewayIds: []string{"igw-foo1"}},
+					testRouteTable{subnetID: "mismatch", gatewayIds: []string{"igw-foo2"}, main: true},
+				), nil),
+			},
+			[]*subnetDetails{
+				{id: "foo1", availabilityZone: "baz1", public: true, tags: map[string]string{nameTag: "bar1", elbRoleTagName: ""}},
+				{id: "foo2", availabilityZone: "baz2", public: true, tags: map[string]string{nameTag: "bar2"}},
+			},
+			false,
+		},
+		{
+			"success-call-filtered",
 			ec2MockOutputs{
 				describeSubnets: R(mockDSOutput(
 					testSubnet{id: "foo1", name: "bar1", az: "baz1", tags: map[string]string{elbRoleTagName: "", clusterIDTagPrefix + "bar": "shared"}},
