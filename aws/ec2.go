@@ -2,6 +2,7 @@ package aws
 
 import (
 	"fmt"
+	"log"
 	"strings"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -151,7 +152,7 @@ func findFirstRunningInstance(resp *ec2.DescribeInstancesOutput) (*ec2.Instance,
 	return nil, ErrNoRunningInstances
 }
 
-func getSubnets(svc ec2iface.EC2API, vpcID string) ([]*subnetDetails, error) {
+func getSubnets(svc ec2iface.EC2API, vpcID, clusterID string) ([]*subnetDetails, error) {
 	params := &ec2.DescribeSubnetsInput{
 		Filters: []*ec2.Filter{
 			{
@@ -172,7 +173,8 @@ func getSubnets(svc ec2iface.EC2API, vpcID string) ([]*subnetDetails, error) {
 		return nil, err
 	}
 
-	ret := make([]*subnetDetails, len(resp.Subnets))
+	retAll      := make([]*subnetDetails, len(resp.Subnets))
+	retFiltered := make([]*subnetDetails, 0)
 	for i, sn := range resp.Subnets {
 		az := aws.StringValue(sn.AvailabilityZone)
 		subnetID := aws.StringValue(sn.SubnetId)
@@ -181,15 +183,28 @@ func getSubnets(svc ec2iface.EC2API, vpcID string) ([]*subnetDetails, error) {
 			return nil, err
 		}
 		tags := convertEc2Tags(sn.Tags)
-		ret[i] = &subnetDetails{
+		retAll[i] = &subnetDetails{
 			id:               subnetID,
 			availabilityZone: az,
 			public:           isPublic,
 			tags:             tags,
 		}
+		if _, ok := tags[clusterIDTagPrefix + clusterID]; ok {
+			retFiltered = append(retFiltered, &subnetDetails{
+				id:               subnetID,
+				availabilityZone: az,
+				public:           isPublic,
+				tags:             tags,
+			})
+		}
 	}
-	return ret, nil
-
+	// Fall back to full list of subnets if none matching expected tagging are found, with a stern warning
+	// https://github.com/kubernetes/kubernetes/blob/v1.10.3/pkg/cloudprovider/providers/aws/aws.go#L3009
+	if len(retFiltered) == 0 {
+		log.Printf("No tagged subnets found; considering all subnets. This is likely to be an error in future versions.")
+		return retAll, nil
+	}
+	return retFiltered, nil
 }
 
 func convertEc2Tags(instanceTags []*ec2.Tag) map[string]string {

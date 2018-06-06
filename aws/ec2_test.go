@@ -172,7 +172,7 @@ func TestGetSubnets(t *testing.T) {
 		wantError bool
 	}{
 		{
-			"success-call",
+			"success-call-nofilter",
 			ec2MockOutputs{
 				describeSubnets: R(mockDSOutput(
 					testSubnet{id: "foo1", name: "bar1", az: "baz1", tags: map[string]string{elbRoleTagName: ""}},
@@ -186,6 +186,24 @@ func TestGetSubnets(t *testing.T) {
 			[]*subnetDetails{
 				{id: "foo1", availabilityZone: "baz1", public: true, tags: map[string]string{nameTag: "bar1", elbRoleTagName: ""}},
 				{id: "foo2", availabilityZone: "baz2", public: true, tags: map[string]string{nameTag: "bar2"}},
+			},
+			false,
+		},
+		{
+			"success-call-filtered",
+			ec2MockOutputs{
+				describeSubnets: R(mockDSOutput(
+					testSubnet{id: "foo1", name: "bar1", az: "baz1", tags: map[string]string{elbRoleTagName: "", clusterIDTagPrefix + "bar": "shared"}},
+					testSubnet{id: "foo2", name: "bar2", az: "baz2", tags: map[string]string{clusterIDTagPrefix + "bar": "shared"}},
+				), nil),
+				describeRouteTables: R(mockDRTOutput(
+					testRouteTable{subnetID: "foo1", gatewayIds: []string{"igw-foo1"}},
+					testRouteTable{subnetID: "mismatch", gatewayIds: []string{"igw-foo2"}, main: true},
+				), nil),
+			},
+			[]*subnetDetails{
+				{id: "foo1", availabilityZone: "baz1", public: true, tags: map[string]string{nameTag: "bar1", elbRoleTagName: "", clusterIDTagPrefix + "bar": "shared"}},
+				{id: "foo2", availabilityZone: "baz2", public: true, tags: map[string]string{nameTag: "bar2", clusterIDTagPrefix + "bar": "shared"}},
 			},
 			false,
 		},
@@ -218,7 +236,7 @@ func TestGetSubnets(t *testing.T) {
 	} {
 		t.Run(fmt.Sprintf("%v", test.name), func(t *testing.T) {
 			ec2 := &mockEc2Client{outputs: test.responses}
-			got, err := getSubnets(ec2, "foo")
+			got, err := getSubnets(ec2, "foo", "bar")
 			assertResultAndError(t, test.want, got, test.wantError, err)
 		})
 	}
