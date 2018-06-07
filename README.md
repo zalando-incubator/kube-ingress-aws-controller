@@ -28,6 +28,12 @@ This information is used to manage AWS resources for each ingress objects of the
 
 ## Upgrade
 
+### <v0.7.0 to >=v0.7.0
+
+Version `v0.7.0` deletes the annotation
+`zalando.org/aws-load-balancer-ssl-cert-domain`, which we do not
+consider as feature since we have SNI enabled ALBs.
+
 ### <v0.6.0 to >=v0.6.0
 
 Version `v0.6.0` introduced support for Multiple TLS Certificates per ALB
@@ -145,6 +151,8 @@ On startup, the controller discovers the AWS resources required for the controll
     the tags `kubernetes.io/role/elb` (for internet-facing ALBs) or
     `kubernetes.io/role/internal-elb` (for internal ALBs). Subnets with these
     tags will be favored when selecting subnets for the ALBs.
+    Additionally you can tag EC2 subnets with
+    `kubernetes.io/cluster/<cluster-id>`, which will be prioritized.
     If there are two possible subnets for a single Availability Zone then the
     first subnet, lexicographically sorted by ID, will be selected.
 
