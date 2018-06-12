@@ -277,7 +277,7 @@ In some cases it might be useful to run multiple instances of this controller:
 * Using a different set of traffic processing nodes
 * Using different frontend routers (e.g.: Skipper and Traefik)
 
-You can use the flag `-operator-id` to set a token that will be used to isolate resources between controller instances.
+You can use the flag `-controller-id` to set a token that will be used to isolate resources between controller instances.
 This value will be used to tag those resources.
 
 If you don't pass an ID, the default `kube-ingress-aws-controller` will be used.
