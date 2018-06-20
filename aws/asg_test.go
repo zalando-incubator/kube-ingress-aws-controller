@@ -7,6 +7,7 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/autoscaling"
+	"github.com/aws/aws-sdk-go/service/elbv2"
 )
 
 type asgtags map[string]string
@@ -182,14 +183,34 @@ func TestGetAutoScalingGroupsByName(t *testing.T) {
 
 func TestAttach(t *testing.T) {
 	for _, test := range []struct {
-		name      string
-		responses autoscalingMockOutputs
-		wantError bool
+		name          string
+		responses     autoscalingMockOutputs
+		elbv2Response elbv2MockOutputs
+		ownerTags     map[string]string
+		wantError     bool
 	}{
 		{
 			name: "describe-failed",
 			responses: autoscalingMockOutputs{
 				describeLoadBalancerTargetGroups: R(nil, dummyErr),
+			},
+			wantError: true,
+		},
+		{
+			name: "describe-tags-failed",
+			responses: autoscalingMockOutputs{
+				attachLoadBalancerTargetGroups: R(nil, nil),
+				describeLoadBalancerTargetGroups: R(&autoscaling.DescribeLoadBalancerTargetGroupsOutput{
+					LoadBalancerTargetGroups: []*autoscaling.LoadBalancerTargetGroupState{
+						{
+							LoadBalancerTargetGroupARN: aws.String("foo"),
+						},
+					},
+				}, nil),
+				detachLoadBalancerTargetGroups: R(nil, nil),
+			},
+			elbv2Response: elbv2MockOutputs{
+				describeTags: R(nil, dummyErr),
 			},
 			wantError: true,
 		},
@@ -204,6 +225,22 @@ func TestAttach(t *testing.T) {
 						},
 					},
 				}, nil)},
+			elbv2Response: elbv2MockOutputs{
+				describeTags: R(&elbv2.DescribeTagsOutput{
+					TagDescriptions: []*elbv2.TagDescription{
+						{
+							ResourceArn: aws.String("foo"),
+							Tags: []*elbv2.Tag{
+								{
+									Key:   aws.String("owner"),
+									Value: aws.String("true"),
+								},
+							},
+						},
+					},
+				}, nil),
+			},
+			ownerTags: map[string]string{"owner": "true"},
 			wantError: false,
 		},
 		{
@@ -218,6 +255,22 @@ func TestAttach(t *testing.T) {
 					},
 				}, nil),
 			},
+			elbv2Response: elbv2MockOutputs{
+				describeTags: R(&elbv2.DescribeTagsOutput{
+					TagDescriptions: []*elbv2.TagDescription{
+						{
+							ResourceArn: aws.String("foo"),
+							Tags: []*elbv2.Tag{
+								{
+									Key:   aws.String("owner"),
+									Value: aws.String("true"),
+								},
+							},
+						},
+					},
+				}, nil),
+			},
+			ownerTags: map[string]string{"owner": "true"},
 			wantError: true,
 		},
 		{
@@ -232,10 +285,42 @@ func TestAttach(t *testing.T) {
 						{
 							LoadBalancerTargetGroupARN: aws.String("bar"),
 						},
+						{
+							LoadBalancerTargetGroupARN: aws.String("baz"),
+						},
 					},
 				}, nil),
 				detachLoadBalancerTargetGroups: R(nil, nil),
 			},
+			elbv2Response: elbv2MockOutputs{
+				describeTags: R(&elbv2.DescribeTagsOutput{
+					TagDescriptions: []*elbv2.TagDescription{
+						{
+							ResourceArn: aws.String("foo"),
+							Tags: []*elbv2.Tag{
+								{
+									Key:   aws.String("owner"),
+									Value: aws.String("true"),
+								},
+							},
+						},
+						{
+							ResourceArn: aws.String("bar"),
+							Tags: []*elbv2.Tag{
+								{
+									Key:   aws.String("owner"),
+									Value: aws.String("true"),
+								},
+							},
+						},
+						{
+							ResourceArn: aws.String("baz"),
+							Tags:        []*elbv2.Tag{},
+						},
+					},
+				}, nil),
+			},
+			ownerTags: map[string]string{"owner": "true"},
 			wantError: false,
 		},
 		{
@@ -254,12 +339,38 @@ func TestAttach(t *testing.T) {
 				}, nil),
 				detachLoadBalancerTargetGroups: R(nil, dummyErr),
 			},
+			elbv2Response: elbv2MockOutputs{
+				describeTags: R(&elbv2.DescribeTagsOutput{
+					TagDescriptions: []*elbv2.TagDescription{
+						{
+							ResourceArn: aws.String("foo"),
+							Tags: []*elbv2.Tag{
+								{
+									Key:   aws.String("owner"),
+									Value: aws.String("true"),
+								},
+							},
+						},
+						{
+							ResourceArn: aws.String("bar"),
+							Tags: []*elbv2.Tag{
+								{
+									Key:   aws.String("owner"),
+									Value: aws.String("true"),
+								},
+							},
+						},
+					},
+				}, nil),
+			},
+			ownerTags: map[string]string{"owner": "true"},
 			wantError: true,
 		},
 	} {
 		t.Run(fmt.Sprintf("%v", test.name), func(t *testing.T) {
 			mockSvc := &mockAutoScalingClient{outputs: test.responses}
-			err := updateTargetGroupsForAutoScalingGroup(mockSvc, []string{"foo"}, "bar")
+			mockElbv2Svc := &mockElbv2Client{outputs: test.elbv2Response}
+			err := updateTargetGroupsForAutoScalingGroup(mockSvc, mockElbv2Svc, []string{"foo"}, "bar", test.ownerTags)
 			if test.wantError {
 				if err == nil {
 					t.Error("wanted an error but call seemed to have succeeded")

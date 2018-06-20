@@ -8,6 +8,7 @@ import (
 type elbv2MockOutputs struct {
 	registerTargets   *apiResponse
 	deregisterTargets *apiResponse
+	describeTags      *apiResponse
 }
 
 type mockElbv2Client struct {
@@ -35,6 +36,13 @@ func (m *mockElbv2Client) DeregisterTargets(in *elbv2.DeregisterTargetsInput) (*
 		return out, m.outputs.deregisterTargets.err
 	}
 	return nil, m.outputs.deregisterTargets.err
+}
+
+func (m *mockElbv2Client) DescribeTags(tags *elbv2.DescribeTagsInput) (*elbv2.DescribeTagsOutput, error) {
+	if out, ok := m.outputs.describeTags.response.(*elbv2.DescribeTagsOutput); ok {
+		return out, m.outputs.describeTags.err
+	}
+	return nil, m.outputs.describeTags.err
 }
 
 func mockDTOutput() *elbv2.DeregisterTargetsOutput {
