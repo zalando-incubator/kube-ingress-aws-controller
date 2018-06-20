@@ -94,33 +94,35 @@ func updateTargetGroupsForAutoScalingGroup(svc autoscalingiface.AutoScalingAPI, 
 		return err
 	}
 
-	arns := make([]*string, 0, len(resp.LoadBalancerTargetGroups))
-	for _, tg := range resp.LoadBalancerTargetGroups {
-		arns = append(arns, tg.LoadBalancerTargetGroupARN)
-	}
-
-	tgParams := &elbv2.DescribeTagsInput{
-		ResourceArns: arns,
-	}
-
-	tgResp, err := elbv2svc.DescribeTags(tgParams)
-	if err != nil {
-		return err
-	}
-
-	// find obsolete target groups which should be detached
 	detachARNs := make([]string, 0, len(targetGroupARNs))
-	for _, tg := range resp.LoadBalancerTargetGroups {
-		tgARN := aws.StringValue(tg.LoadBalancerTargetGroupARN)
-
-		// only consider detaching TGs which are owned by the
-		// controller
-		if !tgHasTags(tgResp.TagDescriptions, tgARN, ownerTags) {
-			continue
+	if len(resp.LoadBalancerTargetGroups) > 0 {
+		arns := make([]*string, 0, len(resp.LoadBalancerTargetGroups))
+		for _, tg := range resp.LoadBalancerTargetGroups {
+			arns = append(arns, tg.LoadBalancerTargetGroupARN)
 		}
 
-		if !inStrSlice(tgARN, targetGroupARNs) {
-			detachARNs = append(detachARNs, tgARN)
+		tgParams := &elbv2.DescribeTagsInput{
+			ResourceArns: arns,
+		}
+
+		tgResp, err := elbv2svc.DescribeTags(tgParams)
+		if err != nil {
+			return err
+		}
+
+		// find obsolete target groups which should be detached
+		for _, tg := range resp.LoadBalancerTargetGroups {
+			tgARN := aws.StringValue(tg.LoadBalancerTargetGroupARN)
+
+			// only consider detaching TGs which are owned by the
+			// controller
+			if !tgHasTags(tgResp.TagDescriptions, tgARN, ownerTags) {
+				continue
+			}
+
+			if !inStrSlice(tgARN, targetGroupARNs) {
+				detachARNs = append(detachARNs, tgARN)
+			}
 		}
 	}
 
