@@ -314,9 +314,14 @@ func (a *Adapter) UpdateTargetGroupsAndAutoScalingGroups(stacks []*Stack) {
 		return
 	}
 
+	ownerTags := map[string]string{
+		clusterIDTagPrefix + a.ClusterID(): resourceLifecycleOwned,
+		kubernetesCreatorTag:               a.controllerID,
+	}
+
 	for _, asg := range a.autoScalingGroups {
 		// This call is idempotent and safe to execute every time
-		if err := updateTargetGroupsForAutoScalingGroup(a.autoscaling, targetGroupARNs, asg.name); err != nil {
+		if err := updateTargetGroupsForAutoScalingGroup(a.autoscaling, a.elbv2, targetGroupARNs, asg.name, ownerTags); err != nil {
 			log.Printf("UpdateTargetGroupsAndAutoScalingGroups() failed to attach target groups to ASG: %v", err)
 		}
 	}
