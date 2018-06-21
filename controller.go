@@ -37,7 +37,7 @@ var (
 	certPollingInterval        time.Duration
 	healthCheckPath            string
 	healthCheckPort            uint
-	healthcheckInterval        time.Duration
+	healthCheckInterval        time.Duration
 	metricsAddress             string
 	disableSNISupport          bool
 	certTTL                    time.Duration
@@ -70,7 +70,7 @@ func loadSettings() error {
 		"sets the health check path for the created target groups")
 	flag.UintVar(&healthCheckPort, "health-check-port", aws.DefaultHealthCheckPort,
 		"sets the health check port for the created target groups")
-	flag.DurationVar(&healthcheckInterval, "health-check-interval", aws.DefaultHealthCheckInterval,
+	flag.DurationVar(&healthCheckInterval, "health-check-interval", aws.DefaultHealthCheckInterval,
 		"sets the health check interval for the created target groups. The flag accepts a value "+
 			"acceptable to time.ParseDuration")
 	flag.DurationVar(&idleConnectionTimeout, "idle-connection-timeout", aws.DefaultIdleConnectionTimeout,
@@ -162,6 +162,7 @@ func main() {
 	awsAdapter = awsAdapter.
 		WithHealthCheckPath(healthCheckPath).
 		WithHealthCheckPort(healthCheckPort).
+		WithHealthCheckInterval(healthCheckInterval).
 		WithCreationTimeout(creationTimeout).
 		WithCustomTemplate(cfCustomTemplate).
 		WithStackTerminationProtection(stackTerminationProtection).
