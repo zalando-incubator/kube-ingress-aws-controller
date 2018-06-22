@@ -73,6 +73,7 @@ const (
 	DefaultStackTTL                  = 5 * time.Minute
 	DefaultIdleConnectionTimeout     = 1 * time.Minute
 	DefaultControllerID              = "kube-ingress-aws-controller"
+	DefaultMaxCertsPerALB            = 25
 
 	nameTag = "Name"
 

@@ -45,6 +45,7 @@ var (
 	idleConnectionTimeout      time.Duration
 	ingressClassFilters        string
 	controllerID               string
+	maxCertsPerALB             int
 )
 
 func loadSettings() error {
@@ -78,6 +79,8 @@ func loadSettings() error {
 	flag.StringVar(&metricsAddress, "metrics-address", ":7979", "defines where to serve metrics")
 	flag.StringVar(&ingressClassFilters, "ingress-class-filter", "", "optional comma-seperated list of kubernetes.io/ingress.class annotation values to filter behaviour on. ")
 	flag.StringVar(&controllerID, "controller-id", aws.DefaultControllerID, "controller ID used to differentiate resources from multiple aws ingress controller instances")
+	flag.IntVar(&maxCertsPerALB, "max-certs-alb", aws.DefaultMaxCertsPerALB,
+		"sets the maximum number of certificates to be attached to an ALB")
 
 	flag.Parse()
 
@@ -197,7 +200,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	certificatesPerALB := maxCertsPerALBSupported
+	certificatesPerALB := maxCertsPerALB
 	if disableSNISupport {
 		certificatesPerALB = 1
 	}
