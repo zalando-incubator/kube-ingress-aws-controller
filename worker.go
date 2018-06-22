@@ -38,7 +38,6 @@ const (
 
 const (
 	maxTargetGroupSupported = 1000
-	maxCertsPerALBSupported = 25
 )
 
 func (item *managedItem) Status() int {
