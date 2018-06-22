@@ -80,7 +80,7 @@ func loadSettings() error {
 	flag.StringVar(&ingressClassFilters, "ingress-class-filter", "", "optional comma-seperated list of kubernetes.io/ingress.class annotation values to filter behaviour on. ")
 	flag.StringVar(&controllerID, "controller-id", aws.DefaultControllerID, "controller ID used to differentiate resources from multiple aws ingress controller instances")
 	flag.IntVar(&maxCertsPerALB, "max-certs-alb", aws.DefaultMaxCertsPerALB,
-		"sets the maximum number of certificates to be attached to an ALB")
+		fmt.Sprintf("sets the maximum number of certificates to be attached to an ALB. Cannot be higher than %d", aws.DefaultMaxCertsPerALB))
 
 	flag.Parse()
 
@@ -113,6 +113,10 @@ func loadSettings() error {
 			return err
 		}
 		cfCustomTemplate = string(buf)
+	}
+
+	if maxCertsPerALB > aws.DefaultMaxCertsPerALB {
+		return fmt.Errorf("invalid max number of certificates per ALB: %d. AWS does not allow more than %d", maxCertsPerALB, aws.DefaultMaxCertsPerALB)
 	}
 
 	return nil
