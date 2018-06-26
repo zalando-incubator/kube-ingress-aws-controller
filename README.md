@@ -284,17 +284,19 @@ If you don't pass an ID, the default `kube-ingress-aws-controller` will be used.
 
 Usually you would want to combine this flag with `ingress-class-filter` so different types of ingresses are associated with the different controllers.
 
-## Upstream and Health Check Ports
+## Target and Health Check Ports
 
-By default the port 9999 is used as both health check and upstream. This means that Skipper or any other traffic router
-you're using needs to be listening on that port.
+By default the port 9999 is used as both health check and target port. This
+means that Skipper or any other traffic router you're using needs to be
+listening on that port.
 
-If you want to change the default ports, you can control it using the `-upstream-port` and `-health-check-port` flags.
+If you want to change the default ports, you can control it using the
+`-target-port` and `-health-check-port` flags.
 
 ### Backward Compatibility
 
-The controller used to have only the `-health-check-port` flag available, and would use the same port as health check and the upstream.
-Those ports are now configured individually. If you relied on this behavior, please include the `-upstream-port` in your configuration.
+The controller used to have only the `-health-check-port` flag available, and would use the same port as health check and the target port.
+Those ports are now configured individually. If you relied on this behavior, please include the `-target-port` in your configuration.
 
 ## Trying it out
 

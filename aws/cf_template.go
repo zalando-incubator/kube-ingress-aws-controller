@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"time"
 
+	"crypto/sha256"
 	"github.com/mweagle/go-cloudformation"
 	"sort"
-	"crypto/sha256"
 )
 
 func hashARNs(certARNs []string) []byte {
@@ -48,9 +48,9 @@ func generateTemplate(certs map[string]time.Time, idleConnectionTimeoutSeconds u
 			Description: "The healthcheck port",
 			Default:     "9999",
 		},
-		"TargetGroupUpstreamPortParameter": &cloudformation.Parameter{
+		"TargetGroupTargetPortParameter": &cloudformation.Parameter{
 			Type:        "Number",
-			Description: "The upstream router port",
+			Description: "The target port",
 			Default:     "9999",
 		},
 		"TargetGroupHealthCheckIntervalParameter": &cloudformation.Parameter{
@@ -142,7 +142,7 @@ func generateTemplate(certs map[string]time.Time, idleConnectionTimeoutSeconds u
 		HealthCheckIntervalSeconds: cloudformation.Ref("TargetGroupHealthCheckIntervalParameter").Integer(),
 		HealthCheckPath:            cloudformation.Ref("TargetGroupHealthCheckPathParameter").String(),
 		HealthCheckPort:            cloudformation.Ref("TargetGroupHealthCheckPortParameter").String(),
-		Port:                       cloudformation.Ref("TargetGroupUpstreamPortParameter").Integer(),
+		Port:                       cloudformation.Ref("TargetGroupTargetPortParameter").Integer(),
 		Protocol:                   cloudformation.String("HTTP"),
 		VPCID:                      cloudformation.Ref("TargetGroupVPCIDParameter").String(),
 	})
