@@ -38,6 +38,7 @@ var (
 	healthCheckPath            string
 	healthCheckPort            uint
 	healthCheckInterval        time.Duration
+	targetPort                 uint
 	metricsAddress             string
 	disableSNISupport          bool
 	certTTL                    time.Duration
@@ -71,6 +72,8 @@ func loadSettings() error {
 		"sets the health check path for the created target groups")
 	flag.UintVar(&healthCheckPort, "health-check-port", aws.DefaultHealthCheckPort,
 		"sets the health check port for the created target groups")
+	flag.UintVar(&targetPort, "target-port", 9999,
+		"sets the target port for the created target groups")
 	flag.DurationVar(&healthCheckInterval, "health-check-interval", aws.DefaultHealthCheckInterval,
 		"sets the health check interval for the created target groups. The flag accepts a value "+
 			"acceptable to time.ParseDuration")
@@ -103,8 +106,12 @@ func loadSettings() error {
 		return err
 	}
 
-	if healthCheckPort == 0 || healthCheckPort > 1<<16-1 {
-		return fmt.Errorf("invalid health check port: %d. please use a valid IP port", healthCheckPort)
+	if healthCheckPort == 0 || healthCheckPort > 65535 {
+		return fmt.Errorf("invalid health check port: %d. please use a valid TCP port", healthCheckPort)
+	}
+
+	if targetPort == 0 || targetPort > 65535 {
+		return fmt.Errorf("invalid target port: %d. please use a valid TCP port", targetPort)
 	}
 
 	if cfCustomTemplate != "" {
@@ -170,6 +177,7 @@ func main() {
 		WithHealthCheckPath(healthCheckPath).
 		WithHealthCheckPort(healthCheckPort).
 		WithHealthCheckInterval(healthCheckInterval).
+		WithTargetPort(targetPort).
 		WithCreationTimeout(creationTimeout).
 		WithCustomTemplate(cfCustomTemplate).
 		WithStackTerminationProtection(stackTerminationProtection).
