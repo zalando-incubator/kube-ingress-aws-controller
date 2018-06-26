@@ -37,7 +37,7 @@ var (
 	certPollingInterval        time.Duration
 	healthCheckPath            string
 	healthCheckPort            uint
-	healthcheckInterval        time.Duration
+	healthCheckInterval        time.Duration
 	upstreamPort               uint
 	metricsAddress             string
 	disableSNISupport          bool
@@ -46,6 +46,7 @@ var (
 	idleConnectionTimeout      time.Duration
 	ingressClassFilters        string
 	controllerID               string
+	maxCertsPerALB             int
 )
 
 func loadSettings() error {
@@ -73,7 +74,7 @@ func loadSettings() error {
 		"sets the health check port for the created target groups")
 	flag.UintVar(&upstreamPort, "upstream-port", 9999,
 		"sets the upstream port for the created target groups")
-	flag.DurationVar(&healthcheckInterval, "health-check-interval", aws.DefaultHealthCheckInterval,
+	flag.DurationVar(&healthCheckInterval, "health-check-interval", aws.DefaultHealthCheckInterval,
 		"sets the health check interval for the created target groups. The flag accepts a value "+
 			"acceptable to time.ParseDuration")
 	flag.DurationVar(&idleConnectionTimeout, "idle-connection-timeout", aws.DefaultIdleConnectionTimeout,
@@ -81,6 +82,8 @@ func loadSettings() error {
 	flag.StringVar(&metricsAddress, "metrics-address", ":7979", "defines where to serve metrics")
 	flag.StringVar(&ingressClassFilters, "ingress-class-filter", "", "optional comma-seperated list of kubernetes.io/ingress.class annotation values to filter behaviour on. ")
 	flag.StringVar(&controllerID, "controller-id", aws.DefaultControllerID, "controller ID used to differentiate resources from multiple aws ingress controller instances")
+	flag.IntVar(&maxCertsPerALB, "max-certs-alb", aws.DefaultMaxCertsPerALB,
+		fmt.Sprintf("sets the maximum number of certificates to be attached to an ALB. Cannot be higher than %d", aws.DefaultMaxCertsPerALB))
 
 	flag.Parse()
 
@@ -117,6 +120,10 @@ func loadSettings() error {
 			return err
 		}
 		cfCustomTemplate = string(buf)
+	}
+
+	if maxCertsPerALB > aws.DefaultMaxCertsPerALB {
+		return fmt.Errorf("invalid max number of certificates per ALB: %d. AWS does not allow more than %d", maxCertsPerALB, aws.DefaultMaxCertsPerALB)
 	}
 
 	return nil
@@ -169,6 +176,7 @@ func main() {
 	awsAdapter = awsAdapter.
 		WithHealthCheckPath(healthCheckPath).
 		WithHealthCheckPort(healthCheckPort).
+		WithHealthCheckInterval(healthCheckInterval).
 		WithUpstreamPort(upstreamPort).
 		WithCreationTimeout(creationTimeout).
 		WithCustomTemplate(cfCustomTemplate).
@@ -204,7 +212,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	certificatesPerALB := maxCertsPerALBSupported
+	certificatesPerALB := maxCertsPerALB
 	if disableSNISupport {
 		certificatesPerALB = 1
 	}

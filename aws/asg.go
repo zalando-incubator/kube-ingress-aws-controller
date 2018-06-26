@@ -6,6 +6,8 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/autoscaling"
 	"github.com/aws/aws-sdk-go/service/autoscaling/autoscalingiface"
+	"github.com/aws/aws-sdk-go/service/elbv2"
+	"github.com/aws/aws-sdk-go/service/elbv2/elbv2iface"
 )
 
 type autoScalingGroupDetails struct {
@@ -82,7 +84,7 @@ func getAutoScalingGroupsByName(service autoscalingiface.AutoScalingAPI, autoSca
 	return result, nil
 }
 
-func updateTargetGroupsForAutoScalingGroup(svc autoscalingiface.AutoScalingAPI, targetGroupARNs []string, autoScalingGroupName string) error {
+func updateTargetGroupsForAutoScalingGroup(svc autoscalingiface.AutoScalingAPI, elbv2svc elbv2iface.ELBV2API, targetGroupARNs []string, autoScalingGroupName string, ownerTags map[string]string) error {
 	params := &autoscaling.DescribeLoadBalancerTargetGroupsInput{
 		AutoScalingGroupName: aws.String(autoScalingGroupName),
 	}
@@ -92,12 +94,35 @@ func updateTargetGroupsForAutoScalingGroup(svc autoscalingiface.AutoScalingAPI, 
 		return err
 	}
 
-	// find obsolete target groups which should be detached
 	detachARNs := make([]string, 0, len(targetGroupARNs))
-	for _, tg := range resp.LoadBalancerTargetGroups {
-		tgARN := aws.StringValue(tg.LoadBalancerTargetGroupARN)
-		if !inStrSlice(tgARN, targetGroupARNs) {
-			detachARNs = append(detachARNs, tgARN)
+	if len(resp.LoadBalancerTargetGroups) > 0 {
+		arns := make([]*string, 0, len(resp.LoadBalancerTargetGroups))
+		for _, tg := range resp.LoadBalancerTargetGroups {
+			arns = append(arns, tg.LoadBalancerTargetGroupARN)
+		}
+
+		tgParams := &elbv2.DescribeTagsInput{
+			ResourceArns: arns,
+		}
+
+		tgResp, err := elbv2svc.DescribeTags(tgParams)
+		if err != nil {
+			return err
+		}
+
+		// find obsolete target groups which should be detached
+		for _, tg := range resp.LoadBalancerTargetGroups {
+			tgARN := aws.StringValue(tg.LoadBalancerTargetGroupARN)
+
+			// only consider detaching TGs which are owned by the
+			// controller
+			if !tgHasTags(tgResp.TagDescriptions, tgARN, ownerTags) {
+				continue
+			}
+
+			if !inStrSlice(tgARN, targetGroupARNs) {
+				detachARNs = append(detachARNs, tgARN)
+			}
 		}
 	}
 
@@ -118,6 +143,34 @@ func updateTargetGroupsForAutoScalingGroup(svc autoscalingiface.AutoScalingAPI, 
 	}
 
 	return nil
+}
+
+// tgHasTags returns true if the specified resource has the expected tags.
+func tgHasTags(descs []*elbv2.TagDescription, arn string, tags map[string]string) bool {
+	for _, desc := range descs {
+		if aws.StringValue(desc.ResourceArn) == arn && hasTags(desc.Tags, tags) {
+			return true
+		}
+	}
+	return false
+}
+
+// hasTags returns true if the expectedTags are found in the list of tags.
+func hasTags(tags []*elbv2.Tag, expectedTags map[string]string) bool {
+	for key, val := range expectedTags {
+		found := false
+		for _, tag := range tags {
+			if aws.StringValue(tag.Key) == key && aws.StringValue(tag.Value) == val {
+				found = true
+				break
+			}
+		}
+
+		if !found {
+			return false
+		}
+	}
+	return true
 }
 
 func detachTargetGroupsFromAutoScalingGroup(svc autoscalingiface.AutoScalingAPI, targetGroupARNs []string, autoScalingGroupName string) error {
