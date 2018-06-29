@@ -243,8 +243,8 @@ resource anymore, it deletes all the previously created resources.
 
 This project provides a [`Makefile`](https://github.com/zalando-incubator/kube-ingress-aws-controller/blob/master/Makefile)
 that you can use to build either a binary or a Docker image. You have
-to have [glide installed](https://github.com/Masterminds/glide) and do
-`glide install`, before building.
+to have [dep installed](https://github.com/golang/dep#installation) and do
+`dep ensure -vendor-only`, before building.
 
 ### Building a Binary
 

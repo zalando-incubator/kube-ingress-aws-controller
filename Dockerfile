@@ -1,10 +1,10 @@
 # builder image
 FROM golang as builder
 
-RUN go get github.com/Masterminds/glide
+RUN curl https://raw.githubusercontent.com/golang/dep/master/install.sh | sh
 WORKDIR /go/src/github.com/zalando-incubator/kube-ingress-aws-controller
 COPY . .
-RUN glide install --strip-vendor
+RUN dep ensure -v -vendor-only
 RUN make test
 RUN make build.linux
 

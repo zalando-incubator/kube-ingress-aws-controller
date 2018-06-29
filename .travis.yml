@@ -14,12 +14,12 @@ matrix:
   - go: tip
 
 before_install:
-- go get github.com/Masterminds/glide
+- curl https://raw.githubusercontent.com/golang/dep/master/install.sh | sh
 - go get github.com/mattn/goveralls
 - go get github.com/alecthomas/gometalinter
 
 install:
-- glide install --strip-vendor
+- dep ensure -v -vendor-only
 - gometalinter --install
 
 script:
