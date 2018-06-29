@@ -71,7 +71,7 @@ func (l *loadBalancer) certsEqual() bool {
 // AddIngress adds an ingress object to the load balancer.
 // The function returns true when the ingress was successfully added. The
 // adding can fail in case the load balancer reached its limit of ingress
-// certificates (25 max) or if the scheme doesn't match.
+// certificates or if the scheme doesn't match.
 func (l *loadBalancer) AddIngress(certificateARNs []string, ingress *kubernetes.Ingress, maxCerts int) bool {
 	if l.scheme != ingress.Scheme {
 		return false
@@ -79,7 +79,10 @@ func (l *loadBalancer) AddIngress(certificateARNs []string, ingress *kubernetes.
 
 	resourceName := fmt.Sprintf("%s/%s", ingress.Namespace, ingress.Name)
 
-	owner := l.stack.OwnerIngress
+	owner := ""
+	if l.stack != nil {
+		owner = l.stack.OwnerIngress
+	}
 
 	if !ingress.Shared && resourceName != owner {
 		return false
