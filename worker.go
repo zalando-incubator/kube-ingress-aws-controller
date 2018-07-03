@@ -109,7 +109,7 @@ func (l *loadBalancer) CertificateARNs() map[string]time.Time {
 	}
 
 	for arn, ttl := range l.stack.CertificateARNs() {
-		if _, ok := certificates[arn]; !ok {
+		if _, ok := certificates[arn]; ok {
 			if ttl.IsZero() {
 				certificates[arn] = time.Now().UTC().Add(l.certTTL)
 			} else if ttl.After(time.Now().UTC()) {
