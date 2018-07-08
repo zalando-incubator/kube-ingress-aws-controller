@@ -56,12 +56,12 @@ func (l *loadBalancer) Status() int {
 // certsEqual checks if the certs found for the ingresses match those already
 // defined on the LB stack.
 func (l *loadBalancer) certsEqual() bool {
-	if len(l.ingresses) != len(l.stack.CertificateARNs()) {
+	if len(l.ingresses) != len(l.stack.CertificateARNs) {
 		return false
 	}
 
 	for arn, _ := range l.ingresses {
-		if ttl, ok := l.stack.CertificateARNs()[arn]; !ok || !ttl.IsZero() {
+		if ttl, ok := l.stack.CertificateARNs[arn]; !ok || !ttl.IsZero() {
 			return false
 		}
 	}
@@ -73,15 +73,15 @@ func (l *loadBalancer) certsEqual() bool {
 // adding can fail in case the load balancer reached its limit of ingress
 // certificates (25 max) or if the scheme doesn't match.
 func (l *loadBalancer) AddIngress(certificateARNs []string, ingress *kubernetes.Ingress, maxCerts int) bool {
-	if l.scheme != ingress.Scheme() {
+	if l.scheme != ingress.Scheme {
 		return false
 	}
 
-	resourceName := fmt.Sprintf("%s/%s", ingress.Namespace(), ingress.Name())
+	resourceName := fmt.Sprintf("%s/%s", ingress.Namespace, ingress.Name)
 
-	owner := l.stack.OwnerIngress()
+	owner := l.stack.OwnerIngress
 
-	if !ingress.Shared() && resourceName != owner {
+	if !ingress.Shared && resourceName != owner {
 		return false
 	}
 
@@ -96,7 +96,7 @@ func (l *loadBalancer) AddIngress(certificateARNs []string, ingress *kubernetes.
 		}
 	}
 
-	l.shared = ingress.Shared()
+	l.shared = ingress.Shared
 
 	return true
 }
@@ -108,7 +108,7 @@ func (l *loadBalancer) CertificateARNs() map[string]time.Time {
 		certificates[arn] = time.Time{}
 	}
 
-	for arn, ttl := range l.stack.CertificateARNs() {
+	for arn, ttl := range l.stack.CertificateARNs {
 		if _, ok := certificates[arn]; !ok {
 			if ttl.IsZero() {
 				certificates[arn] = time.Now().UTC().Add(l.certTTL)
@@ -131,7 +131,7 @@ func (l *loadBalancer) Owner() string {
 
 	for _, ingresses := range l.ingresses {
 		for _, ingress := range ingresses {
-			return fmt.Sprintf("%s/%s", ingress.Namespace(), ingress.Name())
+			return fmt.Sprintf("%s/%s", ingress.Namespace, ingress.Name)
 		}
 	}
 
@@ -173,13 +173,13 @@ func doWork(certsProvider certs.CertificatesProvider, certsPerALB int, certTTL t
 	if err != nil {
 		return fmt.Errorf("doWork failed to list ingress resources: %v", err)
 	}
-	log.Printf("Found %d ingresses", len(ingresses))
+	log.Printf("Found %d ingress(es)", len(ingresses))
 
 	stacks, err := awsAdapter.FindManagedStacks()
 	if err != nil {
 		return fmt.Errorf("doWork failed to list managed stacks: %v", err)
 	}
-	log.Printf("Found %d stacks", len(stacks))
+	log.Printf("Found %d stack(s)", len(stacks))
 
 	err = awsAdapter.UpdateAutoScalingGroupsAndInstances()
 	if err != nil {
@@ -187,12 +187,12 @@ func doWork(certsProvider certs.CertificatesProvider, certsPerALB int, certTTL t
 	}
 
 	awsAdapter.UpdateTargetGroupsAndAutoScalingGroups(stacks)
-	log.Printf("Found %d auto scaling groups", len(awsAdapter.AutoScalingGroupNames()))
-	log.Printf("Found %d single instances", len(awsAdapter.SingleInstances()))
-	log.Printf("Found %d EC2 instances", awsAdapter.CachedInstances())
+	log.Printf("Found %d auto scaling group(s)", len(awsAdapter.AutoScalingGroupNames()))
+	log.Printf("Found %d single instance(s)", len(awsAdapter.SingleInstances()))
+	log.Printf("Found %d EC2 instance(s)", awsAdapter.CachedInstances())
 
 	model := buildManagedModel(certsProvider, certsPerALB, certTTL, ingresses, stacks)
-	log.Printf("Have %d models", len(model))
+	log.Printf("Have %d model(s)", len(model))
 	for _, loadBalancer := range model {
 		switch loadBalancer.Status() {
 		case delete:
@@ -213,10 +213,10 @@ func doWork(certsProvider certs.CertificatesProvider, certsPerALB int, certTTL t
 
 func buildManagedModel(certsProvider certs.CertificatesProvider, certsPerALB int, certTTL time.Duration, ingresses []*kubernetes.Ingress, stacks []*aws.Stack) []*loadBalancer {
 	sort.Slice(stacks, func(i, j int) bool {
-		if len(stacks[i].CertificateARNs()) == len(stacks[j].CertificateARNs()) {
-			return stacks[i].Name() < stacks[j].Name()
+		if len(stacks[i].CertificateARNs) == len(stacks[j].CertificateARNs) {
+			return stacks[i].Name < stacks[j].Name
 		}
-		return len(stacks[i].CertificateARNs()) > len(stacks[j].CertificateARNs())
+		return len(stacks[i].CertificateARNs) > len(stacks[j].CertificateARNs)
 	})
 
 	model := make([]*loadBalancer, 0, len(stacks))
@@ -224,8 +224,8 @@ func buildManagedModel(certsProvider certs.CertificatesProvider, certsPerALB int
 		lb := &loadBalancer{
 			stack:     stack,
 			ingresses: make(map[string][]*kubernetes.Ingress),
-			scheme:    stack.Scheme(),
-			shared:    stack.OwnerIngress() == "",
+			scheme:    stack.Scheme,
+			shared:    stack.OwnerIngress == "",
 			certTTL:   certTTL,
 		}
 		model = append(model, lb)
@@ -236,7 +236,7 @@ func buildManagedModel(certsProvider certs.CertificatesProvider, certsPerALB int
 		err             error
 	)
 	for _, ingress := range ingresses {
-		certificateARN := ingress.CertificateARN()
+		certificateARN := ingress.CertificateARN
 		if certificateARN != "" {
 			certificateARNs = append(certificateARNs, certificateARN)
 		}
@@ -244,7 +244,7 @@ func buildManagedModel(certsProvider certs.CertificatesProvider, certsPerALB int
 		if len(certificateARN) == 0 { // do discovery
 			certificateARNs, err = discoverCertificates(certsProvider, ingress)
 			if err != nil {
-				log.Printf("failed to find certificates for %v: %v", ingress.Hostnames(), err)
+				log.Printf("failed to find certificates for %v: %v", ingress.Hostnames, err)
 				continue
 			}
 		} else { // validate that certificateARN exists
@@ -273,7 +273,7 @@ func buildManagedModel(certsProvider certs.CertificatesProvider, certsPerALB int
 			for _, certificateARN := range certificateARNs {
 				i[certificateARN] = []*kubernetes.Ingress{ingress}
 			}
-			model = append(model, &loadBalancer{ingresses: i, scheme: ingress.Scheme(), shared: ingress.Shared()})
+			model = append(model, &loadBalancer{ingresses: i, scheme: ingress.Scheme, shared: ingress.Shared})
 		}
 	}
 
@@ -286,10 +286,10 @@ func discoverCertificates(certsProvider certs.CertificatesProvider, ingress *kub
 		return nil, fmt.Errorf("discoverCertificateAndUpdateIngress failed to obtain certificates: %v", err)
 	}
 
-	certificateSummaries := certs.FindBestMatchingCertificates(knownCertificates, ingress.Hostnames())
+	certificateSummaries := certs.FindBestMatchingCertificates(knownCertificates, ingress.Hostnames)
 
 	if len(certificateSummaries) < 1 {
-		return nil, fmt.Errorf("Failed to find any certificates for hostnames: %s", ingress.Hostnames())
+		return nil, fmt.Errorf("Failed to find any certificates for hostnames: %s", ingress.Hostnames)
 	}
 
 	certs := make([]string, 0, len(certificateSummaries))
@@ -344,7 +344,7 @@ func updateStack(awsAdapter *aws.Adapter, lb *loadBalancer) {
 
 	log.Printf("updating %q stack for %d certificates / %d ingresses", lb.scheme, len(certificates), len(lb.ingresses))
 
-	stackId, err := awsAdapter.UpdateStack(lb.stack.Name(), certificates, lb.scheme)
+	stackId, err := awsAdapter.UpdateStack(lb.stack.Name, certificates, lb.scheme)
 	if isNoUpdatesToBePerformedError(err) {
 		log.Printf("stack(%q) is already up to date", certificates)
 	} else if err != nil {
@@ -375,7 +375,7 @@ func updateIngress(kubeAdapter *kubernetes.Adapter, lb *loadBalancer) {
 	if lb.stack == nil {
 		return
 	}
-	dnsName := strings.ToLower(lb.stack.DNSName()) // lower case to satisfy Kubernetes reqs
+	dnsName := strings.ToLower(lb.stack.DNSName) // lower case to satisfy Kubernetes reqs
 	for _, ingresses := range lb.ingresses {
 		for _, ing := range ingresses {
 			if err := kubeAdapter.UpdateIngressLoadBalancer(ing, dnsName); err != nil {
@@ -392,7 +392,7 @@ func updateIngress(kubeAdapter *kubernetes.Adapter, lb *loadBalancer) {
 }
 
 func deleteStack(awsAdapter *aws.Adapter, lb *loadBalancer) {
-	stackName := lb.stack.Name()
+	stackName := lb.stack.Name
 	if err := awsAdapter.DeleteStack(lb.stack); err != nil {
 		log.Printf("deleteStack failed to delete stack %q: %v", stackName, err)
 	} else {

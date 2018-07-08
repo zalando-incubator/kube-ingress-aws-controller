@@ -226,7 +226,7 @@ func main() {
 	log.Printf("\tInternal subnet IDs: %s", awsAdapter.FindLBSubnets(elbv2.LoadBalancerSchemeEnumInternal))
 	log.Printf("\tPublic subnet IDs: %s", awsAdapter.FindLBSubnets(elbv2.LoadBalancerSchemeEnumInternetFacing))
 	log.Printf("\tEC2 filters: %s", awsAdapter.FiltersString())
-	log.Printf("\tCertificates per ALB (SNI: %t): %d", certificatesPerALB > 1, certificatesPerALB)
+	log.Printf("\tCertificates per ALB: %d (SNI: %t)", certificatesPerALB, certificatesPerALB > 1)
 	log.Printf("\tIngress class filters: %s", kubeAdapter.IngressFiltersString())
 
 	go serveMetrics(metricsAddress)

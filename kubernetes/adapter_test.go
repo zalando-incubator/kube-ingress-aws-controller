@@ -20,13 +20,13 @@ func TestMappingRoundtrip(tt *testing.T) {
 		{
 			msg: "test parsing a simple ingress object",
 			ingress: &Ingress{
-				namespace:      "default",
-				name:           "foo",
-				hostName:       "bar",
-				scheme:         "internal",
-				certificateARN: "zbr",
-				shared:         true,
-				hostnames:      []string{"domain.example.org"},
+				Namespace:      "default",
+				Name:           "foo",
+				Hostname:       "bar",
+				Scheme:         "internal",
+				CertificateARN: "zbr",
+				Shared:         true,
+				Hostnames:      []string{"domain.example.org"},
 			},
 			kubeIngress: &ingress{
 				Metadata: ingressItemMetadata{
@@ -58,12 +58,12 @@ func TestMappingRoundtrip(tt *testing.T) {
 		{
 			msg: "test parsing an ingress object with shared=false annotation",
 			ingress: &Ingress{
-				namespace:      "default",
-				name:           "foo",
-				hostName:       "bar",
-				scheme:         "internal",
-				certificateARN: "zbr",
-				shared:         false,
+				Namespace:      "default",
+				Name:           "foo",
+				Hostname:       "bar",
+				Scheme:         "internal",
+				CertificateARN: "zbr",
+				Shared:         false,
 			},
 			kubeIngress: &ingress{
 				Metadata: ingressItemMetadata{
@@ -91,16 +91,16 @@ func TestMappingRoundtrip(tt *testing.T) {
 			if !reflect.DeepEqual(tc.ingress, got) {
 				t.Errorf("mapping from kubernetes ingress to adapter failed. wanted %v, got %v", tc.ingress, got)
 			}
-			if got.CertificateARN() != tc.kubeIngress.Metadata.Annotations[ingressCertificateARNAnnotation] {
+			if got.CertificateARN != tc.kubeIngress.Metadata.Annotations[ingressCertificateARNAnnotation] {
 				t.Error("wrong value from CertificateARN()")
 			}
-			if got.Scheme() != tc.kubeIngress.Metadata.Annotations[ingressSchemeAnnotation] {
+			if got.Scheme != tc.kubeIngress.Metadata.Annotations[ingressSchemeAnnotation] {
 				t.Error("wrong value from Scheme()")
 			}
-			if got.Hostname() != tc.kubeIngress.Status.LoadBalancer.Ingress[1].Hostname {
+			if got.Hostname != tc.kubeIngress.Status.LoadBalancer.Ingress[1].Hostname {
 				t.Error("wrong value from Hostname()")
 			}
-			if got.String() != fmt.Sprintf("%s/%s", tc.ingress.namespace, tc.ingress.name) {
+			if got.String() != fmt.Sprintf("%s/%s", tc.ingress.Namespace, tc.ingress.Name) {
 				t.Error("wrong value from String()")
 			}
 
@@ -180,10 +180,10 @@ func TestUpdateIngressLoadBalancer(t *testing.T) {
 	client := &mockClient{}
 	a.kubeClient = client
 	ing := &Ingress{
-		namespace:      "default",
-		name:           "foo",
-		hostName:       "bar",
-		certificateARN: "zbr",
+		Namespace:      "default",
+		Name:           "foo",
+		Hostname:       "bar",
+		CertificateARN: "zbr",
 	}
 	if err := a.UpdateIngressLoadBalancer(ing, "xpto"); err != nil {
 		t.Error(err)
