@@ -85,13 +85,26 @@ func (l *loadBalancer) AddIngress(certificateARNs []string, ingress *kubernetes.
 		return false
 	}
 
+	// check if we can fit the ingress on the load balancer based on
+	// maxCerts
+	newCerts := 0
+	for _, certificateARN := range certificateARNs {
+		if _, ok := l.ingresses[certificateARN]; ok {
+			continue
+		}
+		newCerts++
+	}
+
+	// if adding this ingress would result in more than maxCerts then we
+	// don't add the ingress
+	if len(l.ingresses)+newCerts > maxCerts {
+		return false
+	}
+
 	for _, certificateARN := range certificateARNs {
 		if ingresses, ok := l.ingresses[certificateARN]; ok {
 			l.ingresses[certificateARN] = append(ingresses, ingress)
 		} else {
-			if len(l.ingresses) >= maxCerts {
-				return false
-			}
 			l.ingresses[certificateARN] = []*kubernetes.Ingress{ingress}
 		}
 	}

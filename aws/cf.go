@@ -36,11 +36,11 @@ func (s *Stack) IsComplete() bool {
 	}
 
 	switch s.status {
-	case cloudformation.StackStatusCreateComplete:
+	case cloudformation.StackStatusCreateComplete,
+		cloudformation.StackStatusUpdateComplete,
+		cloudformation.StackStatusRollbackComplete,
+		cloudformation.StackStatusUpdateRollbackComplete:
 		return true
-	case cloudformation.StackStatusUpdateComplete:
-		return true
-
 	}
 	return false
 }

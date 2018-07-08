@@ -112,7 +112,7 @@ func TestIsComplete(t *testing.T) {
 		{cloudformation.StackStatusDeleteFailed, false},
 		{cloudformation.StackStatusDeleteInProgress, false},
 		{cloudformation.StackStatusReviewInProgress, false},
-		{cloudformation.StackStatusRollbackComplete, false},
+		{cloudformation.StackStatusRollbackComplete, true},
 		{cloudformation.StackStatusRollbackFailed, false},
 		{cloudformation.StackStatusRollbackInProgress, false},
 		{cloudformation.StackStatusUpdateCompleteCleanupInProgress, false},

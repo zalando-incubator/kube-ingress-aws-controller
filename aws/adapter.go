@@ -75,7 +75,11 @@ const (
 	DefaultStackTTL                  = 5 * time.Minute
 	DefaultIdleConnectionTimeout     = 1 * time.Minute
 	DefaultControllerID              = "kube-ingress-aws-controller"
-	DefaultMaxCertsPerALB            = 25
+	// DefaultMaxCertsPerALB defines the maximum number of certificates per
+	// ALB. AWS limit is 25 but one space is needed to work around
+	// CloudFormation bug:
+	// https://github.com/zalando-incubator/kube-ingress-aws-controller/pull/162
+	DefaultMaxCertsPerALB = 24
 
 	nameTag = "Name"
 
