@@ -4,6 +4,7 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"reflect"
 	"sort"
 	"syscall"
 	"time"
@@ -47,25 +48,17 @@ func (l *loadBalancer) Status() int {
 	if len(l.ingresses) != 0 && l.stack == nil {
 		return missing
 	}
-	if !l.certsEqual() && l.stack.IsComplete() {
+	if !l.inSync() && l.stack.IsComplete() {
 		return update
 	}
 	return ready
 }
 
-// certsEqual checks if the certs found for the ingresses match those already
-// defined on the LB stack.
-func (l *loadBalancer) certsEqual() bool {
-	if len(l.ingresses) != len(l.stack.CertificateARNs) {
-		return false
-	}
-
-	for arn, _ := range l.ingresses {
-		if ttl, ok := l.stack.CertificateARNs[arn]; !ok || !ttl.IsZero() {
-			return false
-		}
-	}
-	return true
+// inSync checks if the loadBalancer is in sync with the backing CF stack.
+// It's considered in sync when certs found for the ingresses match those
+// already defined on the stack.
+func (l *loadBalancer) inSync() bool {
+	return reflect.DeepEqual(l.CertificateARNs(), l.stack.CertificateARNs)
 }
 
 // AddIngress adds an ingress object to the load balancer.
@@ -120,8 +113,11 @@ func (l *loadBalancer) AddIngress(certificateARNs []string, ingress *kubernetes.
 // CertificateARNs returns a map of certificates and their expiry times.
 func (l *loadBalancer) CertificateARNs() map[string]time.Time {
 	certificates := make(map[string]time.Time, len(l.ingresses))
-	for arn := range l.ingresses {
-		certificates[arn] = time.Time{}
+	for arn, ingresses := range l.ingresses {
+		// only include certificates required by at least one ingress.
+		if len(ingresses) > 0 {
+			certificates[arn] = time.Time{}
+		}
 	}
 
 	for arn, ttl := range l.stack.CertificateARNs {
@@ -243,6 +239,11 @@ func buildManagedModel(certsProvider certs.CertificatesProvider, certsPerALB int
 			scheme:    stack.Scheme,
 			shared:    stack.OwnerIngress == "",
 			certTTL:   certTTL,
+		}
+		// initialize ingresses map with existing certificates from the
+		// stack.
+		for cert := range stack.CertificateARNs {
+			lb.ingresses[cert] = make([]*kubernetes.Ingress, 0)
 		}
 		model = append(model, lb)
 	}
