@@ -112,7 +112,7 @@ func TestIsComplete(t *testing.T) {
 		{cloudformation.StackStatusDeleteFailed, false},
 		{cloudformation.StackStatusDeleteInProgress, false},
 		{cloudformation.StackStatusReviewInProgress, false},
-		{cloudformation.StackStatusRollbackComplete, false},
+		{cloudformation.StackStatusRollbackComplete, true},
 		{cloudformation.StackStatusRollbackFailed, false},
 		{cloudformation.StackStatusRollbackInProgress, false},
 		{cloudformation.StackStatusUpdateCompleteCleanupInProgress, false},
@@ -286,12 +286,12 @@ func TestFindManagedStacks(t *testing.T) {
 			},
 			want: []*Stack{
 				{
-					name:    "managed-stack-not-ready",
-					dnsName: "example-notready.com",
-					certificateARNs: map[string]time.Time{
+					Name:    "managed-stack-not-ready",
+					DNSName: "example-notready.com",
+					CertificateARNs: map[string]time.Time{
 						"cert-arn": time.Time{},
 					},
-					targetGroupARN: "tg-arn",
+					TargetGroupARN: "tg-arn",
 					tags: map[string]string{
 						kubernetesCreatorTag:                 DefaultControllerID,
 						clusterIDTagPrefix + "test-cluster":  resourceLifecycleOwned,
@@ -300,12 +300,12 @@ func TestFindManagedStacks(t *testing.T) {
 					status: cloudformation.StackStatusUpdateInProgress,
 				},
 				{
-					name:    "managed-stack",
-					dnsName: "example.com",
-					certificateARNs: map[string]time.Time{
+					Name:    "managed-stack",
+					DNSName: "example.com",
+					CertificateARNs: map[string]time.Time{
 						"cert-arn": time.Time{},
 					},
-					targetGroupARN: "tg-arn",
+					TargetGroupARN: "tg-arn",
 					tags: map[string]string{
 						kubernetesCreatorTag:                 DefaultControllerID,
 						clusterIDTagPrefix + "test-cluster":  resourceLifecycleOwned,
@@ -314,8 +314,8 @@ func TestFindManagedStacks(t *testing.T) {
 					status: cloudformation.StackStatusCreateComplete,
 				},
 				{
-					name:            "managed-stack-not-ready",
-					certificateARNs: map[string]time.Time{},
+					Name:            "managed-stack-not-ready",
+					CertificateARNs: map[string]time.Time{},
 					tags: map[string]string{
 						kubernetesCreatorTag:                DefaultControllerID,
 						clusterIDTagPrefix + "test-cluster": resourceLifecycleOwned,
@@ -360,10 +360,10 @@ func TestFindManagedStacks(t *testing.T) {
 			},
 			want: []*Stack{
 				{
-					name:            "managed-stack-not-ready",
-					dnsName:         "example-notready.com",
-					targetGroupARN:  "tg-arn",
-					certificateARNs: map[string]time.Time{},
+					Name:            "managed-stack-not-ready",
+					DNSName:         "example-notready.com",
+					TargetGroupARN:  "tg-arn",
+					CertificateARNs: map[string]time.Time{},
 					tags: map[string]string{
 						kubernetesCreatorTag:                DefaultControllerID,
 						clusterIDTagPrefix + "test-cluster": resourceLifecycleOwned,
@@ -371,10 +371,10 @@ func TestFindManagedStacks(t *testing.T) {
 					status: cloudformation.StackStatusReviewInProgress,
 				},
 				{
-					name:            "managed-stack",
-					dnsName:         "example.com",
-					targetGroupARN:  "tg-arn",
-					certificateARNs: map[string]time.Time{},
+					Name:            "managed-stack",
+					DNSName:         "example.com",
+					TargetGroupARN:  "tg-arn",
+					CertificateARNs: map[string]time.Time{},
 					tags: map[string]string{
 						kubernetesCreatorTag:                DefaultControllerID,
 						clusterIDTagPrefix + "test-cluster": resourceLifecycleOwned,
@@ -448,12 +448,12 @@ func TestGetStack(t *testing.T) {
 				}, nil),
 			},
 			want: &Stack{
-				name:    "managed-stack",
-				dnsName: "example.com",
-				certificateARNs: map[string]time.Time{
+				Name:    "managed-stack",
+				DNSName: "example.com",
+				CertificateARNs: map[string]time.Time{
 					"cert-arn": time.Time{},
 				},
-				targetGroupARN: "tg-arn",
+				TargetGroupARN: "tg-arn",
 				tags: map[string]string{
 					kubernetesCreatorTag:                 DefaultControllerID,
 					clusterIDTagPrefix + "test-cluster":  resourceLifecycleOwned,
@@ -516,22 +516,22 @@ func TestShouldDelete(t *testing.T) {
 	}{
 		{
 			"DeleteInProgress",
-			&Stack{certificateARNs: map[string]time.Time{"test-arn": time.Now().UTC().Add(1 * time.Minute)}},
+			&Stack{CertificateARNs: map[string]time.Time{"test-arn": time.Now().UTC().Add(1 * time.Minute)}},
 			false,
 		},
 		{
 			"DeleteInProgressSecond",
-			&Stack{certificateARNs: map[string]time.Time{"test-arn": time.Now().UTC().Add(1 * time.Second)}},
+			&Stack{CertificateARNs: map[string]time.Time{"test-arn": time.Now().UTC().Add(1 * time.Second)}},
 			false,
 		},
 		{
 			"ShouldDelete",
-			&Stack{certificateARNs: map[string]time.Time{"test-arn": time.Now().UTC().Add(-1 * time.Second)}},
+			&Stack{CertificateARNs: map[string]time.Time{"test-arn": time.Now().UTC().Add(-1 * time.Second)}},
 			true,
 		},
 		{
 			"ShouldDeleteMinute",
-			&Stack{certificateARNs: map[string]time.Time{"test-arn": time.Now().UTC().Add(-1 * time.Minute)}},
+			&Stack{CertificateARNs: map[string]time.Time{"test-arn": time.Now().UTC().Add(-1 * time.Minute)}},
 			true,
 		},
 		{

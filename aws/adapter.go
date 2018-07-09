@@ -75,7 +75,11 @@ const (
 	DefaultStackTTL                  = 5 * time.Minute
 	DefaultIdleConnectionTimeout     = 1 * time.Minute
 	DefaultControllerID              = "kube-ingress-aws-controller"
-	DefaultMaxCertsPerALB            = 25
+	// DefaultMaxCertsPerALB defines the maximum number of certificates per
+	// ALB. AWS limit is 25 but one space is needed to work around
+	// CloudFormation bug:
+	// https://github.com/zalando-incubator/kube-ingress-aws-controller/pull/162
+	DefaultMaxCertsPerALB = 24
 
 	nameTag = "Name"
 
@@ -317,7 +321,7 @@ func (a *Adapter) FindManagedStacks() ([]*Stack, error) {
 func (a *Adapter) UpdateTargetGroupsAndAutoScalingGroups(stacks []*Stack) {
 	targetGroupARNs := make([]string, len(stacks))
 	for i, stack := range stacks {
-		targetGroupARNs[i] = stack.targetGroupARN
+		targetGroupARNs[i] = stack.TargetGroupARN
 	}
 
 	// don't do anything if there are no target groups
@@ -425,12 +429,12 @@ func (a *Adapter) GetStack(stackID string) (*Stack, error) {
 // DeleteStack deletes the CloudFormation stack with the given name
 func (a *Adapter) DeleteStack(stack *Stack) error {
 	for _, asg := range a.autoScalingGroups {
-		if err := detachTargetGroupsFromAutoScalingGroup(a.autoscaling, []string{stack.TargetGroupARN()}, asg.name); err != nil {
+		if err := detachTargetGroupsFromAutoScalingGroup(a.autoscaling, []string{stack.TargetGroupARN}, asg.name); err != nil {
 			return fmt.Errorf("DeleteStack failed to detach: %v", err)
 		}
 	}
 
-	return deleteStack(a.cloudformation, stack.Name())
+	return deleteStack(a.cloudformation, stack.Name)
 }
 
 func buildManifest(awsAdapter *Adapter) (*manifest, error) {

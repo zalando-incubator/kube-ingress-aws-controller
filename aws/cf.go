@@ -19,41 +19,14 @@ const (
 
 // Stack is a simple wrapper around a CloudFormation Stack.
 type Stack struct {
-	name            string
+	Name            string
 	status          string
-	dnsName         string
-	scheme          string
-	targetGroupARN  string
-	certificateARNs map[string]time.Time
-	ownerIngress    string
+	DNSName         string
+	Scheme          string
+	TargetGroupARN  string
+	CertificateARNs map[string]time.Time
+	OwnerIngress    string
 	tags            map[string]string
-}
-
-func (s *Stack) Name() string {
-	return s.name
-}
-
-func (s *Stack) CertificateARNs() map[string]time.Time {
-	return s.certificateARNs
-}
-
-func (s *Stack) DNSName() string {
-	return s.dnsName
-}
-
-func (s *Stack) Scheme() string {
-	return s.scheme
-}
-
-func (s *Stack) TargetGroupARN() string {
-	return s.targetGroupARN
-}
-
-func (s *Stack) OwnerIngress() string {
-	if s == nil {
-		return ""
-	}
-	return s.ownerIngress
 }
 
 // IsComplete returns true if the stack status is a complete state.
@@ -63,11 +36,11 @@ func (s *Stack) IsComplete() bool {
 	}
 
 	switch s.status {
-	case cloudformation.StackStatusCreateComplete:
+	case cloudformation.StackStatusCreateComplete,
+		cloudformation.StackStatusUpdateComplete,
+		cloudformation.StackStatusRollbackComplete,
+		cloudformation.StackStatusUpdateRollbackComplete:
 		return true
-	case cloudformation.StackStatusUpdateComplete:
-		return true
-
 	}
 	return false
 }
@@ -80,7 +53,7 @@ func (s *Stack) ShouldDelete() bool {
 	}
 
 	now := time.Now().UTC()
-	for _, t := range s.certificateARNs {
+	for _, t := range s.CertificateARNs {
 		if t.IsZero() || t.After(now) {
 			return false
 		}
@@ -354,13 +327,13 @@ func mapToManagedStack(stack *cloudformation.Stack) *Stack {
 	}
 
 	return &Stack{
-		name:            aws.StringValue(stack.StackName),
-		dnsName:         outputs.dnsName(),
-		targetGroupARN:  outputs.targetGroupARN(),
-		scheme:          parameters[parameterLoadBalancerSchemeParameter],
-		certificateARNs: certificateARNs,
+		Name:            aws.StringValue(stack.StackName),
+		DNSName:         outputs.dnsName(),
+		TargetGroupARN:  outputs.targetGroupARN(),
+		Scheme:          parameters[parameterLoadBalancerSchemeParameter],
+		CertificateARNs: certificateARNs,
 		tags:            tags,
-		ownerIngress:    ownerIngress,
+		OwnerIngress:    ownerIngress,
 		status:          aws.StringValue(stack.StackStatus),
 	}
 }
