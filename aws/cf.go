@@ -192,6 +192,7 @@ func updateStack(svc cloudformationiface.CloudFormationAPI, spec *stackSpec) (st
 			cfParam(parameterLoadBalancerSecurityGroupParameter, spec.securityGroupID),
 			cfParam(parameterLoadBalancerSubnetsParameter, strings.Join(spec.subnets, ",")),
 			cfParam(parameterTargetGroupVPCIDParameter, spec.vpcID),
+			cfParam(parameterTargetTargetPortParameter, fmt.Sprintf("%d", spec.targetPort)),
 		},
 		Tags: []*cloudformation.Tag{
 			cfTag(kubernetesCreatorTag, spec.controllerID),
