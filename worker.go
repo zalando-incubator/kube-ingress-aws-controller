@@ -203,6 +203,11 @@ func doWork(certsProvider certs.CertificatesProvider, certsPerALB int, certTTL t
 	log.Printf("Found %d single instance(s)", len(awsAdapter.SingleInstances()))
 	log.Printf("Found %d EC2 instance(s)", awsAdapter.CachedInstances())
 
+	{
+		certs, _ := certsProvider.GetCertificates()
+		log.Printf("Found %d certificate(s)", len(certs))
+	}
+
 	model := buildManagedModel(certsProvider, certsPerALB, certTTL, ingresses, stacks)
 	log.Printf("Have %d model(s)", len(model))
 	for _, loadBalancer := range model {
