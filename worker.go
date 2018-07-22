@@ -1,12 +1,10 @@
 package main
 
 import (
+	"context"
 	"log"
-	"os"
-	"os/signal"
 	"reflect"
 	"sort"
-	"syscall"
 	"time"
 
 	"fmt"
@@ -150,23 +148,17 @@ func (l *loadBalancer) Owner() string {
 	return ""
 }
 
-func waitForTerminationSignals(signals ...os.Signal) chan os.Signal {
-	c := make(chan os.Signal, 1)
-	signal.Notify(c, signals...)
-	return c
-}
-
-func startPolling(quitCH chan struct{}, certsProvider certs.CertificatesProvider, certsPerALB int, certTTL time.Duration, awsAdapter *aws.Adapter, kubeAdapter *kubernetes.Adapter, pollingInterval time.Duration) {
+func startPolling(ctx context.Context, certsProvider certs.CertificatesProvider, certsPerALB int, certTTL time.Duration, awsAdapter *aws.Adapter, kubeAdapter *kubernetes.Adapter, pollingInterval time.Duration) {
 	for {
+		if err := doWork(certsProvider, certsPerALB, certTTL, awsAdapter, kubeAdapter); err != nil {
+			log.Println(err)
+		}
+
 		log.Printf("Start polling sleep %s", pollingInterval)
 		select {
-		case <-waitForTerminationSignals(syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT):
-			quitCH <- struct{}{}
-			return
 		case <-time.After(pollingInterval):
-			if err := doWork(certsProvider, certsPerALB, certTTL, awsAdapter, kubeAdapter); err != nil {
-				log.Println(err)
-			}
+		case <-ctx.Done():
+			return
 		}
 	}
 }

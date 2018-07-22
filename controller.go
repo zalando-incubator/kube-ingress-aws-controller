@@ -1,12 +1,15 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
+	"os/signal"
 	"path"
 	"strings"
+	"syscall"
 
 	"flag"
 	"time"
@@ -229,12 +232,19 @@ func main() {
 	log.Printf("\tCertificates per ALB: %d (SNI: %t)", certificatesPerALB, certificatesPerALB > 1)
 	log.Printf("\tIngress class filters: %s", kubeAdapter.IngressFiltersString())
 
+	ctx, cancel := context.WithCancel(context.Background())
+	go handleTerminationSignals(cancel, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
 	go serveMetrics(metricsAddress)
-	quitCH := make(chan struct{})
-	go startPolling(quitCH, certificatesProvider, certificatesPerALB, certTTL, awsAdapter, kubeAdapter, pollingInterval)
-	<-quitCH
+	startPolling(ctx, certificatesProvider, certificatesPerALB, certTTL, awsAdapter, kubeAdapter, pollingInterval)
 
-	log.Printf("terminating %s", os.Args[0])
+	log.Printf("Terminating %s", os.Args[0])
+}
+
+func handleTerminationSignals(cancelFunc func(), signals ...os.Signal) {
+	sigsc := make(chan os.Signal, 1)
+	signal.Notify(sigsc, signals...)
+	<-sigsc
+	cancelFunc()
 }
 
 func serveMetrics(address string) {
