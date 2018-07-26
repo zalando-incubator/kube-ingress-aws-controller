@@ -1,6 +1,7 @@
 package aws
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -94,6 +95,18 @@ func updateTargetGroupsForAutoScalingGroup(svc autoscalingiface.AutoScalingAPI, 
 		return err
 	}
 
+	// get all target groups to ensure we are only working with target
+	// groups that still exists.
+	tgParams := &elbv2.DescribeTargetGroupsInput{}
+	allTGs := make([]*elbv2.TargetGroup, 0, len(resp.LoadBalancerTargetGroups))
+	err = elbv2svc.DescribeTargetGroupsPagesWithContext(context.TODO(), tgParams, func(resp *elbv2.DescribeTargetGroupsOutput, lastPage bool) bool {
+		allTGs = append(allTGs, resp.TargetGroups...)
+		return true
+	})
+	if err != nil {
+		return err
+	}
+
 	detachARNs := make([]string, 0, len(targetGroupARNs))
 	if len(resp.LoadBalancerTargetGroups) > 0 {
 		arns := make([]*string, 0, len(resp.LoadBalancerTargetGroups))
@@ -113,6 +126,12 @@ func updateTargetGroupsForAutoScalingGroup(svc autoscalingiface.AutoScalingAPI, 
 		// find obsolete target groups which should be detached
 		for _, tg := range resp.LoadBalancerTargetGroups {
 			tgARN := aws.StringValue(tg.LoadBalancerTargetGroupARN)
+
+			// check that TG exists at all, otherwise detach it
+			if !tgExists(tgARN, allTGs) {
+				detachARNs = append(detachARNs, tgARN)
+				continue
+			}
 
 			// only consider detaching TGs which are owned by the
 			// controller
@@ -143,6 +162,17 @@ func updateTargetGroupsForAutoScalingGroup(svc autoscalingiface.AutoScalingAPI, 
 	}
 
 	return nil
+}
+
+// tgExists returns true if the targetGroupARN is found in the list of
+// targetGroups.
+func tgExists(targetGroupARN string, targetGroups []*elbv2.TargetGroup) bool {
+	for _, tg := range targetGroups {
+		if aws.StringValue(tg.TargetGroupArn) == targetGroupARN {
+			return true
+		}
+	}
+	return false
 }
 
 // tgHasTags returns true if the specified resource has the expected tags.

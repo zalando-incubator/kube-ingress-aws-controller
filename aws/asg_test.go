@@ -190,9 +190,27 @@ func TestAttach(t *testing.T) {
 		wantError     bool
 	}{
 		{
-			name: "describe-failed",
+			name: "describe-lb-target-groups-failed",
 			responses: autoscalingMockOutputs{
 				describeLoadBalancerTargetGroups: R(nil, dummyErr),
+			},
+			wantError: true,
+		},
+		{
+			name: "describe-all-target-groups-failed",
+			responses: autoscalingMockOutputs{
+				attachLoadBalancerTargetGroups: R(nil, nil),
+				describeLoadBalancerTargetGroups: R(&autoscaling.DescribeLoadBalancerTargetGroupsOutput{
+					LoadBalancerTargetGroups: []*autoscaling.LoadBalancerTargetGroupState{
+						{
+							LoadBalancerTargetGroupARN: aws.String("foo"),
+						},
+					},
+				}, nil),
+				detachLoadBalancerTargetGroups: R(nil, nil),
+			},
+			elbv2Response: elbv2MockOutputs{
+				describeTargetGroups: R(nil, dummyErr),
 			},
 			wantError: true,
 		},
@@ -210,7 +228,8 @@ func TestAttach(t *testing.T) {
 				detachLoadBalancerTargetGroups: R(nil, nil),
 			},
 			elbv2Response: elbv2MockOutputs{
-				describeTags: R(nil, dummyErr),
+				describeTargetGroups: R(nil, nil),
+				describeTags:         R(nil, dummyErr),
 			},
 			wantError: true,
 		},
@@ -226,6 +245,13 @@ func TestAttach(t *testing.T) {
 					},
 				}, nil)},
 			elbv2Response: elbv2MockOutputs{
+				describeTargetGroups: R(&elbv2.DescribeTargetGroupsOutput{
+					TargetGroups: []*elbv2.TargetGroup{
+						{
+							TargetGroupArn: aws.String("foo"),
+						},
+					},
+				}, nil),
 				describeTags: R(&elbv2.DescribeTagsOutput{
 					TagDescriptions: []*elbv2.TagDescription{
 						{
@@ -256,6 +282,13 @@ func TestAttach(t *testing.T) {
 				}, nil),
 			},
 			elbv2Response: elbv2MockOutputs{
+				describeTargetGroups: R(&elbv2.DescribeTargetGroupsOutput{
+					TargetGroups: []*elbv2.TargetGroup{
+						{
+							TargetGroupArn: aws.String("foo"),
+						},
+					},
+				}, nil),
 				describeTags: R(&elbv2.DescribeTagsOutput{
 					TagDescriptions: []*elbv2.TagDescription{
 						{
@@ -288,11 +321,27 @@ func TestAttach(t *testing.T) {
 						{
 							LoadBalancerTargetGroupARN: aws.String("baz"),
 						},
+						{
+							LoadBalancerTargetGroupARN: aws.String("does-not-exist"),
+						},
 					},
 				}, nil),
 				detachLoadBalancerTargetGroups: R(nil, nil),
 			},
 			elbv2Response: elbv2MockOutputs{
+				describeTargetGroups: R(&elbv2.DescribeTargetGroupsOutput{
+					TargetGroups: []*elbv2.TargetGroup{
+						{
+							TargetGroupArn: aws.String("foo"),
+						},
+						{
+							TargetGroupArn: aws.String("bar"),
+						},
+						{
+							TargetGroupArn: aws.String("baz"),
+						},
+					},
+				}, nil),
 				describeTags: R(&elbv2.DescribeTagsOutput{
 					TagDescriptions: []*elbv2.TagDescription{
 						{
@@ -315,6 +364,10 @@ func TestAttach(t *testing.T) {
 						},
 						{
 							ResourceArn: aws.String("baz"),
+							Tags:        []*elbv2.Tag{},
+						},
+						{
+							ResourceArn: aws.String("does-not-exist"),
 							Tags:        []*elbv2.Tag{},
 						},
 					},
@@ -340,6 +393,16 @@ func TestAttach(t *testing.T) {
 				detachLoadBalancerTargetGroups: R(nil, dummyErr),
 			},
 			elbv2Response: elbv2MockOutputs{
+				describeTargetGroups: R(&elbv2.DescribeTargetGroupsOutput{
+					TargetGroups: []*elbv2.TargetGroup{
+						{
+							TargetGroupArn: aws.String("foo"),
+						},
+						{
+							TargetGroupArn: aws.String("bar"),
+						},
+					},
+				}, nil),
 				describeTags: R(&elbv2.DescribeTagsOutput{
 					TagDescriptions: []*elbv2.TagDescription{
 						{

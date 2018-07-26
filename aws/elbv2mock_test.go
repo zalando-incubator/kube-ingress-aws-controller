@@ -1,14 +1,17 @@
 package aws
 
 import (
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/request"
 	"github.com/aws/aws-sdk-go/service/elbv2"
 	"github.com/aws/aws-sdk-go/service/elbv2/elbv2iface"
 )
 
 type elbv2MockOutputs struct {
-	registerTargets   *apiResponse
-	deregisterTargets *apiResponse
-	describeTags      *apiResponse
+	registerTargets      *apiResponse
+	deregisterTargets    *apiResponse
+	describeTags         *apiResponse
+	describeTargetGroups *apiResponse
 }
 
 type mockElbv2Client struct {
@@ -43,6 +46,13 @@ func (m *mockElbv2Client) DescribeTags(tags *elbv2.DescribeTagsInput) (*elbv2.De
 		return out, m.outputs.describeTags.err
 	}
 	return nil, m.outputs.describeTags.err
+}
+
+func (m *mockElbv2Client) DescribeTargetGroupsPagesWithContext(ctx aws.Context, in *elbv2.DescribeTargetGroupsInput, f func(resp *elbv2.DescribeTargetGroupsOutput, lastPage bool) bool, opt ...request.Option) error {
+	if out, ok := m.outputs.describeTargetGroups.response.(*elbv2.DescribeTargetGroupsOutput); ok {
+		f(out, true)
+	}
+	return m.outputs.describeTargetGroups.err
 }
 
 func mockDTOutput() *elbv2.DeregisterTargetsOutput {
