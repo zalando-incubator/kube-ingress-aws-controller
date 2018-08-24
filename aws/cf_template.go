@@ -62,6 +62,11 @@ func generateTemplate(certs map[string]time.Time, idleConnectionTimeoutSeconds u
 			Type:        "AWS::EC2::VPC::Id",
 			Description: "The VPCID for the TargetGroup",
 		},
+		"ListenerSslPolicyParameter": &cloudformation.Parameter{
+			Type:        "String",
+			Description: "The HTTPS SSL Security Policy Name",
+			Default:     "ELBSecurityPolicy-2016-08",
+		},
 	}
 	template.AddResource("HTTPListener", &cloudformation.ElasticLoadBalancingV2Listener{
 		DefaultActions: &cloudformation.ElasticLoadBalancingV2ListenerActionList{
@@ -101,6 +106,7 @@ func generateTemplate(certs map[string]time.Time, idleConnectionTimeoutSeconds u
 			LoadBalancerArn: cloudformation.Ref("LB").String(),
 			Port:            cloudformation.Integer(443),
 			Protocol:        cloudformation.String("HTTPS"),
+			SslPolicy:       cloudformation.Ref("ListenerSslPolicyParameter").String(),
 		})
 
 		// Add a ListenerCertificate resource with all of the certificates, including the default one
