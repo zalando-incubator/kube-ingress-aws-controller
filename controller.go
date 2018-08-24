@@ -50,6 +50,7 @@ var (
 	ingressClassFilters        string
 	controllerID               string
 	maxCertsPerALB             int
+	sslPolicy                  string
 )
 
 func loadSettings() error {
@@ -87,6 +88,7 @@ func loadSettings() error {
 	flag.StringVar(&controllerID, "controller-id", aws.DefaultControllerID, "controller ID used to differentiate resources from multiple aws ingress controller instances")
 	flag.IntVar(&maxCertsPerALB, "max-certs-alb", aws.DefaultMaxCertsPerALB,
 		fmt.Sprintf("sets the maximum number of certificates to be attached to an ALB. Cannot be higher than %d", aws.DefaultMaxCertsPerALB))
+	flag.StringVar(&sslPolicy, "ssl-policy", aws.DefaultSslPolicy, "Security policy that will define the protocols/ciphers accepts by the SSL listener")
 
 	flag.Parse()
 
@@ -185,7 +187,8 @@ func main() {
 		WithCustomTemplate(cfCustomTemplate).
 		WithStackTerminationProtection(stackTerminationProtection).
 		WithIdleConnectionTimeout(idleConnectionTimeout).
-		WithControllerID(controllerID)
+		WithControllerID(controllerID).
+		WithSslPolicy(sslPolicy)
 
 	certificatesProvider, err := certs.NewCachingProvider(
 		certPollingInterval,

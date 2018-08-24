@@ -54,6 +54,7 @@ type Adapter struct {
 	obsoleteInstances          []string
 	stackTerminationProtection bool
 	controllerID               string
+	sslPolicy                  string
 }
 
 type manifest struct {
@@ -80,6 +81,10 @@ const (
 	// CloudFormation bug:
 	// https://github.com/zalando-incubator/kube-ingress-aws-controller/pull/162
 	DefaultMaxCertsPerALB = 24
+	// DefaultSslPolicy defines the set of protocols and ciphers that will be
+	// accepted by an SSL endpoint.
+	// See; https://docs.aws.amazon.com/elasticloadbalancing/latest/application/create-https-listener.html#describe-ssl-policies
+	DefaultSslPolicy = "ELBSecurityPolicy-2016-08"
 
 	nameTag = "Name"
 
@@ -144,6 +149,7 @@ func NewAdapter() (adapter *Adapter, err error) {
 		singleInstances:     make(map[string]*instanceDetails),
 		obsoleteInstances:   make([]string, 0),
 		controllerID:        DefaultControllerID,
+		sslPolicy:           DefaultSslPolicy,
 	}
 
 	adapter.manifest, err = buildManifest(adapter)
@@ -220,6 +226,13 @@ func (a *Adapter) WithCustomTemplate(template string) *Adapter {
 // to create Load Balancer stacks
 func (a *Adapter) WithControllerID(id string) *Adapter {
 	a.controllerID = id
+	return a
+}
+
+// WithSslPolicy returns the receiver adapter after changing the CloudFormation template that should be used
+// to create Load Balancer stacks
+func (a *Adapter) WithSslPolicy(policy string) *Adapter {
+	a.sslPolicy = policy
 	return a
 }
 
@@ -388,6 +401,7 @@ func (a *Adapter) CreateStack(certificateARNs []string, scheme, owner string) (s
 		stackTerminationProtection:   a.stackTerminationProtection,
 		idleConnectionTimeoutSeconds: uint(a.idleConnectionTimeout.Seconds()),
 		controllerID:                 a.controllerID,
+		sslPolicy:                    a.sslPolicy,
 	}
 
 	return createStack(a.cloudformation, spec)
@@ -412,6 +426,7 @@ func (a *Adapter) UpdateStack(stackName string, certificateARNs map[string]time.
 		stackTerminationProtection:   a.stackTerminationProtection,
 		idleConnectionTimeoutSeconds: uint(a.idleConnectionTimeout.Seconds()),
 		controllerID:                 a.controllerID,
+		sslPolicy:                    a.sslPolicy,
 	}
 
 	return updateStack(a.cloudformation, spec)
