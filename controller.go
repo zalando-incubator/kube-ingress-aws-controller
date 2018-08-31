@@ -51,6 +51,8 @@ var (
 	controllerID               string
 	maxCertsPerALB             int
 	sslPolicy                  string
+	blacklistCertARN           string
+	blacklistCertArnMap        map[string]bool
 )
 
 func loadSettings() error {
@@ -89,8 +91,14 @@ func loadSettings() error {
 	flag.IntVar(&maxCertsPerALB, "max-certs-alb", aws.DefaultMaxCertsPerALB,
 		fmt.Sprintf("sets the maximum number of certificates to be attached to an ALB. Cannot be higher than %d", aws.DefaultMaxCertsPerALB))
 	flag.StringVar(&sslPolicy, "ssl-policy", aws.DefaultSslPolicy, "Security policy that will define the protocols/ciphers accepts by the SSL listener")
+	flag.StringVar(&blacklistCertARN, "blacklist-certificate-arns", "", "Certificate ARNs to not consider by the controller: arn1,arn2,..")
 
 	flag.Parse()
+
+	blacklistCertArnMap = make(map[string]bool)
+	for _, s := range strings.Split(blacklistCertARN, ",") {
+		blacklistCertArnMap[s] = true
+	}
 
 	if tmp, defined := os.LookupEnv("API_SERVER_BASE_URL"); defined {
 		apiServerBaseURL = tmp
@@ -192,6 +200,7 @@ func main() {
 
 	certificatesProvider, err := certs.NewCachingProvider(
 		certPollingInterval,
+		blacklistCertArnMap,
 		awsAdapter.NewACMCertificateProvider(),
 		awsAdapter.NewIAMCertificateProvider(),
 	)
@@ -233,6 +242,7 @@ func main() {
 	log.Printf("\tPublic subnet IDs: %s", awsAdapter.FindLBSubnets(elbv2.LoadBalancerSchemeEnumInternetFacing))
 	log.Printf("\tEC2 filters: %s", awsAdapter.FiltersString())
 	log.Printf("\tCertificates per ALB: %d (SNI: %t)", certificatesPerALB, certificatesPerALB > 1)
+	log.Printf("\tBlacklisted Certificate ARNs (%d): %s", len(blacklistCertArnMap), blacklistCertARN)
 	log.Printf("\tIngress class filters: %s", kubeAdapter.IngressFiltersString())
 
 	ctx, cancel := context.WithCancel(context.Background())

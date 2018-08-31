@@ -9,8 +9,9 @@ import (
 
 type cachingProvider struct {
 	sync.Mutex
-	providers   []CertificatesProvider
-	certDetails []*CertificateSummary
+	providers         []CertificatesProvider
+	certDetails       []*CertificateSummary
+	blacklistedArnMap map[string]bool
 }
 
 type certProviderWrapper struct {
@@ -23,10 +24,11 @@ type certProviderWrapper struct {
 // certificates it will continue to refresh the cache every
 // certUpdateInterval in the background. If the background refresh
 // fails the last known cached values are considered current.
-func NewCachingProvider(certUpdateInterval time.Duration, providers ...CertificatesProvider) (CertificatesProvider, error) {
+func NewCachingProvider(certUpdateInterval time.Duration, blacklistedArnMap map[string]bool, providers ...CertificatesProvider) (CertificatesProvider, error) {
 	provider := &cachingProvider{
-		providers:   providers,
-		certDetails: make([]*CertificateSummary, 0),
+		providers:         providers,
+		blacklistedArnMap: blacklistedArnMap,
+		certDetails:       make([]*CertificateSummary, 0),
 	}
 	if err := provider.updateCertCache(); err != nil {
 		return nil, fmt.Errorf("initial load of certificates failed: %v", err)
@@ -54,6 +56,7 @@ func (cc *cachingProvider) updateCertCache() error {
 	for _, cp := range cc.providers {
 		go func(provider CertificatesProvider) {
 			res, err := provider.GetCertificates()
+
 			ch <- certProviderWrapper{certs: res, err: err}
 			wg.Done()
 		}(cp)
@@ -65,7 +68,15 @@ func (cc *cachingProvider) updateCertCache() error {
 		if providerResponse.err != nil {
 			return providerResponse.err
 		}
-		newList = append(newList, providerResponse.certs...)
+
+		provisionCerts := make([]*CertificateSummary, 0)
+		for _, certSummary := range providerResponse.certs {
+			if _, ok := cc.blacklistedArnMap[certSummary.ID()]; !ok {
+				provisionCerts = append(provisionCerts, certSummary)
+			}
+		}
+
+		newList = append(newList, provisionCerts...)
 	}
 	cc.Lock()
 	cc.certDetails = newList
