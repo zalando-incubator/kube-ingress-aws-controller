@@ -53,6 +53,7 @@ var (
 	sslPolicy                  string
 	blacklistCertARN           string
 	blacklistCertArnMap        map[string]bool
+	ipAddressType              string
 )
 
 func loadSettings() error {
@@ -92,6 +93,7 @@ func loadSettings() error {
 		fmt.Sprintf("sets the maximum number of certificates to be attached to an ALB. Cannot be higher than %d", aws.DefaultMaxCertsPerALB))
 	flag.StringVar(&sslPolicy, "ssl-policy", aws.DefaultSslPolicy, "Security policy that will define the protocols/ciphers accepts by the SSL listener")
 	flag.StringVar(&blacklistCertARN, "blacklist-certificate-arns", "", "Certificate ARNs to not consider by the controller: arn1,arn2,..")
+	flag.StringVar(&ipAddressType, "ip-addr-type", aws.DefaultIpAddressType, "IPAdress type to use, one of 'ipv4' or 'dualstack'")
 
 	flag.Parse()
 
@@ -196,7 +198,8 @@ func main() {
 		WithStackTerminationProtection(stackTerminationProtection).
 		WithIdleConnectionTimeout(idleConnectionTimeout).
 		WithControllerID(controllerID).
-		WithSslPolicy(sslPolicy)
+		WithSslPolicy(sslPolicy).
+		WithIpAddressType(ipAddressType)
 
 	certificatesProvider, err := certs.NewCachingProvider(
 		certPollingInterval,

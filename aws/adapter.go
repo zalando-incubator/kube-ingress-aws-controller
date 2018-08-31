@@ -55,6 +55,7 @@ type Adapter struct {
 	stackTerminationProtection bool
 	controllerID               string
 	sslPolicy                  string
+	ipAddressType              string
 }
 
 type manifest struct {
@@ -85,8 +86,11 @@ const (
 	// accepted by an SSL endpoint.
 	// See; https://docs.aws.amazon.com/elasticloadbalancing/latest/application/create-https-listener.html#describe-ssl-policies
 	DefaultSslPolicy = "ELBSecurityPolicy-2016-08"
+	// DefaultIpAddressType sets IpAddressType to "ipv4", it is either ipv4 or dualstack
+	DefaultIpAddressType = "ipv4"
 
-	nameTag = "Name"
+	ipAddressTypeDualstack = "dualstack"
+	nameTag                = "Name"
 
 	customTagFilterEnvVarName = "CUSTOM_FILTERS"
 )
@@ -150,6 +154,7 @@ func NewAdapter() (adapter *Adapter, err error) {
 		obsoleteInstances:   make([]string, 0),
 		controllerID:        DefaultControllerID,
 		sslPolicy:           DefaultSslPolicy,
+		ipAddressType:       DefaultIpAddressType,
 	}
 
 	adapter.manifest, err = buildManifest(adapter)
@@ -240,6 +245,14 @@ func (a *Adapter) WithSslPolicy(policy string) *Adapter {
 // the stack termination protection value.
 func (a *Adapter) WithStackTerminationProtection(terminationProtection bool) *Adapter {
 	a.stackTerminationProtection = terminationProtection
+	return a
+}
+
+// WithIpAddressType returns the receiver with ipv4 or dualstack configuration, defaults to ipv4.
+func (a *Adapter) WithIpAddressType(ipAddressType string) *Adapter {
+	if ipAddressType == ipAddressTypeDualstack {
+		a.ipAddressType = ipAddressType
+	}
 	return a
 }
 
@@ -402,6 +415,7 @@ func (a *Adapter) CreateStack(certificateARNs []string, scheme, owner string) (s
 		idleConnectionTimeoutSeconds: uint(a.idleConnectionTimeout.Seconds()),
 		controllerID:                 a.controllerID,
 		sslPolicy:                    a.sslPolicy,
+		ipAddressType:                a.ipAddressType,
 	}
 
 	return createStack(a.cloudformation, spec)
@@ -427,6 +441,7 @@ func (a *Adapter) UpdateStack(stackName string, certificateARNs map[string]time.
 		idleConnectionTimeoutSeconds: uint(a.idleConnectionTimeout.Seconds()),
 		controllerID:                 a.controllerID,
 		sslPolicy:                    a.sslPolicy,
+		ipAddressType:                a.ipAddressType,
 	}
 
 	return updateStack(a.cloudformation, spec)
