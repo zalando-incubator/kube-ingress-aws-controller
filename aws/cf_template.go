@@ -6,8 +6,9 @@ import (
 	"time"
 
 	"crypto/sha256"
-	"github.com/mweagle/go-cloudformation"
 	"sort"
+
+	"github.com/mweagle/go-cloudformation"
 )
 
 func hashARNs(certARNs []string) []byte {
@@ -25,47 +26,52 @@ func generateTemplate(certs map[string]time.Time, idleConnectionTimeoutSeconds u
 	template := cloudformation.NewTemplate()
 	template.Description = "Load Balancer for Kubernetes Ingress"
 	template.Parameters = map[string]*cloudformation.Parameter{
-		"LoadBalancerSchemeParameter": &cloudformation.Parameter{
+		parameterLoadBalancerSchemeParameter: &cloudformation.Parameter{
 			Type:        "String",
 			Description: "The Load Balancer scheme - 'internal' or 'internet-facing'",
 			Default:     "internet-facing",
 		},
-		"LoadBalancerSecurityGroupParameter": &cloudformation.Parameter{
+		parameterLoadBalancerSecurityGroupParameter: &cloudformation.Parameter{
 			Type:        "List<AWS::EC2::SecurityGroup::Id>",
 			Description: "The security group ID for the Load Balancer",
 		},
-		"LoadBalancerSubnetsParameter": &cloudformation.Parameter{
+		parameterLoadBalancerSubnetsParameter: &cloudformation.Parameter{
 			Type:        "List<AWS::EC2::Subnet::Id>",
 			Description: "The list of subnets IDs for the Load Balancer",
 		},
-		"TargetGroupHealthCheckPathParameter": &cloudformation.Parameter{
+		parameterTargetGroupHealthCheckPathParameter: &cloudformation.Parameter{
 			Type:        "String",
 			Description: "The healthcheck path",
 			Default:     "/kube-system/healthz",
 		},
-		"TargetGroupHealthCheckPortParameter": &cloudformation.Parameter{
+		parameterTargetGroupHealthCheckPortParameter: &cloudformation.Parameter{
 			Type:        "Number",
 			Description: "The healthcheck port",
 			Default:     "9999",
 		},
-		"TargetGroupTargetPortParameter": &cloudformation.Parameter{
+		parameterTargetTargetPortParameter: &cloudformation.Parameter{
 			Type:        "Number",
 			Description: "The target port",
 			Default:     "9999",
 		},
-		"TargetGroupHealthCheckIntervalParameter": &cloudformation.Parameter{
+		parameterTargetGroupHealthCheckIntervalParameter: &cloudformation.Parameter{
 			Type:        "Number",
 			Description: "The healthcheck interval",
 			Default:     "10",
 		},
-		"TargetGroupVPCIDParameter": &cloudformation.Parameter{
+		parameterTargetGroupVPCIDParameter: &cloudformation.Parameter{
 			Type:        "AWS::EC2::VPC::Id",
 			Description: "The VPCID for the TargetGroup",
 		},
-		"ListenerSslPolicyParameter": &cloudformation.Parameter{
+		parameterListenerSslPolicyParameter: &cloudformation.Parameter{
 			Type:        "String",
 			Description: "The HTTPS SSL Security Policy Name",
 			Default:     "ELBSecurityPolicy-2016-08",
+		},
+		parameterIpAddressTypeParameter: &cloudformation.Parameter{
+			Type:        "String",
+			Description: "IP Address Type, 'ipv4' or 'dualstack'",
+			Default:     "ipv4",
 		},
 	}
 	template.AddResource("HTTPListener", &cloudformation.ElasticLoadBalancingV2Listener{
@@ -106,7 +112,7 @@ func generateTemplate(certs map[string]time.Time, idleConnectionTimeoutSeconds u
 			LoadBalancerArn: cloudformation.Ref("LB").String(),
 			Port:            cloudformation.Integer(443),
 			Protocol:        cloudformation.String("HTTPS"),
-			SslPolicy:       cloudformation.Ref("ListenerSslPolicyParameter").String(),
+			SslPolicy:       cloudformation.Ref(parameterListenerSslPolicyParameter).String(),
 		})
 
 		// Add a ListenerCertificate resource with all of the certificates, including the default one
@@ -134,9 +140,10 @@ func generateTemplate(certs map[string]time.Time, idleConnectionTimeoutSeconds u
 			},
 		},
 
-		Scheme:         cloudformation.Ref("LoadBalancerSchemeParameter").String(),
-		SecurityGroups: cloudformation.Ref("LoadBalancerSecurityGroupParameter").StringList(),
-		Subnets:        cloudformation.Ref("LoadBalancerSubnetsParameter").StringList(),
+		IPAddressType:  cloudformation.Ref(parameterIpAddressTypeParameter).String(),
+		Scheme:         cloudformation.Ref(parameterLoadBalancerSchemeParameter).String(),
+		SecurityGroups: cloudformation.Ref(parameterLoadBalancerSecurityGroupParameter).StringList(),
+		Subnets:        cloudformation.Ref(parameterLoadBalancerSubnetsParameter).StringList(),
 		Tags: &cloudformation.TagList{
 			{
 				Key:   cloudformation.String("StackName"),
@@ -145,12 +152,12 @@ func generateTemplate(certs map[string]time.Time, idleConnectionTimeoutSeconds u
 		},
 	})
 	template.AddResource("TG", &cloudformation.ElasticLoadBalancingV2TargetGroup{
-		HealthCheckIntervalSeconds: cloudformation.Ref("TargetGroupHealthCheckIntervalParameter").Integer(),
-		HealthCheckPath:            cloudformation.Ref("TargetGroupHealthCheckPathParameter").String(),
-		HealthCheckPort:            cloudformation.Ref("TargetGroupHealthCheckPortParameter").String(),
-		Port:                       cloudformation.Ref("TargetGroupTargetPortParameter").Integer(),
+		HealthCheckIntervalSeconds: cloudformation.Ref(parameterTargetGroupHealthCheckIntervalParameter).Integer(),
+		HealthCheckPath:            cloudformation.Ref(parameterTargetGroupHealthCheckPathParameter).String(),
+		HealthCheckPort:            cloudformation.Ref(parameterTargetGroupHealthCheckPortParameter).String(),
+		Port:                       cloudformation.Ref(parameterTargetTargetPortParameter).Integer(),
 		Protocol:                   cloudformation.String("HTTP"),
-		VPCID:                      cloudformation.Ref("TargetGroupVPCIDParameter").String(),
+		VPCID:                      cloudformation.Ref(parameterTargetGroupVPCIDParameter).String(),
 	})
 
 	template.Outputs = map[string]*cloudformation.Output{
