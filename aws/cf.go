@@ -105,6 +105,7 @@ const (
 	parameterTargetGroupVPCIDParameter               = "TargetGroupVPCIDParameter"
 	parameterListenerCertificatesParameter           = "ListenerCertificatesParameter"
 	parameterListenerSslPolicyParameter              = "ListenerSslPolicyParameter"
+	parameterIpAddressTypeParameter                  = "IpAddressType"
 )
 
 type stackSpec struct {
@@ -124,6 +125,7 @@ type stackSpec struct {
 	idleConnectionTimeoutSeconds uint
 	controllerID                 string
 	sslPolicy                    string
+	ipAddressType                string
 }
 
 type healthCheck struct {
@@ -148,6 +150,7 @@ func createStack(svc cloudformationiface.CloudFormationAPI, spec *stackSpec) (st
 			cfParam(parameterTargetGroupVPCIDParameter, spec.vpcID),
 			cfParam(parameterTargetTargetPortParameter, fmt.Sprintf("%d", spec.targetPort)),
 			cfParam(parameterListenerSslPolicyParameter, spec.sslPolicy),
+			cfParam(parameterIpAddressTypeParameter, spec.ipAddressType),
 		},
 		Tags: []*cloudformation.Tag{
 			cfTag(kubernetesCreatorTag, spec.controllerID),
@@ -197,6 +200,7 @@ func updateStack(svc cloudformationiface.CloudFormationAPI, spec *stackSpec) (st
 			cfParam(parameterTargetGroupVPCIDParameter, spec.vpcID),
 			cfParam(parameterTargetTargetPortParameter, fmt.Sprintf("%d", spec.targetPort)),
 			cfParam(parameterListenerSslPolicyParameter, spec.sslPolicy),
+			cfParam(parameterIpAddressTypeParameter, spec.ipAddressType),
 		},
 		Tags: []*cloudformation.Tag{
 			cfTag(kubernetesCreatorTag, spec.controllerID),
