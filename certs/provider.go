@@ -1,6 +1,9 @@
 package certs
 
-import "time"
+import (
+	"crypto/x509"
+	"time"
+)
 
 // CertificatesProvider interface for Certificate Provider like local,
 // AWS IAM or AWS ACM
@@ -10,20 +13,32 @@ type CertificatesProvider interface {
 
 // CertificateSummary is the business object for Certificates
 type CertificateSummary struct {
-	id        string
-	san       []string
-	notBefore time.Time
-	notAfter  time.Time
+	id          string
+	certificate *x509.Certificate
+	chain       *x509.CertPool
+	domainNames []string
 }
 
 // NewCertificate returns a new CertificateSummary with the matching
 // fields set from the arguments
-func NewCertificate(id string, san []string, notBefore time.Time, notAfter time.Time) *CertificateSummary {
+func NewCertificate(id string, certificate *x509.Certificate, chain []*x509.Certificate) *CertificateSummary {
+	var domainNames []string
+
+	if certificate.Subject.CommonName != "" {
+		domainNames = append(domainNames, certificate.Subject.CommonName)
+	}
+	domainNames = append(domainNames, certificate.DNSNames...)
+
+	chainPool := x509.NewCertPool()
+	for _, chainCert := range chain {
+		chainPool.AddCert(chainCert)
+	}
+
 	return &CertificateSummary{
-		id:        id,
-		san:       san,
-		notBefore: notBefore,
-		notAfter:  notAfter,
+		id:          id,
+		certificate: certificate,
+		chain:       chainPool,
+		domainNames: domainNames,
 	}
 }
 
@@ -32,25 +47,45 @@ func (c *CertificateSummary) ID() string {
 	return c.id
 }
 
-// SubjectAlternativeNames returns all the additional host names
+// DomainNames returns all the host names
 // (sites, IP addresses, common names, etc.) protected by the
 // certificate
-func (c *CertificateSummary) SubjectAlternativeNames() []string {
-	return c.san
+func (c *CertificateSummary) DomainNames() []string {
+	return c.domainNames
+}
+
+// ChainSize returns the number of intermediate certificates
+// in the chain
+func (c *CertificateSummary) ChainSize() int {
+	return len(c.chain.Subjects())
 }
 
 // NotBefore returns the field with the same name from the certificate
 func (c *CertificateSummary) NotBefore() time.Time {
-	return c.notBefore
+	return c.certificate.NotBefore
 }
 
 // NotAfter returns the field with the same name from the certificate
 func (c *CertificateSummary) NotAfter() time.Time {
-	return c.notAfter
+	return c.certificate.NotAfter
 }
 
-// IsValidAt asserts if the the argument is contained in the
-// certificate's date interval
-func (c *CertificateSummary) IsValidAt(when time.Time) bool {
-	return when.Before(c.notAfter) && when.After(c.notBefore)
+// Verify attempts to verify the certificate against the roots
+// using the chain information if needed, for TLS usage.
+func (c *CertificateSummary) Verify(hostname string) error {
+	opts := x509.VerifyOptions{
+		DNSName:       hostname,
+		KeyUsages:     []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+		Roots:         roots,
+		Intermediates: c.chain,
+		CurrentTime:   currentTime(),
+	}
+	_, err := c.certificate.Verify(opts)
+	return err
 }
+
+// For tests: allow overriding current time
+var currentTime = time.Now
+
+// For tests: allow overriding root certificate pool
+var roots *x509.CertPool

@@ -2,6 +2,7 @@
 
 
 [[projects]]
+  digest = "1:e4226d2bbaaff0289b1de3472bfd902d0c61029768db7c223b0cfc97983d4757"
   name = "github.com/aws/aws-sdk-go"
   packages = [
     "aws",
@@ -43,136 +44,204 @@
     "service/elbv2/elbv2iface",
     "service/iam",
     "service/iam/iamiface",
-    "service/sts"
+    "service/sts",
   ]
+  pruneopts = "UT"
   revision = "5197757a58a794d49d2d0c50a932997157734100"
   version = "v1.13.60"
 
 [[projects]]
   branch = "master"
+  digest = "1:d6afaeed1502aa28e80a4ed0981d570ad91b2579193404256ce672ed0a609e0d"
   name = "github.com/beorn7/perks"
   packages = ["quantile"]
+  pruneopts = "UT"
   revision = "3a771d992973f24aa725d07868b467d1ddfceafb"
 
 [[projects]]
+  digest = "1:a2c1d0e43bd3baaa071d1b9ed72c27d78169b2b269f71c105ac4ba34b1be4a39"
   name = "github.com/davecgh/go-spew"
   packages = ["spew"]
+  pruneopts = "UT"
   revision = "346938d642f2ec3594ed81d874461961cd0faa76"
   version = "v1.1.0"
 
 [[projects]]
+  digest = "1:50772cf1f376b08cb57b4e8e9225775d9f9f4aad8487313afcb66846ceaa5d4c"
   name = "github.com/go-ini/ini"
   packages = ["."]
+  pruneopts = "UT"
   revision = "32e4c1e6bc4e7d0d8451aa6b75200d19e37a536a"
   version = "v1.32.0"
 
 [[projects]]
+  digest = "1:e1ff887e232b2d8f4f7c7db15a5fac7be418025afc4dda53c59c765dbb5aa6b4"
   name = "github.com/go-playground/locales"
   packages = [
     ".",
-    "currency"
+    "currency",
   ]
+  pruneopts = "UT"
   revision = "f63010822830b6fe52288ee52d5a1151088ce039"
   version = "v0.12.1"
 
 [[projects]]
   branch = "master"
+  digest = "1:eb758dc813fc3fdf7194c82883b734a8419b1cd6eee3e184d3f6777e248ef9ce"
   name = "github.com/go-playground/universal-translator"
   packages = ["."]
+  pruneopts = "UT"
   revision = "71201497bace774495daed26a3874fd339e0b538"
 
 [[projects]]
+  digest = "1:9b0e71863f18fc5de645a263184c8a6409ae731e847b35b25da4be818f1975fa"
   name = "github.com/golang/protobuf"
   packages = ["proto"]
+  pruneopts = "UT"
   revision = "1e59b77b52bf8e4b449a57e6f79f21226d571845"
 
 [[projects]]
+  digest = "1:8f8811f9be822914c3a25c6a071e93beb4c805d7b026cbf298bc577bc1cc945b"
   name = "github.com/google/uuid"
   packages = ["."]
+  pruneopts = "UT"
   revision = "064e2069ce9c359c118179501254f67d7d37ba24"
   version = "0.2"
 
 [[projects]]
+  digest = "1:e22af8c7518e1eab6f2eab2b7d7558927f816262586cd6ed9f349c97a6c285c4"
   name = "github.com/jmespath/go-jmespath"
   packages = ["."]
+  pruneopts = "UT"
   revision = "0b12d6b5"
 
 [[projects]]
+  digest = "1:dbf815f0a486a0a5eb5ad67dae599f856f679520d8a2d007dbd7045077deac69"
   name = "github.com/linki/instrumented_http"
   packages = ["."]
+  pruneopts = "UT"
   revision = "508103cfb3b315fa9752b5bcd4fb2d97bbc26d89"
   version = "v0.2.0"
 
 [[projects]]
+  digest = "1:ff5ebae34cfbf047d505ee150de27e60570e8c394b3b8fdbb720ff6ac71985fc"
   name = "github.com/matttproud/golang_protobuf_extensions"
   packages = ["pbutil"]
+  pruneopts = "UT"
   revision = "c12348ce28de40eed0136aa2b644d0ee0650e56c"
   version = "v1.0.1"
 
 [[projects]]
   branch = "master"
+  digest = "1:98e9c246610f7ba6918f4900763fb5ed4a2a326db290a6a0515db90cf9e2b361"
   name = "github.com/mweagle/go-cloudformation"
   packages = ["."]
+  pruneopts = "UT"
   revision = "e40a034597a3952017f3bb0c75caa8491616dff1"
 
 [[projects]]
+  digest = "1:40e195917a951a8bf867cd05de2a46aaf1806c50cf92eebf4c16f78cd196f747"
   name = "github.com/pkg/errors"
   packages = ["."]
+  pruneopts = "UT"
   revision = "645ef00459ed84a119197bfb8d8205042c6df63d"
   version = "v0.8.0"
 
 [[projects]]
+  digest = "1:0028cb19b2e4c3112225cd871870f2d9cf49b9b4276531f03438a88e94be86fe"
   name = "github.com/pmezard/go-difflib"
   packages = ["difflib"]
+  pruneopts = "UT"
   revision = "792786c7400a136282c1664665ae0a8db921c6c2"
   version = "v1.0.0"
 
 [[projects]]
+  digest = "1:d14a5f4bfecf017cb780bdde1b6483e5deb87e12c332544d2c430eda58734bcb"
   name = "github.com/prometheus/client_golang"
   packages = [
     "prometheus",
-    "prometheus/promhttp"
+    "prometheus/promhttp",
   ]
+  pruneopts = "UT"
   revision = "c5b7fccd204277076155f10851dad72b76a49317"
   version = "v0.8.0"
 
 [[projects]]
+  digest = "1:32d10bdfa8f09ecf13598324dba86ab891f11db3c538b6a34d1c3b5b99d7c36b"
   name = "github.com/prometheus/client_model"
   packages = ["go"]
+  pruneopts = "UT"
   revision = "6f3806018612930941127f2a7c6c453ba2c527d2"
 
 [[projects]]
+  digest = "1:79ac6d18d6b7eabed09995d83689c2c1d3c09dfdd892ddf3d2202765bef23582"
   name = "github.com/prometheus/common"
   packages = [
     "expfmt",
     "internal/bitbucket.org/ww/goautoneg",
-    "model"
+    "model",
   ]
+  pruneopts = "UT"
   revision = "e3fb1a1acd7605367a2b378bc2e2f893c05174b7"
 
 [[projects]]
+  digest = "1:93ed91deb3bb95cf63bbe5ae3f16eb4b7559b438fc3a3c6917cd12cc31e38c08"
   name = "github.com/prometheus/procfs"
   packages = [
     ".",
-    "xfs"
+    "xfs",
   ]
+  pruneopts = "UT"
   revision = "a6e9df898b1336106c743392c48ee0b71f5c4efa"
 
 [[projects]]
+  digest = "1:c40d65817cdd41fac9aa7af8bed56927bb2d6d47e4fea566a74880f5c2b1c41e"
   name = "github.com/stretchr/testify"
-  packages = ["assert"]
+  packages = [
+    "assert",
+    "require",
+  ]
+  pruneopts = "UT"
   revision = "f35b8ab0b5a2cef36673838d662e249dd9c94686"
   version = "v1.2.2"
 
 [[projects]]
+  digest = "1:c16592d21abe12650b3b83c3cd32b6a28cef156aab1ab153de70f6795f8c8e6d"
   name = "gopkg.in/go-playground/validator.v9"
   packages = ["."]
+  pruneopts = "UT"
   revision = "ce9336f6e200cbb2e7c5672b36095b03f8bf5af7"
   version = "v9.19.0"
 
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "ea5b66bc172c15ec07fdfd81fdfa748075d1b25df3641b6607786334bb3fa1b8"
+  input-imports = [
+    "github.com/aws/aws-sdk-go/aws",
+    "github.com/aws/aws-sdk-go/aws/awserr",
+    "github.com/aws/aws-sdk-go/aws/client",
+    "github.com/aws/aws-sdk-go/aws/ec2metadata",
+    "github.com/aws/aws-sdk-go/aws/request",
+    "github.com/aws/aws-sdk-go/aws/session",
+    "github.com/aws/aws-sdk-go/service/acm",
+    "github.com/aws/aws-sdk-go/service/acm/acmiface",
+    "github.com/aws/aws-sdk-go/service/autoscaling",
+    "github.com/aws/aws-sdk-go/service/autoscaling/autoscalingiface",
+    "github.com/aws/aws-sdk-go/service/cloudformation",
+    "github.com/aws/aws-sdk-go/service/cloudformation/cloudformationiface",
+    "github.com/aws/aws-sdk-go/service/ec2",
+    "github.com/aws/aws-sdk-go/service/ec2/ec2iface",
+    "github.com/aws/aws-sdk-go/service/elbv2",
+    "github.com/aws/aws-sdk-go/service/elbv2/elbv2iface",
+    "github.com/aws/aws-sdk-go/service/iam",
+    "github.com/aws/aws-sdk-go/service/iam/iamiface",
+    "github.com/google/uuid",
+    "github.com/linki/instrumented_http",
+    "github.com/mweagle/go-cloudformation",
+    "github.com/pkg/errors",
+    "github.com/prometheus/client_golang/prometheus/promhttp",
+    "github.com/stretchr/testify/assert",
+    "github.com/stretchr/testify/require",
+  ]
   solver-name = "gps-cdcl"
   solver-version = 1

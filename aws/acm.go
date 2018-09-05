@@ -1,6 +1,8 @@
 package aws
 
 import (
+	"crypto/x509"
+
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/acm"
 	"github.com/aws/aws-sdk-go/service/acm/acmiface"
@@ -49,14 +51,24 @@ func getACMCertificateSummaries(api acmiface.ACMAPI) ([]*acm.CertificateSummary,
 }
 
 func getCertificateSummaryFromACM(api acmiface.ACMAPI, arn *string) (*certs.CertificateSummary, error) {
-	params := &acm.DescribeCertificateInput{CertificateArn: arn}
-	resp, err := api.DescribeCertificate(params)
+	params := &acm.GetCertificateInput{CertificateArn: arn}
+	resp, err := api.GetCertificate(params)
 	if err != nil {
 		return nil, err
 	}
-	return certs.NewCertificate(
-		aws.StringValue(resp.Certificate.CertificateArn),
-		append(aws.StringValueSlice(resp.Certificate.SubjectAlternativeNames), aws.StringValue(resp.Certificate.DomainName)),
-		aws.TimeValue(resp.Certificate.NotBefore),
-		aws.TimeValue(resp.Certificate.NotAfter)), nil
+
+	cert, err := ParseCertificate(aws.StringValue(resp.Certificate))
+	if err != nil {
+		return nil, err
+	}
+
+	var chain []*x509.Certificate
+	if resp.CertificateChain != nil {
+		chain, err = ParseCertificates(aws.StringValue(resp.CertificateChain))
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return certs.NewCertificate(aws.StringValue(arn), cert, chain), nil
 }
