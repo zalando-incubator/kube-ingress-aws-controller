@@ -27,6 +27,33 @@ type caInfra struct {
 
 var ca = caInfra{}
 
+func createSelfsignedCert(t *testing.T, arn, domainName string, notBefore, notAfter time.Time) *CertificateSummary {
+	key, err := rsa.GenerateKey(rand.Reader, 2048)
+	require.NoError(t, err, "unable to generate self-signed certificate key")
+
+	caCert := x509.Certificate{
+		SerialNumber: big.NewInt(123),
+		Subject: pkix.Name{
+			CommonName: domainName,
+		},
+		NotBefore: notBefore,
+		NotAfter:  notAfter,
+
+		KeyUsage:              x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature | x509.KeyUsageCertSign,
+		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+		BasicConstraintsValid: true,
+
+		IsCA: true,
+	}
+	certBody, err := x509.CreateCertificate(rand.Reader, &caCert, &caCert, key.Public(), key)
+	require.NoError(t, err, "unable to generate self-signed certificate")
+
+	reparsed, err := x509.ParseCertificate(certBody)
+	require.NoError(t, err, "unable to parse self-signed certificate")
+
+	return NewCertificate(arn, reparsed, nil)
+}
+
 func createDummyCertDetail(t *testing.T, arn, domainName string, altNames []string, notBefore, notAfter time.Time) *CertificateSummary {
 	ca.Do(func() {
 		caKey, err := rsa.GenerateKey(rand.Reader, 2048)
@@ -142,7 +169,7 @@ func TestFindBestMatchingCertificate(t *testing.T) {
 	validHostname := "foo." + domain
 	invalidHostname := "foo." + invalidDomain
 
-	now := time.Now()
+	now := time.Now().Truncate(time.Millisecond)
 	currentTime = func() time.Time { return now }
 
 	before := now.Add(-time.Hour * 24 * 7)
@@ -154,6 +181,9 @@ func TestFindBestMatchingCertificate(t *testing.T) {
 	validWildcardCert := createDummyCertDetail(t, dummyArn, wildcardDomain, []string{}, before, after)
 	invalidDomainCert := createDummyCertDetail(t, dummyArn, invalidDomain, []string{}, before, after)
 	invalidWildcardCert := createDummyCertDetail(t, dummyArn, invalidWildcardDomain, []string{}, before, after)
+
+	// unverifiable cert
+	wrongCACert := createSelfsignedCert(t, dummyArn, validHostname, before, after)
 
 	// AlternateName certs
 	saSingleValidCert := createDummyCertDetail(t, dummyArn, "", []string{validHostname}, before, after)
@@ -234,6 +264,12 @@ func TestFindBestMatchingCertificate(t *testing.T) {
 			msg:       "Found best match for invalid cert",
 			hostname:  validHostname,
 			cert:      []*CertificateSummary{invalidDomainCert},
+			expect:    nil,
+			condition: certInvalidMatchFunction,
+		}, {
+			msg:       "Found best match for cert with invalid CA",
+			hostname:  validHostname,
+			cert:      []*CertificateSummary{wrongCACert},
 			expect:    nil,
 			condition: certInvalidMatchFunction,
 		}, {
