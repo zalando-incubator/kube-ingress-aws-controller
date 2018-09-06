@@ -56,7 +56,7 @@ kube-ingress-aws-controller, which we will use:
   "Effect": "Allow",
   "Action": [
     "acm:ListCertificates",
-    "acm:DescribeCertificate",
+    "acm:GetCertificate",
     "autoscaling:DescribeAutoScalingGroups",
     "autoscaling:AttachLoadBalancers",
     "autoscaling:DetachLoadBalancers",
@@ -96,7 +96,7 @@ and add this to your node policy:
           "Effect": "Allow",
           "Action": [
             "acm:ListCertificates",
-            "acm:DescribeCertificate",
+            "acm:GetCertificate",
             "autoscaling:DescribeAutoScalingGroups",
             "autoscaling:AttachLoadBalancers",
             "autoscaling:DetachLoadBalancers",

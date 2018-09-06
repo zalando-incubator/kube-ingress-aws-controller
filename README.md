@@ -28,6 +28,13 @@ This information is used to manage AWS resources for each ingress objects of the
 
 ## Upgrade
 
+### <v0.8.0 to >=v0.8.0
+
+Version `v0.8.0` added certificate verification check to automatically ignore 
+self-signed and certificates from internal CAs. The IAM role used by the controller
+now needs the `acm:GetCertificate` permission. `acm:DescribeCertificate` permission
+is no longer needed and can be removed from the role.
+
 ### <v0.7.0 to >=v0.7.0
 
 Version `v0.7.0` deletes the annotation
