@@ -44,7 +44,7 @@ func FindBestMatchingCertificates(certs []*CertificateSummary, hostnames []strin
 func FindBestMatchingCertificate(certs []*CertificateSummary, hostname string) (*CertificateSummary, error) {
 	candidate := &CertificateSummary{}
 	longestMatch := -1
-	now := time.Now()
+	now := currentTime()
 
 	for _, cert := range certs {
 		notAfter := cert.NotAfter()
