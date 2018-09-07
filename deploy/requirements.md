@@ -189,7 +189,7 @@ Please also note that the worker nodes will need the right permission to describ
     "Effect": "Allow"
 },
 {
-    "Action": "acm:DescribeCertificate",
+    "Action": "acm:GetCertificate",
     "Resource": "*",
     "Effect": "Allow"
 },

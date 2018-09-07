@@ -44,18 +44,19 @@ func FindBestMatchingCertificates(certs []*CertificateSummary, hostnames []strin
 func FindBestMatchingCertificate(certs []*CertificateSummary, hostname string) (*CertificateSummary, error) {
 	candidate := &CertificateSummary{}
 	longestMatch := -1
-	now := time.Now()
+	now := currentTime()
 
 	for _, cert := range certs {
 		notAfter := cert.NotAfter()
 		notBefore := cert.NotBefore()
 
-		// ignore invalid timeframes
-		if !cert.IsValidAt(now) {
+		// ignore certificates that we can't verify (self-signed or invalid)
+		err := cert.Verify(hostname)
+		if err != nil {
 			continue
 		}
 
-		for _, altName := range cert.SubjectAlternativeNames() {
+		for _, altName := range cert.DomainNames() {
 			if prefixGlob(altName, hostname) {
 				nameLength := len(altName)
 

@@ -2,7 +2,6 @@ package aws
 
 import (
 	"crypto/x509"
-	"encoding/pem"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/iam"
@@ -63,24 +62,21 @@ func getCertificateSummaryFromIAM(api iamiface.IAMAPI, name string) (*certs.Cert
 }
 
 func summaryFromServerCertificate(iamCertDetail *iam.ServerCertificate) (*certs.CertificateSummary, error) {
-	block, _ := pem.Decode([]byte(*iamCertDetail.CertificateBody))
-	if block == nil {
-		return nil, ErrFailedToParsePEM
-	}
-
-	cert, err := x509.ParseCertificate(block.Bytes)
+	cert, err := ParseCertificate(aws.StringValue(iamCertDetail.CertificateBody))
 	if err != nil {
 		return nil, err
 	}
 
-	dnsNames := make([]string, 0)
-	dnsNames = append(dnsNames, cert.DNSNames...)
-	if cert.Subject.CommonName != "" {
-		dnsNames = append(dnsNames, cert.Subject.CommonName)
+	var chain []*x509.Certificate
+	if iamCertDetail.CertificateChain != nil {
+		chain, err = ParseCertificates(aws.StringValue(iamCertDetail.CertificateChain))
+		if err != nil {
+			return nil, err
+		}
 	}
+
 	return certs.NewCertificate(
 		aws.StringValue(iamCertDetail.ServerCertificateMetadata.Arn),
-		dnsNames,
-		cert.NotBefore,
-		cert.NotAfter), nil
+		cert,
+		chain), nil
 }

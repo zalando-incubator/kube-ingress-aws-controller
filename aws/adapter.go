@@ -112,8 +112,6 @@ var (
 	ErrMissingAutoScalingGroupTag = errors.New(`instance is missing the "` + autoScalingGroupNameTag + `" tag`)
 	// ErrNoRunningInstances is used to signal that no instances were found in the running state
 	ErrNoRunningInstances = errors.New("no reservations or instances in the running state")
-	// ErrFailedToParsePEM is used to signal that the PEM block for a certificate failed to be parsed
-	ErrFailedToParsePEM = errors.New("failed to parse certificate PEM")
 )
 
 var configProvider = defaultConfigProvider
