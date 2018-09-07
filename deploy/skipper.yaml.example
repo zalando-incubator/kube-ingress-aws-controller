@@ -16,15 +16,19 @@ spec:
       name: skipper-ingress
       labels:
         component: ingress
+        application: skipper
     spec:
       hostNetwork: true
+      serviceAccountName: skipper-ingress
       containers:
       - name: skipper-ingress
-        image: registry.opensource.zalan.do/pathfinder/skipper:latest
+        image: registry.opensource.zalan.do/pathfinder/skipper:v0.10.70
         ports:
         - name: ingress-port
           containerPort: 9999
           hostPort: 9999
+        - name: metrics-port
+          containerPort: 9911
         args:
           - "skipper"
           - "-kubernetes"
@@ -35,14 +39,13 @@ spec:
           - "-enable-ratelimits"
           - "-experimental-upgrade"
           - "-metrics-exp-decay-sample"
-          - "-kubernetes-https-redirect=true"
+          - "-lb-healthcheck-interval=3s"
+          - "-metrics-flavour=codahale,prometheus"
+          - "-enable-connection-metrics"
         resources:
-          limits:
+          requests:
             cpu: 200m
             memory: 200Mi
-          requests:
-            cpu: 25m
-            memory: 25Mi
         readinessProbe:
           httpGet:
             path: /kube-system/healthz
