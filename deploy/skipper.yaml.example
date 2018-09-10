@@ -22,7 +22,7 @@ spec:
       serviceAccountName: skipper-ingress
       containers:
       - name: skipper-ingress
-        image: registry.opensource.zalan.do/pathfinder/skipper:v0.10.70
+        image: registry.opensource.zalan.do/pathfinder/skipper:latest
         ports:
         - name: ingress-port
           containerPort: 9999
