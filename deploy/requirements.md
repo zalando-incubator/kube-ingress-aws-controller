@@ -29,210 +29,256 @@ Please also note that the worker nodes will need the right permission to describ
 
 ```
 {
-    "Action": "autoscaling:DescribeAutoScalingGroups",
-    "Resource": "*",
-    "Effect": "Allow"
-},
-{
-    "Action": "autoscaling:AttachLoadBalancers",
-    "Resource": "*",
-    "Effect": "Allow"
-},
-{
-    "Action": "autoscaling:DetachLoadBalancers",
-    "Resource": "*",
-    "Effect": "Allow"
-},
-{
-    "Action": "autoscaling:DetachLoadBalancerTargetGroups",
-    "Resource": "*",
-    "Effect": "Allow"
-},
-{
-    "Action": "autoscaling:AttachLoadBalancerTargetGroups",
-    "Resource": "*",
-    "Effect": "Allow"
-},
-{
-    "Action": "autoscaling:DescribeLoadBalancerTargetGroups",
-    "Resource": "*",
-    "Effect": "Allow"
-},
-{
-    "Action": "elasticloadbalancing:DescribeLoadBalancers",
-    "Resource": "*",
-    "Effect": "Allow"
-},
-{
-    "Action": "elasticloadbalancing:CreateLoadBalancer",
-    "Resource": "*",
-    "Effect": "Allow"
-},
-{
-    "Action": "elasticloadbalancing:DeleteLoadBalancer",
-    "Resource": "*",
-    "Effect": "Allow"
-},
-{
-    "Action": "elasticloadbalancing:DescribeListeners",
-    "Resource": "*",
-    "Effect": "Allow"
-},
-{
-    "Action": "elasticloadbalancing:CreateListener",
-    "Resource": "*",
-    "Effect": "Allow"
-},
-{
-    "Action": "elasticloadbalancing:DeleteListener",
-    "Resource": "*",
-    "Effect": "Allow"
-},
-{
-    "Action": "elasticloadbalancing:DescribeTags",
-    "Resource": "*",
-    "Effect": "Allow"
-},
-{
-    "Action": "elasticloadbalancing:CreateTargetGroup",
-    "Resource": "*",
-    "Effect": "Allow"
-},
-{
-    "Action": "elasticloadbalancing:DeleteTargetGroup",
-    "Resource": "*",
-    "Effect": "Allow"
-},
-{
-    "Action": "elasticloadbalancing:DescribeTargetGroups",
-    "Resource": "*",
-    "Effect": "Allow"
-},
-{
-    "Action": "elasticloadbalancingv2:DescribeTargetGroups",
-    "Resource": "*",
-    "Effect": "Allow"
-},
-{
-    "Action": "elasticloadbalancingv2:DescribeLoadBalancers",
-    "Resource": "*",
-    "Effect": "Allow"
-},
-{
-    "Action": "elasticloadbalancingv2:CreateLoadBalancer",
-    "Resource": "*",
-    "Effect": "Allow"
-},
-{
-    "Action": "elasticloadbalancingv2:DeleteLoadBalancer",
-    "Resource": "*",
-    "Effect": "Allow"
-},
-{
-    "Action": "elasticloadbalancingv2:DescribeListeners",
-    "Resource": "*",
-    "Effect": "Allow"
-},
-{
-    "Action": "elasticloadbalancingv2:CreateListener",
-    "Resource": "*",
-    "Effect": "Allow"
-},
-{
-    "Action": "elasticloadbalancingv2:DeleteListener",
-    "Resource": "*",
-    "Effect": "Allow"
-},
-{
-    "Action": "elasticloadbalancingv2:DescribeTags",
-    "Resource": "*",
-    "Effect": "Allow"
-},
-{
-    "Action": "elasticloadbalancingv2:CreateTargetGroup",
-    "Resource": "*",
-    "Effect": "Allow"
-},
-{
-    "Action": "elasticloadbalancingv2:DeleteTargetGroup",
-    "Resource": "*",
-    "Effect": "Allow"
-},
-{
-    "Action": "ec2:DescribeInstances",
-    "Resource": "*",
-    "Effect": "Allow"
-},
-{
-    "Action": "ec2:DescribeSubnets",
-    "Resource": "*",
-    "Effect": "Allow"
-},
-{
-    "Action": "ec2:DescribeSecurityGroups",
-    "Resource": "*",
-    "Effect": "Allow"
-},
-{
-    "Action": "ec2:DescribeRouteTables",
-    "Resource": "*",
-    "Effect": "Allow"
-},
-{
-    "Action": "ec2:DescribeVpcs",
-    "Resource": "*",
-    "Effect": "Allow"
-},
-{
-    "Action": "acm:ListCertificates",
-    "Resource": "*",
-    "Effect": "Allow"
-},
-{
-    "Action": "acm:GetCertificate",
-    "Resource": "*",
-    "Effect": "Allow"
-},
-{
-    "Action": "iam:ListServerCertificates",
-    "Resource": "*",
-    "Effect": "Allow"
-},
-{
-    "Action": "iam:GetServerCertificate",
-    "Resource": "*",
-    "Effect": "Allow"
-},
-{
-    "Action": "cloudformation:Get*",
-    "Resource": "*",
-    "Effect": "Allow"
-},
-{
-    "Action": "cloudformation:Describe*",
-    "Resource": "*",
-    "Effect": "Allow"
-},
-{
-    "Action": "cloudformation:List*",
-    "Resource": "*",
-    "Effect": "Allow"
-},
-{
-    "Action": "cloudformation:Create*",
-    "Resource": "*",
-    "Effect": "Allow"
-},
-{
-    "Action": "cloudformation:Update*",
-    "Resource": "*",
-    "Effect": "Allow"
-},
-{
-    "Action": "cloudformation:Delete*",
-    "Resource": "*",
-    "Effect": "Allow"
+"Version": "2012-10-17",
+"Statement": [
+    {
+        "Action": "autoscaling:DescribeAutoScalingGroups",
+        "Resource": "*",
+        "Effect": "Allow"
+    },
+    {
+        "Action": "autoscaling:AttachLoadBalancers",
+        "Resource": "*",
+        "Effect": "Allow"
+    },
+    {
+        "Action": "autoscaling:DetachLoadBalancers",
+        "Resource": "*",
+        "Effect": "Allow"
+    },
+    {
+        "Action": "autoscaling:DetachLoadBalancerTargetGroups",
+        "Resource": "*",
+        "Effect": "Allow"
+    },
+    {
+        "Action": "autoscaling:AttachLoadBalancerTargetGroups",
+        "Resource": "*",
+        "Effect": "Allow"
+    },
+    {
+        "Action": "autoscaling:DescribeLoadBalancerTargetGroups",
+        "Resource": "*",
+        "Effect": "Allow"
+    },
+    {
+        "Action": "elasticloadbalancing:DescribeLoadBalancers",
+        "Resource": "*",
+        "Effect": "Allow"
+    },
+    {
+        "Action": "elasticloadbalancing:CreateLoadBalancer",
+        "Resource": "*",
+        "Effect": "Allow"
+    },
+    {
+        "Action": "elasticloadbalancing:DeleteLoadBalancer",
+        "Resource": "*",
+        "Effect": "Allow"
+    },
+    {
+        "Action": "elasticloadbalancing:DescribeListeners",
+        "Resource": "*",
+        "Effect": "Allow"
+    },
+    {
+        "Action": "elasticloadbalancing:CreateListener",
+        "Resource": "*",
+        "Effect": "Allow"
+    },
+    {
+        "Action": "elasticloadbalancing:DeleteListener",
+        "Resource": "*",
+        "Effect": "Allow"
+    },
+    {
+        "Action": "elasticloadbalancing:DescribeTags",
+        "Resource": "*",
+        "Effect": "Allow"
+    },
+    {
+        "Action": "elasticloadbalancing:CreateTargetGroup",
+        "Resource": "*",
+        "Effect": "Allow"
+    },
+    {
+        "Action": "elasticloadbalancing:DeleteTargetGroup",
+        "Resource": "*",
+        "Effect": "Allow"
+    },
+    {
+        "Action": "elasticloadbalancing:DescribeTargetGroups",
+        "Resource": "*",
+        "Effect": "Allow"
+    },
+    {
+        "Action": "elasticloadbalancing:DescribeTargetGroups",
+        "Resource": "*",
+        "Effect": "Allow"
+    },
+    {
+        "Action": "elasticloadbalancing:DescribeLoadBalancers",
+        "Resource": "*",
+        "Effect": "Allow"
+    },
+    {
+        "Action": "elasticloadbalancing:CreateLoadBalancer",
+        "Resource": "*",
+        "Effect": "Allow"
+    },
+    {
+        "Action": "elasticloadbalancing:DeleteLoadBalancer",
+        "Resource": "*",
+        "Effect": "Allow"
+    },
+    {
+        "Action": "elasticloadbalancing:DescribeListeners",
+        "Resource": "*",
+        "Effect": "Allow"
+    },
+    {
+        "Action": "elasticloadbalancing:CreateListener",
+        "Resource": "*",
+        "Effect": "Allow"
+    },
+    {
+        "Action": "elasticloadbalancing:DeleteListener",
+        "Resource": "*",
+        "Effect": "Allow"
+    },
+    {
+        "Action": "elasticloadbalancing:DescribeTags",
+        "Resource": "*",
+        "Effect": "Allow"
+    },
+    {
+        "Action": "elasticloadbalancing:CreateTargetGroup",
+        "Resource": "*",
+        "Effect": "Allow"
+    },
+    {
+        "Action": "elasticloadbalancing:DeleteTargetGroup",
+        "Resource": "*",
+        "Effect": "Allow"
+    },
+    {
+        "Action": "elasticloadbalancing:AddTags",
+        "Resource": "*",
+        "Effect": "Allow"
+    },
+    {
+        "Action": "elasticloadbalancing:ModifyLoadBalancerAttributes",
+        "Resource": "*",
+        "Effect": "Allow"
+    },
+    {
+        "Action": "elasticloadbalancing:RemoveListenerCertificates",
+        "Resource": "*",
+        "Effect": "Allow"
+    },
+    {
+        "Action": "elasticloadbalancing:AddListenerCertificates",
+        "Resource": "*",
+        "Effect": "Allow"
+    },
+    {
+        "Action": "elasticloadbalancing:DescribeListenerCertificates",
+        "Resource": "*",
+        "Effect": "Allow"
+    },
+    {
+        "Action": "elasticloadbalancing:ModifyTargetGroup",
+        "Resource": "*",
+        "Effect": "Allow"
+    },
+    {
+        "Action": "elasticloadbalancing:RemoveTags",
+        "Resource": "*",
+        "Effect": "Allow"
+    },
+    {
+        "Action": "elasticloadbalancing:ModifyListener",
+        "Resource": "*",
+        "Effect": "Allow"
+    },
+    {
+        "Action": "ec2:DescribeInstances",
+        "Resource": "*",
+        "Effect": "Allow"
+    },
+    {
+        "Action": "ec2:DescribeSubnets",
+        "Resource": "*",
+        "Effect": "Allow"
+    },
+    {
+        "Action": "ec2:DescribeSecurityGroups",
+        "Resource": "*",
+        "Effect": "Allow"
+    },
+    {
+        "Action": "ec2:DescribeRouteTables",
+        "Resource": "*",
+        "Effect": "Allow"
+    },
+    {
+        "Action": "ec2:DescribeVpcs",
+        "Resource": "*",
+        "Effect": "Allow"
+    },
+    {
+        "Action": "acm:ListCertificates",
+        "Resource": "*",
+        "Effect": "Allow"
+    },
+    {
+        "Action": "acm:DescribeCertificate",
+        "Resource": "*",
+        "Effect": "Allow"
+    },
+    {
+        "Action": "iam:ListServerCertificates",
+        "Resource": "*",
+        "Effect": "Allow"
+    },
+    {
+        "Action": "iam:GetServerCertificate",
+        "Resource": "*",
+        "Effect": "Allow"
+    },
+    {
+        "Action": "cloudformation:Get*",
+        "Resource": "*",
+        "Effect": "Allow"
+    },
+    {
+        "Action": "cloudformation:Describe*",
+        "Resource": "*",
+        "Effect": "Allow"
+    },
+    {
+        "Action": "cloudformation:List*",
+        "Resource": "*",
+        "Effect": "Allow"
+    },
+    {
+        "Action": "cloudformation:Create*",
+        "Resource": "*",
+        "Effect": "Allow"
+    },
+    {
+        "Action": "cloudformation:Update*",
+        "Resource": "*",
+        "Effect": "Allow"
+    },
+    {
+        "Action": "cloudformation:Delete*",
+        "Resource": "*",
+        "Effect": "Allow"
+    }
+]
 }
+
 ```
 
 The decision of how to grant these roles is out of scope for this document and depends on your setup. Possible options are:

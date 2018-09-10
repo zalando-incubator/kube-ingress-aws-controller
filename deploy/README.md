@@ -12,12 +12,21 @@
   [external-dns](https://github.com/kubernetes-incubator/external-dns/)
   to manage DNS records for your Ingress specifications.
 
+## Configuration
+* Update the file ingress-controller.yaml.example following your needs and rename it to ingress-controller.yaml
+* Update the file skipper.yaml.example following your needs and rename it to skipper.yaml
+
 ## Install
 
+    # create a specific service account for skipper and ingress
+    % kubectl apply -f skipper_serviceaccount.yaml
+    % kubectl apply -f ingress-controller.yaml
     # install skipper an ingress http router
     % kubectl create -f deploy/skipper.yaml
     # install the controller which glues together AWS and the ingress implementation
     % kubectl create -f deploy/ingress-controller.yaml
+
+For more information regarding skipper's requirements have a look here [ingress-controller](https://opensource.zalando.com/skipper/kubernetes/ingress-controller/).
 
 If you have done this, you can use our
 [example](https://github.com/zalando-incubator/kube-ingress-aws-controller/tree/master/example)
