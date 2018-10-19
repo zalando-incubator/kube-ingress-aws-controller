@@ -265,7 +265,7 @@ registry of your choice.
 ## Deploy
 
 To [deploy](deploy/README.md) the ingress controller, use the
-[example YAML](deploy/ingress-controller.yaml) as the descriptor.
+[example YAML](deploy/ingress-controller.yaml.example) as the descriptor.
 You can customize the image used in the example YAML file.
 
 We provide `registry.opensource.zalan.do/teapot/kube-ingress-aws-controller:latest` as a publicly usable Docker image
