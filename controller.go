@@ -54,6 +54,8 @@ var (
 	blacklistCertARN           string
 	blacklistCertArnMap        map[string]bool
 	ipAddressType              string
+	albLogsS3Bucket            string
+	albLogsS3Prefix            string
 )
 
 func loadSettings() error {
@@ -94,6 +96,8 @@ func loadSettings() error {
 	flag.StringVar(&sslPolicy, "ssl-policy", aws.DefaultSslPolicy, "Security policy that will define the protocols/ciphers accepts by the SSL listener")
 	flag.StringVar(&blacklistCertARN, "blacklist-certificate-arns", "", "Certificate ARNs to not consider by the controller: arn1,arn2,..")
 	flag.StringVar(&ipAddressType, "ip-addr-type", aws.DefaultIpAddressType, "IP Address type to use, one of 'ipv4' or 'dualstack'")
+	flag.StringVar(&albLogsS3Bucket, "logs-s3-bucket", aws.DefaultAlbS3LogsBucket, "S3 bucket to be used for ALB logging")
+	flag.StringVar(&albLogsS3Prefix, "logs-s3-prefix", aws.DefaultAlbS3LogsPrefix, "Prefix within S3 bucket to be used for ALB logging")
 
 	flag.Parse()
 
@@ -199,7 +203,9 @@ func main() {
 		WithIdleConnectionTimeout(idleConnectionTimeout).
 		WithControllerID(controllerID).
 		WithSslPolicy(sslPolicy).
-		WithIpAddressType(ipAddressType)
+		WithIpAddressType(ipAddressType).
+		WithAlbLogsS3Bucket(albLogsS3Bucket).
+		WithAlbLogsS3Prefix(albLogsS3Prefix)
 
 	certificatesProvider, err := certs.NewCachingProvider(
 		certPollingInterval,
@@ -247,6 +253,8 @@ func main() {
 	log.Printf("\tCertificates per ALB: %d (SNI: %t)", certificatesPerALB, certificatesPerALB > 1)
 	log.Printf("\tBlacklisted Certificate ARNs (%d): %s", len(blacklistCertArnMap), blacklistCertARN)
 	log.Printf("\tIngress class filters: %s", kubeAdapter.IngressFiltersString())
+	log.Printf("\tALB Logging S3 Bucket: %s", awsAdapter.S3Bucket())
+	log.Printf("\tALB Logging S3 Prefix: %s", awsAdapter.S3Prefix())
 
 	ctx, cancel := context.WithCancel(context.Background())
 	go handleTerminationSignals(cancel, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)

@@ -22,7 +22,7 @@ func hashARNs(certARNs []string) []byte {
 	return hash.Sum(nil)
 }
 
-func generateTemplate(certs map[string]time.Time, idleConnectionTimeoutSeconds uint) (string, error) {
+func generateTemplate(certs map[string]time.Time, idleConnectionTimeoutSeconds uint, albLogsS3Bucket, albLogsS3Prefix string) (string, error) {
 	template := cloudformation.NewTemplate()
 	template.Description = "Load Balancer for Kubernetes Ingress"
 	template.Parameters = map[string]*cloudformation.Parameter{
@@ -74,6 +74,7 @@ func generateTemplate(certs map[string]time.Time, idleConnectionTimeoutSeconds u
 			Default:     "ipv4",
 		},
 	}
+
 	template.AddResource("HTTPListener", &cloudformation.ElasticLoadBalancingV2Listener{
 		DefaultActions: &cloudformation.ElasticLoadBalancingV2ListenerActionList{
 			{
@@ -132,13 +133,46 @@ func generateTemplate(certs map[string]time.Time, idleConnectionTimeoutSeconds u
 		})
 	}
 
-	template.AddResource("LB", &cloudformation.ElasticLoadBalancingV2LoadBalancer{
-		LoadBalancerAttributes: &cloudformation.ElasticLoadBalancingV2LoadBalancerLoadBalancerAttributeList{
-			cloudformation.ElasticLoadBalancingV2LoadBalancerLoadBalancerAttribute{
-				Key:   cloudformation.String("idle_timeout.timeout_seconds"),
-				Value: cloudformation.String(fmt.Sprintf("%d", idleConnectionTimeoutSeconds)),
-			},
+	// Build up the LoadBalancerAttributes list, as there is no way to make attributes conditional in the template
+	albAttrList := make(cloudformation.ElasticLoadBalancingV2LoadBalancerLoadBalancerAttributeList, 0, 4)
+	albAttrList = append(albAttrList,
+		cloudformation.ElasticLoadBalancingV2LoadBalancerLoadBalancerAttribute{
+			Key:   cloudformation.String("idle_timeout.timeout_seconds"),
+			Value: cloudformation.String(fmt.Sprintf("%d", idleConnectionTimeoutSeconds)),
 		},
+	)
+	if albLogsS3Bucket != "" {
+		albAttrList = append(albAttrList,
+			cloudformation.ElasticLoadBalancingV2LoadBalancerLoadBalancerAttribute{
+				Key:   cloudformation.String("access_logs.s3.enabled"),
+				Value: cloudformation.String("true"),
+			},
+		)
+		albAttrList = append(albAttrList,
+			cloudformation.ElasticLoadBalancingV2LoadBalancerLoadBalancerAttribute{
+				Key:   cloudformation.String("access_logs.s3.bucket"),
+				Value: cloudformation.String(albLogsS3Bucket),
+			},
+		)
+		if albLogsS3Prefix != "" {
+			albAttrList = append(albAttrList,
+				cloudformation.ElasticLoadBalancingV2LoadBalancerLoadBalancerAttribute{
+					Key:   cloudformation.String("access_logs.s3.prefix"),
+					Value: cloudformation.String(albLogsS3Prefix),
+				},
+			)
+		}
+	} else {
+		albAttrList = append(albAttrList,
+			cloudformation.ElasticLoadBalancingV2LoadBalancerLoadBalancerAttribute{
+				Key:   cloudformation.String("access_logs.s3.enabled"),
+				Value: cloudformation.String("false"),
+			},
+		)
+	}
+
+	template.AddResource("LB", &cloudformation.ElasticLoadBalancingV2LoadBalancer{
+		LoadBalancerAttributes: &albAttrList,
 
 		IPAddressType:  cloudformation.Ref(parameterIpAddressTypeParameter).String(),
 		Scheme:         cloudformation.Ref(parameterLoadBalancerSchemeParameter).String(),
