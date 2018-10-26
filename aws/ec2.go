@@ -278,7 +278,7 @@ func isSubnetPublic(rt []*ec2.RouteTable, subnetID string) (bool, error) {
 	return false, nil
 }
 
-func findSecurityGroupWithClusterID(svc ec2iface.EC2API, clusterID string) (*securityGroupDetails, error) {
+func findSecurityGroupWithClusterID(svc ec2iface.EC2API, clusterID string, controllerID string) (*securityGroupDetails, error) {
 	params := &ec2.DescribeSecurityGroupsInput{
 		Filters: []*ec2.Filter{
 			{
@@ -302,7 +302,7 @@ func findSecurityGroupWithClusterID(svc ec2iface.EC2API, clusterID string) (*sec
 			{
 				Name: aws.String("tag-value"),
 				Values: []*string{
-					aws.String(DefaultControllerID),
+					aws.String(controllerID),
 				},
 			},
 		},

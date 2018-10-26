@@ -184,7 +184,7 @@ func main() {
 		os.Exit(0)
 	}
 
-	awsAdapter, err = aws.NewAdapter()
+	awsAdapter, err = aws.NewAdapter(controllerID)
 	if err != nil {
 		log.Fatal(err)
 	}

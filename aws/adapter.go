@@ -130,7 +130,7 @@ func defaultConfigProvider() client.ConfigProvider {
 // Before returning there is a discovery process for VPC and EC2 details. It tries to find the Auto Scaling Group and
 // Security Group that should be used for newly created Load Balancers. If any of those critical steps fail
 // an appropriate error is returned.
-func NewAdapter() (adapter *Adapter, err error) {
+func NewAdapter(newControllerID string) (adapter *Adapter, err error) {
 	p := configProvider()
 	adapter = &Adapter{
 		ec2:                 ec2.New(p),
@@ -150,7 +150,7 @@ func NewAdapter() (adapter *Adapter, err error) {
 		ec2Details:          make(map[string]*instanceDetails),
 		singleInstances:     make(map[string]*instanceDetails),
 		obsoleteInstances:   make([]string, 0),
-		controllerID:        DefaultControllerID,
+		controllerID:        newControllerID,
 		sslPolicy:           DefaultSslPolicy,
 		ipAddressType:       DefaultIpAddressType,
 	}
@@ -479,7 +479,7 @@ func buildManifest(awsAdapter *Adapter) (*manifest, error) {
 
 	clusterID := instanceDetails.clusterID()
 
-	securityGroupDetails, err := findSecurityGroupWithClusterID(awsAdapter.ec2, clusterID)
+	securityGroupDetails, err := findSecurityGroupWithClusterID(awsAdapter.ec2, clusterID, awsAdapter.controllerID)
 	if err != nil {
 		return nil, err
 	}
