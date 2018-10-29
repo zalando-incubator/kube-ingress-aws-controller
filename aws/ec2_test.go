@@ -54,7 +54,7 @@ func TestFindingSecurityGroup(t *testing.T) {
 	} {
 		t.Run(fmt.Sprintf("%v", test.name), func(t *testing.T) {
 			ec2 := &mockEc2Client{outputs: test.responses}
-			got, err := findSecurityGroupWithClusterID(ec2, "foo")
+			got, err := findSecurityGroupWithClusterID(ec2, "foo", "kube-ingress-aws-controller")
 			assertResultAndError(t, test.want, got, test.wantError, err)
 		})
 	}
