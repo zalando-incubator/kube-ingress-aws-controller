@@ -126,6 +126,8 @@ type stackSpec struct {
 	controllerID                 string
 	sslPolicy                    string
 	ipAddressType                string
+	albLogsS3Bucket              string
+	albLogsS3Prefix              string
 }
 
 type healthCheck struct {
@@ -135,7 +137,7 @@ type healthCheck struct {
 }
 
 func createStack(svc cloudformationiface.CloudFormationAPI, spec *stackSpec) (string, error) {
-	template, err := generateTemplate(spec.certificateARNs, spec.idleConnectionTimeoutSeconds)
+	template, err := generateTemplate(spec.certificateARNs, spec.idleConnectionTimeoutSeconds, spec.albLogsS3Bucket, spec.albLogsS3Prefix)
 	if err != nil {
 		return "", err
 	}
@@ -186,7 +188,7 @@ func createStack(svc cloudformationiface.CloudFormationAPI, spec *stackSpec) (st
 }
 
 func updateStack(svc cloudformationiface.CloudFormationAPI, spec *stackSpec) (string, error) {
-	template, err := generateTemplate(spec.certificateARNs, spec.idleConnectionTimeoutSeconds)
+	template, err := generateTemplate(spec.certificateARNs, spec.idleConnectionTimeoutSeconds, spec.albLogsS3Bucket, spec.albLogsS3Prefix)
 	if err != nil {
 		return "", err
 	}

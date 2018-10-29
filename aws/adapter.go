@@ -56,6 +56,8 @@ type Adapter struct {
 	controllerID               string
 	sslPolicy                  string
 	ipAddressType              string
+	albLogsS3Bucket            string
+	albLogsS3Prefix            string
 }
 
 type manifest struct {
@@ -88,6 +90,10 @@ const (
 	DefaultSslPolicy = "ELBSecurityPolicy-2016-08"
 	// DefaultIpAddressType sets IpAddressType to "ipv4", it is either ipv4 or dualstack
 	DefaultIpAddressType = "ipv4"
+	// Default ALB logging S3 bucket is a blank string, and must be set if enabled
+	DefaultAlbS3LogsBucket = ""
+	// Default ALB logging S3 prefix is a blank string, and optionally set if desired
+	DefaultAlbS3LogsPrefix = ""
 
 	ipAddressTypeDualstack = "dualstack"
 	nameTag                = "Name"
@@ -153,6 +159,8 @@ func NewAdapter(newControllerID string) (adapter *Adapter, err error) {
 		controllerID:        newControllerID,
 		sslPolicy:           DefaultSslPolicy,
 		ipAddressType:       DefaultIpAddressType,
+		albLogsS3Bucket:     DefaultAlbS3LogsBucket,
+		albLogsS3Prefix:     DefaultAlbS3LogsPrefix,
 	}
 
 	adapter.manifest, err = buildManifest(adapter)
@@ -254,6 +262,18 @@ func (a *Adapter) WithIpAddressType(ipAddressType string) *Adapter {
 	return a
 }
 
+// WithAlbLogsS3Bucket returns the receiver adapter after changing the S3 bucket for logging
+func (a *Adapter) WithAlbLogsS3Bucket(bucket string) *Adapter {
+	a.albLogsS3Bucket = bucket
+	return a
+}
+
+// WithAlbLogsS3Bucket returns the receiver adapter after changing the S3 prefix within the bucket for logging
+func (a *Adapter) WithAlbLogsS3Prefix(prefix string) *Adapter {
+	a.albLogsS3Prefix = prefix
+	return a
+}
+
 // ClusterID returns the ClusterID tag that all resources from the same Kubernetes cluster share.
 // It's taken from the current ec2 instance.
 func (a *Adapter) ClusterID() string {
@@ -268,6 +288,16 @@ func (a *Adapter) VpcID() string {
 // InstanceID returns the instance ID the current node is running on.
 func (a *Adapter) InstanceID() string {
 	return a.manifest.instance.id
+}
+
+// S3Bucket returns the S3 Bucket to be logged to
+func (a *Adapter) S3Bucket() string {
+	return a.albLogsS3Bucket
+}
+
+// S3Prefix returns the S3 Prefix to be logged to
+func (a *Adapter) S3Prefix() string {
+	return a.albLogsS3Prefix
 }
 
 // AutoScalingGroupNames returns names of the Auto Scaling Groups that
@@ -414,6 +444,8 @@ func (a *Adapter) CreateStack(certificateARNs []string, scheme, owner string) (s
 		controllerID:                 a.controllerID,
 		sslPolicy:                    a.sslPolicy,
 		ipAddressType:                a.ipAddressType,
+		albLogsS3Bucket:              a.albLogsS3Bucket,
+		albLogsS3Prefix:              a.albLogsS3Prefix,
 	}
 
 	return createStack(a.cloudformation, spec)
@@ -440,6 +472,8 @@ func (a *Adapter) UpdateStack(stackName string, certificateARNs map[string]time.
 		controllerID:                 a.controllerID,
 		sslPolicy:                    a.sslPolicy,
 		ipAddressType:                a.ipAddressType,
+		albLogsS3Bucket:              a.albLogsS3Bucket,
+		albLogsS3Prefix:              a.albLogsS3Prefix,
 	}
 
 	return updateStack(a.cloudformation, spec)
