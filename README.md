@@ -85,8 +85,7 @@ trouble getting it running by filing an
 [Issue](https://github.com/zalando-incubator/kube-ingress-aws-controller/issues).
 If you created your cluster with [Kops](https://github.com/kubernetes/kops), see our [deployment guide for Kops](deploy/kops.md)
 
-As of this writing, it's being used only in small production use cases at [Zalando](https://tech.zalando.com/), and
-is not yet battle-tested. We're actively seeking devs/teams/companies to try it out and share feedback so we can
+As of this writing, it's being used in production use cases at [Zalando](https://tech.zalando.com/), and can be considered battle-tested in this setup. We're actively seeking devs/teams/companies to try it out and share feedback so we can
 make improvements.
 
 We are also eager to bring new contributors on board. See [our contributor guidelines](CONTRIBUTING.md)
