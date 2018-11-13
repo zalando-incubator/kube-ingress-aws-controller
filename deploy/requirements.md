@@ -227,6 +227,11 @@ Please also note that the worker nodes will need the right permission to describ
         "Effect": "Allow"
     },
     {
+        "Action": "acm:Getertificate",
+        "Resource": "*",
+        "Effect": "Allow"
+    },
+    {
         "Action": "acm:ListCertificates",
         "Resource": "*",
         "Effect": "Allow"

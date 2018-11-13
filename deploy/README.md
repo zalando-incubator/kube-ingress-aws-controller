@@ -13,6 +13,7 @@
   to manage DNS records for your Ingress specifications.
 
 ## Configuration
+
 * Update the file ingress-controller.yaml.example following your needs and rename it to ingress-controller.yaml
 * Update the file skipper.yaml.example following your needs and rename it to skipper.yaml
 
