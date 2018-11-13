@@ -7,15 +7,16 @@ creates AWS Application Load Balancer (ALB) that is used to terminate TLS connec
 certificates. ALBs are used to route traffic to an Ingress http router for example
 [skipper](https://github.com/zalando/skipper/), which routes
 traffic to Kubernetes services and implements
-[advanced features](https://zalando.github.io/skipper/dataclients/kubernetes/)
-like green-blue deployments, feature toggles, reate limits,
+[advanced features](https://opensource.zalando.com/skipper/kubernetes/ingress-controller/)
+like green-blue deployments, feature toggles, rate limits,
 circuitbreakers, opentracing API, shadow traffic or A/B tests.
 
-In short the major differences from CoreOS ALB Ingress Controller is:
+In short the major differences from sig-aws, former CoreOS, ALB Ingress Controller are:
 
 - it uses Cloudformation instead of API calls
 - does not have routes limitations from AWS
 - automatically finds the best matching ACM and IAM certifacte for your ingress
+- it has SNI support for better cost efficiency
 - you are free to use an http router imlementation of your choice, which can implement more features like green-blue deployments
 
 For this tutorial I assume you have GNU sed installed, if not read
@@ -57,6 +58,7 @@ kube-ingress-aws-controller, which we will use:
   "Action": [
     "acm:ListCertificates",
     "acm:GetCertificate",
+    "acm:DescribeCertificate",
     "autoscaling:DescribeAutoScalingGroups",
     "autoscaling:AttachLoadBalancers",
     "autoscaling:DetachLoadBalancers",
@@ -71,8 +73,11 @@ kube-ingress-aws-controller, which we will use:
     "ec2:DescribeSecurityGroups",
     "ec2:DescribeRouteTables",
     "ec2:DescribeVpcs",
+    "ec2:DescribeAccountAttributes",
+    "ec2:DescribeInternetGateways",
     "iam:GetServerCertificate",
-    "iam:ListServerCertificates"
+    "iam:ListServerCertificates",
+    "iam:CreateServiceLinkedRole"
   ],
   "Resource": [
     "*"
@@ -97,21 +102,25 @@ and add this to your node policy:
           "Action": [
             "acm:ListCertificates",
             "acm:GetCertificate",
+            "acm:DescribeCertificate",
             "autoscaling:DescribeAutoScalingGroups",
             "autoscaling:AttachLoadBalancers",
             "autoscaling:DetachLoadBalancers",
-            "autoscaling:DetachLoadBalancerTargetGroups",
             "autoscaling:AttachLoadBalancerTargetGroups",
+            "autoscaling:DetachLoadBalancerTargetGroups",
             "autoscaling:DescribeLoadBalancerTargetGroups",
             "cloudformation:*",
             "elasticloadbalancing:*",
             "elasticloadbalancingv2:*",
+            "ec2:DescribeAccountAttributes",
+            "ec2:DescribeInternetGateways",
             "ec2:DescribeInstances",
             "ec2:DescribeSubnets",
             "ec2:DescribeSecurityGroups",
             "ec2:DescribeRouteTables",
             "ec2:DescribeVpcs",
             "iam:GetServerCertificate",
+            "iam:CreateServiceLinkedRole",
             "iam:ListServerCertificates"
           ],
           "Resource": ["*"]
