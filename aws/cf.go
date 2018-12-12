@@ -23,6 +23,7 @@ type Stack struct {
 	status          string
 	DNSName         string
 	Scheme          string
+	SecurityGroup   string
 	TargetGroupARN  string
 	CertificateARNs map[string]time.Time
 	OwnerIngress    string
@@ -342,6 +343,7 @@ func mapToManagedStack(stack *cloudformation.Stack) *Stack {
 		DNSName:         outputs.dnsName(),
 		TargetGroupARN:  outputs.targetGroupARN(),
 		Scheme:          parameters[parameterLoadBalancerSchemeParameter],
+		SecurityGroup:   parameters[parameterLoadBalancerSecurityGroupParameter],
 		CertificateARNs: certificateARNs,
 		tags:            tags,
 		OwnerIngress:    ownerIngress,

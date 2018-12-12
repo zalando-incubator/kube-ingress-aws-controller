@@ -21,11 +21,12 @@ import (
 )
 
 type loadBalancer struct {
-	ingresses map[string][]*kubernetes.Ingress
-	scheme    string
-	stack     *aws.Stack
-	shared    bool
-	certTTL   time.Duration
+	ingresses     map[string][]*kubernetes.Ingress
+	scheme        string
+	stack         *aws.Stack
+	shared        bool
+	securityGroup string
+	certTTL       time.Duration
 }
 
 const (
