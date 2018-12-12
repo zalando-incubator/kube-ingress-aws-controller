@@ -276,14 +276,14 @@ func buildManagedModel(certs []*certs.CertificateSummary, certsPerALB int, certT
 		}
 
 		// if the ingress was not added to the ALB stack because of
-		// non-matching scheme or too many certificates, add a new
+		// non-matching scheme, non-matching security group or too many certificates, add a new
 		// stack.
 		if !added {
 			i := make(map[string][]*kubernetes.Ingress, len(certificateARNs))
 			for _, certificateARN := range certificateARNs {
 				i[certificateARN] = []*kubernetes.Ingress{ingress}
 			}
-			model = append(model, &loadBalancer{ingresses: i, scheme: ingress.Scheme, shared: ingress.Shared})
+			model = append(model, &loadBalancer{ingresses: i, scheme: ingress.Scheme, shared: ingress.Shared, securityGroup: ingress.SecurityGroup})
 		}
 	}
 
@@ -320,7 +320,7 @@ func createStack(awsAdapter *aws.Adapter, lb *loadBalancer) {
 
 	log.Printf("creating stack for certificates %q / ingress %q", certificates, lb.ingresses)
 
-	stackId, err := awsAdapter.CreateStack(certificates, lb.scheme, lb.Owner())
+	stackId, err := awsAdapter.CreateStack(certificates, lb.scheme, lb.securityGroup, lb.Owner())
 	if err != nil {
 		if isAlreadyExistsError(err) {
 			lb.stack, err = awsAdapter.GetStack(stackId)
