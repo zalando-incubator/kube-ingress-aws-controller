@@ -42,6 +42,7 @@ type Ingress struct {
 	Scheme         string
 	Hostnames      []string
 	Shared         bool
+	SecurityGroup  string
 }
 
 // String returns a string representation of the Ingress instance containing the namespace and the resource name.
@@ -86,6 +87,7 @@ func newIngressFromKube(kubeIngress *ingress) *Ingress {
 		Scheme:         scheme,
 		Hostnames:      hostnames,
 		Shared:         shared,
+		SecurityGroup:  kubeIngress.getAnnotationsString(ingressSecurityGroupAnnotation, ""),
 	}
 }
 
@@ -104,6 +106,7 @@ func newIngressForKube(i *Ingress) *ingress {
 				ingressCertificateARNAnnotation: i.CertificateARN,
 				ingressSchemeAnnotation:         i.Scheme,
 				ingressSharedAnnotation:         shared,
+				ingressSecurityGroupAnnotation:  i.SecurityGroup,
 			},
 		},
 		Status: ingressStatus{

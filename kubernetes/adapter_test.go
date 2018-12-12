@@ -27,6 +27,7 @@ func TestMappingRoundtrip(tt *testing.T) {
 				CertificateARN: "zbr",
 				Shared:         true,
 				Hostnames:      []string{"domain.example.org"},
+				SecurityGroup:  "sg-123456",
 			},
 			kubeIngress: &ingress{
 				Metadata: ingressItemMetadata{
@@ -36,6 +37,7 @@ func TestMappingRoundtrip(tt *testing.T) {
 						ingressCertificateARNAnnotation: "zbr",
 						ingressSchemeAnnotation:         "internal",
 						ingressSharedAnnotation:         "true",
+						ingressSecurityGroupAnnotation:  "sg-123456",
 					},
 				},
 				Spec: ingressSpec{
@@ -64,6 +66,7 @@ func TestMappingRoundtrip(tt *testing.T) {
 				Scheme:         "internal",
 				CertificateARN: "zbr",
 				Shared:         false,
+				SecurityGroup:  "deadbeef",
 			},
 			kubeIngress: &ingress{
 				Metadata: ingressItemMetadata{
@@ -73,6 +76,7 @@ func TestMappingRoundtrip(tt *testing.T) {
 						ingressCertificateARNAnnotation: "zbr",
 						ingressSchemeAnnotation:         "internal",
 						ingressSharedAnnotation:         "false",
+						ingressSecurityGroupAnnotation:  "deadbeef",
 					},
 				},
 				Status: ingressStatus{
@@ -89,16 +93,7 @@ func TestMappingRoundtrip(tt *testing.T) {
 		tt.Run(tc.msg, func(t *testing.T) {
 			got := newIngressFromKube(tc.kubeIngress)
 			if !reflect.DeepEqual(tc.ingress, got) {
-				t.Errorf("mapping from kubernetes ingress to adapter failed. wanted %v, got %v", tc.ingress, got)
-			}
-			if got.CertificateARN != tc.kubeIngress.Metadata.Annotations[ingressCertificateARNAnnotation] {
-				t.Error("wrong value from CertificateARN()")
-			}
-			if got.Scheme != tc.kubeIngress.Metadata.Annotations[ingressSchemeAnnotation] {
-				t.Error("wrong value from Scheme()")
-			}
-			if got.Hostname != tc.kubeIngress.Status.LoadBalancer.Ingress[1].Hostname {
-				t.Error("wrong value from Hostname()")
+				t.Errorf("mapping from kubernetes ingress to adapter failed. wanted %#v, got %#v", tc.ingress, got)
 			}
 			if got.String() != fmt.Sprintf("%s/%s", tc.ingress.Namespace, tc.ingress.Name) {
 				t.Error("wrong value from String()")

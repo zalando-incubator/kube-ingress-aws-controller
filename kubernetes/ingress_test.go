@@ -141,7 +141,6 @@ func TestAnnotationsFallback(t *testing.T) {
 			if got := have.getAnnotationsString(test.key, test.fallback); got != test.want {
 				t.Errorf("unexpected metadata value. wanted %q, got %q", test.want, got)
 			}
-
 		})
 	}
 }
