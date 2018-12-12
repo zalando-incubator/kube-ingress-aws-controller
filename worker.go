@@ -65,7 +65,7 @@ func (l *loadBalancer) inSync() bool {
 // adding can fail in case the load balancer reached its limit of ingress
 // certificates or if the scheme doesn't match.
 func (l *loadBalancer) AddIngress(certificateARNs []string, ingress *kubernetes.Ingress, maxCerts int) bool {
-	if l.scheme != ingress.Scheme {
+	if l.scheme != ingress.Scheme || l.securityGroup != ingress.SecurityGroup {
 		return false
 	}
 
@@ -233,11 +233,12 @@ func buildManagedModel(certs []*certs.CertificateSummary, certsPerALB int, certT
 	model := make([]*loadBalancer, 0, len(stacks))
 	for _, stack := range stacks {
 		lb := &loadBalancer{
-			stack:     stack,
-			ingresses: make(map[string][]*kubernetes.Ingress),
-			scheme:    stack.Scheme,
-			shared:    stack.OwnerIngress == "",
-			certTTL:   certTTL,
+			stack:         stack,
+			ingresses:     make(map[string][]*kubernetes.Ingress),
+			scheme:        stack.Scheme,
+			shared:        stack.OwnerIngress == "",
+			securityGroup: stack.SecurityGroup,
+			certTTL:       certTTL,
 		}
 		// initialize ingresses map with existing certificates from the
 		// stack.

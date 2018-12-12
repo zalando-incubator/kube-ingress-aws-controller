@@ -28,6 +28,16 @@ func TestAddIngress(tt *testing.T) {
 			added: false,
 		},
 		{
+			name: "security group not matching",
+			loadBalancer: &loadBalancer{
+				securityGroup: "foo",
+			},
+			ingress: &kubernetes.Ingress{
+				SecurityGroup: "bar",
+			},
+			added: false,
+		},
+		{
 			name: "don't add ingresses non-shared, non-owned load balancer",
 			loadBalancer: &loadBalancer{
 				stack: &aws.Stack{
