@@ -2,9 +2,10 @@ package certs
 
 import (
 	"errors"
-	"log"
 	"strings"
 	"time"
+
+	log "github.com/Sirupsen/logrus"
 )
 
 const (
@@ -25,7 +26,7 @@ func FindBestMatchingCertificates(certs []*CertificateSummary, hostnames []strin
 	for _, hostname := range hostnames {
 		certSummary, err := FindBestMatchingCertificate(certs, hostname)
 		if err != nil {
-			log.Printf("Failed to find certificate for hostname %s: %v", hostname, err)
+			log.Infof("Failed to find certificate for hostname %s: %v", hostname, err)
 			continue
 		}
 		certsMap[certSummary.ID()] = certSummary

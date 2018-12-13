@@ -2,16 +2,14 @@ package main
 
 import (
 	"context"
-	"log"
+	"fmt"
 	"reflect"
+	"runtime/debug"
 	"sort"
+	"strings"
 	"time"
 
-	"fmt"
-
-	"runtime/debug"
-	"strings"
-
+	log "github.com/Sirupsen/logrus"
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/service/cloudformation"
 	"github.com/pkg/errors"
@@ -151,10 +149,10 @@ func (l *loadBalancer) Owner() string {
 func startPolling(ctx context.Context, certsProvider certs.CertificatesProvider, certsPerALB int, certTTL time.Duration, awsAdapter *aws.Adapter, kubeAdapter *kubernetes.Adapter, pollingInterval time.Duration) {
 	for {
 		if err := doWork(certsProvider, certsPerALB, certTTL, awsAdapter, kubeAdapter); err != nil {
-			log.Println(err)
+			log.Infoln(err)
 		}
 
-		log.Printf("Start polling sleep %s", pollingInterval)
+		log.Infof("Start polling sleep %s", pollingInterval)
 		select {
 		case <-time.After(pollingInterval):
 		case <-ctx.Done():
@@ -166,7 +164,7 @@ func startPolling(ctx context.Context, certsProvider certs.CertificatesProvider,
 func doWork(certsProvider certs.CertificatesProvider, certsPerALB int, certTTL time.Duration, awsAdapter *aws.Adapter, kubeAdapter *kubernetes.Adapter) error {
 	defer func() error {
 		if r := recover(); r != nil {
-			log.Println("shit has hit the fan:", errors.Wrap(r.(error), "panic caused by"))
+			log.Infoln("shit has hit the fan:", errors.Wrap(r.(error), "panic caused by"))
 			debug.PrintStack()
 			return r.(error)
 		}
@@ -177,13 +175,13 @@ func doWork(certsProvider certs.CertificatesProvider, certsPerALB int, certTTL t
 	if err != nil {
 		return fmt.Errorf("doWork failed to list ingress resources: %v", err)
 	}
-	log.Printf("Found %d ingress(es)", len(ingresses))
+	log.Infof("Found %d ingress(es)", len(ingresses))
 
 	stacks, err := awsAdapter.FindManagedStacks()
 	if err != nil {
 		return fmt.Errorf("doWork failed to list managed stacks: %v", err)
 	}
-	log.Printf("Found %d stack(s)", len(stacks))
+	log.Infof("Found %d stack(s)", len(stacks))
 
 	err = awsAdapter.UpdateAutoScalingGroupsAndInstances()
 	if err != nil {
@@ -196,13 +194,13 @@ func doWork(certsProvider certs.CertificatesProvider, certsPerALB int, certTTL t
 	}
 
 	awsAdapter.UpdateTargetGroupsAndAutoScalingGroups(stacks)
-	log.Printf("Found %d auto scaling group(s)", len(awsAdapter.AutoScalingGroupNames()))
-	log.Printf("Found %d single instance(s)", len(awsAdapter.SingleInstances()))
-	log.Printf("Found %d EC2 instance(s)", awsAdapter.CachedInstances())
-	log.Printf("Found %d certificate(s)", len(certs))
+	log.Infof("Found %d auto scaling group(s)", len(awsAdapter.AutoScalingGroupNames()))
+	log.Infof("Found %d single instance(s)", len(awsAdapter.SingleInstances()))
+	log.Infof("Found %d EC2 instance(s)", awsAdapter.CachedInstances())
+	log.Infof("Found %d certificate(s)", len(certs))
 
 	model := buildManagedModel(certs, certsPerALB, certTTL, ingresses, stacks)
-	log.Printf("Have %d model(s)", len(model))
+	log.Infof("Have %d model(s)", len(model))
 	for _, loadBalancer := range model {
 		switch loadBalancer.Status() {
 		case delete:
@@ -251,14 +249,14 @@ func buildManagedModel(certs []*certs.CertificateSummary, certsPerALB int, certT
 
 		if ingress.CertificateARN != "" {
 			if !certExists(ingress.CertificateARN, certs) {
-				log.Printf("Failed to find certificate '%s' for ingress '%s/%s'", ingress.CertificateARN, ingress.Namespace, ingress.Name)
+				log.Infof("Failed to find certificate '%s' for ingress '%s/%s'", ingress.CertificateARN, ingress.Namespace, ingress.Name)
 				continue
 			}
 			certificateARNs = []string{ingress.CertificateARN}
 		} else {
 			certificateARNs = getMatchingCertificates(ingress.Hostnames, certs)
 			if len(certificateARNs) == 0 {
-				log.Printf("No certificates found for %v", ingress.Hostnames)
+				log.Infof("No certificates found for %v", ingress.Hostnames)
 				continue
 			}
 		}
@@ -316,7 +314,7 @@ func createStack(awsAdapter *aws.Adapter, lb *loadBalancer) {
 		certificates = append(certificates, cert)
 	}
 
-	log.Printf("creating stack for certificates %q / ingress %q", certificates, lb.ingresses)
+	log.Infof("creating stack for certificates %q / ingress %q", certificates, lb.ingresses)
 
 	stackId, err := awsAdapter.CreateStack(certificates, lb.scheme, lb.Owner())
 	if err != nil {
@@ -326,24 +324,24 @@ func createStack(awsAdapter *aws.Adapter, lb *loadBalancer) {
 				return
 			}
 		}
-		log.Printf("createStack(%q) failed: %v", certificates, err)
+		log.Infof("createStack(%q) failed: %v", certificates, err)
 	} else {
-		log.Printf("stack %q for certificates %q created", stackId, certificates)
+		log.Infof("stack %q for certificates %q created", stackId, certificates)
 	}
 }
 
 func updateStack(awsAdapter *aws.Adapter, lb *loadBalancer) {
 	certificates := lb.CertificateARNs()
 
-	log.Printf("updating %q stack for %d certificates / %d ingresses", lb.scheme, len(certificates), len(lb.ingresses))
+	log.Infof("updating %q stack for %d certificates / %d ingresses", lb.scheme, len(certificates), len(lb.ingresses))
 
 	stackId, err := awsAdapter.UpdateStack(lb.stack.Name, certificates, lb.scheme)
 	if isNoUpdatesToBePerformedError(err) {
-		log.Printf("stack(%q) is already up to date", certificates)
+		log.Infof("stack(%q) is already up to date", certificates)
 	} else if err != nil {
-		log.Printf("updateStack(%q) failed: %v", certificates, err)
+		log.Infof("updateStack(%q) failed: %v", certificates, err)
 	} else {
-		log.Printf("stack %q for certificate %q updated", stackId, certificates)
+		log.Infof("stack %q for certificate %q updated", stackId, certificates)
 	}
 }
 
@@ -373,12 +371,12 @@ func updateIngress(kubeAdapter *kubernetes.Adapter, lb *loadBalancer) {
 		for _, ing := range ingresses {
 			if err := kubeAdapter.UpdateIngressLoadBalancer(ing, dnsName); err != nil {
 				if err == kubernetes.ErrUpdateNotNeeded {
-					log.Printf("Ingress update not needed %v with DNS name %q", ing, dnsName)
+					log.Debugf("Ingress update not needed %v with DNS name %q", ing, dnsName)
 				} else {
-					log.Printf("Failed to update ingress: %v", err)
+					log.Errorf("Failed to update ingress: %v", err)
 				}
 			} else {
-				log.Printf("updated ingress %v with DNS name %q", ing, dnsName)
+				log.Infof("updated ingress %v with DNS name %q", ing, dnsName)
 			}
 		}
 	}
@@ -387,8 +385,8 @@ func updateIngress(kubeAdapter *kubernetes.Adapter, lb *loadBalancer) {
 func deleteStack(awsAdapter *aws.Adapter, lb *loadBalancer) {
 	stackName := lb.stack.Name
 	if err := awsAdapter.DeleteStack(lb.stack); err != nil {
-		log.Printf("deleteStack failed to delete stack %q: %v", stackName, err)
+		log.Infof("deleteStack failed to delete stack %q: %v", stackName, err)
 	} else {
-		log.Printf("deleted orphaned stack %q", stackName)
+		log.Infof("deleted orphaned stack %q", stackName)
 	}
 }

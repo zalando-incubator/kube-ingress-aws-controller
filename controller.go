@@ -2,20 +2,18 @@ package main
 
 import (
 	"context"
+	"flag"
 	"fmt"
-	"log"
+	"io/ioutil"
 	"net/http"
 	"os"
 	"os/signal"
 	"path"
 	"strings"
 	"syscall"
-
-	"flag"
 	"time"
 
-	"io/ioutil"
-
+	log "github.com/Sirupsen/logrus"
 	"github.com/aws/aws-sdk-go/service/elbv2"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/zalando-incubator/kube-ingress-aws-controller/aws"
@@ -56,11 +54,13 @@ var (
 	ipAddressType              string
 	albLogsS3Bucket            string
 	albLogsS3Prefix            string
+	debugFlag                  bool
 )
 
 func loadSettings() error {
 	flag.Usage = usage
 	flag.BoolVar(&versionFlag, "version", false, "Print version and exit")
+	flag.BoolVar(&debugFlag, "debug", false, "Sets logging level to debug")
 	flag.StringVar(&apiServerBaseURL, "api-server-base-url", "", "sets the kubernetes api "+
 		"server base url. If empty will try to use the configuration from the running cluster, else it will use InsecureConfig, that does not use encryption or authentication (use case to develop with kubectl proxy).")
 	flag.DurationVar(&pollingInterval, "polling-interval", 30*time.Second, "sets the polling interval for "+
@@ -108,6 +108,9 @@ func loadSettings() error {
 
 	if tmp, defined := os.LookupEnv("API_SERVER_BASE_URL"); defined {
 		apiServerBaseURL = tmp
+	}
+	if debugFlag {
+		log.SetLevel(log.DebugLevel)
 	}
 
 	if err := loadDurationFromEnv("POLLING_INTERVAL", &pollingInterval); err != nil {
@@ -167,7 +170,7 @@ func usage() {
 }
 
 func main() {
-	log.Printf("starting %s", os.Args[0])
+	log.Infof("starting %s", os.Args[0])
 	var (
 		awsAdapter  *aws.Adapter
 		kubeAdapter *kubernetes.Adapter
@@ -241,27 +244,27 @@ func main() {
 		certificatesPerALB = 1
 	}
 
-	log.Println("controller manifest:")
-	log.Printf("\tKubernetes API server: %s", apiServerBaseURL)
-	log.Printf("\tCluster ID: %s", awsAdapter.ClusterID())
-	log.Printf("\tVPC ID: %s", awsAdapter.VpcID())
-	log.Printf("\tInstance ID: %s", awsAdapter.InstanceID())
-	log.Printf("\tSecurity group ID: %s", awsAdapter.SecurityGroupID())
-	log.Printf("\tInternal subnet IDs: %s", awsAdapter.FindLBSubnets(elbv2.LoadBalancerSchemeEnumInternal))
-	log.Printf("\tPublic subnet IDs: %s", awsAdapter.FindLBSubnets(elbv2.LoadBalancerSchemeEnumInternetFacing))
-	log.Printf("\tEC2 filters: %s", awsAdapter.FiltersString())
-	log.Printf("\tCertificates per ALB: %d (SNI: %t)", certificatesPerALB, certificatesPerALB > 1)
-	log.Printf("\tBlacklisted Certificate ARNs (%d): %s", len(blacklistCertArnMap), blacklistCertARN)
-	log.Printf("\tIngress class filters: %s", kubeAdapter.IngressFiltersString())
-	log.Printf("\tALB Logging S3 Bucket: %s", awsAdapter.S3Bucket())
-	log.Printf("\tALB Logging S3 Prefix: %s", awsAdapter.S3Prefix())
+	log.Infoln("controller manifest:")
+	log.Infof("\tKubernetes API server: %s", apiServerBaseURL)
+	log.Infof("\tCluster ID: %s", awsAdapter.ClusterID())
+	log.Infof("\tVPC ID: %s", awsAdapter.VpcID())
+	log.Infof("\tInstance ID: %s", awsAdapter.InstanceID())
+	log.Infof("\tSecurity group ID: %s", awsAdapter.SecurityGroupID())
+	log.Infof("\tInternal subnet IDs: %s", awsAdapter.FindLBSubnets(elbv2.LoadBalancerSchemeEnumInternal))
+	log.Infof("\tPublic subnet IDs: %s", awsAdapter.FindLBSubnets(elbv2.LoadBalancerSchemeEnumInternetFacing))
+	log.Infof("\tEC2 filters: %s", awsAdapter.FiltersString())
+	log.Infof("\tCertificates per ALB: %d (SNI: %t)", certificatesPerALB, certificatesPerALB > 1)
+	log.Infof("\tBlacklisted Certificate ARNs (%d): %s", len(blacklistCertArnMap), blacklistCertARN)
+	log.Infof("\tIngress class filters: %s", kubeAdapter.IngressFiltersString())
+	log.Infof("\tALB Logging S3 Bucket: %s", awsAdapter.S3Bucket())
+	log.Infof("\tALB Logging S3 Prefix: %s", awsAdapter.S3Prefix())
 
 	ctx, cancel := context.WithCancel(context.Background())
 	go handleTerminationSignals(cancel, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
 	go serveMetrics(metricsAddress)
 	startPolling(ctx, certificatesProvider, certificatesPerALB, certTTL, awsAdapter, kubeAdapter, pollingInterval)
 
-	log.Printf("Terminating %s", os.Args[0])
+	log.Infof("Terminating %s", os.Args[0])
 }
 
 func handleTerminationSignals(cancelFunc func(), signals ...os.Signal) {

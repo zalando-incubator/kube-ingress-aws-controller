@@ -2,7 +2,7 @@ package certs
 
 import (
 	"fmt"
-	"log"
+	log "github.com/Sirupsen/logrus"
 	"sync"
 	"time"
 )
@@ -91,7 +91,7 @@ func (cc *cachingProvider) startBackgroundRefresh(certUpdateInterval time.Durati
 		for {
 			time.Sleep(certUpdateInterval)
 			if err := cc.updateCertCache(); err != nil {
-				log.Printf("certificate cache background update failed: %v", err)
+				log.Infof("certificate cache background update failed: %v", err)
 			}
 		}
 	}()
