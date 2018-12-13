@@ -16,6 +16,7 @@ matrix:
 before_install:
 - curl https://raw.githubusercontent.com/golang/dep/master/install.sh | sh
 - go get github.com/mattn/goveralls
+- go get github.com/Sirupsen/logrus
 - go get github.com/alecthomas/gometalinter
 
 install:
