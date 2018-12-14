@@ -13,7 +13,7 @@ import (
 	"syscall"
 	"time"
 
-	log "github.com/Sirupsen/logrus"
+	log "github.com/sirupsen/logrus"
 	"github.com/aws/aws-sdk-go/service/elbv2"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/zalando-incubator/kube-ingress-aws-controller/aws"
