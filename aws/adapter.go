@@ -418,17 +418,9 @@ func (a *Adapter) UpdateTargetGroupsAndAutoScalingGroups(stacks []*Stack) {
 // transactional fashion.
 // Failure to create the stack causes it to be deleted automatically.
 func (a *Adapter) CreateStack(certificateARNs []string, scheme, securityGroup, owner string) (string, error) {
-	var securityGroupID string
-
 	certARNs := make(map[string]time.Time, len(certificateARNs))
 	for _, arn := range certificateARNs {
 		certARNs[arn] = time.Time{}
-	}
-
-	if securityGroup != "" {
-		securityGroupID = securityGroup
-	} else {
-		securityGroupID = a.SecurityGroupID()
 	}
 
 	spec := &stackSpec{
@@ -436,7 +428,7 @@ func (a *Adapter) CreateStack(certificateARNs []string, scheme, securityGroup, o
 		scheme:          scheme,
 		ownerIngress:    owner,
 		certificateARNs: certARNs,
-		securityGroupID: securityGroupID,
+		securityGroupID: securityGroup,
 		subnets:         a.FindLBSubnets(scheme),
 		vpcID:           a.VpcID(),
 		clusterID:       a.ClusterID(),
