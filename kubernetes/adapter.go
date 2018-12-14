@@ -11,6 +11,7 @@ import (
 type Adapter struct {
 	kubeClient     client
 	ingressFilters []string
+	securityGroup  string
 }
 
 var (
@@ -50,7 +51,19 @@ func (i *Ingress) String() string {
 	return fmt.Sprintf("%s/%s", i.Namespace, i.Name)
 }
 
-func newIngressFromKube(kubeIngress *ingress) *Ingress {
+// NewAdapter creates an Adapter for Kubernetes using a given configuration.
+func NewAdapter(config *Config, ingressClassFilters []string, securityGroup string) (*Adapter, error) {
+	if config == nil || config.BaseURL == "" {
+		return nil, ErrInvalidConfiguration
+	}
+	c, err := newSimpleClient(config)
+	if err != nil {
+		return nil, err
+	}
+	return &Adapter{kubeClient: c, ingressFilters: ingressClassFilters, securityGroup: securityGroup}, nil
+}
+
+func (a *Adapter) newIngressFromKube(kubeIngress *ingress) *Ingress {
 	var host, scheme string
 	var hostnames []string
 	for _, ingressLoadBalancer := range kubeIngress.Status.LoadBalancer.Ingress {
@@ -87,11 +100,11 @@ func newIngressFromKube(kubeIngress *ingress) *Ingress {
 		Scheme:         scheme,
 		Hostnames:      hostnames,
 		Shared:         shared,
-		SecurityGroup:  kubeIngress.getAnnotationsString(ingressSecurityGroupAnnotation, ""),
+		SecurityGroup:  kubeIngress.getAnnotationsString(ingressSecurityGroupAnnotation, a.securityGroup),
 	}
 }
 
-func newIngressForKube(i *Ingress) *ingress {
+func (a *Adapter) newIngressForKube(i *Ingress) *ingress {
 	shared := "true"
 
 	if !i.Shared {
@@ -119,18 +132,6 @@ func newIngressForKube(i *Ingress) *ingress {
 	}
 }
 
-// NewAdapter creates an Adapter for Kubernetes using a given configuration.
-func NewAdapter(config *Config, ingressClassFilters []string) (*Adapter, error) {
-	if config == nil || config.BaseURL == "" {
-		return nil, ErrInvalidConfiguration
-	}
-	c, err := newSimpleClient(config)
-	if err != nil {
-		return nil, err
-	}
-	return &Adapter{kubeClient: c, ingressFilters: ingressClassFilters}, nil
-}
-
 // Get ingress class filters that are used to filter ingresses acted upon.
 func (a *Adapter) IngressFiltersString() string {
 	return strings.TrimSpace(strings.Join(a.ingressFilters, ","))
@@ -150,7 +151,7 @@ func (a *Adapter) ListIngress() ([]*Ingress, error) {
 			if ingressClass != "" {
 				for _, v := range a.ingressFilters {
 					if v == ingressClass {
-						ret = append(ret, newIngressFromKube(ingress))
+						ret = append(ret, a.newIngressFromKube(ingress))
 					}
 				}
 			}
@@ -158,7 +159,7 @@ func (a *Adapter) ListIngress() ([]*Ingress, error) {
 	} else {
 		ret = make([]*Ingress, len(il.Items))
 		for i, ingress := range il.Items {
-			ret[i] = newIngressFromKube(ingress)
+			ret[i] = a.newIngressFromKube(ingress)
 		}
 	}
 	return ret, nil
@@ -171,5 +172,5 @@ func (a *Adapter) UpdateIngressLoadBalancer(ingress *Ingress, loadBalancerDNSNam
 		return ErrInvalidIngressUpdateParams
 	}
 
-	return updateIngressLoadBalancer(a.kubeClient, newIngressForKube(ingress), loadBalancerDNSName)
+	return updateIngressLoadBalancer(a.kubeClient, a.newIngressForKube(ingress), loadBalancerDNSName)
 }

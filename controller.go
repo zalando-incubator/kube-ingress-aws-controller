@@ -169,10 +169,11 @@ func usage() {
 func main() {
 	log.Printf("starting %s", os.Args[0])
 	var (
-		awsAdapter  *aws.Adapter
-		kubeAdapter *kubernetes.Adapter
-		kubeConfig  *kubernetes.Config
-		err         error
+		awsAdapter              *aws.Adapter
+		kubeAdapter             *kubernetes.Adapter
+		kubeConfig              *kubernetes.Config
+		err                     error
+		ingressClassFiltersList []string
 	)
 	if err = loadSettings(); err != nil {
 		log.Fatal(err)
@@ -227,11 +228,12 @@ func main() {
 	}
 
 	if ingressClassFilters == "" {
-		kubeAdapter, err = kubernetes.NewAdapter(kubeConfig, []string{})
+		ingressClassFiltersList = []string{}
 	} else {
-		kubeAdapter, err = kubernetes.NewAdapter(kubeConfig, strings.Split(ingressClassFilters, ","))
+		ingressClassFiltersList = strings.Split(ingressClassFilters, ",")
 	}
 
+	kubeAdapter, err = kubernetes.NewAdapter(kubeConfig, ingressClassFiltersList, awsAdapter.SecurityGroupID())
 	if err != nil {
 		log.Fatal(err)
 	}
