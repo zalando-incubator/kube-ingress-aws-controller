@@ -222,15 +222,18 @@ func doWork(certsProvider certs.CertificatesProvider, certsPerALB int, certTTL t
 	return nil
 }
 
-func buildManagedModel(certs []*certs.CertificateSummary, certsPerALB int, certTTL time.Duration, ingresses []*kubernetes.Ingress, stacks []*aws.Stack) []*loadBalancer {
+func sortStacks(stacks []*aws.Stack) {
 	sort.Slice(stacks, func(i, j int) bool {
 		if len(stacks[i].CertificateARNs) == len(stacks[j].CertificateARNs) {
 			return stacks[i].Name < stacks[j].Name
 		}
 		return len(stacks[i].CertificateARNs) > len(stacks[j].CertificateARNs)
 	})
+}
 
-	model := make([]*loadBalancer, 0, len(stacks))
+func getAllLoadBalancers(certTTL time.Duration, stacks []*aws.Stack) []*loadBalancer {
+	loadBalancers := make([]*loadBalancer, 0, len(stacks))
+
 	for _, stack := range stacks {
 		lb := &loadBalancer{
 			stack:         stack,
@@ -245,9 +248,13 @@ func buildManagedModel(certs []*certs.CertificateSummary, certsPerALB int, certT
 		for cert := range stack.CertificateARNs {
 			lb.ingresses[cert] = make([]*kubernetes.Ingress, 0)
 		}
-		model = append(model, lb)
+		loadBalancers = append(loadBalancers, lb)
 	}
 
+	return loadBalancers
+}
+
+func matchIngressesToLoadBalancers(loadBalancers []*loadBalancer, certs []*certs.CertificateSummary, certsPerALB int, ingresses []*kubernetes.Ingress) []*loadBalancer {
 	for _, ingress := range ingresses {
 		var certificateARNs []string
 
@@ -268,7 +275,7 @@ func buildManagedModel(certs []*certs.CertificateSummary, certsPerALB int, certT
 		// try to add ingress to existing ALB stacks until certificate
 		// limit is exeeded.
 		added := false
-		for _, lb := range model {
+		for _, lb := range loadBalancers {
 			if lb.AddIngress(certificateARNs, ingress, certsPerALB) {
 				added = true
 				break
@@ -283,9 +290,17 @@ func buildManagedModel(certs []*certs.CertificateSummary, certsPerALB int, certT
 			for _, certificateARN := range certificateARNs {
 				i[certificateARN] = []*kubernetes.Ingress{ingress}
 			}
-			model = append(model, &loadBalancer{ingresses: i, scheme: ingress.Scheme, shared: ingress.Shared, securityGroup: ingress.SecurityGroup})
+			loadBalancers = append(loadBalancers, &loadBalancer{ingresses: i, scheme: ingress.Scheme, shared: ingress.Shared, securityGroup: ingress.SecurityGroup})
 		}
 	}
+
+	return loadBalancers
+}
+
+func buildManagedModel(certs []*certs.CertificateSummary, certsPerALB int, certTTL time.Duration, ingresses []*kubernetes.Ingress, stacks []*aws.Stack) []*loadBalancer {
+	sortStacks(stacks)
+	model := getAllLoadBalancers(certTTL, stacks)
+	model = matchIngressesToLoadBalancers(model, certs, certsPerALB, ingresses)
 
 	return model
 }

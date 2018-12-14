@@ -2,6 +2,7 @@ package main
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/zalando-incubator/kube-ingress-aws-controller/aws"
@@ -92,6 +93,43 @@ func TestAddIngress(tt *testing.T) {
 	} {
 		tt.Run(test.name, func(t *testing.T) {
 			assert.Equal(t, test.loadBalancer.AddIngress(test.certificateARNs, test.ingress, test.maxCerts), test.added)
+		})
+	}
+}
+
+func TestGetAllLoadBalancers(tt *testing.T) {
+	certTTL, _ := time.ParseDuration("90d")
+
+	for _, test := range []struct {
+		name          string
+		stacks        []*aws.Stack
+		loadBalancers []*loadBalancer
+	}{
+		{
+			name: "one stack",
+			stacks: []*aws.Stack{
+				&aws.Stack{
+					Scheme:        "foo",
+					SecurityGroup: "sg-123456",
+				},
+			},
+			loadBalancers: []*loadBalancer{
+				&loadBalancer{
+					securityGroup: "sg-123456",
+					scheme:        "foo",
+					shared:        true,
+					ingresses:     map[string][]*kubernetes.Ingress{},
+					certTTL:       certTTL,
+				},
+			},
+		},
+	} {
+		tt.Run(test.name, func(t *testing.T) {
+			for i, loadBalancer := range test.loadBalancers {
+				loadBalancer.stack = test.stacks[i]
+			}
+
+			assert.Equal(t, test.loadBalancers, getAllLoadBalancers(certTTL, test.stacks))
 		})
 	}
 }
