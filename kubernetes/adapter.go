@@ -9,9 +9,9 @@ import (
 )
 
 type Adapter struct {
-	kubeClient     client
-	ingressFilters []string
-	securityGroup  string
+	kubeClient                  client
+	ingressFilters              []string
+	ingressDefaultSecurityGroup string
 }
 
 var (
@@ -52,7 +52,7 @@ func (i *Ingress) String() string {
 }
 
 // NewAdapter creates an Adapter for Kubernetes using a given configuration.
-func NewAdapter(config *Config, ingressClassFilters []string, securityGroup string) (*Adapter, error) {
+func NewAdapter(config *Config, ingressClassFilters []string, ingressDefaultSecurityGroup string) (*Adapter, error) {
 	if config == nil || config.BaseURL == "" {
 		return nil, ErrInvalidConfiguration
 	}
@@ -60,7 +60,7 @@ func NewAdapter(config *Config, ingressClassFilters []string, securityGroup stri
 	if err != nil {
 		return nil, err
 	}
-	return &Adapter{kubeClient: c, ingressFilters: ingressClassFilters, securityGroup: securityGroup}, nil
+	return &Adapter{kubeClient: c, ingressFilters: ingressClassFilters, ingressDefaultSecurityGroup: ingressDefaultSecurityGroup}, nil
 }
 
 func (a *Adapter) newIngressFromKube(kubeIngress *ingress) *Ingress {
@@ -100,7 +100,7 @@ func (a *Adapter) newIngressFromKube(kubeIngress *ingress) *Ingress {
 		Scheme:         scheme,
 		Hostnames:      hostnames,
 		Shared:         shared,
-		SecurityGroup:  kubeIngress.getAnnotationsString(ingressSecurityGroupAnnotation, a.securityGroup),
+		SecurityGroup:  kubeIngress.getAnnotationsString(ingressSecurityGroupAnnotation, a.ingressDefaultSecurityGroup),
 	}
 }
 
