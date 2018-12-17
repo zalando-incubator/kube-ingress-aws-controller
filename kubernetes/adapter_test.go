@@ -97,7 +97,10 @@ func TestMappingRoundtrip(tt *testing.T) {
 		},
 	} {
 		tt.Run(tc.msg, func(t *testing.T) {
-			a, _ := NewAdapter(testConfig, testIngressFilter, testIngressDefaultSecurityGroup)
+			a, err := NewAdapter(testConfig, testIngressFilter, testIngressDefaultSecurityGroup)
+			if err != nil {
+				t.Fatalf("cannot create kubernetes adapter: %v", err)
+			}
 
 			got := a.newIngressFromKube(tc.kubeIngress)
 			assert.Equal(t, tc.ingress, got, "mapping from kubernetes ingress to adapter failed")
