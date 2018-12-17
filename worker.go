@@ -290,7 +290,15 @@ func matchIngressesToLoadBalancers(loadBalancers []*loadBalancer, certs []*certs
 			for _, certificateARN := range certificateARNs {
 				i[certificateARN] = []*kubernetes.Ingress{ingress}
 			}
-			loadBalancers = append(loadBalancers, &loadBalancer{ingresses: i, scheme: ingress.Scheme, shared: ingress.Shared, securityGroup: ingress.SecurityGroup})
+			loadBalancers = append(
+				loadBalancers,
+				&loadBalancer{
+					ingresses:     i,
+					scheme:        ingress.Scheme,
+					shared:        ingress.Shared,
+					securityGroup: ingress.SecurityGroup,
+				}
+			)
 		}
 	}
 

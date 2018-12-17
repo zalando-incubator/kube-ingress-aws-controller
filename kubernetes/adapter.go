@@ -104,7 +104,7 @@ func (a *Adapter) newIngressFromKube(kubeIngress *ingress) *Ingress {
 	}
 }
 
-func (a *Adapter) newIngressForKube(i *Ingress) *ingress {
+func newIngressForKube(i *Ingress) *ingress {
 	shared := "true"
 
 	if !i.Shared {
@@ -172,5 +172,5 @@ func (a *Adapter) UpdateIngressLoadBalancer(ingress *Ingress, loadBalancerDNSNam
 		return ErrInvalidIngressUpdateParams
 	}
 
-	return updateIngressLoadBalancer(a.kubeClient, a.newIngressForKube(ingress), loadBalancerDNSName)
+	return updateIngressLoadBalancer(a.kubeClient, newIngressForKube(ingress), loadBalancerDNSName)
 }
