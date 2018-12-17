@@ -297,7 +297,7 @@ func matchIngressesToLoadBalancers(loadBalancers []*loadBalancer, certs []*certs
 					scheme:        ingress.Scheme,
 					shared:        ingress.Shared,
 					securityGroup: ingress.SecurityGroup,
-				}
+				},
 			)
 		}
 	}
