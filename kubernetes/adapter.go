@@ -9,8 +9,9 @@ import (
 )
 
 type Adapter struct {
-	kubeClient     client
-	ingressFilters []string
+	kubeClient                  client
+	ingressFilters              []string
+	ingressDefaultSecurityGroup string
 }
 
 var (
@@ -42,6 +43,7 @@ type Ingress struct {
 	Scheme         string
 	Hostnames      []string
 	Shared         bool
+	SecurityGroup  string
 }
 
 // String returns a string representation of the Ingress instance containing the namespace and the resource name.
@@ -49,7 +51,19 @@ func (i *Ingress) String() string {
 	return fmt.Sprintf("%s/%s", i.Namespace, i.Name)
 }
 
-func newIngressFromKube(kubeIngress *ingress) *Ingress {
+// NewAdapter creates an Adapter for Kubernetes using a given configuration.
+func NewAdapter(config *Config, ingressClassFilters []string, ingressDefaultSecurityGroup string) (*Adapter, error) {
+	if config == nil || config.BaseURL == "" {
+		return nil, ErrInvalidConfiguration
+	}
+	c, err := newSimpleClient(config)
+	if err != nil {
+		return nil, err
+	}
+	return &Adapter{kubeClient: c, ingressFilters: ingressClassFilters, ingressDefaultSecurityGroup: ingressDefaultSecurityGroup}, nil
+}
+
+func (a *Adapter) newIngressFromKube(kubeIngress *ingress) *Ingress {
 	var host, scheme string
 	var hostnames []string
 	for _, ingressLoadBalancer := range kubeIngress.Status.LoadBalancer.Ingress {
@@ -86,6 +100,7 @@ func newIngressFromKube(kubeIngress *ingress) *Ingress {
 		Scheme:         scheme,
 		Hostnames:      hostnames,
 		Shared:         shared,
+		SecurityGroup:  kubeIngress.getAnnotationsString(ingressSecurityGroupAnnotation, a.ingressDefaultSecurityGroup),
 	}
 }
 
@@ -104,6 +119,7 @@ func newIngressForKube(i *Ingress) *ingress {
 				ingressCertificateARNAnnotation: i.CertificateARN,
 				ingressSchemeAnnotation:         i.Scheme,
 				ingressSharedAnnotation:         shared,
+				ingressSecurityGroupAnnotation:  i.SecurityGroup,
 			},
 		},
 		Status: ingressStatus{
@@ -114,18 +130,6 @@ func newIngressForKube(i *Ingress) *ingress {
 			},
 		},
 	}
-}
-
-// NewAdapter creates an Adapter for Kubernetes using a given configuration.
-func NewAdapter(config *Config, ingressClassFilters []string) (*Adapter, error) {
-	if config == nil || config.BaseURL == "" {
-		return nil, ErrInvalidConfiguration
-	}
-	c, err := newSimpleClient(config)
-	if err != nil {
-		return nil, err
-	}
-	return &Adapter{kubeClient: c, ingressFilters: ingressClassFilters}, nil
 }
 
 // Get ingress class filters that are used to filter ingresses acted upon.
@@ -147,7 +151,7 @@ func (a *Adapter) ListIngress() ([]*Ingress, error) {
 			if ingressClass != "" {
 				for _, v := range a.ingressFilters {
 					if v == ingressClass {
-						ret = append(ret, newIngressFromKube(ingress))
+						ret = append(ret, a.newIngressFromKube(ingress))
 					}
 				}
 			}
@@ -155,7 +159,7 @@ func (a *Adapter) ListIngress() ([]*Ingress, error) {
 	} else {
 		ret = make([]*Ingress, len(il.Items))
 		for i, ingress := range il.Items {
-			ret[i] = newIngressFromKube(ingress)
+			ret[i] = a.newIngressFromKube(ingress)
 		}
 	}
 	return ret, nil

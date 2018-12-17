@@ -6,10 +6,16 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
+
+var testConfig = InsecureConfig("dummy-url")
+var testIngressFilter = []string{"skipper"}
+var testIngressDefaultSecurityGroup = "sg-foobar"
+var testSecurityGroup = "sg-123456"
 
 func TestMappingRoundtrip(tt *testing.T) {
 	for _, tc := range []struct {
@@ -27,6 +33,7 @@ func TestMappingRoundtrip(tt *testing.T) {
 				CertificateARN: "zbr",
 				Shared:         true,
 				Hostnames:      []string{"domain.example.org"},
+				SecurityGroup:  testSecurityGroup,
 			},
 			kubeIngress: &ingress{
 				Metadata: ingressItemMetadata{
@@ -36,6 +43,7 @@ func TestMappingRoundtrip(tt *testing.T) {
 						ingressCertificateARNAnnotation: "zbr",
 						ingressSchemeAnnotation:         "internal",
 						ingressSharedAnnotation:         "true",
+						ingressSecurityGroupAnnotation:  testSecurityGroup,
 					},
 				},
 				Spec: ingressSpec{
@@ -64,6 +72,7 @@ func TestMappingRoundtrip(tt *testing.T) {
 				Scheme:         "internal",
 				CertificateARN: "zbr",
 				Shared:         false,
+				SecurityGroup:  testSecurityGroup,
 			},
 			kubeIngress: &ingress{
 				Metadata: ingressItemMetadata{
@@ -73,6 +82,7 @@ func TestMappingRoundtrip(tt *testing.T) {
 						ingressCertificateARNAnnotation: "zbr",
 						ingressSchemeAnnotation:         "internal",
 						ingressSharedAnnotation:         "false",
+						ingressSecurityGroupAnnotation:  testSecurityGroup,
 					},
 				},
 				Status: ingressStatus{
@@ -87,31 +97,19 @@ func TestMappingRoundtrip(tt *testing.T) {
 		},
 	} {
 		tt.Run(tc.msg, func(t *testing.T) {
-			got := newIngressFromKube(tc.kubeIngress)
-			if !reflect.DeepEqual(tc.ingress, got) {
-				t.Errorf("mapping from kubernetes ingress to adapter failed. wanted %v, got %v", tc.ingress, got)
+			a, err := NewAdapter(testConfig, testIngressFilter, testIngressDefaultSecurityGroup)
+			if err != nil {
+				t.Fatalf("cannot create kubernetes adapter: %v", err)
 			}
-			if got.CertificateARN != tc.kubeIngress.Metadata.Annotations[ingressCertificateARNAnnotation] {
-				t.Error("wrong value from CertificateARN()")
-			}
-			if got.Scheme != tc.kubeIngress.Metadata.Annotations[ingressSchemeAnnotation] {
-				t.Error("wrong value from Scheme()")
-			}
-			if got.Hostname != tc.kubeIngress.Status.LoadBalancer.Ingress[1].Hostname {
-				t.Error("wrong value from Hostname()")
-			}
-			if got.String() != fmt.Sprintf("%s/%s", tc.ingress.Namespace, tc.ingress.Name) {
-				t.Error("wrong value from String()")
-			}
+
+			got := a.newIngressFromKube(tc.kubeIngress)
+			assert.Equal(t, tc.ingress, got, "mapping from kubernetes ingress to adapter failed")
+			assert.Equal(t, got.String(), fmt.Sprintf("%s/%s", tc.ingress.Namespace, tc.ingress.Name), "wrong value from String()")
 
 			tc.kubeIngress.Status.LoadBalancer.Ingress = tc.kubeIngress.Status.LoadBalancer.Ingress[1:]
 			gotKube := newIngressForKube(got)
-			if !reflect.DeepEqual(tc.kubeIngress.Metadata, gotKube.Metadata) {
-				t.Errorf("mapping from adapter to kubernetes ingress failed. wanted %v, got %#v", tc.kubeIngress.Metadata, gotKube.Metadata)
-			}
-			if !reflect.DeepEqual(tc.kubeIngress.Status, gotKube.Status) {
-				t.Errorf("mapping from adapter to kubernetes ingress failed. wanted %v, got %#v", tc.kubeIngress.Status, gotKube.Status)
-			}
+			assert.Equal(t, tc.kubeIngress.Metadata, gotKube.Metadata, "mapping from adapter to kubernetes ingress failed")
+			assert.Equal(t, tc.kubeIngress.Status, gotKube.Status, "mapping from adapter to kubernetes ingress failed")
 		})
 	}
 }
@@ -154,11 +152,8 @@ func (c *mockClient) patch(res string, payload []byte) (io.ReadCloser, error) {
 	return nil, errors.New("mocked error")
 }
 
-var testConfig = InsecureConfig("dummy-url")
-var testIngressFilter = []string{"skipper"}
-
 func TestListIngress(t *testing.T) {
-	a, _ := NewAdapter(testConfig, testIngressFilter)
+	a, _ := NewAdapter(testConfig, testIngressFilter, testIngressDefaultSecurityGroup)
 	client := &mockClient{}
 	a.kubeClient = client
 	ingresses, err := a.ListIngress()
@@ -176,7 +171,7 @@ func TestListIngress(t *testing.T) {
 }
 
 func TestUpdateIngressLoadBalancer(t *testing.T) {
-	a, _ := NewAdapter(testConfig, testIngressFilter)
+	a, _ := NewAdapter(testConfig, testIngressFilter, testSecurityGroup)
 	client := &mockClient{}
 	a.kubeClient = client
 	ing := &Ingress{
@@ -211,7 +206,7 @@ func TestBrokenConfig(t *testing.T) {
 		{"broken-cert", &Config{BaseURL: "dontcare", TLSClientConfig: TLSClientConfig{CAFile: "testdata/broken.pem"}}},
 	} {
 		t.Run(fmt.Sprintf("%v", test.cfg), func(t *testing.T) {
-			_, err := NewAdapter(test.cfg, testIngressFilter)
+			_, err := NewAdapter(test.cfg, testIngressFilter, testSecurityGroup)
 			if err == nil {
 				t.Error("expected an error")
 			}

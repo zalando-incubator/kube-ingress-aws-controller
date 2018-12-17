@@ -21,11 +21,12 @@ import (
 )
 
 type loadBalancer struct {
-	ingresses map[string][]*kubernetes.Ingress
-	scheme    string
-	stack     *aws.Stack
-	shared    bool
-	certTTL   time.Duration
+	ingresses     map[string][]*kubernetes.Ingress
+	scheme        string
+	stack         *aws.Stack
+	shared        bool
+	securityGroup string
+	certTTL       time.Duration
 }
 
 const (
@@ -64,7 +65,7 @@ func (l *loadBalancer) inSync() bool {
 // adding can fail in case the load balancer reached its limit of ingress
 // certificates or if the scheme doesn't match.
 func (l *loadBalancer) AddIngress(certificateARNs []string, ingress *kubernetes.Ingress, maxCerts int) bool {
-	if l.scheme != ingress.Scheme {
+	if l.scheme != ingress.Scheme || l.securityGroup != ingress.SecurityGroup {
 		return false
 	}
 
@@ -221,31 +222,39 @@ func doWork(certsProvider certs.CertificatesProvider, certsPerALB int, certTTL t
 	return nil
 }
 
-func buildManagedModel(certs []*certs.CertificateSummary, certsPerALB int, certTTL time.Duration, ingresses []*kubernetes.Ingress, stacks []*aws.Stack) []*loadBalancer {
+func sortStacks(stacks []*aws.Stack) {
 	sort.Slice(stacks, func(i, j int) bool {
 		if len(stacks[i].CertificateARNs) == len(stacks[j].CertificateARNs) {
 			return stacks[i].Name < stacks[j].Name
 		}
 		return len(stacks[i].CertificateARNs) > len(stacks[j].CertificateARNs)
 	})
+}
 
-	model := make([]*loadBalancer, 0, len(stacks))
+func getAllLoadBalancers(certTTL time.Duration, stacks []*aws.Stack) []*loadBalancer {
+	loadBalancers := make([]*loadBalancer, 0, len(stacks))
+
 	for _, stack := range stacks {
 		lb := &loadBalancer{
-			stack:     stack,
-			ingresses: make(map[string][]*kubernetes.Ingress),
-			scheme:    stack.Scheme,
-			shared:    stack.OwnerIngress == "",
-			certTTL:   certTTL,
+			stack:         stack,
+			ingresses:     make(map[string][]*kubernetes.Ingress),
+			scheme:        stack.Scheme,
+			shared:        stack.OwnerIngress == "",
+			securityGroup: stack.SecurityGroup,
+			certTTL:       certTTL,
 		}
 		// initialize ingresses map with existing certificates from the
 		// stack.
 		for cert := range stack.CertificateARNs {
 			lb.ingresses[cert] = make([]*kubernetes.Ingress, 0)
 		}
-		model = append(model, lb)
+		loadBalancers = append(loadBalancers, lb)
 	}
 
+	return loadBalancers
+}
+
+func matchIngressesToLoadBalancers(loadBalancers []*loadBalancer, certs []*certs.CertificateSummary, certsPerALB int, ingresses []*kubernetes.Ingress) []*loadBalancer {
 	for _, ingress := range ingresses {
 		var certificateARNs []string
 
@@ -266,7 +275,7 @@ func buildManagedModel(certs []*certs.CertificateSummary, certsPerALB int, certT
 		// try to add ingress to existing ALB stacks until certificate
 		// limit is exeeded.
 		added := false
-		for _, lb := range model {
+		for _, lb := range loadBalancers {
 			if lb.AddIngress(certificateARNs, ingress, certsPerALB) {
 				added = true
 				break
@@ -274,16 +283,32 @@ func buildManagedModel(certs []*certs.CertificateSummary, certsPerALB int, certT
 		}
 
 		// if the ingress was not added to the ALB stack because of
-		// non-matching scheme or too many certificates, add a new
+		// non-matching scheme, non-matching security group or too many certificates, add a new
 		// stack.
 		if !added {
 			i := make(map[string][]*kubernetes.Ingress, len(certificateARNs))
 			for _, certificateARN := range certificateARNs {
 				i[certificateARN] = []*kubernetes.Ingress{ingress}
 			}
-			model = append(model, &loadBalancer{ingresses: i, scheme: ingress.Scheme, shared: ingress.Shared})
+			loadBalancers = append(
+				loadBalancers,
+				&loadBalancer{
+					ingresses:     i,
+					scheme:        ingress.Scheme,
+					shared:        ingress.Shared,
+					securityGroup: ingress.SecurityGroup,
+				},
+			)
 		}
 	}
+
+	return loadBalancers
+}
+
+func buildManagedModel(certs []*certs.CertificateSummary, certsPerALB int, certTTL time.Duration, ingresses []*kubernetes.Ingress, stacks []*aws.Stack) []*loadBalancer {
+	sortStacks(stacks)
+	model := getAllLoadBalancers(certTTL, stacks)
+	model = matchIngressesToLoadBalancers(model, certs, certsPerALB, ingresses)
 
 	return model
 }
@@ -318,7 +343,7 @@ func createStack(awsAdapter *aws.Adapter, lb *loadBalancer) {
 
 	log.Printf("creating stack for certificates %q / ingress %q", certificates, lb.ingresses)
 
-	stackId, err := awsAdapter.CreateStack(certificates, lb.scheme, lb.Owner())
+	stackId, err := awsAdapter.CreateStack(certificates, lb.scheme, lb.securityGroup, lb.Owner())
 	if err != nil {
 		if isAlreadyExistsError(err) {
 			lb.stack, err = awsAdapter.GetStack(stackId)
