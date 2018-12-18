@@ -97,6 +97,86 @@ func TestAddIngress(tt *testing.T) {
 	}
 }
 
+func TestSortStacks(tt *testing.T) {
+	testTime := time.Now()
+
+	for _, test := range []struct {
+		name           string
+		stacks         []*aws.Stack
+		expectedStacks []*aws.Stack
+	}{
+		{
+			name:           "no stacks",
+			stacks:         []*aws.Stack{},
+			expectedStacks: []*aws.Stack{},
+		},
+		{
+			name: "two unsorted stacks",
+			stacks: []*aws.Stack{
+				&aws.Stack{
+					Name:            "foo",
+					CertificateARNs: map[string]time.Time{},
+				},
+				&aws.Stack{
+					Name: "bar",
+					CertificateARNs: map[string]time.Time{
+						"cert-arn": testTime,
+					},
+				},
+			},
+			expectedStacks: []*aws.Stack{
+				&aws.Stack{
+					Name: "bar",
+					CertificateARNs: map[string]time.Time{
+						"cert-arn": testTime,
+					},
+				},
+				&aws.Stack{
+					Name:            "foo",
+					CertificateARNs: map[string]time.Time{},
+				},
+			},
+		},
+		{
+			name: "two unsorted stacks with the same amount of certificates",
+			stacks: []*aws.Stack{
+				&aws.Stack{
+					Name: "foo",
+					CertificateARNs: map[string]time.Time{
+						"different-cert-arn": testTime,
+					},
+				},
+				&aws.Stack{
+					Name: "bar",
+					CertificateARNs: map[string]time.Time{
+						"cert-arn": testTime,
+					},
+				},
+			},
+			expectedStacks: []*aws.Stack{
+				&aws.Stack{
+					Name: "bar",
+					CertificateARNs: map[string]time.Time{
+						"cert-arn": testTime,
+					},
+				},
+				&aws.Stack{
+					Name: "foo",
+					CertificateARNs: map[string]time.Time{
+						"different-cert-arn": testTime,
+					},
+				},
+			},
+		},
+	} {
+		tt.Run(test.name, func(t *testing.T) {
+			sortStacks(test.stacks)
+
+			assert.Equal(t, test.expectedStacks, test.stacks)
+		})
+	}
+}
+
 func TestGetAllLoadBalancers(tt *testing.T) {
 	certTTL, _ := time.ParseDuration("90d")
 
