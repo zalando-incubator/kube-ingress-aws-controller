@@ -1,11 +1,13 @@
 package main
 
 import (
+	"crypto/x509"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/zalando-incubator/kube-ingress-aws-controller/aws"
+	"github.com/zalando-incubator/kube-ingress-aws-controller/certs"
 	"github.com/zalando-incubator/kube-ingress-aws-controller/kubernetes"
 )
 
@@ -173,6 +175,54 @@ func TestSortStacks(tt *testing.T) {
 			sortStacks(test.stacks)
 
 			assert.Equal(t, test.expectedStacks, test.stacks)
+		})
+	}
+}
+
+func TestCertificateSummaries(t *testing.T) {
+	certificateSummaries := []*certs.CertificateSummary{&certs.CertificateSummary{}}
+
+	certs := &Certificates{certificateSummaries: certificateSummaries}
+
+	assert.Equal(t, certificateSummaries, certs.CertificateSummaries())
+}
+
+func TestCertificateExists(tt *testing.T) {
+	existingCertificateARN := "existing-arn"
+	nonExistingCertificateARN := "non-existing-arn"
+
+	for _, test := range []struct {
+		name                 string
+		certificateSummaries []*certs.CertificateSummary
+		exists               bool
+	}{
+		{
+			name: "certificate is present",
+			certificateSummaries: []*certs.CertificateSummary{
+				certs.NewCertificate(
+					existingCertificateARN,
+					&x509.Certificate{},
+					[]*x509.Certificate{&x509.Certificate{}},
+				),
+			},
+			exists: true,
+		},
+		{
+			name: "certificate is not present",
+			certificateSummaries: []*certs.CertificateSummary{
+				certs.NewCertificate(
+					nonExistingCertificateARN,
+					&x509.Certificate{},
+					[]*x509.Certificate{&x509.Certificate{}},
+				),
+			},
+			exists: false,
+		},
+	} {
+		tt.Run(test.name, func(t *testing.T) {
+			certs := &Certificates{certificateSummaries: test.certificateSummaries}
+
+			assert.Equal(t, test.exists, certs.CertificateExists(existingCertificateARN))
 		})
 	}
 }
