@@ -229,12 +229,12 @@ func main() {
 		kubeConfig = kubernetes.InsecureConfig(apiServerBaseURL)
 	}
 
-	if ingressClassFilters == "" {
-		kubeAdapter, err = kubernetes.NewAdapter(kubeConfig, []string{})
-	} else {
-		kubeAdapter, err = kubernetes.NewAdapter(kubeConfig, strings.Split(ingressClassFilters, ","))
+	ingressClassFiltersList := []string{}
+	if ingressClassFilters != "" {
+		ingressClassFiltersList = strings.Split(ingressClassFilters, ",")
 	}
 
+	kubeAdapter, err = kubernetes.NewAdapter(kubeConfig, ingressClassFiltersList, awsAdapter.SecurityGroupID())
 	if err != nil {
 		log.Fatal(err)
 	}

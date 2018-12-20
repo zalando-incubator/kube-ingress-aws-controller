@@ -19,11 +19,12 @@ import (
 )
 
 type loadBalancer struct {
-	ingresses map[string][]*kubernetes.Ingress
-	scheme    string
-	stack     *aws.Stack
-	shared    bool
-	certTTL   time.Duration
+	ingresses     map[string][]*kubernetes.Ingress
+	scheme        string
+	stack         *aws.Stack
+	shared        bool
+	securityGroup string
+	certTTL       time.Duration
 }
 
 const (
@@ -62,7 +63,7 @@ func (l *loadBalancer) inSync() bool {
 // adding can fail in case the load balancer reached its limit of ingress
 // certificates or if the scheme doesn't match.
 func (l *loadBalancer) AddIngress(certificateARNs []string, ingress *kubernetes.Ingress, maxCerts int) bool {
-	if l.scheme != ingress.Scheme {
+	if l.scheme != ingress.Scheme || l.securityGroup != ingress.SecurityGroup {
 		return false
 	}
 
@@ -146,6 +147,45 @@ func (l *loadBalancer) Owner() string {
 	return ""
 }
 
+// CertificatesFinder interface represents a list of certificates
+// and some basic operations than can be performed on them.
+type CertificatesFinder interface {
+	CertificateSummaries() []*certs.CertificateSummary
+	CertificateExists(certificateARN string) bool
+	FindMatchingCertificateIDs([]string) []string
+}
+
+// Certificates represents a generic list of certificates
+type Certificates struct {
+	certificateSummaries []*certs.CertificateSummary
+}
+
+// CertificateSummaries returns summaries of all certificates
+func (c *Certificates) CertificateSummaries() []*certs.CertificateSummary {
+	return c.certificateSummaries
+}
+
+// CertificateExists checks if certificate with given ARN/ID is present in the collection
+func (c *Certificates) CertificateExists(arn string) bool {
+	for _, cert := range c.certificateSummaries {
+		if arn == cert.ID() {
+			return true
+		}
+	}
+	return false
+}
+
+// FindMatchingCertificateIDs get IDs of all certificates matching to given hostnames
+func (c *Certificates) FindMatchingCertificateIDs(hostnames []string) []string {
+	certificateSummaries := certs.FindBestMatchingCertificates(c.certificateSummaries, hostnames)
+	certIDs := make([]string, 0, len(certificateSummaries))
+	for _, cert := range certificateSummaries {
+		certIDs = append(certIDs, cert.ID())
+	}
+
+	return certIDs
+}
+
 func startPolling(ctx context.Context, certsProvider certs.CertificatesProvider, certsPerALB int, certTTL time.Duration, awsAdapter *aws.Adapter, kubeAdapter *kubernetes.Adapter, pollingInterval time.Duration) {
 	for {
 		if err := doWork(certsProvider, certsPerALB, certTTL, awsAdapter, kubeAdapter); err != nil {
@@ -188,7 +228,7 @@ func doWork(certsProvider certs.CertificatesProvider, certsPerALB int, certTTL t
 		return fmt.Errorf("doWork failed to get instances from EC2: %v", err)
 	}
 
-	certs, err := certsProvider.GetCertificates()
+	certificateSummaries, err := certsProvider.GetCertificates()
 	if err != nil {
 		return fmt.Errorf("doWork failed to get certificates: %v", err)
 	}
@@ -197,8 +237,9 @@ func doWork(certsProvider certs.CertificatesProvider, certsPerALB int, certTTL t
 	log.Infof("Found %d auto scaling group(s)", len(awsAdapter.AutoScalingGroupNames()))
 	log.Infof("Found %d single instance(s)", len(awsAdapter.SingleInstances()))
 	log.Infof("Found %d EC2 instance(s)", awsAdapter.CachedInstances())
-	log.Infof("Found %d certificate(s)", len(certs))
+	log.Infof("Found %d certificate(s)", len(certificateSummaries))
 
+	certs := &Certificates{certificateSummaries: certificateSummaries}
 	model := buildManagedModel(certs, certsPerALB, certTTL, ingresses, stacks)
 	log.Infof("Have %d model(s)", len(model))
 	for _, loadBalancer := range model {
@@ -219,42 +260,50 @@ func doWork(certsProvider certs.CertificatesProvider, certsPerALB int, certTTL t
 	return nil
 }
 
-func buildManagedModel(certs []*certs.CertificateSummary, certsPerALB int, certTTL time.Duration, ingresses []*kubernetes.Ingress, stacks []*aws.Stack) []*loadBalancer {
+func sortStacks(stacks []*aws.Stack) {
 	sort.Slice(stacks, func(i, j int) bool {
 		if len(stacks[i].CertificateARNs) == len(stacks[j].CertificateARNs) {
 			return stacks[i].Name < stacks[j].Name
 		}
 		return len(stacks[i].CertificateARNs) > len(stacks[j].CertificateARNs)
 	})
+}
 
-	model := make([]*loadBalancer, 0, len(stacks))
+func getAllLoadBalancers(certTTL time.Duration, stacks []*aws.Stack) []*loadBalancer {
+	loadBalancers := make([]*loadBalancer, 0, len(stacks))
+
 	for _, stack := range stacks {
 		lb := &loadBalancer{
-			stack:     stack,
-			ingresses: make(map[string][]*kubernetes.Ingress),
-			scheme:    stack.Scheme,
-			shared:    stack.OwnerIngress == "",
-			certTTL:   certTTL,
+			stack:         stack,
+			ingresses:     make(map[string][]*kubernetes.Ingress),
+			scheme:        stack.Scheme,
+			shared:        stack.OwnerIngress == "",
+			securityGroup: stack.SecurityGroup,
+			certTTL:       certTTL,
 		}
 		// initialize ingresses map with existing certificates from the
 		// stack.
 		for cert := range stack.CertificateARNs {
 			lb.ingresses[cert] = make([]*kubernetes.Ingress, 0)
 		}
-		model = append(model, lb)
+		loadBalancers = append(loadBalancers, lb)
 	}
 
+	return loadBalancers
+}
+
+func matchIngressesToLoadBalancers(loadBalancers []*loadBalancer, certs CertificatesFinder, certsPerALB int, ingresses []*kubernetes.Ingress) []*loadBalancer {
 	for _, ingress := range ingresses {
 		var certificateARNs []string
 
 		if ingress.CertificateARN != "" {
-			if !certExists(ingress.CertificateARN, certs) {
+			if !certs.CertificateExists(ingress.CertificateARN) {
 				log.Infof("Failed to find certificate '%s' for ingress '%s/%s'", ingress.CertificateARN, ingress.Namespace, ingress.Name)
 				continue
 			}
 			certificateARNs = []string{ingress.CertificateARN}
 		} else {
-			certificateARNs = getMatchingCertificates(ingress.Hostnames, certs)
+			certificateARNs = certs.FindMatchingCertificateIDs(ingress.Hostnames)
 			if len(certificateARNs) == 0 {
 				log.Infof("No certificates found for %v", ingress.Hostnames)
 				continue
@@ -264,7 +313,7 @@ func buildManagedModel(certs []*certs.CertificateSummary, certsPerALB int, certT
 		// try to add ingress to existing ALB stacks until certificate
 		// limit is exeeded.
 		added := false
-		for _, lb := range model {
+		for _, lb := range loadBalancers {
 			if lb.AddIngress(certificateARNs, ingress, certsPerALB) {
 				added = true
 				break
@@ -272,40 +321,34 @@ func buildManagedModel(certs []*certs.CertificateSummary, certsPerALB int, certT
 		}
 
 		// if the ingress was not added to the ALB stack because of
-		// non-matching scheme or too many certificates, add a new
+		// non-matching scheme, non-matching security group or too many certificates, add a new
 		// stack.
 		if !added {
 			i := make(map[string][]*kubernetes.Ingress, len(certificateARNs))
 			for _, certificateARN := range certificateARNs {
 				i[certificateARN] = []*kubernetes.Ingress{ingress}
 			}
-			model = append(model, &loadBalancer{ingresses: i, scheme: ingress.Scheme, shared: ingress.Shared})
+			loadBalancers = append(
+				loadBalancers,
+				&loadBalancer{
+					ingresses:     i,
+					scheme:        ingress.Scheme,
+					shared:        ingress.Shared,
+					securityGroup: ingress.SecurityGroup,
+				},
+			)
 		}
 	}
+
+	return loadBalancers
+}
+
+func buildManagedModel(certs CertificatesFinder, certsPerALB int, certTTL time.Duration, ingresses []*kubernetes.Ingress, stacks []*aws.Stack) []*loadBalancer {
+	sortStacks(stacks)
+	model := getAllLoadBalancers(certTTL, stacks)
+	model = matchIngressesToLoadBalancers(model, certs, certsPerALB, ingresses)
 
 	return model
-}
-
-// getMatchingCertificates gets a list of certificates matching the specified
-// hostnames.
-func getMatchingCertificates(hostnames []string, certificates []*certs.CertificateSummary) []string {
-	certificateSummaries := certs.FindBestMatchingCertificates(certificates, hostnames)
-	certs := make([]string, 0, len(certificateSummaries))
-	for _, cert := range certificateSummaries {
-		certs = append(certs, cert.ID())
-	}
-	return certs
-}
-
-// certExists returns true if the cert with the sepcified ARN exists in the
-// list of certs.
-func certExists(arn string, certs []*certs.CertificateSummary) bool {
-	for _, cert := range certs {
-		if arn == cert.ID() {
-			return true
-		}
-	}
-	return false
 }
 
 func createStack(awsAdapter *aws.Adapter, lb *loadBalancer) {
@@ -316,7 +359,7 @@ func createStack(awsAdapter *aws.Adapter, lb *loadBalancer) {
 
 	log.Infof("creating stack for certificates %q / ingress %q", certificates, lb.ingresses)
 
-	stackId, err := awsAdapter.CreateStack(certificates, lb.scheme, lb.Owner())
+	stackId, err := awsAdapter.CreateStack(certificates, lb.scheme, lb.securityGroup, lb.Owner())
 	if err != nil {
 		if isAlreadyExistsError(err) {
 			lb.stack, err = awsAdapter.GetStack(stackId)

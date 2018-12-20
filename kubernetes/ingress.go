@@ -64,6 +64,7 @@ const (
 	ingressCertificateARNAnnotation = "zalando.org/aws-load-balancer-ssl-cert"
 	ingressSchemeAnnotation         = "zalando.org/aws-load-balancer-scheme"
 	ingressSharedAnnotation         = "zalando.org/aws-load-balancer-shared"
+	ingressSecurityGroupAnnotation  = "zalando.org/aws-load-balancer-security-group"
 	ingressClassAnnotation          = "kubernetes.io/ingress.class"
 )
 
