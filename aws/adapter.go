@@ -58,6 +58,7 @@ type Adapter struct {
 	ipAddressType              string
 	albLogsS3Bucket            string
 	albLogsS3Prefix            string
+	wafWebAclId                string
 }
 
 type manifest struct {
@@ -94,6 +95,7 @@ const (
 	DefaultAlbS3LogsBucket = ""
 	// Default ALB logging S3 prefix is a blank string, and optionally set if desired
 	DefaultAlbS3LogsPrefix = ""
+	DefaultWafWebAclId     = ""
 
 	ipAddressTypeDualstack = "dualstack"
 	nameTag                = "Name"
@@ -161,6 +163,7 @@ func NewAdapter(newControllerID string) (adapter *Adapter, err error) {
 		ipAddressType:       DefaultIpAddressType,
 		albLogsS3Bucket:     DefaultAlbS3LogsBucket,
 		albLogsS3Prefix:     DefaultAlbS3LogsPrefix,
+		wafWebAclId:         DefaultWafWebAclId,
 	}
 
 	adapter.manifest, err = buildManifest(adapter)
@@ -271,6 +274,12 @@ func (a *Adapter) WithAlbLogsS3Bucket(bucket string) *Adapter {
 // WithAlbLogsS3Bucket returns the receiver adapter after changing the S3 prefix within the bucket for logging
 func (a *Adapter) WithAlbLogsS3Prefix(prefix string) *Adapter {
 	a.albLogsS3Prefix = prefix
+	return a
+}
+
+// WithWafWebAclId returns the receiver adapter after changing the waf web acl id for waf association
+func (a *Adapter) WithWafWebAclId(wafWebAclId string) *Adapter {
+	a.wafWebAclId = wafWebAclId
 	return a
 }
 
@@ -446,6 +455,7 @@ func (a *Adapter) CreateStack(certificateARNs []string, scheme, securityGroup, o
 		ipAddressType:                a.ipAddressType,
 		albLogsS3Bucket:              a.albLogsS3Bucket,
 		albLogsS3Prefix:              a.albLogsS3Prefix,
+		wafWebAclId:                  a.wafWebAclId,
 	}
 
 	return createStack(a.cloudformation, spec)
@@ -474,6 +484,7 @@ func (a *Adapter) UpdateStack(stackName string, certificateARNs map[string]time.
 		ipAddressType:                a.ipAddressType,
 		albLogsS3Bucket:              a.albLogsS3Bucket,
 		albLogsS3Prefix:              a.albLogsS3Prefix,
+		wafWebAclId:                  a.wafWebAclId,
 	}
 
 	return updateStack(a.cloudformation, spec)
