@@ -56,6 +56,7 @@ var (
 	ipAddressType              string
 	albLogsS3Bucket            string
 	albLogsS3Prefix            string
+	wafWebAclId                string
 )
 
 func loadSettings() error {
@@ -98,6 +99,7 @@ func loadSettings() error {
 	flag.StringVar(&ipAddressType, "ip-addr-type", aws.DefaultIpAddressType, "IP Address type to use, one of 'ipv4' or 'dualstack'")
 	flag.StringVar(&albLogsS3Bucket, "logs-s3-bucket", aws.DefaultAlbS3LogsBucket, "S3 bucket to be used for ALB logging")
 	flag.StringVar(&albLogsS3Prefix, "logs-s3-prefix", aws.DefaultAlbS3LogsPrefix, "Prefix within S3 bucket to be used for ALB logging")
+	flag.StringVar(&wafWebAclId, "aws-waf-web-acl-id", aws.DefaultWafWebAclId, "Waf web acl id to be associated with the ALB")
 
 	flag.Parse()
 
@@ -205,7 +207,8 @@ func main() {
 		WithSslPolicy(sslPolicy).
 		WithIpAddressType(ipAddressType).
 		WithAlbLogsS3Bucket(albLogsS3Bucket).
-		WithAlbLogsS3Prefix(albLogsS3Prefix)
+		WithAlbLogsS3Prefix(albLogsS3Prefix).
+		WithWafWebAclId(wafWebAclId)
 
 	certificatesProvider, err := certs.NewCachingProvider(
 		certPollingInterval,

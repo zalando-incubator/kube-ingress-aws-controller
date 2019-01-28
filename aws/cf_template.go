@@ -22,7 +22,7 @@ func hashARNs(certARNs []string) []byte {
 	return hash.Sum(nil)
 }
 
-func generateTemplate(certs map[string]time.Time, idleConnectionTimeoutSeconds uint, albLogsS3Bucket, albLogsS3Prefix string) (string, error) {
+func generateTemplate(certs map[string]time.Time, idleConnectionTimeoutSeconds uint, albLogsS3Bucket, albLogsS3Prefix string, wafWebAclId string) (string, error) {
 	template := cloudformation.NewTemplate()
 	template.Description = "Load Balancer for Kubernetes Ingress"
 	template.Parameters = map[string]*cloudformation.Parameter{
@@ -193,6 +193,13 @@ func generateTemplate(certs map[string]time.Time, idleConnectionTimeoutSeconds u
 		Protocol:                   cloudformation.String("HTTP"),
 		VPCID:                      cloudformation.Ref(parameterTargetGroupVPCIDParameter).String(),
 	})
+
+	if wafWebAclId != "" {
+		template.AddResource("WAFAssociation", &cloudformation.WAFRegionalWebACLAssociation{
+			ResourceArn: cloudformation.Ref("LB").String(),
+			WebACLID:    cloudformation.String(wafWebAclId),
+		})
+	}
 
 	template.Outputs = map[string]*cloudformation.Output{
 		"LoadBalancerDNSName": &cloudformation.Output{
