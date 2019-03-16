@@ -72,6 +72,11 @@ func generateTemplate(spec *stackSpec) (string, error) {
 			Description: "IP Address Type, 'ipv4' or 'dualstack'",
 			Default:     "ipv4",
 		},
+		parameterLoadBalancerTypeParameter: &cloudformation.Parameter{
+			Type:        "String",
+			Description: "Loadbalancer Type, 'application' or 'network'",
+			Default:     "application",
+		},
 	}
 
 	if spec.httpRedirectToHttps {
@@ -204,6 +209,7 @@ func generateTemplate(spec *stackSpec) (string, error) {
 				Value: cloudformation.Ref("AWS::StackName").String(),
 			},
 		},
+		Type: cloudformation.Ref(parameterLoadBalancerTypeParameter).String(),
 	})
 	template.AddResource("TG", &cloudformation.ElasticLoadBalancingV2TargetGroup{
 		HealthCheckIntervalSeconds: cloudformation.Ref(parameterTargetGroupHealthCheckIntervalParameter).Integer(),
