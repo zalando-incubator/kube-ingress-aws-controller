@@ -42,7 +42,7 @@ func TestCreatingStack(t *testing.T) {
 		{
 			"fail-call",
 			stackSpec{name: "foo", securityGroupID: "bar", vpcID: "baz"},
-			cfMockOutputs{createStack: R(nil, dummyErr)},
+			cfMockOutputs{createStack: R(nil, errDummy)},
 			"fake-stack-id",
 			true,
 		},
@@ -387,7 +387,7 @@ func TestFindManagedStacks(t *testing.T) {
 		{
 			"failed-paging",
 			cfMockOutputs{
-				describeStackPages: R(nil, dummyErr),
+				describeStackPages: R(nil, errDummy),
 				describeStacks:     R(&cloudformation.DescribeStacksOutput{}, nil),
 			},
 			nil,
@@ -396,7 +396,7 @@ func TestFindManagedStacks(t *testing.T) {
 		{
 			"failed-describe-page",
 			cfMockOutputs{
-				describeStacks: R(nil, dummyErr),
+				describeStacks: R(nil, errDummy),
 			},
 			nil,
 			true,
@@ -477,7 +477,7 @@ func TestGetStack(t *testing.T) {
 		{
 			"failed-paging",
 			cfMockOutputs{
-				describeStackPages: R(nil, dummyErr),
+				describeStackPages: R(nil, errDummy),
 				describeStacks:     R(&cloudformation.DescribeStacksOutput{}, nil),
 			},
 			nil,
@@ -486,7 +486,7 @@ func TestGetStack(t *testing.T) {
 		{
 			"failed-describe-page",
 			cfMockOutputs{
-				describeStacks: R(nil, dummyErr),
+				describeStacks: R(nil, errDummy),
 			},
 			nil,
 			true,

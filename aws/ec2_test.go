@@ -49,7 +49,7 @@ func TestFindingSecurityGroup(t *testing.T) {
 		},
 		{
 			"fail-with-aws-api-error",
-			ec2MockOutputs{describeSecurityGroups: R(nil, dummyErr)}, nil, true,
+			ec2MockOutputs{describeSecurityGroups: R(nil, errDummy)}, nil, true,
 		},
 	} {
 		t.Run(fmt.Sprintf("%v", test.name), func(t *testing.T) {
@@ -151,7 +151,7 @@ func TestGetInstanceDetails(t *testing.T) {
 		},
 		{
 			"aws-api-fail",
-			ec2MockOutputs{describeInstances: R(nil, dummyErr)},
+			ec2MockOutputs{describeInstances: R(nil, errDummy)},
 			nil,
 			true,
 		},
@@ -209,7 +209,7 @@ func TestGetSubnets(t *testing.T) {
 		},
 		{
 			"aws-sdk-failure-describing-subnets",
-			ec2MockOutputs{describeSubnets: R(nil, dummyErr)}, nil, true,
+			ec2MockOutputs{describeSubnets: R(nil, errDummy)}, nil, true,
 		},
 		{
 			"aws-sdk-failure-describing-route-tables",
@@ -218,7 +218,7 @@ func TestGetSubnets(t *testing.T) {
 					testSubnet{id: "foo1", name: "bar1", az: "baz1"},
 					testSubnet{id: "foo2", name: "bar2", az: "baz2"},
 				), nil),
-				describeRouteTables: R(nil, dummyErr),
+				describeRouteTables: R(nil, errDummy),
 			}, nil, true,
 		},
 		{
@@ -311,7 +311,7 @@ func TestGetInstancesDetailsWithFilters(t *testing.T) {
 					},
 				},
 			},
-			ec2MockOutputs{describeInstancesPages: mockDIPOutput(dummyErr, testInstance{})},
+			ec2MockOutputs{describeInstancesPages: mockDIPOutput(errDummy, testInstance{})},
 			nil,
 			true,
 		},

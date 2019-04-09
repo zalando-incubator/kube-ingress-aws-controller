@@ -73,7 +73,7 @@ func TestGetAutoScalingGroupByName(t *testing.T) {
 		{
 			"autoscaling-api-failure",
 			"dontcare",
-			autoscalingMockOutputs{describeAutoScalingGroups: R(nil, dummyErr)},
+			autoscalingMockOutputs{describeAutoScalingGroups: R(nil, errDummy)},
 			nil,
 			true,
 		},
@@ -156,7 +156,7 @@ func TestGetAutoScalingGroupsByName(t *testing.T) {
 		{
 			"autoscaling-api-failure",
 			[]string{"dontcare"},
-			autoscalingMockOutputs{describeAutoScalingGroups: R(nil, dummyErr)},
+			autoscalingMockOutputs{describeAutoScalingGroups: R(nil, errDummy)},
 			nil,
 			true,
 		},
@@ -192,7 +192,7 @@ func TestAttach(t *testing.T) {
 		{
 			name: "describe-lb-target-groups-failed",
 			responses: autoscalingMockOutputs{
-				describeLoadBalancerTargetGroups: R(nil, dummyErr),
+				describeLoadBalancerTargetGroups: R(nil, errDummy),
 			},
 			wantError: true,
 		},
@@ -210,7 +210,7 @@ func TestAttach(t *testing.T) {
 				detachLoadBalancerTargetGroups: R(nil, nil),
 			},
 			elbv2Response: elbv2MockOutputs{
-				describeTargetGroups: R(nil, dummyErr),
+				describeTargetGroups: R(nil, errDummy),
 			},
 			wantError: true,
 		},
@@ -229,7 +229,7 @@ func TestAttach(t *testing.T) {
 			},
 			elbv2Response: elbv2MockOutputs{
 				describeTargetGroups: R(nil, nil),
-				describeTags:         R(nil, dummyErr),
+				describeTags:         R(nil, errDummy),
 			},
 			wantError: true,
 		},
@@ -272,7 +272,7 @@ func TestAttach(t *testing.T) {
 		{
 			name: "failed-attach",
 			responses: autoscalingMockOutputs{
-				attachLoadBalancerTargetGroups: R(nil, dummyErr),
+				attachLoadBalancerTargetGroups: R(nil, errDummy),
 				describeLoadBalancerTargetGroups: R(&autoscaling.DescribeLoadBalancerTargetGroupsOutput{
 					LoadBalancerTargetGroups: []*autoscaling.LoadBalancerTargetGroupState{
 						{
@@ -390,7 +390,7 @@ func TestAttach(t *testing.T) {
 						},
 					},
 				}, nil),
-				detachLoadBalancerTargetGroups: R(nil, dummyErr),
+				detachLoadBalancerTargetGroups: R(nil, errDummy),
 			},
 			elbv2Response: elbv2MockOutputs{
 				describeTargetGroups: R(&elbv2.DescribeTargetGroupsOutput{
@@ -456,7 +456,7 @@ func TestDetach(t *testing.T) {
 	}{
 		{"success-detach", autoscalingMockOutputs{detachLoadBalancerTargetGroups: R(nil, nil)},
 			false},
-		{"failed-detach", autoscalingMockOutputs{detachLoadBalancerTargetGroups: R(nil, dummyErr)},
+		{"failed-detach", autoscalingMockOutputs{detachLoadBalancerTargetGroups: R(nil, errDummy)},
 			true},
 	} {
 		t.Run(fmt.Sprintf("%v", test.name), func(t *testing.T) {
