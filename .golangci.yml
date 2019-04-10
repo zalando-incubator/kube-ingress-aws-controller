@@ -1,6 +1,5 @@
 run:
   concurrency: 4
-  modules-download-mode: readonly
 
 linters-settings:
   golint:
@@ -12,6 +11,7 @@ linters-settings:
 linters:
   disable-all: true
   enable:
+    - staticcheck
     - govet
     - ineffassign
     - golint
