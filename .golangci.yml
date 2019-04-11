@@ -5,9 +5,6 @@ linters-settings:
   golint:
       min-confidence: 0.9
 
-  gocyclo:
-      min-complexity: 15
-
 linters:
   disable-all: true
   enable:
