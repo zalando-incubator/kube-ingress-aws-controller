@@ -8,6 +8,9 @@ pipeline:
     - ~/.cache/go-build # Go build cache
   type: script
   commands:
+  - desc: test
+    cmd: |
+      make test
   - desc: Build docker image
     cmd: |
       make build.docker
