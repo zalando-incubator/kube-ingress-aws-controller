@@ -19,6 +19,9 @@ clean:
 test:
 	go test -v -race -cover $(GOPKGS)
 
+lint:
+	golangci-lint run ./...
+
 fmt:
 	go fmt $(GOPKGS)
 
@@ -40,7 +43,7 @@ build/osx/$(BINARY): $(SOURCES)
 	GOOS=darwin GOARCH=amd64 CGO_ENABLED=0 go build $(BUILD_FLAGS) -o build/osx/$(BINARY) -ldflags "$(LDFLAGS)" .
 
 build.docker:
-	docker build -t "$(IMAGE):$(TAG)" -f $(DOCKERFILE) .
+	docker build --rm -t "$(IMAGE):$(TAG)" -f $(DOCKERFILE) .
 
 build.push: build.docker
 	docker push "$(IMAGE):$(TAG)"

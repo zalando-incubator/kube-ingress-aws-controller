@@ -24,7 +24,7 @@ func TestRegisterTargetsOnTargetGroups(t *testing.T) {
 		registerTargets: R(mockRTOutput(), nil),
 	}
 	outputsError := elbv2MockOutputs{
-		registerTargets: R(mockRTOutput(), dummyErr),
+		registerTargets: R(mockRTOutput(), errDummy),
 	}
 
 	for _, test := range []struct {
@@ -117,7 +117,7 @@ func TestDeregisterTargetsOnTargetGroups(t *testing.T) {
 		deregisterTargets: R(mockDTOutput(), nil),
 	}
 	outputsError := elbv2MockOutputs{
-		deregisterTargets: R(mockDTOutput(), dummyErr),
+		deregisterTargets: R(mockDTOutput(), errDummy),
 	}
 
 	for _, test := range []struct {

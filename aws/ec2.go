@@ -173,7 +173,7 @@ func getSubnets(svc ec2iface.EC2API, vpcID, clusterID string) ([]*subnetDetails,
 		return nil, err
 	}
 
-	retAll      := make([]*subnetDetails, len(resp.Subnets))
+	retAll := make([]*subnetDetails, len(resp.Subnets))
 	retFiltered := make([]*subnetDetails, 0)
 	for i, sn := range resp.Subnets {
 		az := aws.StringValue(sn.AvailabilityZone)
@@ -189,7 +189,7 @@ func getSubnets(svc ec2iface.EC2API, vpcID, clusterID string) ([]*subnetDetails,
 			public:           isPublic,
 			tags:             tags,
 		}
-		if _, ok := tags[clusterIDTagPrefix + clusterID]; ok {
+		if _, ok := tags[clusterIDTagPrefix+clusterID]; ok {
 			retFiltered = append(retFiltered, &subnetDetails{
 				id:               subnetID,
 				availabilityZone: az,

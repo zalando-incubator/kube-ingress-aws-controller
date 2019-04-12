@@ -39,10 +39,10 @@ func getAutoScalingGroupByName(service autoscalingiface.AutoScalingAPI, autoScal
 				tags[aws.StringValue(td.Key)] = aws.StringValue(td.Value)
 			}
 			return &autoScalingGroupDetails{
-				name: autoScalingGroupName,
-				arn:  aws.StringValue(g.AutoScalingGroupARN),
-				launchConfigurationName: aws.StringValue(g.LaunchConfigurationName),
+				name:                    autoScalingGroupName,
+				arn:                     aws.StringValue(g.AutoScalingGroupARN),
 				targetGroups:            aws.StringValueSlice(g.TargetGroupARNs),
+				launchConfigurationName: aws.StringValue(g.LaunchConfigurationName),
 				tags:                    tags,
 			}, nil
 		}
@@ -68,8 +68,8 @@ func getAutoScalingGroupsByName(service autoscalingiface.AutoScalingAPI, autoSca
 			tags[aws.StringValue(td.Key)] = aws.StringValue(td.Value)
 		}
 		result[name] = &autoScalingGroupDetails{
-			name: name,
-			arn:  aws.StringValue(g.AutoScalingGroupARN),
+			name:                    name,
+			arn:                     aws.StringValue(g.AutoScalingGroupARN),
 			launchConfigurationName: aws.StringValue(g.LaunchConfigurationName),
 			targetGroups:            aws.StringValueSlice(g.TargetGroupARNs),
 			tags:                    tags,
