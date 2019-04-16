@@ -3,12 +3,12 @@ package aws
 import (
 	"context"
 	"fmt"
-
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/autoscaling"
 	"github.com/aws/aws-sdk-go/service/autoscaling/autoscalingiface"
 	"github.com/aws/aws-sdk-go/service/elbv2"
 	"github.com/aws/aws-sdk-go/service/elbv2/elbv2iface"
+	"strings"
 )
 
 type autoScalingGroupDetails struct {
@@ -39,8 +39,8 @@ func getAutoScalingGroupByName(service autoscalingiface.AutoScalingAPI, autoScal
 				tags[aws.StringValue(td.Key)] = aws.StringValue(td.Value)
 			}
 			return &autoScalingGroupDetails{
-				name: autoScalingGroupName,
-				arn:  aws.StringValue(g.AutoScalingGroupARN),
+				name:                    autoScalingGroupName,
+				arn:                     aws.StringValue(g.AutoScalingGroupARN),
 				launchConfigurationName: aws.StringValue(g.LaunchConfigurationName),
 				targetGroups:            aws.StringValueSlice(g.TargetGroupARNs),
 				tags:                    tags,
@@ -68,8 +68,8 @@ func getAutoScalingGroupsByName(service autoscalingiface.AutoScalingAPI, autoSca
 			tags[aws.StringValue(td.Key)] = aws.StringValue(td.Value)
 		}
 		result[name] = &autoScalingGroupDetails{
-			name: name,
-			arn:  aws.StringValue(g.AutoScalingGroupARN),
+			name:                    name,
+			arn:                     aws.StringValue(g.AutoScalingGroupARN),
 			launchConfigurationName: aws.StringValue(g.LaunchConfigurationName),
 			targetGroups:            aws.StringValueSlice(g.TargetGroupARNs),
 			tags:                    tags,
@@ -79,6 +79,43 @@ func getAutoScalingGroupsByName(service autoscalingiface.AutoScalingAPI, autoSca
 	for _, name := range autoScalingGroupNames {
 		if _, ok := result[name]; !ok {
 			return nil, fmt.Errorf("auto scaling group %q not found", name)
+		}
+	}
+
+	return result, nil
+}
+
+func getAutoScalingGroups(service autoscalingiface.AutoScalingAPI) (map[string]*autoScalingGroupDetails, error) {
+	params := &autoscaling.DescribeAutoScalingGroupsInput{}
+	resp, err := service.DescribeAutoScalingGroups(params)
+	if err != nil {
+		return nil, err
+	}
+
+	result := make(map[string]*autoScalingGroupDetails)
+	for _, g := range resp.AutoScalingGroups {
+		name := aws.StringValue(g.AutoScalingGroupName)
+		tags := make(map[string]string)
+		isOwn := false
+		for _, td := range g.Tags {
+			value := aws.StringValue(td.Value)
+			tags[aws.StringValue(td.Key)] = value
+
+			if strings.HasPrefix(name, clusterIDTagPrefix) && value == resourceLifecycleOwned {
+				isOwn = true
+			}
+		}
+
+		if !isOwn {
+			continue
+		}
+
+		result[name] = &autoScalingGroupDetails{
+			name:                    name,
+			arn:                     aws.StringValue(g.AutoScalingGroupARN),
+			launchConfigurationName: aws.StringValue(g.LaunchConfigurationName),
+			targetGroups:            aws.StringValueSlice(g.TargetGroupARNs),
+			tags:                    tags,
 		}
 	}
 
