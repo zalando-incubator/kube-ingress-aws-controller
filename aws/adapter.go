@@ -25,8 +25,8 @@ import (
 	"github.com/aws/aws-sdk-go/service/iam"
 	"github.com/aws/aws-sdk-go/service/iam/iamiface"
 	"github.com/linki/instrumented_http"
-	"github.com/zalando-incubator/kube-ingress-aws-controller/certs"
 	log "github.com/sirupsen/logrus"
+	"github.com/zalando-incubator/kube-ingress-aws-controller/certs"
 )
 
 // An Adapter can be used to orchestrate and obtain information from Amazon Web Services.
