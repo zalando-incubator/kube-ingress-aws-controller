@@ -151,8 +151,8 @@ func loadSettings() error {
 		return fmt.Errorf("invalid max number of certificates per ALB: %d. AWS does not allow more than %d", maxCertsPerALB, aws.DefaultMaxCertsPerALB)
 	}
 
-	if quietFlag && debugFlag{
-		log.Error("--quiet and --debug flags are both set. Debug will be used as logging level.")
+	if quietFlag && debugFlag {
+		log.Warn("--quiet and --debug flags are both set. Debug will be used as logging level.")
 	}
 
 	if quietFlag {
