@@ -170,8 +170,8 @@ func loadDurationFromEnv(varName string, dest *time.Duration) error {
 }
 
 func usage() {
-	log.Errorf("usage: %s [options]\n", os.Args[0])
-	log.Error("where options can be:")
+	fmt.Fprintf(os.Stderr, "usage: %s [options]\n", os.Args[0])
+	fmt.Fprintln(os.Stderr, "where options can be:")
 	flag.PrintDefaults()
 	os.Exit(2)
 }
