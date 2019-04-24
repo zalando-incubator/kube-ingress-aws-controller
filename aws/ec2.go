@@ -2,12 +2,12 @@ package aws
 
 import (
 	"fmt"
-	"log"
 	"strings"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/aws/aws-sdk-go/service/ec2/ec2iface"
+	log "github.com/sirupsen/logrus"
 )
 
 const (
@@ -201,7 +201,7 @@ func getSubnets(svc ec2iface.EC2API, vpcID, clusterID string) ([]*subnetDetails,
 	// Fall back to full list of subnets if none matching expected tagging are found, with a stern warning
 	// https://github.com/kubernetes/kubernetes/blob/v1.10.3/pkg/cloudprovider/providers/aws/aws.go#L3009
 	if len(retFiltered) == 0 {
-		log.Printf("No tagged subnets found; considering all subnets. This is likely to be an error in future versions.")
+		log.Warn("No tagged subnets found; considering all subnets. This is likely to be an error in future versions.")
 		return retAll, nil
 	}
 	return retFiltered, nil

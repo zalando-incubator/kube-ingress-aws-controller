@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"log"
 	"net/http"
 	"os"
 	"os/signal"
@@ -18,6 +17,7 @@ import (
 
 	"github.com/aws/aws-sdk-go/service/elbv2"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	log "github.com/sirupsen/logrus"
 	"github.com/zalando-incubator/kube-ingress-aws-controller/aws"
 	"github.com/zalando-incubator/kube-ingress-aws-controller/certs"
 	"github.com/zalando-incubator/kube-ingress-aws-controller/kubernetes"
@@ -57,11 +57,15 @@ var (
 	albLogsS3Bucket            string
 	albLogsS3Prefix            string
 	wafWebAclId                string
+	debugFlag                  bool
+	quietFlag                  bool
 )
 
 func loadSettings() error {
 	flag.Usage = usage
 	flag.BoolVar(&versionFlag, "version", false, "Print version and exit")
+	flag.BoolVar(&debugFlag, "debug", false, "Enables debug logging level")
+	flag.BoolVar(&quietFlag, "quiet", false, "Enables quiet logging")
 	flag.StringVar(&apiServerBaseURL, "api-server-base-url", "", "sets the kubernetes api "+
 		"server base url. If empty will try to use the configuration from the running cluster, else it will use InsecureConfig, that does not use encryption or authentication (use case to develop with kubectl proxy).")
 	flag.DurationVar(&pollingInterval, "polling-interval", 30*time.Second, "sets the polling interval for "+
@@ -147,6 +151,20 @@ func loadSettings() error {
 		return fmt.Errorf("invalid max number of certificates per ALB: %d. AWS does not allow more than %d", maxCertsPerALB, aws.DefaultMaxCertsPerALB)
 	}
 
+	if quietFlag && debugFlag {
+		log.Warn("--quiet and --debug flags are both set. Debug will be used as logging level.")
+	}
+
+	if quietFlag {
+		log.SetLevel(log.WarnLevel)
+	}
+
+	if debugFlag {
+		log.SetLevel(log.DebugLevel)
+	}
+
+	log.SetOutput(os.Stdout)
+
 	return nil
 }
 
@@ -169,7 +187,7 @@ func usage() {
 }
 
 func main() {
-	log.Printf("starting %s", os.Args[0])
+	log.Infof("starting %s", os.Args[0])
 	var (
 		awsAdapter  *aws.Adapter
 		kubeAdapter *kubernetes.Adapter
@@ -181,7 +199,7 @@ func main() {
 	}
 
 	if versionFlag {
-		fmt.Printf(`%s
+		log.Infof(`%s
 ===========================
   Version: %s
   Buildtime: %s
@@ -244,27 +262,27 @@ func main() {
 		certificatesPerALB = 1
 	}
 
-	log.Println("controller manifest:")
-	log.Printf("\tKubernetes API server: %s", apiServerBaseURL)
-	log.Printf("\tCluster ID: %s", awsAdapter.ClusterID())
-	log.Printf("\tVPC ID: %s", awsAdapter.VpcID())
-	log.Printf("\tInstance ID: %s", awsAdapter.InstanceID())
-	log.Printf("\tSecurity group ID: %s", awsAdapter.SecurityGroupID())
-	log.Printf("\tInternal subnet IDs: %s", awsAdapter.FindLBSubnets(elbv2.LoadBalancerSchemeEnumInternal))
-	log.Printf("\tPublic subnet IDs: %s", awsAdapter.FindLBSubnets(elbv2.LoadBalancerSchemeEnumInternetFacing))
-	log.Printf("\tEC2 filters: %s", awsAdapter.FiltersString())
-	log.Printf("\tCertificates per ALB: %d (SNI: %t)", certificatesPerALB, certificatesPerALB > 1)
-	log.Printf("\tBlacklisted Certificate ARNs (%d): %s", len(blacklistCertArnMap), blacklistCertARN)
-	log.Printf("\tIngress class filters: %s", kubeAdapter.IngressFiltersString())
-	log.Printf("\tALB Logging S3 Bucket: %s", awsAdapter.S3Bucket())
-	log.Printf("\tALB Logging S3 Prefix: %s", awsAdapter.S3Prefix())
+	log.Info("controller manifest:")
+	log.Infof("\tKubernetes API server: %s", apiServerBaseURL)
+	log.Infof("\tCluster ID: %s", awsAdapter.ClusterID())
+	log.Infof("\tVPC ID: %s", awsAdapter.VpcID())
+	log.Infof("\tInstance ID: %s", awsAdapter.InstanceID())
+	log.Infof("\tSecurity group ID: %s", awsAdapter.SecurityGroupID())
+	log.Infof("\tInternal subnet IDs: %s", awsAdapter.FindLBSubnets(elbv2.LoadBalancerSchemeEnumInternal))
+	log.Infof("\tPublic subnet IDs: %s", awsAdapter.FindLBSubnets(elbv2.LoadBalancerSchemeEnumInternetFacing))
+	log.Infof("\tEC2 filters: %s", awsAdapter.FiltersString())
+	log.Infof("\tCertificates per ALB: %d (SNI: %t)", certificatesPerALB, certificatesPerALB > 1)
+	log.Infof("\tBlacklisted Certificate ARNs (%d): %s", len(blacklistCertArnMap), blacklistCertARN)
+	log.Infof("\tIngress class filters: %s", kubeAdapter.IngressFiltersString())
+	log.Infof("\tALB Logging S3 Bucket: %s", awsAdapter.S3Bucket())
+	log.Infof("\tALB Logging S3 Prefix: %s", awsAdapter.S3Prefix())
 
 	ctx, cancel := context.WithCancel(context.Background())
 	go handleTerminationSignals(cancel, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
 	go serveMetrics(metricsAddress)
 	startPolling(ctx, certificatesProvider, certificatesPerALB, certTTL, awsAdapter, kubeAdapter, pollingInterval)
 
-	log.Printf("Terminating %s", os.Args[0])
+	log.Infof("Terminating %s", os.Args[0])
 }
 
 func handleTerminationSignals(cancelFunc func(), signals ...os.Signal) {

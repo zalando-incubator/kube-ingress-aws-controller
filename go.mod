@@ -5,7 +5,7 @@ go 1.12
 require (
 	github.com/aws/aws-sdk-go v1.13.60
 	github.com/beorn7/perks v0.0.0-20180321164747-3a771d992973
-	github.com/davecgh/go-spew v1.1.0
+	github.com/davecgh/go-spew v1.1.1
 	github.com/go-ini/ini v1.32.0
 	github.com/go-playground/locales v0.12.1
 	github.com/go-playground/universal-translator v0.0.0-20170327191703-71201497bace
@@ -21,6 +21,7 @@ require (
 	github.com/prometheus/client_model v0.0.0-20170216185247-6f3806018612
 	github.com/prometheus/common v0.0.0-20171104095907-e3fb1a1acd76
 	github.com/prometheus/procfs v0.0.0-20171017214025-a6e9df898b13
+	github.com/sirupsen/logrus v1.4.1
 	github.com/stretchr/testify v1.2.2
 	gopkg.in/go-playground/validator.v9 v9.19.0
 )
