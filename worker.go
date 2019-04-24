@@ -194,7 +194,7 @@ func startPolling(ctx context.Context, certsProvider certs.CertificatesProvider,
 			log.Error(err)
 		}
 
-		log.Infof("Start polling sleep %s", pollingInterval)
+		log.Debugf("Start polling sleep %s", pollingInterval)
 		select {
 		case <-time.After(pollingInterval):
 		case <-ctx.Done():
