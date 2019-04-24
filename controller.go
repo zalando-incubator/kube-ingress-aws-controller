@@ -58,12 +58,14 @@ var (
 	albLogsS3Prefix            string
 	wafWebAclId                string
 	debugFlag                  bool
+	quietFlag                  bool
 )
 
 func loadSettings() error {
 	flag.Usage = usage
 	flag.BoolVar(&versionFlag, "version", false, "Print version and exit")
 	flag.BoolVar(&debugFlag, "debug", false, "Enables debug logging level")
+	flag.BoolVar(&quietFlag, "quiet", false, "Enables quiet logging")
 	flag.StringVar(&apiServerBaseURL, "api-server-base-url", "", "sets the kubernetes api "+
 		"server base url. If empty will try to use the configuration from the running cluster, else it will use InsecureConfig, that does not use encryption or authentication (use case to develop with kubectl proxy).")
 	flag.DurationVar(&pollingInterval, "polling-interval", 30*time.Second, "sets the polling interval for "+
@@ -149,6 +151,14 @@ func loadSettings() error {
 		return fmt.Errorf("invalid max number of certificates per ALB: %d. AWS does not allow more than %d", maxCertsPerALB, aws.DefaultMaxCertsPerALB)
 	}
 
+	if quietFlag && debugFlag{
+		log.Error("--quiet and --debug flags are both set. Debug will be used as logging level.")
+	}
+
+	if quietFlag {
+		log.SetLevel(log.WarnLevel)
+	}
+
 	if debugFlag {
 		log.SetLevel(log.DebugLevel)
 	}
@@ -185,7 +195,7 @@ func main() {
 		err         error
 	)
 	if err = loadSettings(); err != nil {
-		log.Error(err)
+		log.Fatal(err)
 	}
 
 	if versionFlag {
@@ -200,7 +210,7 @@ func main() {
 
 	awsAdapter, err = aws.NewAdapter(controllerID)
 	if err != nil {
-		log.Error(err)
+		log.Fatal(err)
 	}
 	awsAdapter = awsAdapter.
 		WithHealthCheckPath(healthCheckPath).
@@ -225,13 +235,13 @@ func main() {
 		awsAdapter.NewIAMCertificateProvider(),
 	)
 	if err != nil {
-		log.Error(err)
+		log.Fatal(err)
 	}
 
 	if apiServerBaseURL == "" {
 		kubeConfig, err = kubernetes.InClusterConfig()
 		if err != nil {
-			log.Error(err)
+			log.Fatal(err)
 		}
 	} else {
 		kubeConfig = kubernetes.InsecureConfig(apiServerBaseURL)
@@ -244,7 +254,7 @@ func main() {
 
 	kubeAdapter, err = kubernetes.NewAdapter(kubeConfig, ingressClassFiltersList, awsAdapter.SecurityGroupID())
 	if err != nil {
-		log.Error(err)
+		log.Fatal(err)
 	}
 
 	certificatesPerALB := maxCertsPerALB
@@ -284,5 +294,5 @@ func handleTerminationSignals(cancelFunc func(), signals ...os.Signal) {
 
 func serveMetrics(address string) {
 	http.Handle("/metrics", promhttp.Handler())
-	log.Info(http.ListenAndServe(address, nil))
+	log.Fatal(http.ListenAndServe(address, nil))
 }
