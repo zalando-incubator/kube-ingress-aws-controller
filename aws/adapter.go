@@ -91,9 +91,9 @@ const (
 	DefaultSslPolicy = "ELBSecurityPolicy-2016-08"
 	// DefaultIpAddressType sets IpAddressType to "ipv4", it is either ipv4 or dualstack
 	DefaultIpAddressType = "ipv4"
-	// Default ALB logging S3 bucket is a blank string, and must be set if enabled
+	// DefaultAlbS3LogsBucket is a blank string, and must be set if enabled
 	DefaultAlbS3LogsBucket = ""
-	// Default ALB logging S3 prefix is a blank string, and optionally set if desired
+	// DefaultAlbS3LogsPrefix is a blank string, and optionally set if desired
 	DefaultAlbS3LogsPrefix = ""
 	DefaultWafWebAclId     = ""
 

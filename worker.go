@@ -355,7 +355,7 @@ func buildManagedModel(certs CertificatesFinder, certsPerALB int, certTTL time.D
 
 func createStack(awsAdapter *aws.Adapter, lb *loadBalancer) {
 	certificates := make([]string, 0, len(lb.ingresses))
-	for cert, _ := range lb.ingresses {
+	for cert := range lb.ingresses {
 		certificates = append(certificates, cert)
 	}
 

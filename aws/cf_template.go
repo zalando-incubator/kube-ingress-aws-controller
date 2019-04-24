@@ -8,7 +8,7 @@ import (
 	"crypto/sha256"
 	"sort"
 
-	"github.com/mweagle/go-cloudformation"
+	cloudformation "github.com/mweagle/go-cloudformation"
 )
 
 func hashARNs(certARNs []string) []byte {

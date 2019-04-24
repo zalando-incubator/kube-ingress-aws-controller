@@ -44,7 +44,7 @@ func TestIAM(t *testing.T) {
 	foobarIAMCertificate := &iam.ServerCertificate{
 		CertificateBody: aws.String(mustRead("foo-iam.txt")),
 		ServerCertificateMetadata: &iam.ServerCertificateMetadata{
-			Arn: aws.String("foobar-arn"),
+			Arn:                   aws.String("foobar-arn"),
 			ServerCertificateName: aws.String("foobar"),
 		},
 	}
@@ -53,7 +53,7 @@ func TestIAM(t *testing.T) {
 		CertificateBody:  aws.String(mustRead("foo-iam.txt")),
 		CertificateChain: aws.String(mustRead("chain.txt")),
 		ServerCertificateMetadata: &iam.ServerCertificateMetadata{
-			Arn: aws.String("foobar-arn"),
+			Arn:                   aws.String("foobar-arn"),
 			ServerCertificateName: aws.String("foobar"),
 		},
 	}
@@ -63,7 +63,7 @@ func TestIAM(t *testing.T) {
 	zalandoIAMCertificate := &iam.ServerCertificate{
 		CertificateBody: aws.String(mustRead("zal-iam.txt")),
 		ServerCertificateMetadata: &iam.ServerCertificateMetadata{
-			Arn: aws.String("zalando-arn"),
+			Arn:                   aws.String("zalando-arn"),
 			ServerCertificateName: aws.String("zalando"),
 		},
 	}
@@ -208,8 +208,8 @@ func TestIAMParseError(t *testing.T) {
 			list: iam.ListServerCertificatesOutput{
 				ServerCertificateMetadataList: []*iam.ServerCertificateMetadata{
 					{
-						Arn:  aws.String("foobar-arn"),
-						Path: aws.String("/"),
+						Arn:                   aws.String("foobar-arn"),
+						Path:                  aws.String("/"),
 						ServerCertificateName: aws.String("foobar"),
 					},
 				},

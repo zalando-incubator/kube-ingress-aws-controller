@@ -406,7 +406,7 @@ func TestUpdateAutoScalingGroupsAndInstances(tt *testing.T) {
 		{
 			"error-fetching-instance",
 			ec2MockOutputs{describeInstancesPages: mockDIPOutput(
-				dummyErr,
+				errDummy,
 				testInstance{},
 			)},
 			autoscalingMockOutputs{},
@@ -430,7 +430,7 @@ func TestUpdateAutoScalingGroupsAndInstances(tt *testing.T) {
 				testInstance{id: "fail", tags: tags{"aws:autoscaling:groupName": "none"}, privateIp: "0.2.2.2", vpcId: "1", state: runningState},
 			)},
 			autoscalingMockOutputs{
-				describeAutoScalingGroups: R(mockDASGOutput(map[string]asgtags{}), dummyErr),
+				describeAutoScalingGroups: R(mockDASGOutput(map[string]asgtags{}), errDummy),
 			},
 			7,
 			[]string{"asg1", "asg2"},

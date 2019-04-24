@@ -11,7 +11,7 @@ type tags map[string]string
 
 type awsTags map[string]tags
 
-var dummyErr = errors.New("fail")
+var errDummy = errors.New("fail")
 
 func R(r interface{}, e error) *apiResponse {
 	return &apiResponse{response: r, err: e}

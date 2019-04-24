@@ -3,6 +3,7 @@ package aws
 import (
 	"context"
 	"fmt"
+
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/autoscaling"
 	"github.com/aws/aws-sdk-go/service/autoscaling/autoscalingiface"
@@ -41,8 +42,8 @@ func getAutoScalingGroupByName(service autoscalingiface.AutoScalingAPI, autoScal
 			return &autoScalingGroupDetails{
 				name:                    autoScalingGroupName,
 				arn:                     aws.StringValue(g.AutoScalingGroupARN),
-				launchConfigurationName: aws.StringValue(g.LaunchConfigurationName),
 				targetGroups:            aws.StringValueSlice(g.TargetGroupARNs),
+				launchConfigurationName: aws.StringValue(g.LaunchConfigurationName),
 				tags:                    tags,
 			}, nil
 		}
