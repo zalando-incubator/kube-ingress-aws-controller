@@ -2,9 +2,10 @@ package certs
 
 import (
 	"fmt"
-	"log"
 	"sync"
 	"time"
+
+	log "github.com/sirupsen/logrus"
 )
 
 type cachingProvider struct {
@@ -91,7 +92,7 @@ func (cc *cachingProvider) startBackgroundRefresh(certUpdateInterval time.Durati
 		for {
 			time.Sleep(certUpdateInterval)
 			if err := cc.updateCertCache(); err != nil {
-				log.Printf("certificate cache background update failed: %v", err)
+				log.Errorf("certificate cache background update failed: %v", err)
 			}
 		}
 	}()

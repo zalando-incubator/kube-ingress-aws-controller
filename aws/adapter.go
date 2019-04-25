@@ -3,7 +3,6 @@ package aws
 import (
 	"errors"
 	"fmt"
-	"log"
 	"strings"
 	"time"
 
@@ -26,6 +25,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/iam"
 	"github.com/aws/aws-sdk-go/service/iam/iamiface"
 	"github.com/linki/instrumented_http"
+	log "github.com/sirupsen/logrus"
 	"github.com/zalando-incubator/kube-ingress-aws-controller/certs"
 )
 
@@ -400,20 +400,20 @@ func (a *Adapter) UpdateTargetGroupsAndAutoScalingGroups(stacks []*Stack) {
 	for _, asg := range a.autoScalingGroups {
 		// This call is idempotent and safe to execute every time
 		if err := updateTargetGroupsForAutoScalingGroup(a.autoscaling, a.elbv2, targetGroupARNs, asg.name, ownerTags); err != nil {
-			log.Printf("UpdateTargetGroupsAndAutoScalingGroups() failed to attach target groups to ASG: %v", err)
+			log.Errorf("UpdateTargetGroupsAndAutoScalingGroups() failed to attach target groups to ASG: %v", err)
 		}
 	}
 	runningSingleInstances := a.RunningSingleInstances()
 	if len(runningSingleInstances) != 0 {
 		// This call is idempotent too
 		if err := registerTargetsOnTargetGroups(a.elbv2, targetGroupARNs, runningSingleInstances); err != nil {
-			log.Printf("UpdateTargetGroupsAndAutoScalingGroups() failed to register instances %q in target groups: %v", runningSingleInstances, err)
+			log.Errorf("UpdateTargetGroupsAndAutoScalingGroups() failed to register instances %q in target groups: %v", runningSingleInstances, err)
 		}
 	}
 	if len(a.obsoleteInstances) != 0 {
 		// Deregister instances from target groups and clean up list of obsolete instances
 		if err := deregisterTargetsOnTargetGroups(a.elbv2, targetGroupARNs, a.obsoleteInstances); err != nil {
-			log.Printf("UpdateTargetGroupsAndAutoScalingGroups() failed to deregister instances %q in target groups: %v", a.obsoleteInstances, err)
+			log.Errorf("UpdateTargetGroupsAndAutoScalingGroups() failed to deregister instances %q in target groups: %v", a.obsoleteInstances, err)
 		} else {
 			a.obsoleteInstances = make([]string, 0)
 		}
@@ -662,7 +662,7 @@ func parseFilters(clusterId string) []*ec2.Filter {
 		for i, term := range terms {
 			parts := strings.Split(term, "=")
 			if len(parts) != 2 {
-				log.Printf("failed parsing %s, falling back to default", customTagFilterEnvVarName)
+				log.Errorf("failed parsing %s, falling back to default", customTagFilterEnvVarName)
 				return generateDefaultFilters(clusterId)
 			}
 			filters[i] = &ec2.Filter{

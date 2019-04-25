@@ -98,7 +98,7 @@ The maintainers of this project are building an infrastructure that runs [Kubern
 We're using this ingress controller with [Skipper](http://github.com/zalando/skipper), an HTTP router that Zalando
 has used in production since Q4 2015 as part of its front-end microservices architecture. Skipper's also open
 source and has some outstanding features, that we
-[documented here](https://zalando.github.io/skipper/dataclients/kubernetes/). Feel
+[documented here](https://opensource.zalando.com/skipper/kubernetes/ingress-controller/). Feel
 free to use it, or use another ingress of your choosing.
 
 
