@@ -87,7 +87,7 @@ func getAutoScalingGroupsByName(service autoscalingiface.AutoScalingAPI, autoSca
 	return result, nil
 }
 
-func getAutoScalingGroups(service autoscalingiface.AutoScalingAPI) (map[string]*autoScalingGroupDetails, error) {
+func getOwnedAutoScalingGroups(service autoscalingiface.AutoScalingAPI) (map[string]*autoScalingGroupDetails, error) {
 	params := &autoscaling.DescribeAutoScalingGroupsInput{}
 	resp, err := service.DescribeAutoScalingGroups(params)
 	if err != nil {
@@ -97,13 +97,15 @@ func getAutoScalingGroups(service autoscalingiface.AutoScalingAPI) (map[string]*
 	result := make(map[string]*autoScalingGroupDetails)
 	for _, g := range resp.AutoScalingGroups {
 		name := aws.StringValue(g.AutoScalingGroupName)
-		tags := make(map[string]string)
-		isOwn := false
-		for _, td := range g.Tags {
-			value := aws.StringValue(td.Value)
-			tags[aws.StringValue(td.Key)] = value
 
-			if strings.HasPrefix(name, clusterIDTagPrefix) && value == resourceLifecycleOwned {
+		isOwn := false
+		tags := make(map[string]string)
+		for _, td := range g.Tags {
+			key := aws.StringValue(td.Key)
+			value := aws.StringValue(td.Value)
+			tags[key] = value
+
+			if strings.HasPrefix(key, clusterIDTagPrefix) && value == resourceLifecycleOwned {
 				isOwn = true
 			}
 		}

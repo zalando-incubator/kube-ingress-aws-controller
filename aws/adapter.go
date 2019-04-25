@@ -636,9 +636,17 @@ func (a *Adapter) UpdateAutoScalingGroupsAndInstances() error {
 	}
 	a.singleInstances = newSingleInstances
 
-	// update ASGs (create new map to get rid of deleted ASGs)
+	for instanceID, details := range a.ec2Details {
+		_, err := getAutoScalingGroupName(details.tags)
+		if err != nil {
+			// Instance is not in ASG, save in single instances list.
+			a.singleInstances[instanceID] = details
+			continue
+		}
+	}
+
 	newAutoScalingGroups := make(map[string]*autoScalingGroupDetails)
-	fetchedAutoScalingGroups, err := getAutoScalingGroups(a.autoscaling)
+	fetchedAutoScalingGroups, err := getOwnedAutoScalingGroups(a.autoscaling)
 	if err != nil {
 		log.Printf("failed fetching Auto Scaling Groups details: %v", err)
 	} else {
