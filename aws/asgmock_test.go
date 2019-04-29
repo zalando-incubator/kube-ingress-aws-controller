@@ -25,6 +25,13 @@ func (m *mockAutoScalingClient) DescribeAutoScalingGroups(*autoscaling.DescribeA
 	return nil, m.outputs.describeAutoScalingGroups.err
 }
 
+func (m *mockAutoScalingClient) DescribeAutoScalingGroupsPages(_ *autoscaling.DescribeAutoScalingGroupsInput, fn func(*autoscaling.DescribeAutoScalingGroupsOutput, bool) bool) error {
+	if out, ok := m.outputs.describeAutoScalingGroups.response.(*autoscaling.DescribeAutoScalingGroupsOutput); ok {
+		fn(out, true)
+	}
+	return m.outputs.describeAutoScalingGroups.err
+}
+
 func (m *mockAutoScalingClient) DescribeLoadBalancerTargetGroups(*autoscaling.DescribeLoadBalancerTargetGroupsInput) (*autoscaling.DescribeLoadBalancerTargetGroupsOutput, error) {
 	if out, ok := m.outputs.describeLoadBalancerTargetGroups.response.(*autoscaling.DescribeLoadBalancerTargetGroupsOutput); ok {
 		return out, m.outputs.describeLoadBalancerTargetGroups.err

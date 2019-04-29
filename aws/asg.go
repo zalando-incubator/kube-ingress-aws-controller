@@ -89,38 +89,40 @@ func getAutoScalingGroupsByName(service autoscalingiface.AutoScalingAPI, autoSca
 
 func getOwnedAutoScalingGroups(service autoscalingiface.AutoScalingAPI) (map[string]*autoScalingGroupDetails, error) {
 	params := &autoscaling.DescribeAutoScalingGroupsInput{}
-	resp, err := service.DescribeAutoScalingGroups(params)
-	if err != nil {
-		return nil, err
-	}
 
 	result := make(map[string]*autoScalingGroupDetails)
-	for _, g := range resp.AutoScalingGroups {
-		name := aws.StringValue(g.AutoScalingGroupName)
+	err := service.DescribeAutoScalingGroupsPages(params,
+		func(page *autoscaling.DescribeAutoScalingGroupsOutput, lastPage bool) bool {
+			for _, g := range page.AutoScalingGroups {
+				name := aws.StringValue(g.AutoScalingGroupName)
 
-		isOwn := false
-		tags := make(map[string]string)
-		for _, td := range g.Tags {
-			key := aws.StringValue(td.Key)
-			value := aws.StringValue(td.Value)
-			tags[key] = value
+				isOwned := false
+				tags := make(map[string]string)
+				for _, td := range g.Tags {
+					key := aws.StringValue(td.Key)
+					value := aws.StringValue(td.Value)
+					tags[key] = value
 
-			if strings.HasPrefix(key, clusterIDTagPrefix) && value == resourceLifecycleOwned {
-				isOwn = true
+					if strings.HasPrefix(key, clusterIDTagPrefix) && value == resourceLifecycleOwned {
+						isOwned = true
+					}
+				}
+
+				if isOwned {
+					result[name] = &autoScalingGroupDetails{
+						name:                    name,
+						arn:                     aws.StringValue(g.AutoScalingGroupARN),
+						launchConfigurationName: aws.StringValue(g.LaunchConfigurationName),
+						targetGroups:            aws.StringValueSlice(g.TargetGroupARNs),
+						tags:                    tags,
+					}
+				}
 			}
-		}
 
-		if !isOwn {
-			continue
-		}
-
-		result[name] = &autoScalingGroupDetails{
-			name:                    name,
-			arn:                     aws.StringValue(g.AutoScalingGroupARN),
-			launchConfigurationName: aws.StringValue(g.LaunchConfigurationName),
-			targetGroups:            aws.StringValueSlice(g.TargetGroupARNs),
-			tags:                    tags,
-		}
+			return true
+		})
+	if err != nil {
+		return nil, err
 	}
 
 	return result, nil
