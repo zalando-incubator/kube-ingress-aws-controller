@@ -646,12 +646,13 @@ func (a *Adapter) UpdateAutoScalingGroupsAndInstances() error {
 	}
 
 	newAutoScalingGroups := make(map[string]*autoScalingGroupDetails)
-	if fetchedAutoScalingGroups, err := getOwnedAutoScalingGroups(a.autoscaling); err != nil {
+	fetchedAutoScalingGroups, err := getOwnedAutoScalingGroups(a.autoscaling)
+	if err != nil {
 		return err
-	} else {
-		for name, asg := range fetchedAutoScalingGroups {
-			newAutoScalingGroups[name] = asg
-		}
+	}
+
+	for name, asg := range fetchedAutoScalingGroups {
+		newAutoScalingGroups[name] = asg
 	}
 
 	a.autoScalingGroups = newAutoScalingGroups
