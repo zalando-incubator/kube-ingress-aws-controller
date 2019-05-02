@@ -636,40 +636,23 @@ func (a *Adapter) UpdateAutoScalingGroupsAndInstances() error {
 	}
 	a.singleInstances = newSingleInstances
 
-	// update ASGs (create new map to get rid of deleted ASGs)
-	newAutoScalingGroups := make(map[string]*autoScalingGroupDetails)
-	autoScalingGroupsToFetchMap := make(map[string]bool)
 	for instanceID, details := range a.ec2Details {
-		asgName, err := getAutoScalingGroupName(details.tags)
+		_, err := getAutoScalingGroupName(details.tags)
 		if err != nil {
 			// Instance is not in ASG, save in single instances list.
 			a.singleInstances[instanceID] = details
 			continue
 		}
-		if _, ok := newAutoScalingGroups[asgName]; !ok {
-			if _, ok := a.autoScalingGroups[asgName]; ok {
-				newAutoScalingGroups[asgName] = a.autoScalingGroups[asgName]
-			} else {
-				// Save ASGs that have to be loaded to load all of them in one API call
-				autoScalingGroupsToFetchMap[asgName] = true
-			}
-		}
 	}
 
-	autoScalingGroupsToFetch := make([]string, 0, len(autoScalingGroupsToFetchMap))
-	for asgName := range autoScalingGroupsToFetchMap {
-		autoScalingGroupsToFetch = append(autoScalingGroupsToFetch, asgName)
+	newAutoScalingGroups := make(map[string]*autoScalingGroupDetails)
+	fetchedAutoScalingGroups, err := getOwnedAutoScalingGroups(a.autoscaling)
+	if err != nil {
+		return err
 	}
 
-	if len(autoScalingGroupsToFetch) != 0 {
-		fetchedAutoScalingGroups, err := getAutoScalingGroupsByName(a.autoscaling, autoScalingGroupsToFetch)
-		if err != nil {
-			log.Errorf("failed fetching Auto Scaling Groups details: %v", err)
-		} else {
-			for name, asg := range fetchedAutoScalingGroups {
-				newAutoScalingGroups[name] = asg
-			}
-		}
+	for name, asg := range fetchedAutoScalingGroups {
+		newAutoScalingGroups[name] = asg
 	}
 
 	a.autoScalingGroups = newAutoScalingGroups
