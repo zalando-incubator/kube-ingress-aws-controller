@@ -234,12 +234,19 @@ func TestFiltersString(tt *testing.T) {
 }
 
 func TestUpdateAutoScalingGroupsAndInstances(tt *testing.T) {
+	clusterID := "aws:123:eu-central-1:kube-1"
 	a := Adapter{
 		ec2Details:        map[string]*instanceDetails{},
 		autoScalingGroups: make(map[string]*autoScalingGroupDetails),
 		singleInstances:   make(map[string]*instanceDetails),
 		obsoleteInstances: make([]string, 0),
-		manifest:          &manifest{},
+		manifest: &manifest{
+			instance: &instanceDetails{
+				tags: map[string]string{
+					clusterIDTagPrefix + clusterID: resourceLifecycleOwned,
+				},
+			},
+		},
 	}
 	for _, test := range []struct {
 		name                       string
@@ -261,8 +268,8 @@ func TestUpdateAutoScalingGroupsAndInstances(tt *testing.T) {
 			)},
 			autoscalingMockOutputs{
 				describeAutoScalingGroups: R(mockDASGOutput(map[string]asgtags{"asg1": {
-					"foo": "bar",
-					fmt.Sprintf("%s/aws:123:eu-central-1:kube-1", clusterIDTagPrefix): resourceLifecycleOwned,
+					"foo":                          "bar",
+					clusterIDTagPrefix + clusterID: resourceLifecycleOwned,
 				}}), nil),
 			},
 			2,
@@ -282,8 +289,8 @@ func TestUpdateAutoScalingGroupsAndInstances(tt *testing.T) {
 			)},
 			autoscalingMockOutputs{
 				describeAutoScalingGroups: R(mockDASGOutput(map[string]asgtags{"asg1": {
-					"foo": "bar",
-					fmt.Sprintf("%s/aws:123:eu-central-1:kube-1", clusterIDTagPrefix): resourceLifecycleOwned,
+					"foo":                          "bar",
+					clusterIDTagPrefix + clusterID: resourceLifecycleOwned,
 				}}), nil),
 			},
 			3,
@@ -305,12 +312,12 @@ func TestUpdateAutoScalingGroupsAndInstances(tt *testing.T) {
 			autoscalingMockOutputs{
 				describeAutoScalingGroups: R(mockDASGOutput(map[string]asgtags{
 					"asg1": {
-						"foo": "bar",
-						fmt.Sprintf("%s/aws:123:eu-central-1:kube-1", clusterIDTagPrefix): resourceLifecycleOwned,
+						"foo":                          "bar",
+						clusterIDTagPrefix + clusterID: resourceLifecycleOwned,
 					},
 					"asg2": {
-						"foo": "bar",
-						fmt.Sprintf("%s/aws:123:eu-central-1:kube-1", clusterIDTagPrefix): resourceLifecycleOwned,
+						"foo":                          "bar",
+						clusterIDTagPrefix + clusterID: resourceLifecycleOwned,
 					}}), nil),
 			},
 			4,
@@ -333,12 +340,12 @@ func TestUpdateAutoScalingGroupsAndInstances(tt *testing.T) {
 			autoscalingMockOutputs{
 				describeAutoScalingGroups: R(mockDASGOutput(map[string]asgtags{
 					"asg1": {
-						"foo": "bar",
-						fmt.Sprintf("%s/aws:123:eu-central-1:kube-1", clusterIDTagPrefix): resourceLifecycleOwned,
+						"foo":                          "bar",
+						clusterIDTagPrefix + clusterID: resourceLifecycleOwned,
 					},
 					"asg2": {
-						"foo": "bar",
-						fmt.Sprintf("%s/aws:123:eu-central-1:kube-1", clusterIDTagPrefix): resourceLifecycleOwned,
+						"foo":                          "bar",
+						clusterIDTagPrefix + clusterID: resourceLifecycleOwned,
 					}}), nil),
 			},
 			5,
@@ -362,16 +369,16 @@ func TestUpdateAutoScalingGroupsAndInstances(tt *testing.T) {
 			autoscalingMockOutputs{
 				describeAutoScalingGroups: R(mockDASGOutput(map[string]asgtags{
 					"asg1": {
-						"foo": "bar",
-						fmt.Sprintf("%s/aws:123:eu-central-1:kube-1", clusterIDTagPrefix): resourceLifecycleOwned,
+						"foo":                          "bar",
+						clusterIDTagPrefix + clusterID: resourceLifecycleOwned,
 					},
 					"asg2": {
-						"foo": "bar",
-						fmt.Sprintf("%s/aws:123:eu-central-1:kube-1", clusterIDTagPrefix): resourceLifecycleOwned,
+						"foo":                          "bar",
+						clusterIDTagPrefix + clusterID: resourceLifecycleOwned,
 					},
 					"asg3": {
-						"foo": "bar",
-						fmt.Sprintf("%s/aws:123:eu-central-1:kube-1", clusterIDTagPrefix): resourceLifecycleOwned,
+						"foo":                          "bar",
+						clusterIDTagPrefix + clusterID: resourceLifecycleOwned,
 					}}), nil),
 			},
 			6,
@@ -396,16 +403,16 @@ func TestUpdateAutoScalingGroupsAndInstances(tt *testing.T) {
 			autoscalingMockOutputs{
 				describeAutoScalingGroups: R(mockDASGOutput(map[string]asgtags{
 					"asg1": {
-						"foo": "bar",
-						fmt.Sprintf("%s/aws:123:eu-central-1:kube-1", clusterIDTagPrefix): resourceLifecycleOwned,
+						"foo":                          "bar",
+						clusterIDTagPrefix + clusterID: resourceLifecycleOwned,
 					},
 					"asg2": {
-						"foo": "bar",
-						fmt.Sprintf("%s/aws:123:eu-central-1:kube-1", clusterIDTagPrefix): resourceLifecycleOwned,
+						"foo":                          "bar",
+						clusterIDTagPrefix + clusterID: resourceLifecycleOwned,
 					},
 					"asg3": {
-						"foo": "bar",
-						fmt.Sprintf("%s/aws:123:eu-central-1:kube-1", clusterIDTagPrefix): resourceLifecycleOwned,
+						"foo":                          "bar",
+						clusterIDTagPrefix + clusterID: resourceLifecycleOwned,
 					}}), nil),
 			},
 			7,
@@ -431,16 +438,16 @@ func TestUpdateAutoScalingGroupsAndInstances(tt *testing.T) {
 			autoscalingMockOutputs{
 				describeAutoScalingGroups: R(mockDASGOutput(map[string]asgtags{
 					"asg1": {
-						"foo": "bar",
-						fmt.Sprintf("%s/aws:123:eu-central-1:kube-1", clusterIDTagPrefix): resourceLifecycleOwned,
+						"foo":                          "bar",
+						clusterIDTagPrefix + clusterID: resourceLifecycleOwned,
 					},
 					"asg2": {
-						"foo": "bar",
-						fmt.Sprintf("%s/aws:123:eu-central-1:kube-1", clusterIDTagPrefix): resourceLifecycleOwned,
+						"foo":                          "bar",
+						clusterIDTagPrefix + clusterID: resourceLifecycleOwned,
 					},
 					"asg3": {
-						"foo": "bar",
-						fmt.Sprintf("%s/aws:123:eu-central-1:kube-1", clusterIDTagPrefix): resourceLifecycleOwned,
+						"foo":                          "bar",
+						clusterIDTagPrefix + clusterID: resourceLifecycleOwned,
 					}}), nil),
 			},
 			8,
@@ -464,12 +471,12 @@ func TestUpdateAutoScalingGroupsAndInstances(tt *testing.T) {
 			autoscalingMockOutputs{
 				describeAutoScalingGroups: R(mockDASGOutput(map[string]asgtags{
 					"asg1": {
-						"foo": "bar",
-						fmt.Sprintf("%s/aws:123:eu-central-1:kube-1", clusterIDTagPrefix): resourceLifecycleOwned,
+						"foo":                          "bar",
+						clusterIDTagPrefix + clusterID: resourceLifecycleOwned,
 					},
 					"asg2": {
-						"foo": "bar",
-						fmt.Sprintf("%s/aws:123:eu-central-1:kube-1", clusterIDTagPrefix): resourceLifecycleOwned,
+						"foo":                          "bar",
+						clusterIDTagPrefix + clusterID: resourceLifecycleOwned,
 					}}), nil),
 			},
 			6,
@@ -508,12 +515,12 @@ func TestUpdateAutoScalingGroupsAndInstances(tt *testing.T) {
 			autoscalingMockOutputs{
 				describeAutoScalingGroups: R(mockDASGOutput(map[string]asgtags{
 					"asg1": {
-						"foo": "bar",
-						fmt.Sprintf("%s/aws:123:eu-central-1:kube-1", clusterIDTagPrefix): resourceLifecycleOwned,
+						"foo":                          "bar",
+						clusterIDTagPrefix + clusterID: resourceLifecycleOwned,
 					},
 					"asg2": {
-						"foo": "bar",
-						fmt.Sprintf("%s/aws:123:eu-central-1:kube-1", clusterIDTagPrefix): resourceLifecycleOwned,
+						"foo":                          "bar",
+						clusterIDTagPrefix + clusterID: resourceLifecycleOwned,
 					}}), nil),
 			},
 			7,
@@ -538,16 +545,16 @@ func TestUpdateAutoScalingGroupsAndInstances(tt *testing.T) {
 			autoscalingMockOutputs{
 				describeAutoScalingGroups: R(mockDASGOutput(map[string]asgtags{
 					"asg1": {
-						"foo": "bar",
-						fmt.Sprintf("%s/aws:123:eu-central-1:kube-1", clusterIDTagPrefix): resourceLifecycleOwned,
+						"foo":                          "bar",
+						clusterIDTagPrefix + clusterID: resourceLifecycleOwned,
 					},
 					"asg2": {
-						"foo": "bar",
-						fmt.Sprintf("%s/aws:123:eu-central-1:kube-1", clusterIDTagPrefix): resourceLifecycleOwned,
+						"foo":                          "bar",
+						clusterIDTagPrefix + clusterID: resourceLifecycleOwned,
 					},
 					"asg3": {
-						"foo": "bar",
-						fmt.Sprintf("%s/aws:123:eu-central-1:kube-1", clusterIDTagPrefix): resourceLifecycleOwned,
+						"foo":                          "bar",
+						clusterIDTagPrefix + clusterID: resourceLifecycleOwned,
 					}}), nil),
 			},
 			7,
@@ -567,8 +574,8 @@ func TestUpdateAutoScalingGroupsAndInstances(tt *testing.T) {
 			)},
 			autoscalingMockOutputs{
 				describeAutoScalingGroups: R(mockDASGOutput(map[string]asgtags{"asg1": {
-					"foo": "bar",
-					fmt.Sprintf("%s/aws:123:eu-central-1:kube-1", clusterIDTagPrefix): resourceLifecycleOwned,
+					"foo":                          "bar",
+					clusterIDTagPrefix + clusterID: resourceLifecycleOwned,
 				}}), nil),
 			},
 			3,
@@ -587,8 +594,8 @@ func TestUpdateAutoScalingGroupsAndInstances(tt *testing.T) {
 			)},
 			autoscalingMockOutputs{
 				describeAutoScalingGroups: R(mockDASGOutput(map[string]asgtags{"asg1": {
-					"foo": "bar",
-					fmt.Sprintf("%s/aws:123:eu-central-1:kube-1", clusterIDTagPrefix): resourceLifecycleOwned,
+					"foo":                          "bar",
+					clusterIDTagPrefix + clusterID: resourceLifecycleOwned,
 				}}), nil),
 			},
 			2,
