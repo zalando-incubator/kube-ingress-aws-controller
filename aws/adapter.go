@@ -382,9 +382,11 @@ func (a *Adapter) FindManagedStacks() ([]*Stack, error) {
 // config to have relevant Target Groups and registers/deregisters single
 // instances (that do not belong to ASG) in relevant Target Groups.
 func (a *Adapter) UpdateTargetGroupsAndAutoScalingGroups(stacks []*Stack) {
-	targetGroupARNs := make([]string, len(stacks))
-	for i, stack := range stacks {
-		targetGroupARNs[i] = stack.TargetGroupARN
+	targetGroupARNs := make([]string, 0, len(stacks))
+	for _, stack := range stacks {
+		if stack.TargetGroupARN != "" {
+			targetGroupARNs = append(targetGroupARNs, stack.TargetGroupARN)
+		}
 	}
 
 	// don't do anything if there are no target groups
@@ -400,7 +402,7 @@ func (a *Adapter) UpdateTargetGroupsAndAutoScalingGroups(stacks []*Stack) {
 	for _, asg := range a.autoScalingGroups {
 		// This call is idempotent and safe to execute every time
 		if err := updateTargetGroupsForAutoScalingGroup(a.autoscaling, a.elbv2, targetGroupARNs, asg.name, ownerTags); err != nil {
-			log.Errorf("UpdateTargetGroupsAndAutoScalingGroups() failed to attach target groups to ASG: %v", err)
+			log.Errorf("UpdateTargetGroupsAndAutoScalingGroups() failed to attach target groups to ASG '%s': %v", asg.name, err)
 		}
 	}
 	runningSingleInstances := a.RunningSingleInstances()
@@ -646,7 +648,7 @@ func (a *Adapter) UpdateAutoScalingGroupsAndInstances() error {
 	}
 
 	newAutoScalingGroups := make(map[string]*autoScalingGroupDetails)
-	fetchedAutoScalingGroups, err := getOwnedAutoScalingGroups(a.autoscaling)
+	fetchedAutoScalingGroups, err := getOwnedAutoScalingGroups(a.autoscaling, a.ClusterID())
 	if err != nil {
 		return err
 	}

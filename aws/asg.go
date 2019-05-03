@@ -4,8 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	"strings"
-
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/autoscaling"
 	"github.com/aws/aws-sdk-go/service/autoscaling/autoscalingiface"
@@ -87,8 +85,10 @@ func getAutoScalingGroupsByName(service autoscalingiface.AutoScalingAPI, autoSca
 	return result, nil
 }
 
-func getOwnedAutoScalingGroups(service autoscalingiface.AutoScalingAPI) (map[string]*autoScalingGroupDetails, error) {
+func getOwnedAutoScalingGroups(service autoscalingiface.AutoScalingAPI, clusterID string) (map[string]*autoScalingGroupDetails, error) {
 	params := &autoscaling.DescribeAutoScalingGroupsInput{}
+
+	clusterIDTag := clusterIDTagPrefix + clusterID
 
 	result := make(map[string]*autoScalingGroupDetails)
 	err := service.DescribeAutoScalingGroupsPages(params,
@@ -103,7 +103,7 @@ func getOwnedAutoScalingGroups(service autoscalingiface.AutoScalingAPI) (map[str
 					value := aws.StringValue(td.Value)
 					tags[key] = value
 
-					if strings.HasPrefix(key, clusterIDTagPrefix) && value == resourceLifecycleOwned {
+					if key == clusterIDTag && value == resourceLifecycleOwned {
 						isOwned = true
 					}
 				}

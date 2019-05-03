@@ -408,7 +408,8 @@ func isNoUpdatesToBePerformedError(err error) bool {
 }
 
 func updateIngress(kubeAdapter *kubernetes.Adapter, lb *loadBalancer) {
-	if lb.stack == nil {
+	// only update ingress if the stack exists and is in a complete state.
+	if lb.stack == nil || !lb.stack.IsComplete() {
 		return
 	}
 	dnsName := strings.ToLower(lb.stack.DNSName) // lower case to satisfy Kubernetes reqs
