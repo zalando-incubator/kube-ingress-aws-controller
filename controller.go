@@ -59,6 +59,7 @@ var (
 	wafWebAclId                string
 	debugFlag                  bool
 	quietFlag                  bool
+	firstRun                   bool = true
 )
 
 func loadSettings() error {
