@@ -26,6 +26,7 @@ type loadBalancer struct {
 	stack         *aws.Stack
 	shared        bool
 	securityGroup string
+	sslPolicy     string
 	certTTL       time.Duration
 }
 
@@ -338,6 +339,7 @@ func matchIngressesToLoadBalancers(loadBalancers []*loadBalancer, certs Certific
 					scheme:        ingress.Scheme,
 					shared:        ingress.Shared,
 					securityGroup: ingress.SecurityGroup,
+					sslPolicy:     ingress.SSLPolicy,
 				},
 			)
 		}
@@ -362,7 +364,7 @@ func createStack(awsAdapter *aws.Adapter, lb *loadBalancer) {
 
 	log.Infof("creating stack for certificates %q / ingress %q", certificates, lb.ingresses)
 
-	stackId, err := awsAdapter.CreateStack(certificates, lb.scheme, lb.securityGroup, lb.Owner())
+	stackId, err := awsAdapter.CreateStack(certificates, lb.scheme, lb.securityGroup, lb.Owner(), lb.sslPolicy)
 	if err != nil {
 		if isAlreadyExistsError(err) {
 			lb.stack, err = awsAdapter.GetStack(stackId)
@@ -381,7 +383,7 @@ func updateStack(awsAdapter *aws.Adapter, lb *loadBalancer) {
 
 	log.Infof("updating %q stack for %d certificates / %d ingresses", lb.scheme, len(certificates), len(lb.ingresses))
 
-	stackId, err := awsAdapter.UpdateStack(lb.stack.Name, certificates, lb.scheme)
+	stackId, err := awsAdapter.UpdateStack(lb.stack.Name, certificates, lb.scheme, lb.sslPolicy)
 	if isNoUpdatesToBePerformedError(err) {
 		log.Debugf("stack(%q) is already up to date", certificates)
 	} else if err != nil {

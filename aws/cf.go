@@ -24,6 +24,7 @@ type Stack struct {
 	DNSName         string
 	Scheme          string
 	SecurityGroup   string
+	SSLPolicy       string
 	TargetGroupARN  string
 	CertificateARNs map[string]time.Time
 	OwnerIngress    string

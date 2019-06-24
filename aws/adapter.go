@@ -428,12 +428,15 @@ func (a *Adapter) UpdateTargetGroupsAndAutoScalingGroups(stacks []*Stack) {
 // All the required resources (listeners and target group) are created in a
 // transactional fashion.
 // Failure to create the stack causes it to be deleted automatically.
-func (a *Adapter) CreateStack(certificateARNs []string, scheme, securityGroup, owner string) (string, error) {
+func (a *Adapter) CreateStack(certificateARNs []string, scheme, securityGroup, owner, sslPolicy string) (string, error) {
 	certARNs := make(map[string]time.Time, len(certificateARNs))
 	for _, arn := range certificateARNs {
 		certARNs[arn] = time.Time{}
 	}
 
+	if sslPolicy == "" {
+		sslPolicy = a.sslPolicy
+	}
 	spec := &stackSpec{
 		name:            a.stackName(),
 		scheme:          scheme,
@@ -453,7 +456,7 @@ func (a *Adapter) CreateStack(certificateARNs []string, scheme, securityGroup, o
 		stackTerminationProtection:   a.stackTerminationProtection,
 		idleConnectionTimeoutSeconds: uint(a.idleConnectionTimeout.Seconds()),
 		controllerID:                 a.controllerID,
-		sslPolicy:                    a.sslPolicy,
+		sslPolicy:                    sslPolicy,
 		ipAddressType:                a.ipAddressType,
 		albLogsS3Bucket:              a.albLogsS3Bucket,
 		albLogsS3Prefix:              a.albLogsS3Prefix,
@@ -463,7 +466,11 @@ func (a *Adapter) CreateStack(certificateARNs []string, scheme, securityGroup, o
 	return createStack(a.cloudformation, spec)
 }
 
-func (a *Adapter) UpdateStack(stackName string, certificateARNs map[string]time.Time, scheme string) (string, error) {
+func (a *Adapter) UpdateStack(stackName string, certificateARNs map[string]time.Time, scheme, sslPolicy string) (string, error) {
+	if sslPolicy == "" {
+		sslPolicy = a.sslPolicy
+	}
+
 	spec := &stackSpec{
 		name:            stackName,
 		scheme:          scheme,
@@ -482,7 +489,7 @@ func (a *Adapter) UpdateStack(stackName string, certificateARNs map[string]time.
 		stackTerminationProtection:   a.stackTerminationProtection,
 		idleConnectionTimeoutSeconds: uint(a.idleConnectionTimeout.Seconds()),
 		controllerID:                 a.controllerID,
-		sslPolicy:                    a.sslPolicy,
+		sslPolicy:                    sslPolicy,
 		ipAddressType:                a.ipAddressType,
 		albLogsS3Bucket:              a.albLogsS3Bucket,
 		albLogsS3Prefix:              a.albLogsS3Prefix,
