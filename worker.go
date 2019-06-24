@@ -47,7 +47,7 @@ func (l *loadBalancer) Status() int {
 	if len(l.ingresses) != 0 && l.stack == nil {
 		return missing
 	}
-	if !l.inSync() && l.stack.IsComplete() {
+	if firstRun || !l.inSync() && l.stack.IsComplete() {
 		return update
 	}
 	return ready
@@ -193,6 +193,7 @@ func startPolling(ctx context.Context, certsProvider certs.CertificatesProvider,
 		if err := doWork(certsProvider, certsPerALB, certTTL, awsAdapter, kubeAdapter); err != nil {
 			log.Error(err)
 		}
+		firstRun = false
 
 		log.Debugf("Start polling sleep %s", pollingInterval)
 		select {
