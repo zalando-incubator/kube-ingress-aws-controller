@@ -120,6 +120,16 @@ var (
 	ErrMissingAutoScalingGroupTag = errors.New(`instance is missing the "` + autoScalingGroupNameTag + `" tag`)
 	// ErrNoRunningInstances is used to signal that no instances were found in the running state
 	ErrNoRunningInstances = errors.New("no reservations or instances in the running state")
+
+	validSSLPolicy = map[string]bool{
+		"ELBSecurityPolicy-2016-08":             true,
+		"ELBSecurityPolicy-FS-2018-06":          true,
+		"ELBSecurityPolicy-TLS-1-2-2017-01":     true,
+		"ELBSecurityPolicy-TLS-1-2-Ext-2018-06": true,
+		"ELBSecurityPolicy-TLS-1-1-2017-01":     true,
+		"ELBSecurityPolicy-2015-05":             true,
+		"ELBSecurityPolicy-TLS-1-0-2015-04":     true,
+	}
 )
 
 var configProvider = defaultConfigProvider
@@ -434,7 +444,7 @@ func (a *Adapter) CreateStack(certificateARNs []string, scheme, securityGroup, o
 		certARNs[arn] = time.Time{}
 	}
 
-	if sslPolicy == "" {
+	if _, ok := validSSLPolicy[sslPolicy]; !ok {
 		sslPolicy = a.sslPolicy
 	}
 	spec := &stackSpec{
@@ -467,7 +477,7 @@ func (a *Adapter) CreateStack(certificateARNs []string, scheme, securityGroup, o
 }
 
 func (a *Adapter) UpdateStack(stackName string, certificateARNs map[string]time.Time, scheme, sslPolicy string) (string, error) {
-	if sslPolicy == "" {
+	if _, ok := validSSLPolicy[sslPolicy]; !ok {
 		sslPolicy = a.sslPolicy
 	}
 

@@ -66,7 +66,7 @@ func (l *loadBalancer) inSync() bool {
 // adding can fail in case the load balancer reached its limit of ingress
 // certificates or if the scheme doesn't match.
 func (l *loadBalancer) AddIngress(certificateARNs []string, ingress *kubernetes.Ingress, maxCerts int) bool {
-	if l.scheme != ingress.Scheme || l.securityGroup != ingress.SecurityGroup {
+	if l.scheme != ingress.Scheme || l.securityGroup != ingress.SecurityGroup || l.sslPolicy != ingress.SSLPolicy {
 		return false
 	}
 
@@ -283,6 +283,7 @@ func getAllLoadBalancers(certTTL time.Duration, stacks []*aws.Stack) []*loadBala
 			scheme:        stack.Scheme,
 			shared:        stack.OwnerIngress == "",
 			securityGroup: stack.SecurityGroup,
+			sslPolicy:     stack.SSLPolicy,
 			certTTL:       certTTL,
 		}
 		// initialize ingresses map with existing certificates from the

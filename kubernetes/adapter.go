@@ -62,7 +62,12 @@ func NewAdapter(config *Config, ingressClassFilters []string, ingressDefaultSecu
 	if err != nil {
 		return nil, err
 	}
-	return &Adapter{kubeClient: c, ingressFilters: ingressClassFilters, ingressDefaultSecurityGroup: ingressDefaultSecurityGroup}, nil
+	return &Adapter{
+		kubeClient:                  c,
+		ingressFilters:              ingressClassFilters,
+		ingressDefaultSecurityGroup: ingressDefaultSecurityGroup,
+		ingressDefaultSSLPolicy:     ingressDefaultSSLPolicy,
+	}, nil
 }
 
 func (a *Adapter) newIngressFromKube(kubeIngress *ingress) *Ingress {

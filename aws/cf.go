@@ -346,6 +346,7 @@ func mapToManagedStack(stack *cloudformation.Stack) *Stack {
 		TargetGroupARN:  outputs.targetGroupARN(),
 		Scheme:          parameters[parameterLoadBalancerSchemeParameter],
 		SecurityGroup:   parameters[parameterLoadBalancerSecurityGroupParameter],
+		SSLPolicy:       parameters[parameterListenerSslPolicyParameter],
 		CertificateARNs: certificateARNs,
 		tags:            tags,
 		OwnerIngress:    ownerIngress,
