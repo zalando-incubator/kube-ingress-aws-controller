@@ -120,6 +120,16 @@ var (
 	ErrMissingAutoScalingGroupTag = errors.New(`instance is missing the "` + autoScalingGroupNameTag + `" tag`)
 	// ErrNoRunningInstances is used to signal that no instances were found in the running state
 	ErrNoRunningInstances = errors.New("no reservations or instances in the running state")
+
+	validSSLPolicy = map[string]bool{
+		"ELBSecurityPolicy-2016-08":             true,
+		"ELBSecurityPolicy-FS-2018-06":          true,
+		"ELBSecurityPolicy-TLS-1-2-2017-01":     true,
+		"ELBSecurityPolicy-TLS-1-2-Ext-2018-06": true,
+		"ELBSecurityPolicy-TLS-1-1-2017-01":     true,
+		"ELBSecurityPolicy-2015-05":             true,
+		"ELBSecurityPolicy-TLS-1-0-2015-04":     true,
+	}
 )
 
 var configProvider = defaultConfigProvider
@@ -428,12 +438,15 @@ func (a *Adapter) UpdateTargetGroupsAndAutoScalingGroups(stacks []*Stack) {
 // All the required resources (listeners and target group) are created in a
 // transactional fashion.
 // Failure to create the stack causes it to be deleted automatically.
-func (a *Adapter) CreateStack(certificateARNs []string, scheme, securityGroup, owner string) (string, error) {
+func (a *Adapter) CreateStack(certificateARNs []string, scheme, securityGroup, owner, sslPolicy string) (string, error) {
 	certARNs := make(map[string]time.Time, len(certificateARNs))
 	for _, arn := range certificateARNs {
 		certARNs[arn] = time.Time{}
 	}
 
+	if _, ok := validSSLPolicy[sslPolicy]; !ok {
+		sslPolicy = a.sslPolicy
+	}
 	spec := &stackSpec{
 		name:            a.stackName(),
 		scheme:          scheme,
@@ -453,7 +466,7 @@ func (a *Adapter) CreateStack(certificateARNs []string, scheme, securityGroup, o
 		stackTerminationProtection:   a.stackTerminationProtection,
 		idleConnectionTimeoutSeconds: uint(a.idleConnectionTimeout.Seconds()),
 		controllerID:                 a.controllerID,
-		sslPolicy:                    a.sslPolicy,
+		sslPolicy:                    sslPolicy,
 		ipAddressType:                a.ipAddressType,
 		albLogsS3Bucket:              a.albLogsS3Bucket,
 		albLogsS3Prefix:              a.albLogsS3Prefix,
@@ -463,7 +476,11 @@ func (a *Adapter) CreateStack(certificateARNs []string, scheme, securityGroup, o
 	return createStack(a.cloudformation, spec)
 }
 
-func (a *Adapter) UpdateStack(stackName string, certificateARNs map[string]time.Time, scheme string) (string, error) {
+func (a *Adapter) UpdateStack(stackName string, certificateARNs map[string]time.Time, scheme, sslPolicy string) (string, error) {
+	if _, ok := validSSLPolicy[sslPolicy]; !ok {
+		sslPolicy = a.sslPolicy
+	}
+
 	spec := &stackSpec{
 		name:            stackName,
 		scheme:          scheme,
@@ -482,7 +499,7 @@ func (a *Adapter) UpdateStack(stackName string, certificateARNs map[string]time.
 		stackTerminationProtection:   a.stackTerminationProtection,
 		idleConnectionTimeoutSeconds: uint(a.idleConnectionTimeout.Seconds()),
 		controllerID:                 a.controllerID,
-		sslPolicy:                    a.sslPolicy,
+		sslPolicy:                    sslPolicy,
 		ipAddressType:                a.ipAddressType,
 		albLogsS3Bucket:              a.albLogsS3Bucket,
 		albLogsS3Prefix:              a.albLogsS3Prefix,

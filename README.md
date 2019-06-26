@@ -23,6 +23,7 @@ This information is used to manage AWS resources for each ingress objects of the
 - Support for internet-facing and internal load balancers
 - Support for multiple Auto Scaling Groups
 - Support for instances that are not part of Auto Scaling Group
+- Support for SSLPolicy, set default and per ingress
 - Can be used in clusters created by [Kops](https://github.com/kubernetes/kops), see our [deployment guide for Kops](deploy/kops.md)
 - [Support Multiple TLS Certificates per ALB (SNI)](https://aws.amazon.com/blogs/aws/new-application-load-balancer-sni/).
 
@@ -30,7 +31,7 @@ This information is used to manage AWS resources for each ingress objects of the
 
 ### <v0.8.0 to >=v0.8.0
 
-Version `v0.8.0` added certificate verification check to automatically ignore 
+Version `v0.8.0` added certificate verification check to automatically ignore
 self-signed and certificates from internal CAs. The IAM role used by the controller
 now needs the `acm:GetCertificate` permission. `acm:DescribeCertificate` permission
 is no longer needed and can be removed from the role.
@@ -76,6 +77,22 @@ SecurityGroup before updating:
 Additionally you must ensure that the instance where the ingress-controller is
 running has the clusterID tag `kubernetes.io/cluster/<cluster-id>=owned` set
 (was `ClusterID=<cluster-id>` before v0.4.0).
+
+## AWS Tags
+
+SecurityGroup auto detection needs the following AWS Tags on the
+SecurityGroup:
+- `kubernetes.io/cluster/<cluster-id>=owned`
+- `kubernetes:application=<controller-id>`, controller-id defaults to
+`kube-ingress-aws-controller` and can be set by flag `-controller-id=<my-ctrl-id>`.
+
+AutoScalingGroup auto detection needs the same AWS tags  on the
+AutoScalingGroup as defined for the SecurityGroup.
+
+In case you want to attach/detach single EC2 instances to the ALB
+TargetGroup, you have to have the same `<cluster-id>` set as on the
+running kube-ingress-aws-controller. Normally this would be
+`kubernetes.io/cluster/<cluster-id>=owned`.
 
 ## Development Status
 
@@ -185,6 +202,21 @@ spec:
 The Application Load Balancer created by the controller will have both an HTTP listener and an HTTPS listener. The
 latter will use the automatically selected certificates.
 
+By default the ingress-controller will aggregate all ingresses under as few
+Application Load Balancers as possible (unless running with
+`-disable-sni-support`). If you like to provision an Application Load Balancer
+that is unique for an ingress you can use the annotation
+`zalando.org/aws-load-balancer-shared: "false"`.
+
+The new Application Load Balancers have a custom tag marking them as *managed* load balancers to differentiate them
+from other load balancers. The tag looks like this:
+
+    `kubernetes:application` = `kube-ingress-aws-controller`
+
+They also share the `kubernetes.io/cluster/<cluster-id>` tag with other resources from the cluster where it belongs.
+
+#### Create a Load Balancer with a pinned certificate
+
 As a second option you can specify the [Amazon Resource Name](https://docs.aws.amazon.com/general/latest/gr/aws-arns-and-namespaces.html) (ARN)
 of the desired certificate with an annotation like the one shown here:
 
@@ -204,6 +236,8 @@ spec:
           serviceName: test-app-service
           servicePort: main-port
 ```
+
+#### Create an internal Load Balancer
 
 You can select the [Application Load Balancer Scheme](http://docs.aws.amazon.com/elasticloadbalancing/latest/userguide/how-elastic-load-balancing-works.html#load-balancer-scheme)
 with an annotation like the one shown here:
@@ -227,18 +261,66 @@ spec:
 
 You can only select from `internet-facing` (default) and `internal` options.
 
-By default the ingress-controller will aggregate all ingresses under as few
-Application Load Balancers as possible (unless running with
-`-disable-sni-support`). If you like to provision an Application Load Balancer
-that is unique for an ingress you can use the annotation
-`zalando.org/aws-load-balancer-shared: "false"`.
+#### Create Load Balancer with SSL Policy
 
-The new Application Load Balancers have a custom tag marking them as *managed* load balancers to differentiate them
-from other load balancers. The tag looks like this:
+You can select the default
+[SSLPolicy](https://docs.aws.amazon.com/elasticloadbalancing/latest/application/create-https-listener.html#describe-ssl-policies),
+with the flag `-ssl-policy=ELBSecurityPolicy-TLS-1-2-2017-01`. This
+choice can be overriden by the Kubernetes Ingress annotation
+`zalando.org/aws-load-balancer-ssl-policy` to any valid value. Valid
+values will be checked by the controller.
 
-    `kubernetes:application` = `kube-ingress-aws-controller`
+Example:
 
-They also share the `kubernetes.io/cluster/<cluster-id>` tag with other resources from the cluster where it belongs.
+```yaml
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  name: myingress
+  annotations:
+    zalando.org/aws-load-balancer-ssl-policy: ELBSecurityPolicy-FS-2018-06
+spec:
+  rules:
+  - host: test-app.example.org
+    http:
+      paths:
+      - backend:
+          serviceName: test-app-service
+          servicePort: main-port
+```
+
+#### Create Load Balancer with SecurityGroup
+
+The controller will normally automatically detect the SecurityGroup to
+use. Auto detection is done by filtering all SecurityGroups with AWS
+Tags. The `kubernetes.io/cluster/<cluster-id>` tag of the Security
+Group should match clusterID for the controller node with value
+`owned` and `kubernetes:application` tag should match the value
+`kube-ingress-aws-controller`.
+
+If you want to override the detected SecurityGroup, you can set a
+SecurityGroup of your choice with the
+`zalando.org/aws-load-balancer-security-group` annotation like the
+shown here:
+
+```yaml
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  name: myingress
+  annotations:
+    zalando.org/aws-load-balancer-security-group: sg-somegroupeid
+spec:
+  rules:
+  - host: test-app.example.org
+    http:
+      paths:
+      - backend:
+          serviceName: test-app-service
+          servicePort: main-port
+```
+
+
 
 ### Deleting load balancers
 

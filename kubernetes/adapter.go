@@ -12,6 +12,7 @@ type Adapter struct {
 	kubeClient                  client
 	ingressFilters              []string
 	ingressDefaultSecurityGroup string
+	ingressDefaultSSLPolicy     string
 }
 
 var (
@@ -44,6 +45,7 @@ type Ingress struct {
 	Hostnames      []string
 	Shared         bool
 	SecurityGroup  string
+	SSLPolicy      string
 }
 
 // String returns a string representation of the Ingress instance containing the namespace and the resource name.
@@ -52,7 +54,7 @@ func (i *Ingress) String() string {
 }
 
 // NewAdapter creates an Adapter for Kubernetes using a given configuration.
-func NewAdapter(config *Config, ingressClassFilters []string, ingressDefaultSecurityGroup string) (*Adapter, error) {
+func NewAdapter(config *Config, ingressClassFilters []string, ingressDefaultSecurityGroup, ingressDefaultSSLPolicy string) (*Adapter, error) {
 	if config == nil || config.BaseURL == "" {
 		return nil, ErrInvalidConfiguration
 	}
@@ -60,7 +62,12 @@ func NewAdapter(config *Config, ingressClassFilters []string, ingressDefaultSecu
 	if err != nil {
 		return nil, err
 	}
-	return &Adapter{kubeClient: c, ingressFilters: ingressClassFilters, ingressDefaultSecurityGroup: ingressDefaultSecurityGroup}, nil
+	return &Adapter{
+		kubeClient:                  c,
+		ingressFilters:              ingressClassFilters,
+		ingressDefaultSecurityGroup: ingressDefaultSecurityGroup,
+		ingressDefaultSSLPolicy:     ingressDefaultSSLPolicy,
+	}, nil
 }
 
 func (a *Adapter) newIngressFromKube(kubeIngress *ingress) *Ingress {
@@ -101,6 +108,7 @@ func (a *Adapter) newIngressFromKube(kubeIngress *ingress) *Ingress {
 		Hostnames:      hostnames,
 		Shared:         shared,
 		SecurityGroup:  kubeIngress.getAnnotationsString(ingressSecurityGroupAnnotation, a.ingressDefaultSecurityGroup),
+		SSLPolicy:      kubeIngress.getAnnotationsString(ingressSSLPolicyAnnotation, a.ingressDefaultSSLPolicy),
 	}
 }
 
@@ -120,6 +128,7 @@ func newIngressForKube(i *Ingress) *ingress {
 				ingressSchemeAnnotation:         i.Scheme,
 				ingressSharedAnnotation:         shared,
 				ingressSecurityGroupAnnotation:  i.SecurityGroup,
+				ingressSSLPolicyAnnotation:      i.SSLPolicy,
 			},
 		},
 		Status: ingressStatus{

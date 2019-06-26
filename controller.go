@@ -253,7 +253,7 @@ func main() {
 		ingressClassFiltersList = strings.Split(ingressClassFilters, ",")
 	}
 
-	kubeAdapter, err = kubernetes.NewAdapter(kubeConfig, ingressClassFiltersList, awsAdapter.SecurityGroupID())
+	kubeAdapter, err = kubernetes.NewAdapter(kubeConfig, ingressClassFiltersList, awsAdapter.SecurityGroupID(), sslPolicy)
 	if err != nil {
 		log.Fatal(err)
 	}
