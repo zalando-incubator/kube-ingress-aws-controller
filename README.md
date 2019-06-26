@@ -80,6 +80,20 @@ running has the clusterID tag `kubernetes.io/cluster/<cluster-id>=owned` set
 
 ## AWS Tags
 
+SecurityGroup auto detection needs the following AWS Tags on the
+SecurityGroup:
+- `kubernetes.io/cluster/<cluster-id>=owned`
+- `kubernetes:application=<controller-id>`, controller-id defaults to
+`kube-ingress-aws-controller` and can be set by flag `-controller-id=<my-ctrl-id>`.
+
+AutoScalingGroup auto detection needs the same AWS tags  on the
+AutoScalingGroup as defined for the SecurityGroup.
+
+In case you want to attach/detach single EC2 instances to the ALB
+TargetGroup, you have to have the same `<cluster-id>` set as on the
+running kube-ingress-aws-controller. Normally this would be
+`kubernetes.io/cluster/<cluster-id>=owned`.
+
 ## Development Status
 
 This controller is used in production since Q1 2017. It aims to be out-of-the-box useful for anyone
