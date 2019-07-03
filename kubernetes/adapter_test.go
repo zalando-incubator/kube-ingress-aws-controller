@@ -18,6 +18,8 @@ var (
 	testIngressDefaultSecurityGroup = "sg-foobar"
 	testSecurityGroup               = "sg-123456"
 	testSSLPolicy                   = "ELBSecurityPolicy-TLS-1-2-2017-01"
+	testIPAddressTypeDualStack      = "dualstack"
+	testIPAddressTypeDefault        = "ipv4"
 )
 
 func TestMappingRoundtrip(tt *testing.T) {
@@ -38,6 +40,7 @@ func TestMappingRoundtrip(tt *testing.T) {
 				Hostnames:      []string{"domain.example.org"},
 				SecurityGroup:  testSecurityGroup,
 				SSLPolicy:      testSSLPolicy,
+				IPAddressType:  testIPAddressTypeDefault,
 			},
 			kubeIngress: &ingress{
 				Metadata: ingressItemMetadata{
@@ -49,6 +52,7 @@ func TestMappingRoundtrip(tt *testing.T) {
 						ingressSharedAnnotation:         "true",
 						ingressSecurityGroupAnnotation:  testSecurityGroup,
 						ingressSSLPolicyAnnotation:      testSSLPolicy,
+						ingressALBIPAdressType:          testIPAddressTypeDefault,
 					},
 				},
 				Spec: ingressSpec{
@@ -79,6 +83,7 @@ func TestMappingRoundtrip(tt *testing.T) {
 				Shared:         false,
 				SecurityGroup:  testSecurityGroup,
 				SSLPolicy:      testSSLPolicy,
+				IPAddressType:  testIPAddressTypeDefault,
 			},
 			kubeIngress: &ingress{
 				Metadata: ingressItemMetadata{
@@ -90,6 +95,43 @@ func TestMappingRoundtrip(tt *testing.T) {
 						ingressSharedAnnotation:         "false",
 						ingressSecurityGroupAnnotation:  testSecurityGroup,
 						ingressSSLPolicyAnnotation:      testSSLPolicy,
+						ingressALBIPAdressType:          testIPAddressTypeDefault,
+					},
+				},
+				Status: ingressStatus{
+					LoadBalancer: ingressLoadBalancerStatus{
+						Ingress: []ingressLoadBalancer{
+							{Hostname: ""},
+							{Hostname: "bar"},
+						},
+					},
+				},
+			},
+		},
+		{
+			msg: "test parsing an ingress object with dualstack annotation",
+			ingress: &Ingress{
+				Namespace:      "default",
+				Name:           "foo",
+				Hostname:       "bar",
+				Scheme:         "internal",
+				CertificateARN: "zbr",
+				Shared:         true,
+				SecurityGroup:  testSecurityGroup,
+				SSLPolicy:      testSSLPolicy,
+				IPAddressType:  testIPAddressTypeDualStack,
+			},
+			kubeIngress: &ingress{
+				Metadata: ingressItemMetadata{
+					Namespace: "default",
+					Name:      "foo",
+					Annotations: map[string]interface{}{
+						ingressCertificateARNAnnotation: "zbr",
+						ingressSchemeAnnotation:         "internal",
+						ingressSharedAnnotation:         "true",
+						ingressSecurityGroupAnnotation:  testSecurityGroup,
+						ingressSSLPolicyAnnotation:      testSSLPolicy,
+						ingressALBIPAdressType:          testIPAddressTypeDualStack,
 					},
 				},
 				Status: ingressStatus{

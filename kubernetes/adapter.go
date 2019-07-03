@@ -46,6 +46,7 @@ type Ingress struct {
 	Shared         bool
 	SecurityGroup  string
 	SSLPolicy      string
+	IPAddressType  string
 }
 
 // String returns a string representation of the Ingress instance containing the namespace and the resource name.
@@ -99,6 +100,11 @@ func (a *Adapter) newIngressFromKube(kubeIngress *ingress) *Ingress {
 		shared = false
 	}
 
+	ipAddressType := "ipv4"
+	if kubeIngress.getAnnotationsString(ingressALBIPAdressType, "") == "dualstack" {
+		ipAddressType = "dualstack"
+	}
+
 	return &Ingress{
 		CertificateARN: kubeIngress.getAnnotationsString(ingressCertificateARNAnnotation, ""),
 		Namespace:      kubeIngress.Metadata.Namespace,
@@ -109,6 +115,7 @@ func (a *Adapter) newIngressFromKube(kubeIngress *ingress) *Ingress {
 		Shared:         shared,
 		SecurityGroup:  kubeIngress.getAnnotationsString(ingressSecurityGroupAnnotation, a.ingressDefaultSecurityGroup),
 		SSLPolicy:      kubeIngress.getAnnotationsString(ingressSSLPolicyAnnotation, a.ingressDefaultSSLPolicy),
+		IPAddressType:  ipAddressType,
 	}
 }
 
@@ -129,6 +136,7 @@ func newIngressForKube(i *Ingress) *ingress {
 				ingressSharedAnnotation:         shared,
 				ingressSecurityGroupAnnotation:  i.SecurityGroup,
 				ingressSSLPolicyAnnotation:      i.SSLPolicy,
+				ingressALBIPAdressType:          i.IPAddressType,
 			},
 		},
 		Status: ingressStatus{

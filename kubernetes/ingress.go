@@ -59,6 +59,7 @@ type ingressLoadBalancer struct {
 }
 
 const (
+	ingressALBIPAdressType          = "alb.ingress.kubernetes.io/ip-address-type"
 	ingressListResource             = "/apis/extensions/v1beta1/ingresses"
 	ingressPatchStatusResource      = "/apis/extensions/v1beta1/namespaces/%s/ingresses/%s/status"
 	ingressCertificateARNAnnotation = "zalando.org/aws-load-balancer-ssl-cert"

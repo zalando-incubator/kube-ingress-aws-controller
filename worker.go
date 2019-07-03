@@ -6,6 +6,8 @@ import (
 	"sort"
 	"time"
 
+	"github.com/davecgh/go-spew/spew"
+
 	"fmt"
 
 	"runtime/debug"
@@ -27,6 +29,7 @@ type loadBalancer struct {
 	shared        bool
 	securityGroup string
 	sslPolicy     string
+	ipAddressType string
 	certTTL       time.Duration
 }
 
@@ -66,7 +69,7 @@ func (l *loadBalancer) inSync() bool {
 // adding can fail in case the load balancer reached its limit of ingress
 // certificates or if the scheme doesn't match.
 func (l *loadBalancer) AddIngress(certificateARNs []string, ingress *kubernetes.Ingress, maxCerts int) bool {
-	if l.scheme != ingress.Scheme || l.securityGroup != ingress.SecurityGroup || l.sslPolicy != ingress.SSLPolicy {
+	if l.ipAddressType != ingress.IPAddressType || l.scheme != ingress.Scheme || l.securityGroup != ingress.SecurityGroup || l.sslPolicy != ingress.SSLPolicy {
 		return false
 	}
 
@@ -284,6 +287,7 @@ func getAllLoadBalancers(certTTL time.Duration, stacks []*aws.Stack) []*loadBala
 			shared:        stack.OwnerIngress == "",
 			securityGroup: stack.SecurityGroup,
 			sslPolicy:     stack.SSLPolicy,
+			ipAddressType: stack.IpAddressType,
 			certTTL:       certTTL,
 		}
 		// initialize ingresses map with existing certificates from the
@@ -341,6 +345,7 @@ func matchIngressesToLoadBalancers(loadBalancers []*loadBalancer, certs Certific
 					shared:        ingress.Shared,
 					securityGroup: ingress.SecurityGroup,
 					sslPolicy:     ingress.SSLPolicy,
+					ipAddressType: ingress.IPAddressType,
 				},
 			)
 		}
@@ -353,7 +358,8 @@ func buildManagedModel(certs CertificatesFinder, certsPerALB int, certTTL time.D
 	sortStacks(stacks)
 	model := getAllLoadBalancers(certTTL, stacks)
 	model = matchIngressesToLoadBalancers(model, certs, certsPerALB, ingresses)
-
+	println("Model:")
+	spew.Dump(model)
 	return model
 }
 
@@ -365,7 +371,9 @@ func createStack(awsAdapter *aws.Adapter, lb *loadBalancer) {
 
 	log.Infof("creating stack for certificates %q / ingress %q", certificates, lb.ingresses)
 
-	stackId, err := awsAdapter.CreateStack(certificates, lb.scheme, lb.securityGroup, lb.Owner(), lb.sslPolicy)
+	println("Loadbalancer Dump:")
+	spew.Dump(lb)
+	stackId, err := awsAdapter.CreateStack(certificates, lb.scheme, lb.securityGroup, lb.Owner(), lb.sslPolicy, lb.ipAddressType)
 	if err != nil {
 		if isAlreadyExistsError(err) {
 			lb.stack, err = awsAdapter.GetStack(stackId)
@@ -384,7 +392,7 @@ func updateStack(awsAdapter *aws.Adapter, lb *loadBalancer) {
 
 	log.Infof("updating %q stack for %d certificates / %d ingresses", lb.scheme, len(certificates), len(lb.ingresses))
 
-	stackId, err := awsAdapter.UpdateStack(lb.stack.Name, certificates, lb.scheme, lb.sslPolicy)
+	stackId, err := awsAdapter.UpdateStack(lb.stack.Name, certificates, lb.scheme, lb.sslPolicy, lb.ipAddressType)
 	if isNoUpdatesToBePerformedError(err) {
 		log.Debugf("stack(%q) is already up to date", certificates)
 	} else if err != nil {
