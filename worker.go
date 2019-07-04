@@ -6,8 +6,6 @@ import (
 	"sort"
 	"time"
 
-	"github.com/davecgh/go-spew/spew"
-
 	"fmt"
 
 	"runtime/debug"
@@ -358,8 +356,7 @@ func buildManagedModel(certs CertificatesFinder, certsPerALB int, certTTL time.D
 	sortStacks(stacks)
 	model := getAllLoadBalancers(certTTL, stacks)
 	model = matchIngressesToLoadBalancers(model, certs, certsPerALB, ingresses)
-	println("Model:")
-	spew.Dump(model)
+
 	return model
 }
 
@@ -371,8 +368,6 @@ func createStack(awsAdapter *aws.Adapter, lb *loadBalancer) {
 
 	log.Infof("creating stack for certificates %q / ingress %q", certificates, lb.ingresses)
 
-	println("Loadbalancer Dump:")
-	spew.Dump(lb)
 	stackId, err := awsAdapter.CreateStack(certificates, lb.scheme, lb.securityGroup, lb.Owner(), lb.sslPolicy, lb.ipAddressType)
 	if err != nil {
 		if isAlreadyExistsError(err) {
