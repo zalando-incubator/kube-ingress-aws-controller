@@ -52,7 +52,7 @@ func TestMappingRoundtrip(tt *testing.T) {
 						ingressSharedAnnotation:         "true",
 						ingressSecurityGroupAnnotation:  testSecurityGroup,
 						ingressSSLPolicyAnnotation:      testSSLPolicy,
-						ingressALBIPAdressType:          testIPAddressTypeDefault,
+						ingressALBIPAddressType:         testIPAddressTypeDefault,
 					},
 				},
 				Spec: ingressSpec{
@@ -95,7 +95,7 @@ func TestMappingRoundtrip(tt *testing.T) {
 						ingressSharedAnnotation:         "false",
 						ingressSecurityGroupAnnotation:  testSecurityGroup,
 						ingressSSLPolicyAnnotation:      testSSLPolicy,
-						ingressALBIPAdressType:          testIPAddressTypeDefault,
+						ingressALBIPAddressType:         testIPAddressTypeDefault,
 					},
 				},
 				Status: ingressStatus{
@@ -131,7 +131,7 @@ func TestMappingRoundtrip(tt *testing.T) {
 						ingressSharedAnnotation:         "true",
 						ingressSecurityGroupAnnotation:  testSecurityGroup,
 						ingressSSLPolicyAnnotation:      testSSLPolicy,
-						ingressALBIPAdressType:          testIPAddressTypeDualStack,
+						ingressALBIPAddressType:         testIPAddressTypeDualStack,
 					},
 				},
 				Status: ingressStatus{
