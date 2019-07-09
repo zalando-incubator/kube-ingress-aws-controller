@@ -15,6 +15,8 @@ type Adapter struct {
 	ingressDefaultSSLPolicy     string
 }
 
+const ipAddressTypeDualstack = "dualstack"
+
 var (
 	// ErrMissingKubernetesEnv is returned when the Kubernetes API server environment variables are not defined
 	ErrMissingKubernetesEnv = errors.New("unable to load in-cluster configuration, KUBERNETES_SERVICE_HOST and " +
@@ -46,6 +48,7 @@ type Ingress struct {
 	Shared         bool
 	SecurityGroup  string
 	SSLPolicy      string
+	IPAddressType  string
 }
 
 // String returns a string representation of the Ingress instance containing the namespace and the resource name.
@@ -99,6 +102,11 @@ func (a *Adapter) newIngressFromKube(kubeIngress *ingress) *Ingress {
 		shared = false
 	}
 
+	ipAddressType := "ipv4"
+	if kubeIngress.getAnnotationsString(ingressALBIPAddressType, "") == ipAddressTypeDualstack {
+		ipAddressType = ipAddressTypeDualstack
+	}
+
 	return &Ingress{
 		CertificateARN: kubeIngress.getAnnotationsString(ingressCertificateARNAnnotation, ""),
 		Namespace:      kubeIngress.Metadata.Namespace,
@@ -109,6 +117,7 @@ func (a *Adapter) newIngressFromKube(kubeIngress *ingress) *Ingress {
 		Shared:         shared,
 		SecurityGroup:  kubeIngress.getAnnotationsString(ingressSecurityGroupAnnotation, a.ingressDefaultSecurityGroup),
 		SSLPolicy:      kubeIngress.getAnnotationsString(ingressSSLPolicyAnnotation, a.ingressDefaultSSLPolicy),
+		IPAddressType:  ipAddressType,
 	}
 }
 
@@ -129,6 +138,7 @@ func newIngressForKube(i *Ingress) *ingress {
 				ingressSharedAnnotation:         shared,
 				ingressSecurityGroupAnnotation:  i.SecurityGroup,
 				ingressSSLPolicyAnnotation:      i.SSLPolicy,
+				ingressALBIPAddressType:         i.IPAddressType,
 			},
 		},
 		Status: ingressStatus{

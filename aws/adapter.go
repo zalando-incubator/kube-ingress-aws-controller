@@ -438,7 +438,7 @@ func (a *Adapter) UpdateTargetGroupsAndAutoScalingGroups(stacks []*Stack) {
 // All the required resources (listeners and target group) are created in a
 // transactional fashion.
 // Failure to create the stack causes it to be deleted automatically.
-func (a *Adapter) CreateStack(certificateARNs []string, scheme, securityGroup, owner, sslPolicy string) (string, error) {
+func (a *Adapter) CreateStack(certificateARNs []string, scheme, securityGroup, owner, sslPolicy, ipAddressType string) (string, error) {
 	certARNs := make(map[string]time.Time, len(certificateARNs))
 	for _, arn := range certificateARNs {
 		certARNs[arn] = time.Time{}
@@ -467,7 +467,7 @@ func (a *Adapter) CreateStack(certificateARNs []string, scheme, securityGroup, o
 		idleConnectionTimeoutSeconds: uint(a.idleConnectionTimeout.Seconds()),
 		controllerID:                 a.controllerID,
 		sslPolicy:                    sslPolicy,
-		ipAddressType:                a.ipAddressType,
+		ipAddressType:                ipAddressType,
 		albLogsS3Bucket:              a.albLogsS3Bucket,
 		albLogsS3Prefix:              a.albLogsS3Prefix,
 		wafWebAclId:                  a.wafWebAclId,
@@ -476,7 +476,7 @@ func (a *Adapter) CreateStack(certificateARNs []string, scheme, securityGroup, o
 	return createStack(a.cloudformation, spec)
 }
 
-func (a *Adapter) UpdateStack(stackName string, certificateARNs map[string]time.Time, scheme, sslPolicy string) (string, error) {
+func (a *Adapter) UpdateStack(stackName string, certificateARNs map[string]time.Time, scheme, sslPolicy, ipAddressType string) (string, error) {
 	if _, ok := validSSLPolicy[sslPolicy]; !ok {
 		sslPolicy = a.sslPolicy
 	}
@@ -500,7 +500,7 @@ func (a *Adapter) UpdateStack(stackName string, certificateARNs map[string]time.
 		idleConnectionTimeoutSeconds: uint(a.idleConnectionTimeout.Seconds()),
 		controllerID:                 a.controllerID,
 		sslPolicy:                    sslPolicy,
-		ipAddressType:                a.ipAddressType,
+		ipAddressType:                ipAddressType,
 		albLogsS3Bucket:              a.albLogsS3Bucket,
 		albLogsS3Prefix:              a.albLogsS3Prefix,
 		wafWebAclId:                  a.wafWebAclId,
