@@ -78,6 +78,21 @@ Additionally you must ensure that the instance where the ingress-controller is
 running has the clusterID tag `kubernetes.io/cluster/<cluster-id>=owned` set
 (was `ClusterID=<cluster-id>` before v0.4.0).
 
+## Ingress annotations
+
+Overview of annotations which can be set.
+
+### Annotations
+|Name                       | Type |Default
+|---------------------------|------|------|
+|[alb.ingress.kubernetes.io/ip-address-type](#ip-address-type)|ipv4 \| dualstack|ipv4|
+|zalando.org/aws-load-balancer-ssl-cert|string|N/A|
+|zalando.org/aws-load-balancer-scheme|internal \| internet-facing |internet-facing|
+|zalando.org/aws-load-balancer-shared|true \| false|false|
+|zalando.org/aws-load-balancer-security-group|string|N/A|
+|zalando.org/aws-load-balancer-ssl-policy|string|ELBSecurityPolicy-2016-08|
+|kubernetes.io/ingress.class|string|N/A|
+
 ## AWS Tags
 
 SecurityGroup auto detection needs the following AWS Tags on the
