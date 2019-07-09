@@ -14,6 +14,7 @@ pipeline:
   - desc: Build docker image
     cmd: |
       make build.docker
+      git diff --exit-code || exit 1
   - desc: Push docker image
     cmd: |
       if [[ $CDP_TARGET_BRANCH == master && ! $CDP_PULL_REQUEST_NUMBER ]]; then
