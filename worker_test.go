@@ -65,6 +65,20 @@ func TestAddIngress(tt *testing.T) {
 			added: false,
 		},
 		{
+			name: "don't add ingresses shared, to an owned load balancer",
+			loadBalancer: &loadBalancer{
+				stack: &aws.Stack{
+					OwnerIngress: "foo/bar",
+				},
+			},
+			ingress: &kubernetes.Ingress{
+				Shared:    true,
+				Namespace: "foo",
+				Name:      "baz",
+			},
+			added: false,
+		},
+		{
 			name: "add ingress to empty load balancer",
 			loadBalancer: &loadBalancer{
 				stack: &aws.Stack{},
