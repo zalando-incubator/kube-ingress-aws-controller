@@ -78,6 +78,10 @@ func (l *loadBalancer) AddIngress(certificateARNs []string, ingress *kubernetes.
 		owner = l.stack.OwnerIngress
 	}
 
+	if owner != "" && resourceName != owner {
+		return false
+	}
+
 	if !ingress.Shared && resourceName != owner {
 		return false
 	}
