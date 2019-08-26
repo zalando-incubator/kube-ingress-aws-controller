@@ -314,7 +314,7 @@ func findSecurityGroupWithClusterID(svc ec2iface.EC2API, clusterID string, contr
 	}
 
 	if len(resp.SecurityGroups) < 1 {
-		return nil, ErrMissingSecurityGroup
+		return nil, fmt.Errorf("could not find security group that matches: %s", params.Filters)
 	}
 
 	sg := resp.SecurityGroups[0]

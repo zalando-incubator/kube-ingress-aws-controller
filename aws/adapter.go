@@ -104,8 +104,6 @@ const (
 )
 
 var (
-	// ErrMissingSecurityGroup is used to signal that the required security group couldn't be found.
-	ErrMissingSecurityGroup = errors.New("required security group was not found")
 	// ErrLoadBalancerStackNotFound is used to signal that a given load balancer CF stack was not found.
 	ErrLoadBalancerStackNotFound = errors.New("load balancer stack not found")
 	// ErrLoadBalancerStackNotReady is used to signal that a given load balancer CF stack is not ready to be used.
