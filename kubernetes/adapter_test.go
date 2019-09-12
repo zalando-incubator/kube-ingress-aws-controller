@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -184,14 +185,25 @@ type mockClient struct {
 }
 
 func (c *mockClient) get(res string) (io.ReadCloser, error) {
-	if !c.broken && res == ingressListResource {
-		buf, err := ioutil.ReadFile("testdata/fixture01.json")
-		if err != nil {
-			return nil, err
-		}
-		return ioutil.NopCloser(bytes.NewReader(buf)), nil
+	if c.broken {
+		return nil, errors.New("mocked error")
 	}
-	return nil, errors.New("mocked error")
+
+	var fixture string
+	switch res {
+	case ingressListResource:
+		fixture = "testdata/fixture01.json"
+	case fmt.Sprintf(configMapResource, "foo-ns", "foo-name"):
+		fixture = "testdata/fixture02.json"
+	default:
+		return nil, fmt.Errorf("unexpected resource: %s", res)
+	}
+
+	buf, err := ioutil.ReadFile(fixture)
+	if err != nil {
+		return nil, err
+	}
+	return ioutil.NopCloser(bytes.NewReader(buf)), nil
 }
 
 func (c *mockClient) patch(res string, payload []byte) (io.ReadCloser, error) {
@@ -260,5 +272,28 @@ func TestBrokenConfig(t *testing.T) {
 				t.Error("expected an error")
 			}
 		})
+	}
+}
+
+func TestAdapter_GetConfigMap(t *testing.T) {
+	a, _ := NewAdapter(testConfig, testIngressFilter, testIngressDefaultSecurityGroup, testSSLPolicy)
+	client := &mockClient{}
+	a.kubeClient = client
+
+	cm, err := a.GetConfigMap("foo-ns", "foo-name")
+	if err != nil {
+		t.Error(err)
+	}
+
+	expectedData := map[string]string{"some-key": "key1: val1\nkey2: val2\n"}
+
+	if !reflect.DeepEqual(cm.Data, expectedData) {
+		t.Fatalf("unexpected ConfigMap data, got %+v, want %+v", cm.Data, expectedData)
+	}
+
+	client.broken = true
+	_, err = a.GetConfigMap("foo-ns", "foo-name")
+	if err == nil {
+		t.Error("expected an error")
 	}
 }

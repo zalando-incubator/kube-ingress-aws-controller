@@ -56,6 +56,19 @@ func (i *Ingress) String() string {
 	return fmt.Sprintf("%s/%s", i.Namespace, i.Name)
 }
 
+// ConfigMap is the ingress-controller's representation of a Kubernetes
+// ConfigMap
+type ConfigMap struct {
+	Namespace string
+	Name      string
+	Data      map[string]string
+}
+
+// String implements fmt.Stringer.
+func (c *ConfigMap) String() string {
+	return fmt.Sprintf("%s/%s", c.Namespace, c.Name)
+}
+
 // NewAdapter creates an Adapter for Kubernetes using a given configuration.
 func NewAdapter(config *Config, ingressClassFilters []string, ingressDefaultSecurityGroup, ingressDefaultSSLPolicy string) (*Adapter, error) {
 	if config == nil || config.BaseURL == "" {
@@ -192,4 +205,18 @@ func (a *Adapter) UpdateIngressLoadBalancer(ingress *Ingress, loadBalancerDNSNam
 	}
 
 	return updateIngressLoadBalancer(a.kubeClient, newIngressForKube(ingress), loadBalancerDNSName)
+}
+
+// GetConfigMap retrieves the ConfigMap with name from namespace.
+func (a *Adapter) GetConfigMap(namespace, name string) (*ConfigMap, error) {
+	cm, err := getConfigMap(a.kubeClient, namespace, name)
+	if err != nil {
+		return nil, err
+	}
+
+	return &ConfigMap{
+		Name:      cm.Metadata.Name,
+		Namespace: cm.Metadata.Namespace,
+		Data:      cm.Data,
+	}, nil
 }

@@ -5,7 +5,9 @@ import (
 	"testing"
 	"time"
 
+	cloudformation "github.com/mweagle/go-cloudformation"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/zalando-incubator/kube-ingress-aws-controller/aws"
 	"github.com/zalando-incubator/kube-ingress-aws-controller/certs"
 	"github.com/zalando-incubator/kube-ingress-aws-controller/kubernetes"
@@ -286,4 +288,99 @@ func TestGetAllLoadBalancers(tt *testing.T) {
 			assert.Equal(t, test.loadBalancers, getAllLoadBalancers(certTTL, test.stacks))
 		})
 	}
+}
+
+func TestGetCloudWatchAlarmConfigFromConfigMap(t *testing.T) {
+	for _, test := range []struct {
+		name     string
+		cm       *kubernetes.ConfigMap
+		expected aws.CloudWatchAlarmList
+	}{
+		{
+			name:     "empty config map",
+			cm:       &kubernetes.ConfigMap{},
+			expected: aws.CloudWatchAlarmList{},
+		},
+		{
+			name: "config map with one data key",
+			cm: &kubernetes.ConfigMap{
+				Data: map[string]string{
+					"some-key": "- AlarmName: foo\n- AlarmName: bar\n",
+				},
+			},
+			expected: aws.CloudWatchAlarmList{
+				{AlarmName: cloudformation.String("foo")},
+				{AlarmName: cloudformation.String("bar")},
+			},
+		},
+		{
+			name: "config map with multiple data keys",
+			cm: &kubernetes.ConfigMap{
+				Data: map[string]string{
+					"some-other-key": "- AlarmName: baz\n",
+					"some-key":       "- AlarmName: foo\n- AlarmName: bar\n",
+				},
+			},
+			expected: aws.CloudWatchAlarmList{
+				{AlarmName: cloudformation.String("foo")},
+				{AlarmName: cloudformation.String("bar")},
+				{AlarmName: cloudformation.String("baz")},
+			},
+		},
+		{
+			name: "config map with invalid yaml data",
+			cm: &kubernetes.ConfigMap{
+				Data: map[string]string{
+					"some-key": "{",
+				},
+			},
+			expected: aws.CloudWatchAlarmList{},
+		},
+		{
+			name: "config map with partially invalid yaml data",
+			cm: &kubernetes.ConfigMap{
+				Data: map[string]string{
+					"some-key":       "{",
+					"some-other-key": "- AlarmName: baz\n",
+				},
+			},
+			expected: aws.CloudWatchAlarmList{
+				{AlarmName: cloudformation.String("baz")},
+			},
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			result := getCloudWatchAlarmsFromConfigMap(test.cm)
+
+			assert.Equal(t, test.expected, result)
+		})
+	}
+}
+
+func TestAttachCloudWatchAlarmsCopy(t *testing.T) {
+	lbOne := &loadBalancer{scheme: "foo"}
+	lbTwo := &loadBalancer{scheme: "bar"}
+
+	lbs := []*loadBalancer{
+		lbOne,
+		lbTwo,
+	}
+
+	alarms := aws.CloudWatchAlarmList{
+		{AlarmName: cloudformation.String("baz")},
+	}
+
+	attachCloudWatchAlarms(lbs, alarms)
+
+	expected := []*loadBalancer{
+		{scheme: "foo", cwAlarms: alarms},
+		{scheme: "bar", cwAlarms: alarms},
+	}
+
+	require.Equal(t, expected, lbs)
+
+	// This should not modify the alarms of lbTwo.
+	lbOne.cwAlarms[0].AlarmName = cloudformation.String("qux")
+
+	assert.Equal(t, cloudformation.String("baz"), lbTwo.cwAlarms[0].AlarmName)
 }
