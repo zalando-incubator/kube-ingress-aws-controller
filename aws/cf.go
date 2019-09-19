@@ -26,10 +26,10 @@ type Stack struct {
 	SecurityGroup     string
 	SSLPolicy         string
 	IpAddressType     string
-	TargetGroupARN    string
-	CertificateARNs   map[string]time.Time
 	OwnerIngress      string
 	CWAlarmConfigHash string
+	TargetGroupARN    string
+	CertificateARNs   map[string]time.Time
 	tags              map[string]string
 }
 
