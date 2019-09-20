@@ -247,7 +247,7 @@ func doWork(certsProvider certs.CertificatesProvider, certsPerALB int, certTTL t
 	cwAlarms, err := getCloudWatchAlarms(kubeAdapter, cwAlarmConfigMapLocation)
 	if err != nil {
 		// We will just log potential errors while loading the alarm
-		// configuration. A non-existent config map, missing service account
+		// configuration. A non-existent config map or missing service account
 		// permissions should not cause the ingress controller to stop working.
 		// Instead, we just treat the configuration as non-existent and move
 		// on.
@@ -370,9 +370,9 @@ func matchIngressesToLoadBalancers(loadBalancers []*loadBalancer, certs Certific
 	return loadBalancers
 }
 
-// addCloudWatchAlarms will attach CloudWatch Alarms to each load balancer
-// model in the list. It ensures that the alarm config is copied so that it can
-// be adjusted safely for each load balancer.
+// addCloudWatchAlarms attaches CloudWatch Alarms to each load balancer model
+// in the list. It ensures that the alarm config is copied so that it can be
+// adjusted safely for each load balancer.
 func attachCloudWatchAlarms(loadBalancers []*loadBalancer, cwAlarms aws.CloudWatchAlarmList) {
 	for _, loadBalancer := range loadBalancers {
 		lbAlarms := make(aws.CloudWatchAlarmList, len(cwAlarms))

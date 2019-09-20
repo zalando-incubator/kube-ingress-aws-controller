@@ -7,6 +7,7 @@ import (
 
 	"github.com/ghodss/yaml"
 	cloudformation "github.com/mweagle/go-cloudformation"
+	log "github.com/sirupsen/logrus"
 )
 
 // CloudWatchAlarmList represents a list of CloudWatch Alarms directly usable
@@ -14,16 +15,20 @@ import (
 type CloudWatchAlarmList []cloudformation.CloudWatchAlarm
 
 // Hash computes a hash of the CloudWatchAlarmList which can be used to detect
-// changes between two versions.
+// changes between two versions. The hash string will be empty if c is empty or
+// there was an error while encoding.
 func (c CloudWatchAlarmList) Hash() string {
 	if len(c) == 0 {
 		return ""
 	}
 
+	buf, err := json.Marshal(c)
+	if err != nil {
+		log.Errorf("failed to marshal cloudwatch alarm list: %v", err)
+		return ""
+	}
+
 	hash := sha256.New()
-
-	buf, _ := json.Marshal(c)
-
 	hash.Write(buf)
 
 	return hex.EncodeToString(hash.Sum(nil))
@@ -32,14 +37,14 @@ func (c CloudWatchAlarmList) Hash() string {
 // NewCloudWatchAlarmListFromYAML parses a raw slice of yaml bytes into a new
 // CloudWatchAlarmList.
 func NewCloudWatchAlarmListFromYAML(b []byte) (CloudWatchAlarmList, error) {
-	config := CloudWatchAlarmList{}
+	alarmList := CloudWatchAlarmList{}
 
-	err := yaml.Unmarshal(b, &config)
+	err := yaml.Unmarshal(b, &alarmList)
 	if err != nil {
 		return nil, err
 	}
 
-	return config, nil
+	return alarmList, nil
 }
 
 // normalizeCloudWatchAlarmName prefixes the alarm name (if it is non-nil) with
@@ -69,9 +74,6 @@ func normalizeCloudWatchAlarmNamespace(alarmNamespace *cloudformation.StringExpr
 // that includes the dimension LoadBalancer with its generated name.
 func normalizeCloudWatchAlarmDimensions(alarmDimensions *cloudformation.CloudWatchAlarmDimensionList) *cloudformation.CloudWatchAlarmDimensionList {
 	if alarmDimensions == nil || len(*alarmDimensions) == 0 {
-		// For convenience, include LoadBalancer in the dimensions if the user
-		// provided nothing in the configuration. This is the dimension we want
-		// to use most of the time.
 		return &cloudformation.CloudWatchAlarmDimensionList{
 			{
 				Name:  cloudformation.String("LoadBalancer"),
