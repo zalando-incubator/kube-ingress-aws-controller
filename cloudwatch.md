@@ -8,9 +8,7 @@ created by it. These alarms can be configured in a ConfigMap.
 To make use of CloudWatch Alarms you need to provide the
 `--cloudwatch-alarms-config-map` CLI flag to the controller and point it to a
 ConfigMap resource consisting of namespace and name seperated by a `/`, e.g.:
-`kube-system/kube-ingress-aws-controller-cw-alarms`. If the ConfigMap does not
-exist, is malformed or the controller's ServiceAccount permissions prevent
-access to it, the controller will just gracefully ignore it.
+`kube-system/kube-ingress-aws-controller-cw-alarms`.
 
 The controller will re-read the ConfigMap in the interval configured by the
 `--polling-interval` flag (default: 30 seconds) and apply potential changes in

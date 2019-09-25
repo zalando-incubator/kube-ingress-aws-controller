@@ -246,13 +246,7 @@ func doWork(certsProvider certs.CertificatesProvider, certsPerALB int, certTTL t
 
 	cwAlarms, err := getCloudWatchAlarms(kubeAdapter, cwAlarmConfigMapLocation)
 	if err != nil {
-		// We will just log potential errors while loading the alarm
-		// configuration. A non-existent config map or missing service account
-		// permissions should not cause the ingress controller to stop working.
-		// Instead, we just treat the configuration as non-existent and move
-		// on.
-		log.Warnf("ignoring cloudwatch alarm configuration due to error: %v", err)
-		cwAlarms = aws.CloudWatchAlarmList{}
+		return fmt.Errorf("doWork failed to retrieve cloudwatch alarm configuration: %v", err)
 	}
 
 	awsAdapter.UpdateTargetGroupsAndAutoScalingGroups(stacks)
