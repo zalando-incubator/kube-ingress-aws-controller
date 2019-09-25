@@ -60,6 +60,8 @@ var (
 	debugFlag                  bool
 	quietFlag                  bool
 	firstRun                   bool = true
+	cwAlarmConfigMap           string
+	cwAlarmConfigMapLocation   *kubernetes.ResourceLocation
 )
 
 func loadSettings() error {
@@ -105,6 +107,7 @@ func loadSettings() error {
 	flag.StringVar(&albLogsS3Bucket, "logs-s3-bucket", aws.DefaultAlbS3LogsBucket, "S3 bucket to be used for ALB logging")
 	flag.StringVar(&albLogsS3Prefix, "logs-s3-prefix", aws.DefaultAlbS3LogsPrefix, "Prefix within S3 bucket to be used for ALB logging")
 	flag.StringVar(&wafWebAclId, "aws-waf-web-acl-id", aws.DefaultWafWebAclId, "Waf web acl id to be associated with the ALB")
+	flag.StringVar(&cwAlarmConfigMap, "cloudwatch-alarms-config-map", "", "ConfigMap location of the form 'namespace/config-map-name' where to read CloudWatch Alarm configuration from. Ignored if empty.")
 
 	flag.Parse()
 
@@ -150,6 +153,15 @@ func loadSettings() error {
 
 	if maxCertsPerALB > aws.DefaultMaxCertsPerALB {
 		return fmt.Errorf("invalid max number of certificates per ALB: %d. AWS does not allow more than %d", maxCertsPerALB, aws.DefaultMaxCertsPerALB)
+	}
+
+	if cwAlarmConfigMap != "" {
+		loc, err := kubernetes.ParseResourceLocation(cwAlarmConfigMap)
+		if err != nil {
+			return fmt.Errorf("failed to parse cloudwatch alarm config map location: %v", err)
+		}
+
+		cwAlarmConfigMapLocation = loc
 	}
 
 	if quietFlag && debugFlag {
@@ -277,6 +289,7 @@ func main() {
 	log.Infof("\tIngress class filters: %s", kubeAdapter.IngressFiltersString())
 	log.Infof("\tALB Logging S3 Bucket: %s", awsAdapter.S3Bucket())
 	log.Infof("\tALB Logging S3 Prefix: %s", awsAdapter.S3Prefix())
+	log.Infof("\tCloudWatch Alarm ConfigMap: %s", cwAlarmConfigMapLocation)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	go handleTerminationSignals(cancel, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)

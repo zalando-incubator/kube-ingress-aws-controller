@@ -3,7 +3,6 @@ package aws
 import (
 	"fmt"
 	"strings"
-
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -15,21 +14,23 @@ const (
 	certificateARNTagLegacy = "ingress:certificate-arn"
 	certificateARNTagPrefix = "ingress:certificate-arn/"
 	ingressOwnerTag         = "ingress:owner"
+	cwAlarmConfigHashTag    = "cloudwatch:alarm-config-hash"
 )
 
 // Stack is a simple wrapper around a CloudFormation Stack.
 type Stack struct {
-	Name            string
-	status          string
-	DNSName         string
-	Scheme          string
-	SecurityGroup   string
-	SSLPolicy       string
-	IpAddressType   string
-	TargetGroupARN  string
-	CertificateARNs map[string]time.Time
-	OwnerIngress    string
-	tags            map[string]string
+	Name              string
+	status            string
+	DNSName           string
+	Scheme            string
+	SecurityGroup     string
+	SSLPolicy         string
+	IpAddressType     string
+	OwnerIngress      string
+	CWAlarmConfigHash string
+	TargetGroupARN    string
+	CertificateARNs   map[string]time.Time
+	tags              map[string]string
 }
 
 // IsComplete returns true if the stack status is a complete state.
@@ -132,6 +133,7 @@ type stackSpec struct {
 	albLogsS3Bucket              string
 	albLogsS3Prefix              string
 	wafWebAclId                  string
+	cwAlarms                     CloudWatchAlarmList
 }
 
 type healthCheck struct {
@@ -141,7 +143,7 @@ type healthCheck struct {
 }
 
 func createStack(svc cloudformationiface.CloudFormationAPI, spec *stackSpec) (string, error) {
-	template, err := generateTemplate(spec.certificateARNs, spec.idleConnectionTimeoutSeconds, spec.albLogsS3Bucket, spec.albLogsS3Prefix, spec.wafWebAclId)
+	template, err := generateTemplate(spec)
 	if err != nil {
 		return "", err
 	}
@@ -183,6 +185,10 @@ func createStack(svc cloudformationiface.CloudFormationAPI, spec *stackSpec) (st
 		params.Tags = append(params.Tags, cfTag(ingressOwnerTag, spec.ownerIngress))
 	}
 
+	if len(spec.cwAlarms) > 0 {
+		params.Tags = append(params.Tags, cfTag(cwAlarmConfigHashTag, spec.cwAlarms.Hash()))
+	}
+
 	resp, err := svc.CreateStack(params)
 	if err != nil {
 		return spec.name, err
@@ -192,7 +198,7 @@ func createStack(svc cloudformationiface.CloudFormationAPI, spec *stackSpec) (st
 }
 
 func updateStack(svc cloudformationiface.CloudFormationAPI, spec *stackSpec) (string, error) {
-	template, err := generateTemplate(spec.certificateARNs, spec.idleConnectionTimeoutSeconds, spec.albLogsS3Bucket, spec.albLogsS3Prefix, spec.wafWebAclId)
+	template, err := generateTemplate(spec)
 	if err != nil {
 		return "", err
 	}
@@ -229,6 +235,10 @@ func updateStack(svc cloudformationiface.CloudFormationAPI, spec *stackSpec) (st
 
 	if spec.ownerIngress != "" {
 		params.Tags = append(params.Tags, cfTag(ingressOwnerTag, spec.ownerIngress))
+	}
+
+	if len(spec.cwAlarms) > 0 {
+		params.Tags = append(params.Tags, cfTag(cwAlarmConfigHashTag, spec.cwAlarms.Hash()))
 	}
 
 	if spec.stackTerminationProtection {
@@ -342,17 +352,18 @@ func mapToManagedStack(stack *cloudformation.Stack) *Stack {
 	}
 
 	return &Stack{
-		Name:            aws.StringValue(stack.StackName),
-		DNSName:         outputs.dnsName(),
-		TargetGroupARN:  outputs.targetGroupARN(),
-		Scheme:          parameters[parameterLoadBalancerSchemeParameter],
-		SecurityGroup:   parameters[parameterLoadBalancerSecurityGroupParameter],
-		SSLPolicy:       parameters[parameterListenerSslPolicyParameter],
-		IpAddressType:   parameters[parameterIpAddressTypeParameter],
-		CertificateARNs: certificateARNs,
-		tags:            tags,
-		OwnerIngress:    ownerIngress,
-		status:          aws.StringValue(stack.StackStatus),
+		Name:              aws.StringValue(stack.StackName),
+		DNSName:           outputs.dnsName(),
+		TargetGroupARN:    outputs.targetGroupARN(),
+		Scheme:            parameters[parameterLoadBalancerSchemeParameter],
+		SecurityGroup:     parameters[parameterLoadBalancerSecurityGroupParameter],
+		SSLPolicy:         parameters[parameterListenerSslPolicyParameter],
+		IpAddressType:     parameters[parameterIpAddressTypeParameter],
+		CertificateARNs:   certificateARNs,
+		tags:              tags,
+		OwnerIngress:      ownerIngress,
+		status:            aws.StringValue(stack.StackStatus),
+		CWAlarmConfigHash: tags[cwAlarmConfigHashTag],
 	}
 }
 

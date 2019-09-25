@@ -3,7 +3,6 @@ package aws
 import (
 	"encoding/json"
 	"fmt"
-	"time"
 
 	"crypto/sha256"
 	"sort"
@@ -22,7 +21,7 @@ func hashARNs(certARNs []string) []byte {
 	return hash.Sum(nil)
 }
 
-func generateTemplate(certs map[string]time.Time, idleConnectionTimeoutSeconds uint, albLogsS3Bucket, albLogsS3Prefix string, wafWebAclId string) (string, error) {
+func generateTemplate(spec *stackSpec) (string, error) {
 	template := cloudformation.NewTemplate()
 	template.Description = "Load Balancer for Kubernetes Ingress"
 	template.Parameters = map[string]*cloudformation.Parameter{
@@ -87,10 +86,10 @@ func generateTemplate(certs map[string]time.Time, idleConnectionTimeoutSeconds u
 		Protocol:        cloudformation.String("HTTP"),
 	})
 
-	if len(certs) > 0 {
+	if len(spec.certificateARNs) > 0 {
 		// Sort the certificate names so we have a stable order.
-		certificateARNs := make([]string, 0, len(certs))
-		for certARN := range certs {
+		certificateARNs := make([]string, 0, len(spec.certificateARNs))
+		for certARN := range spec.certificateARNs {
 			certificateARNs = append(certificateARNs, certARN)
 		}
 		sort.Slice(certificateARNs, func(i, j int) bool {
@@ -138,10 +137,10 @@ func generateTemplate(certs map[string]time.Time, idleConnectionTimeoutSeconds u
 	albAttrList = append(albAttrList,
 		cloudformation.ElasticLoadBalancingV2LoadBalancerLoadBalancerAttribute{
 			Key:   cloudformation.String("idle_timeout.timeout_seconds"),
-			Value: cloudformation.String(fmt.Sprintf("%d", idleConnectionTimeoutSeconds)),
+			Value: cloudformation.String(fmt.Sprintf("%d", spec.idleConnectionTimeoutSeconds)),
 		},
 	)
-	if albLogsS3Bucket != "" {
+	if spec.albLogsS3Bucket != "" {
 		albAttrList = append(albAttrList,
 			cloudformation.ElasticLoadBalancingV2LoadBalancerLoadBalancerAttribute{
 				Key:   cloudformation.String("access_logs.s3.enabled"),
@@ -151,14 +150,14 @@ func generateTemplate(certs map[string]time.Time, idleConnectionTimeoutSeconds u
 		albAttrList = append(albAttrList,
 			cloudformation.ElasticLoadBalancingV2LoadBalancerLoadBalancerAttribute{
 				Key:   cloudformation.String("access_logs.s3.bucket"),
-				Value: cloudformation.String(albLogsS3Bucket),
+				Value: cloudformation.String(spec.albLogsS3Bucket),
 			},
 		)
-		if albLogsS3Prefix != "" {
+		if spec.albLogsS3Prefix != "" {
 			albAttrList = append(albAttrList,
 				cloudformation.ElasticLoadBalancingV2LoadBalancerLoadBalancerAttribute{
 					Key:   cloudformation.String("access_logs.s3.prefix"),
-					Value: cloudformation.String(albLogsS3Prefix),
+					Value: cloudformation.String(spec.albLogsS3Prefix),
 				},
 			)
 		}
@@ -194,10 +193,34 @@ func generateTemplate(certs map[string]time.Time, idleConnectionTimeoutSeconds u
 		VPCID:                      cloudformation.Ref(parameterTargetGroupVPCIDParameter).String(),
 	})
 
-	if wafWebAclId != "" {
+	if spec.wafWebAclId != "" {
 		template.AddResource("WAFAssociation", &cloudformation.WAFRegionalWebACLAssociation{
 			ResourceArn: cloudformation.Ref("LB").String(),
-			WebACLID:    cloudformation.String(wafWebAclId),
+			WebACLID:    cloudformation.String(spec.wafWebAclId),
+		})
+	}
+
+	for idx, alarm := range spec.cwAlarms {
+		resourceName := fmt.Sprintf("CloudWatchAlarm%d", idx)
+		template.AddResource(resourceName, &cloudformation.CloudWatchAlarm{
+			ActionsEnabled:                   alarm.ActionsEnabled,
+			AlarmActions:                     alarm.AlarmActions,
+			AlarmDescription:                 alarm.AlarmDescription,
+			AlarmName:                        normalizeCloudWatchAlarmName(alarm.AlarmName),
+			ComparisonOperator:               alarm.ComparisonOperator,
+			Dimensions:                       normalizeCloudWatchAlarmDimensions(alarm.Dimensions),
+			EvaluateLowSampleCountPercentile: alarm.EvaluateLowSampleCountPercentile,
+			EvaluationPeriods:                alarm.EvaluationPeriods,
+			ExtendedStatistic:                alarm.ExtendedStatistic,
+			InsufficientDataActions:          alarm.InsufficientDataActions,
+			MetricName:                       alarm.MetricName,
+			Namespace:                        normalizeCloudWatchAlarmNamespace(alarm.Namespace),
+			OKActions:                        alarm.OKActions,
+			Period:                           alarm.Period,
+			Statistic:                        alarm.Statistic,
+			Threshold:                        alarm.Threshold,
+			TreatMissingData:                 alarm.TreatMissingData,
+			Unit:                             alarm.Unit,
 		})
 	}
 

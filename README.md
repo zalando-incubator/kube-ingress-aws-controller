@@ -24,6 +24,7 @@ This information is used to manage AWS resources for each ingress objects of the
 - Support for multiple Auto Scaling Groups
 - Support for instances that are not part of Auto Scaling Group
 - Support for SSLPolicy, set default and per ingress
+- Support for [CloudWatch Alarm configuration](cloudwatch.md)
 - Can be used in clusters created by [Kops](https://github.com/kubernetes/kops), see our [deployment guide for Kops](deploy/kops.md)
 - [Support Multiple TLS Certificates per ALB (SNI)](https://aws.amazon.com/blogs/aws/new-application-load-balancer-sni/).
 

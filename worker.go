@@ -29,6 +29,7 @@ type loadBalancer struct {
 	sslPolicy     string
 	ipAddressType string
 	certTTL       time.Duration
+	cwAlarms      aws.CloudWatchAlarmList
 }
 
 const (
@@ -55,11 +56,12 @@ func (l *loadBalancer) Status() int {
 	return ready
 }
 
-// inSync checks if the loadBalancer is in sync with the backing CF stack.
-// It's considered in sync when certs found for the ingresses match those
-// already defined on the stack.
+// inSync checks if the loadBalancer is in sync with the backing CF stack. It's
+// considered in sync when certs found for the ingresses match those already
+// defined on the stack and the cloudwatch alarm config is up-to-date.
 func (l *loadBalancer) inSync() bool {
-	return reflect.DeepEqual(l.CertificateARNs(), l.stack.CertificateARNs)
+	return reflect.DeepEqual(l.CertificateARNs(), l.stack.CertificateARNs) &&
+		l.stack.CWAlarmConfigHash == l.cwAlarms.Hash()
 }
 
 // AddIngress adds an ingress object to the load balancer.
@@ -242,14 +244,20 @@ func doWork(certsProvider certs.CertificatesProvider, certsPerALB int, certTTL t
 		return fmt.Errorf("doWork failed to get certificates: %v", err)
 	}
 
+	cwAlarms, err := getCloudWatchAlarms(kubeAdapter, cwAlarmConfigMapLocation)
+	if err != nil {
+		return fmt.Errorf("doWork failed to retrieve cloudwatch alarm configuration: %v", err)
+	}
+
 	awsAdapter.UpdateTargetGroupsAndAutoScalingGroups(stacks)
 	log.Infof("Found %d auto scaling group(s)", len(awsAdapter.AutoScalingGroupNames()))
 	log.Infof("Found %d single instance(s)", len(awsAdapter.SingleInstances()))
 	log.Infof("Found %d EC2 instance(s)", awsAdapter.CachedInstances())
 	log.Infof("Found %d certificate(s)", len(certificateSummaries))
+	log.Infof("Found %d cloudwatch alarm configuration(s)", len(cwAlarms))
 
 	certs := &Certificates{certificateSummaries: certificateSummaries}
-	model := buildManagedModel(certs, certsPerALB, certTTL, ingresses, stacks)
+	model := buildManagedModel(certs, certsPerALB, certTTL, ingresses, stacks, cwAlarms)
 	log.Debugf("Have %d model(s)", len(model))
 	for _, loadBalancer := range model {
 		switch loadBalancer.Status() {
@@ -356,10 +364,24 @@ func matchIngressesToLoadBalancers(loadBalancers []*loadBalancer, certs Certific
 	return loadBalancers
 }
 
-func buildManagedModel(certs CertificatesFinder, certsPerALB int, certTTL time.Duration, ingresses []*kubernetes.Ingress, stacks []*aws.Stack) []*loadBalancer {
+// addCloudWatchAlarms attaches CloudWatch Alarms to each load balancer model
+// in the list. It ensures that the alarm config is copied so that it can be
+// adjusted safely for each load balancer.
+func attachCloudWatchAlarms(loadBalancers []*loadBalancer, cwAlarms aws.CloudWatchAlarmList) {
+	for _, loadBalancer := range loadBalancers {
+		lbAlarms := make(aws.CloudWatchAlarmList, len(cwAlarms))
+
+		copy(lbAlarms, cwAlarms)
+
+		loadBalancer.cwAlarms = lbAlarms
+	}
+}
+
+func buildManagedModel(certs CertificatesFinder, certsPerALB int, certTTL time.Duration, ingresses []*kubernetes.Ingress, stacks []*aws.Stack, cwAlarms aws.CloudWatchAlarmList) []*loadBalancer {
 	sortStacks(stacks)
 	model := getAllLoadBalancers(certTTL, stacks)
 	model = matchIngressesToLoadBalancers(model, certs, certsPerALB, ingresses)
+	attachCloudWatchAlarms(model, cwAlarms)
 
 	return model
 }
@@ -372,7 +394,7 @@ func createStack(awsAdapter *aws.Adapter, lb *loadBalancer) {
 
 	log.Infof("creating stack for certificates %q / ingress %q", certificates, lb.ingresses)
 
-	stackId, err := awsAdapter.CreateStack(certificates, lb.scheme, lb.securityGroup, lb.Owner(), lb.sslPolicy, lb.ipAddressType)
+	stackId, err := awsAdapter.CreateStack(certificates, lb.scheme, lb.securityGroup, lb.Owner(), lb.sslPolicy, lb.ipAddressType, lb.cwAlarms)
 	if err != nil {
 		if isAlreadyExistsError(err) {
 			lb.stack, err = awsAdapter.GetStack(stackId)
@@ -391,7 +413,7 @@ func updateStack(awsAdapter *aws.Adapter, lb *loadBalancer) {
 
 	log.Infof("updating %q stack for %d certificates / %d ingresses", lb.scheme, len(certificates), len(lb.ingresses))
 
-	stackId, err := awsAdapter.UpdateStack(lb.stack.Name, certificates, lb.scheme, lb.sslPolicy, lb.ipAddressType)
+	stackId, err := awsAdapter.UpdateStack(lb.stack.Name, certificates, lb.scheme, lb.sslPolicy, lb.ipAddressType, lb.cwAlarms)
 	if isNoUpdatesToBePerformedError(err) {
 		log.Debugf("stack(%q) is already up to date", certificates)
 	} else if err != nil {
@@ -446,4 +468,51 @@ func deleteStack(awsAdapter *aws.Adapter, lb *loadBalancer) {
 	} else {
 		log.Infof("deleted orphaned stack %q", stackName)
 	}
+}
+
+// getCloudWatchAlarms retrieves CloudWatch Alarm configuration from a
+// ConfigMap described by configMapLoc. If configMapLoc is nil, an empty alarm
+// configuration will be returned. Returns any error that might occur while
+// retrieving the configuration.
+func getCloudWatchAlarms(kubeAdapter *kubernetes.Adapter, configMapLoc *kubernetes.ResourceLocation) (aws.CloudWatchAlarmList, error) {
+	if configMapLoc == nil {
+		return aws.CloudWatchAlarmList{}, nil
+	}
+
+	configMap, err := kubeAdapter.GetConfigMap(configMapLoc.Namespace, configMapLoc.Name)
+	if err != nil {
+		return nil, err
+	}
+
+	return getCloudWatchAlarmsFromConfigMap(configMap), nil
+}
+
+// getCloudWatchAlarmsFromConfigMap extracts cloudwatch alarm configuration
+// from ConfigMap data. It will collect alarm configuration from all ConfigMap
+// data keys it finds. If a ConfigMap data key contains invalid data, an error
+// is logged and the key will be ignored. The sort order of the resulting slice
+// is guaranteed to be stable.
+func getCloudWatchAlarmsFromConfigMap(configMap *kubernetes.ConfigMap) aws.CloudWatchAlarmList {
+	configList := aws.CloudWatchAlarmList{}
+
+	keys := make([]string, 0, len(configMap.Data))
+	for k := range configMap.Data {
+		keys = append(keys, k)
+	}
+
+	sort.Strings(keys)
+
+	for _, key := range keys {
+		data := []byte(configMap.Data[key])
+
+		list, err := aws.NewCloudWatchAlarmListFromYAML(data)
+		if err != nil {
+			log.Warnf("ignoring cloudwatch alarm configuration from config map key %q due to error: %v", key, err)
+			continue
+		}
+
+		configList = append(configList, list...)
+	}
+
+	return configList
 }
