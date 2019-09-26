@@ -1,9 +1,7 @@
 module github.com/zalando-incubator/kube-ingress-aws-controller
 
-go 1.12
-
 require (
-	github.com/aws/aws-sdk-go v1.23.17
+	github.com/aws/aws-sdk-go v1.24.6
 	github.com/beorn7/perks v0.0.0-20180321164747-3a771d992973 // indirect
 	github.com/ghodss/yaml v1.0.0
 	github.com/go-playground/locales v0.12.1 // indirect
@@ -26,5 +24,7 @@ require (
 	gopkg.in/check.v1 v1.0.0-20180628173108-788fd7840127 // indirect
 	gopkg.in/go-playground/assert.v1 v1.2.1 // indirect
 	gopkg.in/go-playground/validator.v9 v9.19.0 // indirect
-	gopkg.in/yaml.v2 v2.2.2
+	gopkg.in/yaml.v2 v2.2.2 // indirect
 )
+
+go 1.13
