@@ -655,17 +655,21 @@ func (a *Adapter) UpdateAutoScalingGroupsAndInstances() error {
 	}
 	a.singleInstances = newSingleInstances
 
+	// Get the names of the ASGs seen from the filtered instances as we check for singles
+	asgNameMap := make(map[string]bool)
 	for instanceID, details := range a.ec2Details {
-		_, err := getAutoScalingGroupName(details.tags)
+		name, err := getAutoScalingGroupName(details.tags)
 		if err != nil {
 			// Instance is not in ASG, save in single instances list.
 			a.singleInstances[instanceID] = details
 			continue
+		} else {
+			asgNameMap[name] = true
 		}
 	}
 
 	newAutoScalingGroups := make(map[string]*autoScalingGroupDetails)
-	fetchedAutoScalingGroups, err := getOwnedAutoScalingGroups(a.autoscaling, a.ClusterID())
+	fetchedAutoScalingGroups, err := getOwnedAutoScalingGroups(a.autoscaling, a.ClusterID(), asgNameMap)
 	if err != nil {
 		return err
 	}
