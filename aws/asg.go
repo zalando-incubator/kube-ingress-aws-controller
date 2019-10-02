@@ -3,6 +3,10 @@ package aws
 import (
 	"context"
 	"fmt"
+	"os"
+	"strings"
+
+	log "github.com/sirupsen/logrus"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/autoscaling"
@@ -85,10 +89,71 @@ func getAutoScalingGroupsByName(service autoscalingiface.AutoScalingAPI, autoSca
 	return result, nil
 }
 
+// We look to the same string used for instance filtering, however, we are much more limited in what can be done for
+// ASGs. As such, we instead build a map of tags to look for as we iterate over all ASGs in getOwnedAutoScalingGroups
+func parseFilterTags(clusterId string) map[string][]string {
+	if filter, ok := os.LookupEnv(customTagFilterEnvVarName); ok {
+		terms := strings.Fields(filter)
+		filterTags := make(map[string][]string)
+		for _, term := range terms {
+			parts := strings.Split(term, "=")
+			if len(parts) != 2 {
+				log.Errorf("failed parsing %s, falling back to default", customTagFilterEnvVarName)
+				return generateDefaultFilterTags(clusterId)
+			}
+			if parts[0] == "tag-key" {
+				filterTags[parts[1]] = []string{}
+			} else if strings.HasPrefix(parts[0], "tag:") {
+				tagparts := strings.Split(parts[0], ":")
+				filterTags[tagparts[1]] = strings.Split(parts[1], ",")
+			} else {
+				filterTags[parts[0]] = strings.Split(parts[1], ",")
+			}
+		}
+		return filterTags
+	}
+	return generateDefaultFilterTags(clusterId)
+
+}
+
+func generateDefaultFilterTags(clusterId string) map[string][]string {
+	filterTags := make(map[string][]string)
+	filterTags[clusterIDTagPrefix+clusterId] = []string{resourceLifecycleOwned}
+	return filterTags
+}
+
+// Given a set of filter tags, and actual ASG tags, iterate over every filter tag,
+// looking for a matching tag name on the ASG. If one is seen, and our filter value is
+// empty, or contains the value on the ASG tag, count it as a match. If all matched,
+// Test as true, otherwise return false
+func testFilterTags(filterTags map[string][]string, asgTags map[string]string) bool {
+	matches := make(map[string]int)
+	for filterKey, filterValues := range filterTags {
+		if v, found := asgTags[filterKey]; found {
+			if len(filterValues) == 0 {
+				matches[filterKey] = matches[filterKey] + 1
+			} else {
+				for _, filterVal := range filterValues {
+					if v == filterVal {
+						matches[filterKey] = matches[filterKey] + 1
+					}
+				}
+			}
+		} else {
+			// failed to match, return fast
+			return false
+		}
+	}
+	if len(filterTags) == len(matches) {
+		return true
+	}
+	return false
+}
+
 func getOwnedAutoScalingGroups(service autoscalingiface.AutoScalingAPI, clusterID string) (map[string]*autoScalingGroupDetails, error) {
 	params := &autoscaling.DescribeAutoScalingGroupsInput{}
 
-	clusterIDTag := clusterIDTagPrefix + clusterID
+	filterTags := parseFilterTags(clusterID)
 
 	result := make(map[string]*autoScalingGroupDetails)
 	err := service.DescribeAutoScalingGroupsPages(params,
@@ -96,19 +161,14 @@ func getOwnedAutoScalingGroups(service autoscalingiface.AutoScalingAPI, clusterI
 			for _, g := range page.AutoScalingGroups {
 				name := aws.StringValue(g.AutoScalingGroupName)
 
-				isOwned := false
 				tags := make(map[string]string)
 				for _, td := range g.Tags {
 					key := aws.StringValue(td.Key)
 					value := aws.StringValue(td.Value)
 					tags[key] = value
-
-					if key == clusterIDTag && value == resourceLifecycleOwned {
-						isOwned = true
-					}
 				}
 
-				if isOwned {
+				if testFilterTags(filterTags, tags) {
 					result[name] = &autoScalingGroupDetails{
 						name:                    name,
 						arn:                     aws.StringValue(g.AutoScalingGroupARN),
