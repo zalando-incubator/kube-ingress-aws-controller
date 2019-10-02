@@ -293,7 +293,7 @@ func (a *Adapter) WithWafWebAclId(wafWebAclId string) *Adapter {
 }
 
 // WithHttpRedirectToHttps returns the receiver adapter after changing the flag to effect HTTP->HTTPS redirection
-func (a *Adapter) WithHttpRedirectToHttps (httpRedirectToHttps bool) *Adapter {
+func (a *Adapter) WithHttpRedirectToHttps(httpRedirectToHttps bool) *Adapter {
 	a.httpRedirectToHttps = httpRedirectToHttps
 	return a
 }

@@ -78,7 +78,7 @@ func generateTemplate(spec *stackSpec) (string, error) {
 		template.AddResource("HTTPListener", &cloudformation.ElasticLoadBalancingV2Listener{
 			DefaultActions: &cloudformation.ElasticLoadBalancingV2ListenerActionList{
 				{
-					Type:           cloudformation.String("redirect"),
+					Type: cloudformation.String("redirect"),
 					RedirectConfig: &cloudformation.ElasticLoadBalancingV2ListenerRedirectConfig{
 						Protocol:   cloudformation.String("HTTPS"),
 						Port:       cloudformation.String("443"),
