@@ -24,8 +24,9 @@ import (
 )
 
 const (
-	defaultDisableSNISupport = false
-	defaultCertTTL           = 30 * time.Minute
+	defaultDisableSNISupport   = false
+	defaultHttpRedirectToHttps = false
+	defaultCertTTL             = 30 * time.Minute
 )
 
 var (
@@ -57,6 +58,7 @@ var (
 	albLogsS3Bucket            string
 	albLogsS3Prefix            string
 	wafWebAclId                string
+	httpRedirectToHttps        bool
 	debugFlag                  bool
 	quietFlag                  bool
 	firstRun                   bool = true
@@ -108,6 +110,7 @@ func loadSettings() error {
 	flag.StringVar(&albLogsS3Prefix, "logs-s3-prefix", aws.DefaultAlbS3LogsPrefix, "Prefix within S3 bucket to be used for ALB logging")
 	flag.StringVar(&wafWebAclId, "aws-waf-web-acl-id", aws.DefaultWafWebAclId, "Waf web acl id to be associated with the ALB")
 	flag.StringVar(&cwAlarmConfigMap, "cloudwatch-alarms-config-map", "", "ConfigMap location of the form 'namespace/config-map-name' where to read CloudWatch Alarm configuration from. Ignored if empty.")
+	flag.BoolVar(&httpRedirectToHttps, "redirect-http-to-https", defaultHttpRedirectToHttps, "Configure HTTP listener to redirect to HTTPS")
 
 	flag.Parse()
 
@@ -239,7 +242,8 @@ func main() {
 		WithIpAddressType(ipAddressType).
 		WithAlbLogsS3Bucket(albLogsS3Bucket).
 		WithAlbLogsS3Prefix(albLogsS3Prefix).
-		WithWafWebAclId(wafWebAclId)
+		WithWafWebAclId(wafWebAclId).
+		WithHttpRedirectToHttps(httpRedirectToHttps)
 
 	certificatesProvider, err := certs.NewCachingProvider(
 		certPollingInterval,

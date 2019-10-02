@@ -59,6 +59,7 @@ type Adapter struct {
 	albLogsS3Bucket            string
 	albLogsS3Prefix            string
 	wafWebAclId                string
+	httpRedirectToHttps        bool
 }
 
 type manifest struct {
@@ -291,6 +292,12 @@ func (a *Adapter) WithWafWebAclId(wafWebAclId string) *Adapter {
 	return a
 }
 
+// WithHttpRedirectToHttps returns the receiver adapter after changing the flag to effect HTTP->HTTPS redirection
+func (a *Adapter) WithHttpRedirectToHttps (httpRedirectToHttps bool) *Adapter {
+	a.httpRedirectToHttps = httpRedirectToHttps
+	return a
+}
+
 // ClusterID returns the ClusterID tag that all resources from the same Kubernetes cluster share.
 // It's taken from the current ec2 instance.
 func (a *Adapter) ClusterID() string {
@@ -470,6 +477,7 @@ func (a *Adapter) CreateStack(certificateARNs []string, scheme, securityGroup, o
 		albLogsS3Prefix:              a.albLogsS3Prefix,
 		wafWebAclId:                  a.wafWebAclId,
 		cwAlarms:                     cwAlarms,
+		httpRedirectToHttps:          a.httpRedirectToHttps,
 	}
 
 	return createStack(a.cloudformation, spec)
@@ -504,6 +512,7 @@ func (a *Adapter) UpdateStack(stackName string, certificateARNs map[string]time.
 		albLogsS3Prefix:              a.albLogsS3Prefix,
 		wafWebAclId:                  a.wafWebAclId,
 		cwAlarms:                     cwAlarms,
+		httpRedirectToHttps:          a.httpRedirectToHttps,
 	}
 
 	return updateStack(a.cloudformation, spec)

@@ -134,6 +134,7 @@ type stackSpec struct {
 	albLogsS3Prefix              string
 	wafWebAclId                  string
 	cwAlarms                     CloudWatchAlarmList
+	httpRedirectToHttps          bool
 }
 
 type healthCheck struct {
