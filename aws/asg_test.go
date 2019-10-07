@@ -477,79 +477,6 @@ func TestDetach(t *testing.T) {
 
 }
 
-///////////////////////////////////////////////////
-func TestParseFilterTagsDefault(t *testing.T) {
-	for _, test := range []struct {
-		name          string
-		clusterId     string
-		want          map[string][]string
-	}{
-		{
-			"success-default-filter-asg",
-			"mycluster",
-			map[string][]string{
-				clusterIDTagPrefix + "mycluster": []string{resourceLifecycleOwned},
-			},
-		},
-	} {
-		t.Run(fmt.Sprintf("%v", test.name), func(t *testing.T) {
-			got := parseFilterTags(test.clusterId)
-
-			if !reflect.DeepEqual(test.want, got) {
-				t.Errorf("unexpected result. wanted %+v, got %+v", test.want, got)
-			}
-		})
-	}
-}
-
-func TestParseFilterTagsCustom(t *testing.T) {
-	for _, test := range []struct {
-		name          string
-		clusterId     string
-		customFilter  string
-		want          map[string][]string
-	}{
-		{
-			"success-custom-filter-asg",
-			"mycluster",
-			"tag:kubernetes.io/cluster/mycluster=owned tag-key=k8s.io/role/node tag-key=custom.com/ingress",
-			map[string][]string{
-				"kubernetes.io/cluster/mycluster": []string{"owned"},
-				"k8s.io/role/node": []string{},
-				"custom.com/ingress": []string{},
-			},
-		},
-		{
-			"success-custom-filter-multivalue-asg",
-			"mycluster",
-			"tag:kubernetes.io/cluster/mycluster=owned tag-key=k8s.io/role/node tag:custom.com/ingress=owned,shared",
-			map[string][]string{
-				"kubernetes.io/cluster/mycluster": []string{"owned"},
-				"k8s.io/role/node": []string{},
-				"custom.com/ingress": []string{"owned", "shared"},
-			},
-		},
-		{
-			"success-custom-filter-fallback-to-default-asg",
-			"mycluster",
-			"tag:goodtag=foo tag-key=alsogood thisisabadtag andthisonetoo",
-			map[string][]string{
-				clusterIDTagPrefix + "mycluster": []string{resourceLifecycleOwned},
-			},
-		},
-	} {
-		t.Run(fmt.Sprintf("%v", test.name), func(t *testing.T) {
-			os.Setenv("CUSTOM_FILTERS", test.customFilter)
-			got := parseFilterTags(test.clusterId)
-			os.Unsetenv("CUSTOM_FILTERS")
-
-			if !reflect.DeepEqual(test.want, got) {
-				t.Errorf("unexpected result. wanted %+v, got %+v", test.want, got)
-			}
-		})
-	}
-}
-
 func TestTestFilterTags(t *testing.T) {
 	for _, test := range []struct {
 		name          string
@@ -594,9 +521,9 @@ func TestTestFilterTags(t *testing.T) {
 	} {
 		t.Run(fmt.Sprintf("%v", test.name), func(t *testing.T) {
 			os.Setenv("CUSTOM_FILTERS", test.customFilter)
-			filterTags := parseFilterTags(test.clusterId)
+			filterTags := parseAutoscaleFilterTags(test.clusterId)
 			os.Unsetenv("CUSTOM_FILTERS")
-			got := testFilterTags(filterTags, test.asgTags)
+			got := testFilterTags(&filterTags, test.asgTags)
 
 			if !reflect.DeepEqual(test.want, got) {
 				t.Errorf("unexpected result. wanted %+v, got %+v", test.want, got)
