@@ -523,7 +523,7 @@ func TestTestFilterTags(t *testing.T) {
 			os.Setenv("CUSTOM_FILTERS", test.customFilter)
 			filterTags := parseAutoscaleFilterTags(test.clusterId)
 			os.Unsetenv("CUSTOM_FILTERS")
-			got := testFilterTags(&filterTags, test.asgTags)
+			got := testFilterTags(filterTags, test.asgTags)
 
 			if !reflect.DeepEqual(test.want, got) {
 				t.Errorf("unexpected result. wanted %+v, got %+v", test.want, got)

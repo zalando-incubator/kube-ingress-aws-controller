@@ -89,9 +89,9 @@ func getAutoScalingGroupsByName(service autoscalingiface.AutoScalingAPI, autoSca
 // looking for a matching tag name on the ASG. If one is seen, and our filter value is
 // empty, or contains the value on the ASG tag, count it as a match. If all matched,
 // Test as true, otherwise return false
-func testFilterTags(filterTags *map[string][]string, asgTags map[string]string) bool {
+func testFilterTags(filterTags map[string][]string, asgTags map[string]string) bool {
 	matches := make(map[string]int)
-	for filterKey, filterValues := range *filterTags {
+	for filterKey, filterValues := range filterTags {
 		if v, found := asgTags[filterKey]; found {
 			if len(filterValues) == 0 {
 				matches[filterKey] = matches[filterKey] + 1
@@ -107,13 +107,13 @@ func testFilterTags(filterTags *map[string][]string, asgTags map[string]string) 
 			return false
 		}
 	}
-	if len(*filterTags) == len(matches) {
+	if len(filterTags) == len(matches) {
 		return true
 	}
 	return false
 }
 
-func getOwnedAutoScalingGroups(service autoscalingiface.AutoScalingAPI, filterTags *map[string][]string) (map[string]*autoScalingGroupDetails, error) {
+func getOwnedAutoScalingGroups(service autoscalingiface.AutoScalingAPI, filterTags map[string][]string) (map[string]*autoScalingGroupDetails, error) {
 	params := &autoscaling.DescribeAutoScalingGroupsInput{}
 
 	result := make(map[string]*autoScalingGroupDetails)

@@ -682,7 +682,7 @@ func (a *Adapter) UpdateAutoScalingGroupsAndInstances() error {
 	}
 
 	newAutoScalingGroups := make(map[string]*autoScalingGroupDetails)
-	fetchedAutoScalingGroups, err := getOwnedAutoScalingGroups(a.autoscaling, &a.manifest.asgFilters)
+	fetchedAutoScalingGroups, err := getOwnedAutoScalingGroups(a.autoscaling, a.manifest.asgFilters)
 	if err != nil {
 		return err
 	}
