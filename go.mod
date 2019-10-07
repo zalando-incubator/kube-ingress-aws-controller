@@ -9,9 +9,10 @@ require (
 	github.com/golang/protobuf v0.0.0-20171113180720-1e59b77b52bf // indirect
 	github.com/google/uuid v0.0.0-20161128191214-064e2069ce9c
 	github.com/kr/pretty v0.1.0 // indirect
+	github.com/leodido/go-urn v1.1.0 // indirect
 	github.com/linki/instrumented_http v0.2.0
 	github.com/matttproud/golang_protobuf_extensions v1.0.1 // indirect
-	github.com/mweagle/go-cloudformation v0.0.0-20180525044411-e40a034597a3
+	github.com/mweagle/go-cloudformation v0.0.0-20190927125801-911e86284f4e
 	github.com/pkg/errors v0.8.0
 	github.com/prometheus/client_golang v0.8.0
 	github.com/prometheus/client_model v0.0.0-20170216185247-6f3806018612 // indirect
@@ -23,7 +24,7 @@ require (
 	golang.org/x/sync v0.0.0-20190423024810-112230192c58 // indirect
 	gopkg.in/check.v1 v1.0.0-20180628173108-788fd7840127 // indirect
 	gopkg.in/go-playground/assert.v1 v1.2.1 // indirect
-	gopkg.in/go-playground/validator.v9 v9.19.0 // indirect
+	gopkg.in/go-playground/validator.v9 v9.30.0 // indirect
 	gopkg.in/yaml.v2 v2.2.2 // indirect
 )
 
