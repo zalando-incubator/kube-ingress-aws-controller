@@ -737,34 +737,32 @@ func generateDefaultFilters(clusterId string) []*ec2.Filter {
 // We look to the same string used for instance filtering, however, we are much more limited in what can be done for
 // ASGs. As such, we instead build a map of tags to look for as we iterate over all ASGs in getOwnedAutoScalingGroups
 func parseAutoscaleFilterTags(clusterId string) map[string][]string {
-       if filter, ok := os.LookupEnv(customTagFilterEnvVarName); ok {
-               terms := strings.Fields(filter)
-               filterTags := make(map[string][]string)
-               for _, term := range terms {
-                       parts := strings.Split(term, "=")
-                       if len(parts) != 2 {
-                               log.Errorf("failed parsing %s, falling back to default", customTagFilterEnvVarName)
-                               return generateDefaultAutoscaleFilterTags(clusterId)
-                       }
-                       if parts[0] == "tag-key" {
-                               filterTags[parts[1]] = []string{}
-                       } else if strings.HasPrefix(parts[0], "tag:") {
-                               tagparts := strings.Split(parts[0], ":")
-                               filterTags[tagparts[1]] = strings.Split(parts[1], ",")
-                       } else {
-                               filterTags[parts[0]] = strings.Split(parts[1], ",")
-                       }
-               }
-               return filterTags
-       }
-       return generateDefaultAutoscaleFilterTags(clusterId)
+	if filter, ok := os.LookupEnv(customTagFilterEnvVarName); ok {
+		terms := strings.Fields(filter)
+		filterTags := make(map[string][]string)
+		for _, term := range terms {
+			parts := strings.Split(term, "=")
+			if len(parts) != 2 {
+				log.Errorf("failed parsing %s, falling back to default", customTagFilterEnvVarName)
+				return generateDefaultAutoscaleFilterTags(clusterId)
+			}
+			if parts[0] == "tag-key" {
+				filterTags[parts[1]] = []string{}
+			} else if strings.HasPrefix(parts[0], "tag:") {
+				tagparts := strings.Split(parts[0], ":")
+				filterTags[tagparts[1]] = strings.Split(parts[1], ",")
+			} else {
+				filterTags[parts[0]] = strings.Split(parts[1], ",")
+			}
+		}
+		return filterTags
+	}
+	return generateDefaultAutoscaleFilterTags(clusterId)
 
 }
 
 func generateDefaultAutoscaleFilterTags(clusterId string) map[string][]string {
-       filterTags := make(map[string][]string)
-       filterTags[clusterIDTagPrefix+clusterId] = []string{resourceLifecycleOwned}
-       return filterTags
+	filterTags := make(map[string][]string)
+	filterTags[clusterIDTagPrefix+clusterId] = []string{resourceLifecycleOwned}
+	return filterTags
 }
-
-

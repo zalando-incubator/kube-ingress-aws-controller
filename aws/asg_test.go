@@ -2,9 +2,9 @@ package aws
 
 import (
 	"fmt"
+	"os"
 	"reflect"
 	"testing"
-	"os"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/autoscaling"
@@ -479,11 +479,11 @@ func TestDetach(t *testing.T) {
 
 func TestTestFilterTags(t *testing.T) {
 	for _, test := range []struct {
-		name          string
-		clusterId     string
-		customFilter  string
-		asgTags       map[string]string
-		want          bool
+		name         string
+		clusterId    string
+		customFilter string
+		asgTags      map[string]string
+		want         bool
 	}{
 		{
 			"success-test-filter-asg",
@@ -491,8 +491,8 @@ func TestTestFilterTags(t *testing.T) {
 			"tag:kubernetes.io/cluster/mycluster=owned tag-key=k8s.io/role/node tag-key=custom.com/ingress",
 			map[string]string{
 				"kubernetes.io/cluster/mycluster": "owned",
-				"k8s.io/role/node": "1",
-				"custom.com/ingress": "",
+				"k8s.io/role/node":                "1",
+				"custom.com/ingress":              "",
 			},
 			true,
 		},
@@ -502,8 +502,8 @@ func TestTestFilterTags(t *testing.T) {
 			"tag:kubernetes.io/cluster/yourcluster=owned tag-key=k8s.io/role/node tag-key=custom.com/ingress",
 			map[string]string{
 				"kubernetes.io/cluster/mycluster": "owned",
-				"k8s.io/role/node": "1",
-				"custom.com/ingress": "",
+				"k8s.io/role/node":                "1",
+				"custom.com/ingress":              "",
 			},
 			false,
 		},
@@ -513,8 +513,8 @@ func TestTestFilterTags(t *testing.T) {
 			"tag:kubernetes.io/cluster/mycluster=owned tag-key=k8s.io/role/node tag:custom.com/ingress=owned,shared",
 			map[string]string{
 				"kubernetes.io/cluster/mycluster": "owned",
-				"k8s.io/role/node": "1",
-				"custom.com/ingress": "shared",
+				"k8s.io/role/node":                "1",
+				"custom.com/ingress":              "shared",
 			},
 			true,
 		},
