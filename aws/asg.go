@@ -188,13 +188,28 @@ func updateTargetGroupsForAutoScalingGroup(svc autoscalingiface.AutoScalingAPI, 
 		}
 	}
 
-	attachParams := &autoscaling.AttachLoadBalancerTargetGroupsInput{
-		AutoScalingGroupName: aws.String(autoScalingGroupName),
-		TargetGroupARNs:      aws.StringSlice(targetGroupARNs),
-	}
-	_, err = svc.AttachLoadBalancerTargetGroups(attachParams)
-	if err != nil {
-		return err
+	// limit target group updates to 10 at a time since this is the limit
+	// in AWS API.
+	chunkSize := 10
+
+	for i := 0; i < len(targetGroupARNs); i += chunkSize {
+		end := i + chunkSize
+
+		if end > len(targetGroupARNs) {
+			end = len(targetGroupARNs)
+		}
+
+		groups := targetGroupARNs[i:end]
+		if len(groups) > 0 {
+			attachParams := &autoscaling.AttachLoadBalancerTargetGroupsInput{
+				AutoScalingGroupName: aws.String(autoScalingGroupName),
+				TargetGroupARNs:      aws.StringSlice(groups),
+			}
+			_, err = svc.AttachLoadBalancerTargetGroups(attachParams)
+			if err != nil {
+				return err
+			}
+		}
 	}
 
 	if len(detachARNs) > 0 {
