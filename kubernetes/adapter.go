@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/aws/aws-sdk-go/service/elbv2"
+	"github.com/zalando-incubator/kube-ingress-aws-controller/aws"
 )
 
 type Adapter struct {
@@ -120,6 +121,11 @@ func (a *Adapter) newIngressFromKube(kubeIngress *ingress) *Ingress {
 		ipAddressType = ipAddressTypeDualstack
 	}
 
+	sslPolicy := kubeIngress.getAnnotationsString(ingressSSLPolicyAnnotation, a.ingressDefaultSSLPolicy)
+	if _, ok := aws.SSLPolicies[sslPolicy]; !ok {
+		sslPolicy = a.ingressDefaultSSLPolicy
+	}
+
 	return &Ingress{
 		CertificateARN: kubeIngress.getAnnotationsString(ingressCertificateARNAnnotation, ""),
 		Namespace:      kubeIngress.Metadata.Namespace,
@@ -129,7 +135,7 @@ func (a *Adapter) newIngressFromKube(kubeIngress *ingress) *Ingress {
 		Hostnames:      hostnames,
 		Shared:         shared,
 		SecurityGroup:  kubeIngress.getAnnotationsString(ingressSecurityGroupAnnotation, a.ingressDefaultSecurityGroup),
-		SSLPolicy:      kubeIngress.getAnnotationsString(ingressSSLPolicyAnnotation, a.ingressDefaultSSLPolicy),
+		SSLPolicy:      sslPolicy,
 		IPAddressType:  ipAddressType,
 	}
 }
