@@ -119,8 +119,9 @@ var (
 	ErrMissingAutoScalingGroupTag = errors.New(`instance is missing the "` + autoScalingGroupNameTag + `" tag`)
 	// ErrNoRunningInstances is used to signal that no instances were found in the running state
 	ErrNoRunningInstances = errors.New("no reservations or instances in the running state")
-
-	validSSLPolicy = map[string]bool{
+	// SSLPolicies is a map of valid ALB SSL Policies
+	// https://docs.aws.amazon.com/elasticloadbalancing/latest/application/create-https-listener.html#describe-ssl-policies
+	SSLPolicies = map[string]bool{
 		"ELBSecurityPolicy-2016-08":             true,
 		"ELBSecurityPolicy-FS-2018-06":          true,
 		"ELBSecurityPolicy-TLS-1-2-2017-01":     true,
@@ -449,9 +450,14 @@ func (a *Adapter) CreateStack(certificateARNs []string, scheme, securityGroup, o
 		certARNs[arn] = time.Time{}
 	}
 
-	if _, ok := validSSLPolicy[sslPolicy]; !ok {
+	if sslPolicy == "" {
 		sslPolicy = a.sslPolicy
 	}
+
+	if _, ok := SSLPolicies[sslPolicy]; !ok {
+		return "", fmt.Errorf("invalid SSLPolicy '%s' defined", sslPolicy)
+	}
+
 	spec := &stackSpec{
 		name:            a.stackName(),
 		scheme:          scheme,
@@ -484,8 +490,8 @@ func (a *Adapter) CreateStack(certificateARNs []string, scheme, securityGroup, o
 }
 
 func (a *Adapter) UpdateStack(stackName string, certificateARNs map[string]time.Time, scheme, sslPolicy, ipAddressType string, cwAlarms CloudWatchAlarmList) (string, error) {
-	if _, ok := validSSLPolicy[sslPolicy]; !ok {
-		sslPolicy = a.sslPolicy
+	if _, ok := SSLPolicies[sslPolicy]; !ok {
+		return "", fmt.Errorf("invalid SSLPolicy '%s' defined", sslPolicy)
 	}
 
 	spec := &stackSpec{
