@@ -146,8 +146,16 @@ func TestParseFilters(tt *testing.T) {
 	} {
 		tt.Run(fmt.Sprintf("%v", test.name), func(t *testing.T) {
 			tt.Log(test.name)
-
-			a := &Adapter{}
+			a := &Adapter{
+				ec2Details:        map[string]*instanceDetails{},
+				manifest: &manifest{
+					instance: &instanceDetails{
+						tags: map[string]string{
+							clusterIDTagPrefix + test.clusterId: resourceLifecycleOwned,
+						},
+					},
+				},
+			}
 			if test.customFilter != nil {
 				a = a.WithCustomFilter(*test.customFilter)
 			}
@@ -782,7 +790,17 @@ func TestParseFilterTagsDefault(t *testing.T) {
 		},
 	} {
 		t.Run(fmt.Sprintf("%v", test.name), func(t *testing.T) {
-			a := Adapter{customFilter: ""}
+			a := Adapter{
+				customFilter: "",
+				ec2Details:        map[string]*instanceDetails{},
+				manifest: &manifest{
+					instance: &instanceDetails{
+						tags: map[string]string{
+							clusterIDTagPrefix + test.clusterId: resourceLifecycleOwned,
+						},
+					},
+				},
+			}
 			got := a.parseAutoscaleFilterTags(test.clusterId)
 
 			if !reflect.DeepEqual(test.want, got) {
@@ -829,7 +847,17 @@ func TestParseFilterTagsCustom(t *testing.T) {
 		},
 	} {
 		t.Run(fmt.Sprintf("%v", test.name), func(t *testing.T) {
-			a := &Adapter{customFilter: test.customFilter}
+			a := Adapter{
+				customFilter: test.customFilter,
+				ec2Details:        map[string]*instanceDetails{},
+				manifest: &manifest{
+					instance: &instanceDetails{
+						tags: map[string]string{
+							clusterIDTagPrefix + test.clusterId: resourceLifecycleOwned,
+						},
+					},
+				},
+			}
 			got := a.parseAutoscaleFilterTags(test.clusterId)
 
 			if !reflect.DeepEqual(test.want, got) {
