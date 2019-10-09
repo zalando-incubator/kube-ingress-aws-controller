@@ -2,7 +2,6 @@ package aws
 
 import (
 	"fmt"
-	"os"
 	"reflect"
 	"sort"
 	"testing"
@@ -147,12 +146,12 @@ func TestParseFilters(tt *testing.T) {
 	} {
 		tt.Run(fmt.Sprintf("%v", test.name), func(t *testing.T) {
 			tt.Log(test.name)
+
+			a := &Adapter{}
 			if test.customFilter != nil {
-				os.Setenv(customTagFilterEnvVarName, *test.customFilter)
-			} else {
-				os.Unsetenv(customTagFilterEnvVarName)
+				a = a.WithCustomFilter(*test.customFilter)
 			}
-			output := parseFilters(test.clusterId)
+			output := a.parseFilters(test.clusterId)
 			if !reflect.DeepEqual(test.expectedFilters, output) {
 				t.Errorf("unexpected result. wanted %q, got %q", test.expectedFilters, output)
 			}
@@ -783,7 +782,8 @@ func TestParseFilterTagsDefault(t *testing.T) {
 		},
 	} {
 		t.Run(fmt.Sprintf("%v", test.name), func(t *testing.T) {
-			got := parseAutoscaleFilterTags(test.clusterId)
+			a := Adapter{customFilter: ""}
+			got := a.parseAutoscaleFilterTags(test.clusterId)
 
 			if !reflect.DeepEqual(test.want, got) {
 				t.Errorf("unexpected result. wanted %+v, got %+v", test.want, got)
@@ -829,9 +829,8 @@ func TestParseFilterTagsCustom(t *testing.T) {
 		},
 	} {
 		t.Run(fmt.Sprintf("%v", test.name), func(t *testing.T) {
-			os.Setenv("CUSTOM_FILTERS", test.customFilter)
-			got := parseAutoscaleFilterTags(test.clusterId)
-			os.Unsetenv("CUSTOM_FILTERS")
+			a := &Adapter{customFilter: test.customFilter}
+			got := a.parseAutoscaleFilterTags(test.clusterId)
 
 			if !reflect.DeepEqual(test.want, got) {
 				t.Errorf("unexpected result. wanted %+v, got %+v", test.want, got)

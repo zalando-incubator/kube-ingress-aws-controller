@@ -2,7 +2,6 @@ package aws
 
 import (
 	"fmt"
-	"os"
 	"reflect"
 	"testing"
 
@@ -520,9 +519,8 @@ func TestTestFilterTags(t *testing.T) {
 		},
 	} {
 		t.Run(fmt.Sprintf("%v", test.name), func(t *testing.T) {
-			os.Setenv("CUSTOM_FILTERS", test.customFilter)
-			filterTags := parseAutoscaleFilterTags(test.clusterId)
-			os.Unsetenv("CUSTOM_FILTERS")
+			a := &Adapter{customFilter: test.customFilter}
+			filterTags := a.parseAutoscaleFilterTags(test.clusterId)
 			got := testFilterTags(filterTags, test.asgTags)
 
 			if !reflect.DeepEqual(test.want, got) {
