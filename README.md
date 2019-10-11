@@ -154,12 +154,13 @@ During startup phase EC2 filters are constructed as follows:
   filters are `tag:kubernetes.io/cluster/<cluster-id>=owned tag-key=k8s.io/role/node` where `<cluster-id>`
   is determined from EC2 tags of instance on which Ingress Controller pod is started.
 
-`CUSTOM_FILTERS` is a list of filters separated by spaces. Each filter has a form of `name=value` where name is one
-of names that are recognized by the EC2 API (you can find list [here](https://docs.aws.amazon.com/AWSEC2/latest/APIReference/API_DescribeInstances.html))
-and value is value of a filter. For example:
+`CUSTOM_FILTERS` is a list of filters separated by spaces. Each filter has a form of `name=value` where name can be a `tag:` or `tag-key:` prefixed expression, as would be recognized by the EC2 API, and value is value of a filter, or a comma seperated list of values. 
 
-* `tag-key=test` will filter instances that has tag named `test`.
-* `vpc-id=vpc-1a2b3c4d` will filter instances that belong to specific VPC.
+For example:
+
+* `tag-key=test` will filter instances that have a tag named `test`, ignoring the value.
+* `tag:foo=bar' will filter instances that have a tag named `foo` with the value `bar`
+* `tag:abc=def,ghi' will filter instances that have a tag named `abc` with the value `def` OR `ghi`
 * Default filter `tag:kubernetes.io/cluster/<cluster-id>=owned tag-key=k8s.io/role/node` filters instances
   that has tag `kubernetes.io/cluster/<cluster-id>` with value `owned` and have tag named `tag-key=k8s.io/role/node`.
 
