@@ -27,6 +27,7 @@ const (
 	defaultDisableSNISupport   = false
 	defaultHttpRedirectToHttps = false
 	defaultCertTTL             = 30 * time.Minute
+	customTagFilterEnvVarName  = "CUSTOM_FILTERS"
 )
 
 var (
@@ -228,6 +229,12 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	customFilter, ok := os.LookupEnv(customTagFilterEnvVarName)
+	if !ok {
+		customFilter = ""
+	}
+
 	awsAdapter = awsAdapter.
 		WithHealthCheckPath(healthCheckPath).
 		WithHealthCheckPort(healthCheckPort).
@@ -243,7 +250,8 @@ func main() {
 		WithAlbLogsS3Bucket(albLogsS3Bucket).
 		WithAlbLogsS3Prefix(albLogsS3Prefix).
 		WithWafWebAclId(wafWebAclId).
-		WithHttpRedirectToHttps(httpRedirectToHttps)
+		WithHttpRedirectToHttps(httpRedirectToHttps).
+		WithCustomFilter(customFilter)
 
 	certificatesProvider, err := certs.NewCachingProvider(
 		certPollingInterval,

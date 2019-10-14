@@ -6,8 +6,6 @@ import (
 	"strings"
 	"time"
 
-	"os"
-
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/client"
 	"github.com/aws/aws-sdk-go/aws/ec2metadata"
@@ -60,6 +58,7 @@ type Adapter struct {
 	albLogsS3Prefix            string
 	wafWebAclId                string
 	httpRedirectToHttps        bool
+	customFilter               string
 }
 
 type manifest struct {
@@ -67,6 +66,7 @@ type manifest struct {
 	instance      *instanceDetails
 	subnets       []*subnetDetails
 	filters       []*ec2.Filter
+	asgFilters    map[string][]string
 }
 
 type configProviderFunc func() client.ConfigProvider
@@ -97,11 +97,10 @@ const (
 	// DefaultAlbS3LogsPrefix is a blank string, and optionally set if desired
 	DefaultAlbS3LogsPrefix = ""
 	DefaultWafWebAclId     = ""
+	DefaultCustomFilter    = ""
 
 	ipAddressTypeDualstack = "dualstack"
 	nameTag                = "Name"
-
-	customTagFilterEnvVarName = "CUSTOM_FILTERS"
 )
 
 var (
@@ -174,6 +173,7 @@ func NewAdapter(newControllerID string) (adapter *Adapter, err error) {
 		albLogsS3Bucket:     DefaultAlbS3LogsBucket,
 		albLogsS3Prefix:     DefaultAlbS3LogsPrefix,
 		wafWebAclId:         DefaultWafWebAclId,
+		customFilter:        DefaultCustomFilter,
 	}
 
 	adapter.manifest, err = buildManifest(adapter)
@@ -296,6 +296,15 @@ func (a *Adapter) WithWafWebAclId(wafWebAclId string) *Adapter {
 // WithHttpRedirectToHttps returns the receiver adapter after changing the flag to effect HTTP->HTTPS redirection
 func (a *Adapter) WithHttpRedirectToHttps(httpRedirectToHttps bool) *Adapter {
 	a.httpRedirectToHttps = httpRedirectToHttps
+	return a
+}
+
+// WithCustomFilter returns the receiver adapter after setting a custom filter expression
+func (a *Adapter) WithCustomFilter(customFilter string) *Adapter {
+	a.customFilter = customFilter
+	// also rebuild related manifest items
+	a.manifest.filters = a.parseFilters(a.ClusterID())
+	a.manifest.asgFilters = a.parseAutoscaleFilterTags(a.ClusterID())
 	return a
 }
 
@@ -575,7 +584,8 @@ func buildManifest(awsAdapter *Adapter) (*manifest, error) {
 		securityGroup: securityGroupDetails,
 		instance:      instanceDetails,
 		subnets:       subnets,
-		filters:       parseFilters(clusterID),
+		filters:       awsAdapter.parseFilters(clusterID),
+		asgFilters:    awsAdapter.parseAutoscaleFilterTags(clusterID),
 	}, nil
 }
 
@@ -680,7 +690,7 @@ func (a *Adapter) UpdateAutoScalingGroupsAndInstances() error {
 	}
 
 	newAutoScalingGroups := make(map[string]*autoScalingGroupDetails)
-	fetchedAutoScalingGroups, err := getOwnedAutoScalingGroups(a.autoscaling, a.ClusterID())
+	fetchedAutoScalingGroups, err := getOwnedAutoScalingGroups(a.autoscaling, a.manifest.asgFilters)
 	if err != nil {
 		return err
 	}
@@ -697,14 +707,14 @@ func (a *Adapter) UpdateAutoScalingGroupsAndInstances() error {
 // later on each cycle. Filter is based on value of customTagFilterEnvVarName environment
 // veriable. If it is undefined or could not be parsed, default filter is returned which
 // filters on kubernetesClusterTag tag value and kubernetesNodeRoleTag existance.
-func parseFilters(clusterId string) []*ec2.Filter {
-	if filter, ok := os.LookupEnv(customTagFilterEnvVarName); ok {
-		terms := strings.Fields(filter)
+func (a *Adapter) parseFilters(clusterId string) []*ec2.Filter {
+	if a.customFilter != "" {
+		terms := strings.Fields(a.customFilter)
 		filters := make([]*ec2.Filter, len(terms))
 		for i, term := range terms {
 			parts := strings.Split(term, "=")
 			if len(parts) != 2 {
-				log.Errorf("failed parsing %s, falling back to default", customTagFilterEnvVarName)
+				log.Errorf("failed parsing %s, falling back to default", a.customFilter)
 				return generateDefaultFilters(clusterId)
 			}
 			filters[i] = &ec2.Filter{
@@ -730,4 +740,37 @@ func generateDefaultFilters(clusterId string) []*ec2.Filter {
 			Values: []*string{aws.String(kubernetesNodeRoleTag)},
 		},
 	}
+}
+
+// We look to the same string used for instance filtering, however, we are much more limited in what can be done for
+// ASGs. As such, we instead build a map of tags to look for as we iterate over all ASGs in getOwnedAutoScalingGroups
+func (a *Adapter) parseAutoscaleFilterTags(clusterId string) map[string][]string {
+	if a.customFilter != "" {
+		terms := strings.Fields(a.customFilter)
+		filterTags := make(map[string][]string)
+		for _, term := range terms {
+			parts := strings.Split(term, "=")
+			if len(parts) != 2 {
+				log.Errorf("failed parsing %s, falling back to default", a.customFilter)
+				return generateDefaultAutoscaleFilterTags(clusterId)
+			}
+			if parts[0] == "tag-key" {
+				filterTags[parts[1]] = []string{}
+			} else if strings.HasPrefix(parts[0], "tag:") {
+				tagparts := strings.Split(parts[0], ":")
+				filterTags[tagparts[1]] = strings.Split(parts[1], ",")
+			} else {
+				filterTags[parts[0]] = strings.Split(parts[1], ",")
+			}
+		}
+		return filterTags
+	}
+	return generateDefaultAutoscaleFilterTags(clusterId)
+
+}
+
+func generateDefaultAutoscaleFilterTags(clusterId string) map[string][]string {
+	filterTags := make(map[string][]string)
+	filterTags[clusterIDTagPrefix+clusterId] = []string{resourceLifecycleOwned}
+	return filterTags
 }

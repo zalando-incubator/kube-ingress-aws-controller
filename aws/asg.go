@@ -85,10 +85,36 @@ func getAutoScalingGroupsByName(service autoscalingiface.AutoScalingAPI, autoSca
 	return result, nil
 }
 
-func getOwnedAutoScalingGroups(service autoscalingiface.AutoScalingAPI, clusterID string) (map[string]*autoScalingGroupDetails, error) {
-	params := &autoscaling.DescribeAutoScalingGroupsInput{}
+// Given a set of filter tags, and actual ASG tags, iterate over every filter tag,
+// looking for a matching tag name on the ASG. If one is seen, and our filter value is
+// empty, or contains the value on the ASG tag, count it as a match. If all matched,
+// Test as true, otherwise return false
+func testFilterTags(filterTags map[string][]string, asgTags map[string]string) bool {
+	matches := make(map[string]int)
+	for filterKey, filterValues := range filterTags {
+		if v, found := asgTags[filterKey]; found {
+			if len(filterValues) == 0 {
+				matches[filterKey] = matches[filterKey] + 1
+			} else {
+				for _, filterVal := range filterValues {
+					if v == filterVal {
+						matches[filterKey] = matches[filterKey] + 1
+					}
+				}
+			}
+		} else {
+			// failed to match, return fast
+			return false
+		}
+	}
+	if len(filterTags) == len(matches) {
+		return true
+	}
+	return false
+}
 
-	clusterIDTag := clusterIDTagPrefix + clusterID
+func getOwnedAutoScalingGroups(service autoscalingiface.AutoScalingAPI, filterTags map[string][]string) (map[string]*autoScalingGroupDetails, error) {
+	params := &autoscaling.DescribeAutoScalingGroupsInput{}
 
 	result := make(map[string]*autoScalingGroupDetails)
 	err := service.DescribeAutoScalingGroupsPages(params,
@@ -96,19 +122,14 @@ func getOwnedAutoScalingGroups(service autoscalingiface.AutoScalingAPI, clusterI
 			for _, g := range page.AutoScalingGroups {
 				name := aws.StringValue(g.AutoScalingGroupName)
 
-				isOwned := false
 				tags := make(map[string]string)
 				for _, td := range g.Tags {
 					key := aws.StringValue(td.Key)
 					value := aws.StringValue(td.Value)
 					tags[key] = value
-
-					if key == clusterIDTag && value == resourceLifecycleOwned {
-						isOwned = true
-					}
 				}
 
-				if isOwned {
+				if testFilterTags(filterTags, tags) {
 					result[name] = &autoScalingGroupDetails{
 						name:                    name,
 						arn:                     aws.StringValue(g.AutoScalingGroupARN),
