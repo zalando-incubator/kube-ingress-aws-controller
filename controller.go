@@ -65,6 +65,7 @@ var (
 	firstRun                   bool = true
 	cwAlarmConfigMap           string
 	cwAlarmConfigMapLocation   *kubernetes.ResourceLocation
+	loadBalancerType           string
 )
 
 func loadSettings() error {
@@ -112,6 +113,7 @@ func loadSettings() error {
 	flag.StringVar(&wafWebAclId, "aws-waf-web-acl-id", aws.DefaultWafWebAclId, "Waf web acl id to be associated with the ALB")
 	flag.StringVar(&cwAlarmConfigMap, "cloudwatch-alarms-config-map", "", "ConfigMap location of the form 'namespace/config-map-name' where to read CloudWatch Alarm configuration from. Ignored if empty.")
 	flag.BoolVar(&httpRedirectToHttps, "redirect-http-to-https", defaultHttpRedirectToHttps, "Configure HTTP listener to redirect to HTTPS")
+	flag.StringVar(&loadBalancerType, "load-balancer-type", aws.DefaultLoadBalancerType, "Sets default Load Balancer type (application or network).")
 
 	flag.Parse()
 
@@ -166,6 +168,10 @@ func loadSettings() error {
 		}
 
 		cwAlarmConfigMapLocation = loc
+	}
+
+	if loadBalancerType != "application" && loadBalancerType != "network" {
+		return fmt.Errorf("invalid load-balancer-type, must be 'application' or 'network'")
 	}
 
 	if quietFlag && debugFlag {
@@ -277,7 +283,7 @@ func main() {
 		ingressClassFiltersList = strings.Split(ingressClassFilters, ",")
 	}
 
-	kubeAdapter, err = kubernetes.NewAdapter(kubeConfig, ingressClassFiltersList, awsAdapter.SecurityGroupID(), sslPolicy)
+	kubeAdapter, err = kubernetes.NewAdapter(kubeConfig, ingressClassFiltersList, awsAdapter.SecurityGroupID(), sslPolicy, loadBalancerType)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -302,6 +308,7 @@ func main() {
 	log.Infof("\tALB Logging S3 Bucket: %s", awsAdapter.S3Bucket())
 	log.Infof("\tALB Logging S3 Prefix: %s", awsAdapter.S3Prefix())
 	log.Infof("\tCloudWatch Alarm ConfigMap: %s", cwAlarmConfigMapLocation)
+	log.Infof("\tDefault LoadBalancer type: %s", loadBalancerType)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	go handleTerminationSignals(cancel, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)

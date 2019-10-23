@@ -54,7 +54,6 @@ type Adapter struct {
 	controllerID               string
 	sslPolicy                  string
 	ipAddressType              string
-	loadbalancerType           string
 	albLogsS3Bucket            string
 	albLogsS3Prefix            string
 	wafWebAclId                string
@@ -93,8 +92,8 @@ const (
 	DefaultSslPolicy = "ELBSecurityPolicy-2016-08"
 	// DefaultIpAddressType sets IpAddressType to "ipv4", it is either ipv4 or dualstack
 	DefaultIpAddressType = "ipv4"
-	// DefaultLoadbalancerType is the default Type of a AWS::ElasticLoadBalancingV2::LoadBalancer "application" or "network"
-	DefaultLoadbalancerType = "application"
+	// DefaultLoadBalancerType is the default Type of a AWS::ElasticLoadBalancingV2::LoadBalancer "application" or "network"
+	DefaultLoadBalancerType = "application"
 	// DefaultAlbS3LogsBucket is a blank string, and must be set if enabled
 	DefaultAlbS3LogsBucket = ""
 	// DefaultAlbS3LogsPrefix is a blank string, and optionally set if desired
@@ -173,7 +172,6 @@ func NewAdapter(newControllerID string) (adapter *Adapter, err error) {
 		controllerID:        newControllerID,
 		sslPolicy:           DefaultSslPolicy,
 		ipAddressType:       DefaultIpAddressType,
-		loadbalancerType:    DefaultLoadbalancerType,
 		albLogsS3Bucket:     DefaultAlbS3LogsBucket,
 		albLogsS3Prefix:     DefaultAlbS3LogsPrefix,
 		wafWebAclId:         DefaultWafWebAclId,
@@ -457,7 +455,7 @@ func (a *Adapter) UpdateTargetGroupsAndAutoScalingGroups(stacks []*Stack) {
 // All the required resources (listeners and target group) are created in a
 // transactional fashion.
 // Failure to create the stack causes it to be deleted automatically.
-func (a *Adapter) CreateStack(certificateARNs []string, scheme, securityGroup, owner, sslPolicy, ipAddressType string, cwAlarms CloudWatchAlarmList) (string, error) {
+func (a *Adapter) CreateStack(certificateARNs []string, scheme, securityGroup, owner, sslPolicy, ipAddressType string, cwAlarms CloudWatchAlarmList, loadBalancerType string) (string, error) {
 	certARNs := make(map[string]time.Time, len(certificateARNs))
 	for _, arn := range certificateARNs {
 		certARNs[arn] = time.Time{}
@@ -492,7 +490,7 @@ func (a *Adapter) CreateStack(certificateARNs []string, scheme, securityGroup, o
 		controllerID:                 a.controllerID,
 		sslPolicy:                    sslPolicy,
 		ipAddressType:                ipAddressType,
-		loadbalancerType:             a.loadbalancerType, // TODO(sszuecs): make this configurable
+		loadbalancerType:             loadBalancerType,
 		albLogsS3Bucket:              a.albLogsS3Bucket,
 		albLogsS3Prefix:              a.albLogsS3Prefix,
 		wafWebAclId:                  a.wafWebAclId,
@@ -503,7 +501,7 @@ func (a *Adapter) CreateStack(certificateARNs []string, scheme, securityGroup, o
 	return createStack(a.cloudformation, spec)
 }
 
-func (a *Adapter) UpdateStack(stackName string, certificateARNs map[string]time.Time, scheme, sslPolicy, ipAddressType string, cwAlarms CloudWatchAlarmList) (string, error) {
+func (a *Adapter) UpdateStack(stackName string, certificateARNs map[string]time.Time, scheme, sslPolicy, ipAddressType string, cwAlarms CloudWatchAlarmList, loadBalancerType string) (string, error) {
 	if _, ok := SSLPolicies[sslPolicy]; !ok {
 		return "", fmt.Errorf("invalid SSLPolicy '%s' defined", sslPolicy)
 	}
@@ -528,7 +526,7 @@ func (a *Adapter) UpdateStack(stackName string, certificateARNs map[string]time.
 		controllerID:                 a.controllerID,
 		sslPolicy:                    sslPolicy,
 		ipAddressType:                ipAddressType,
-		loadbalancerType:             a.loadbalancerType, // TODO(sszuecs): make this configurable
+		loadbalancerType:             loadBalancerType,
 		albLogsS3Bucket:              a.albLogsS3Bucket,
 		albLogsS3Prefix:              a.albLogsS3Prefix,
 		wafWebAclId:                  a.wafWebAclId,

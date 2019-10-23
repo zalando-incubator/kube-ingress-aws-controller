@@ -10,10 +10,11 @@ import (
 )
 
 type Adapter struct {
-	kubeClient                  client
-	ingressFilters              []string
-	ingressDefaultSecurityGroup string
-	ingressDefaultSSLPolicy     string
+	kubeClient                     client
+	ingressFilters                 []string
+	ingressDefaultSecurityGroup    string
+	ingressDefaultSSLPolicy        string
+	ingressDefaultLoadBalancerType string
 }
 
 const ipAddressTypeDualstack = "dualstack"
@@ -40,16 +41,17 @@ var (
 
 // Ingress is the ingress-controller's business object
 type Ingress struct {
-	CertificateARN string
-	Namespace      string
-	Name           string
-	Hostname       string
-	Scheme         string
-	Hostnames      []string
-	Shared         bool
-	SecurityGroup  string
-	SSLPolicy      string
-	IPAddressType  string
+	CertificateARN   string
+	Namespace        string
+	Name             string
+	Hostname         string
+	Scheme           string
+	Hostnames        []string
+	Shared           bool
+	SecurityGroup    string
+	SSLPolicy        string
+	IPAddressType    string
+	LoadBalancerType string
 }
 
 // String returns a string representation of the Ingress instance containing the namespace and the resource name.
@@ -71,7 +73,7 @@ func (c *ConfigMap) String() string {
 }
 
 // NewAdapter creates an Adapter for Kubernetes using a given configuration.
-func NewAdapter(config *Config, ingressClassFilters []string, ingressDefaultSecurityGroup, ingressDefaultSSLPolicy string) (*Adapter, error) {
+func NewAdapter(config *Config, ingressClassFilters []string, ingressDefaultSecurityGroup, ingressDefaultSSLPolicy, ingressDefaultLoadBalancerType string) (*Adapter, error) {
 	if config == nil || config.BaseURL == "" {
 		return nil, ErrInvalidConfiguration
 	}
@@ -80,10 +82,11 @@ func NewAdapter(config *Config, ingressClassFilters []string, ingressDefaultSecu
 		return nil, err
 	}
 	return &Adapter{
-		kubeClient:                  c,
-		ingressFilters:              ingressClassFilters,
-		ingressDefaultSecurityGroup: ingressDefaultSecurityGroup,
-		ingressDefaultSSLPolicy:     ingressDefaultSSLPolicy,
+		kubeClient:                     c,
+		ingressFilters:                 ingressClassFilters,
+		ingressDefaultSecurityGroup:    ingressDefaultSecurityGroup,
+		ingressDefaultSSLPolicy:        ingressDefaultSSLPolicy,
+		ingressDefaultLoadBalancerType: ingressDefaultLoadBalancerType,
 	}, nil
 }
 
@@ -127,16 +130,17 @@ func (a *Adapter) newIngressFromKube(kubeIngress *ingress) *Ingress {
 	}
 
 	return &Ingress{
-		CertificateARN: kubeIngress.getAnnotationsString(ingressCertificateARNAnnotation, ""),
-		Namespace:      kubeIngress.Metadata.Namespace,
-		Name:           kubeIngress.Metadata.Name,
-		Hostname:       host,
-		Scheme:         scheme,
-		Hostnames:      hostnames,
-		Shared:         shared,
-		SecurityGroup:  kubeIngress.getAnnotationsString(ingressSecurityGroupAnnotation, a.ingressDefaultSecurityGroup),
-		SSLPolicy:      sslPolicy,
-		IPAddressType:  ipAddressType,
+		CertificateARN:   kubeIngress.getAnnotationsString(ingressCertificateARNAnnotation, ""),
+		Namespace:        kubeIngress.Metadata.Namespace,
+		Name:             kubeIngress.Metadata.Name,
+		Hostname:         host,
+		Scheme:           scheme,
+		Hostnames:        hostnames,
+		Shared:           shared,
+		SecurityGroup:    kubeIngress.getAnnotationsString(ingressSecurityGroupAnnotation, a.ingressDefaultSecurityGroup),
+		SSLPolicy:        sslPolicy,
+		IPAddressType:    ipAddressType,
+		LoadBalancerType: kubeIngress.getAnnotationsString(ingressLoadBalancerTypeAnnotation, a.ingressDefaultLoadBalancerType),
 	}
 }
 
@@ -152,12 +156,13 @@ func newIngressForKube(i *Ingress) *ingress {
 			Namespace: i.Namespace,
 			Name:      i.Name,
 			Annotations: map[string]interface{}{
-				ingressCertificateARNAnnotation: i.CertificateARN,
-				ingressSchemeAnnotation:         i.Scheme,
-				ingressSharedAnnotation:         shared,
-				ingressSecurityGroupAnnotation:  i.SecurityGroup,
-				ingressSSLPolicyAnnotation:      i.SSLPolicy,
-				ingressALBIPAddressType:         i.IPAddressType,
+				ingressCertificateARNAnnotation:   i.CertificateARN,
+				ingressSchemeAnnotation:           i.Scheme,
+				ingressSharedAnnotation:           shared,
+				ingressSecurityGroupAnnotation:    i.SecurityGroup,
+				ingressSSLPolicyAnnotation:        i.SSLPolicy,
+				ingressALBIPAddressType:           i.IPAddressType,
+				ingressLoadBalancerTypeAnnotation: i.LoadBalancerType,
 			},
 		},
 		Status: ingressStatus{

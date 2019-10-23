@@ -196,7 +196,7 @@ func generateTemplate(spec *stackSpec) (string, error) {
 		)
 	}
 
-	template.AddResource("LB", &cloudformation.ElasticLoadBalancingV2LoadBalancer{
+	lb := &cloudformation.ElasticLoadBalancingV2LoadBalancer{
 		LoadBalancerAttributes: &albAttrList,
 
 		IPAddressType:  cloudformation.Ref(parameterIpAddressTypeParameter).String(),
@@ -209,8 +209,18 @@ func generateTemplate(spec *stackSpec) (string, error) {
 				Value: cloudformation.Ref("AWS::StackName").String(),
 			},
 		},
-		Type: cloudformation.Ref(parameterLoadBalancerTypeParameter).String(),
-	})
+	}
+
+	// TODO(mlarsen): hack to only set type on "new" stacks where this
+	// features was enabled. Adding the Type value for existing Load
+	// Balancers will cause them to be recreated which is disruptive (and
+	// breaks because AWS tries to attach the same TG to multiple LBs).
+	// Can be removed in a later version.
+	if spec.loadbalancerType == "application" || spec.loadbalancerType == "network" {
+		lb.Type = cloudformation.Ref(parameterLoadBalancerTypeParameter).String()
+	}
+
+	template.AddResource("LB", lb)
 	template.AddResource("TG", &cloudformation.ElasticLoadBalancingV2TargetGroup{
 		HealthCheckIntervalSeconds: cloudformation.Ref(parameterTargetGroupHealthCheckIntervalParameter).Integer(),
 		HealthCheckPath:            cloudformation.Ref(parameterTargetGroupHealthCheckPathParameter).String(),

@@ -26,6 +26,7 @@ type Stack struct {
 	SecurityGroup     string
 	SSLPolicy         string
 	IpAddressType     string
+	LoadBalancerType  string
 	OwnerIngress      string
 	CWAlarmConfigHash string
 	TargetGroupARN    string
@@ -364,6 +365,7 @@ func mapToManagedStack(stack *cloudformation.Stack) *Stack {
 		SecurityGroup:     parameters[parameterLoadBalancerSecurityGroupParameter],
 		SSLPolicy:         parameters[parameterListenerSslPolicyParameter],
 		IpAddressType:     parameters[parameterIpAddressTypeParameter],
+		LoadBalancerType:  parameters[parameterLoadBalancerTypeParameter],
 		CertificateARNs:   certificateARNs,
 		tags:              tags,
 		OwnerIngress:      ownerIngress,
