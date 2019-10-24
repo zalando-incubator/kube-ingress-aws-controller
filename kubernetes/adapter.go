@@ -17,8 +17,6 @@ type Adapter struct {
 	ingressDefaultLoadBalancerType string
 }
 
-const ipAddressTypeDualstack = "dualstack"
-
 var (
 	// ErrMissingKubernetesEnv is returned when the Kubernetes API server environment variables are not defined
 	ErrMissingKubernetesEnv = errors.New("unable to load in-cluster configuration, KUBERNETES_SERVICE_HOST and " +
@@ -119,14 +117,20 @@ func (a *Adapter) newIngressFromKube(kubeIngress *ingress) *Ingress {
 		shared = false
 	}
 
-	ipAddressType := "ipv4"
-	if kubeIngress.getAnnotationsString(ingressALBIPAddressType, "") == ipAddressTypeDualstack {
-		ipAddressType = ipAddressTypeDualstack
+	ipAddressType := aws.IPAddressTypeIPV4
+	if kubeIngress.getAnnotationsString(ingressALBIPAddressType, "") == aws.IPAddressTypeDualstack {
+		ipAddressType = aws.IPAddressTypeDualstack
 	}
 
 	sslPolicy := kubeIngress.getAnnotationsString(ingressSSLPolicyAnnotation, a.ingressDefaultSSLPolicy)
 	if _, ok := aws.SSLPolicies[sslPolicy]; !ok {
 		sslPolicy = a.ingressDefaultSSLPolicy
+	}
+
+	loadBalancerType := kubeIngress.getAnnotationsString(ingressLoadBalancerTypeAnnotation, a.ingressDefaultLoadBalancerType)
+	if loadBalancerType == aws.LoadBalancerTypeNetwork {
+		// ensure ipv4 for network load balancers
+		ipAddressType = aws.IPAddressTypeIPV4
 	}
 
 	return &Ingress{
@@ -140,7 +144,7 @@ func (a *Adapter) newIngressFromKube(kubeIngress *ingress) *Ingress {
 		SecurityGroup:    kubeIngress.getAnnotationsString(ingressSecurityGroupAnnotation, a.ingressDefaultSecurityGroup),
 		SSLPolicy:        sslPolicy,
 		IPAddressType:    ipAddressType,
-		LoadBalancerType: kubeIngress.getAnnotationsString(ingressLoadBalancerTypeAnnotation, a.ingressDefaultLoadBalancerType),
+		LoadBalancerType: loadBalancerType,
 	}
 }
 

@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/zalando-incubator/kube-ingress-aws-controller/aws"
 )
 
 var (
@@ -19,9 +20,9 @@ var (
 	testIngressDefaultSecurityGroup = "sg-foobar"
 	testSecurityGroup               = "sg-123456"
 	testSSLPolicy                   = "ELBSecurityPolicy-TLS-1-2-2017-01"
-	testIPAddressTypeDualStack      = "dualstack"
-	testIPAddressTypeDefault        = "ipv4"
-	testLoadBalancerType            = "application"
+	testIPAddressTypeDualStack      = aws.IPAddressTypeDualstack
+	testIPAddressTypeDefault        = aws.IPAddressTypeIPV4
+	testLoadBalancerType            = aws.LoadBalancerTypeApplication
 )
 
 func TestMappingRoundtrip(tt *testing.T) {

@@ -343,7 +343,7 @@ func matchIngressesToLoadBalancers(loadBalancers []*loadBalancer, certs Certific
 			// which can't be updated to include type
 			// specification.
 			// Can be removed in a later version
-			if lb.loadBalancerType != "application" && lb.loadBalancerType != "network" {
+			if lb.loadBalancerType != aws.LoadBalancerTypeApplication && lb.loadBalancerType != aws.LoadBalancerTypeNetwork {
 				continue
 			}
 

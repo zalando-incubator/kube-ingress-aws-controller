@@ -138,6 +138,7 @@ type stackSpec struct {
 	wafWebAclId                  string
 	cwAlarms                     CloudWatchAlarmList
 	httpRedirectToHttps          bool
+	nlbCrossZone                 bool
 }
 
 type healthCheck struct {

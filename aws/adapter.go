@@ -58,6 +58,7 @@ type Adapter struct {
 	albLogsS3Prefix            string
 	wafWebAclId                string
 	httpRedirectToHttps        bool
+	nlbCrossZone               bool
 	customFilter               string
 }
 
@@ -92,17 +93,21 @@ const (
 	DefaultSslPolicy = "ELBSecurityPolicy-2016-08"
 	// DefaultIpAddressType sets IpAddressType to "ipv4", it is either ipv4 or dualstack
 	DefaultIpAddressType = "ipv4"
-	// DefaultLoadBalancerType is the default Type of a AWS::ElasticLoadBalancingV2::LoadBalancer "application" or "network"
-	DefaultLoadBalancerType = "application"
 	// DefaultAlbS3LogsBucket is a blank string, and must be set if enabled
 	DefaultAlbS3LogsBucket = ""
 	// DefaultAlbS3LogsPrefix is a blank string, and optionally set if desired
 	DefaultAlbS3LogsPrefix = ""
 	DefaultWafWebAclId     = ""
 	DefaultCustomFilter    = ""
+	// DefaultNLBCrossZone specifies the default configuration for cross
+	// zone load balancing: https://docs.aws.amazon.com/elasticloadbalancing/latest/network/network-load-balancers.html#load-balancer-attributes
+	DefaultNLBCrossZone = false
 
-	ipAddressTypeDualstack = "dualstack"
-	nameTag                = "Name"
+	nameTag                     = "Name"
+	LoadBalancerTypeApplication = "application"
+	LoadBalancerTypeNetwork     = "network"
+	IPAddressTypeIPV4           = "ipv4"
+	IPAddressTypeDualstack      = "dualstack"
 )
 
 var (
@@ -175,6 +180,7 @@ func NewAdapter(newControllerID string) (adapter *Adapter, err error) {
 		albLogsS3Bucket:     DefaultAlbS3LogsBucket,
 		albLogsS3Prefix:     DefaultAlbS3LogsPrefix,
 		wafWebAclId:         DefaultWafWebAclId,
+		nlbCrossZone:        DefaultNLBCrossZone,
 		customFilter:        DefaultCustomFilter,
 	}
 
@@ -271,7 +277,7 @@ func (a *Adapter) WithStackTerminationProtection(terminationProtection bool) *Ad
 
 // WithIpAddressType returns the receiver with ipv4 or dualstack configuration, defaults to ipv4.
 func (a *Adapter) WithIpAddressType(ipAddressType string) *Adapter {
-	if ipAddressType == ipAddressTypeDualstack {
+	if ipAddressType == IPAddressTypeDualstack {
 		a.ipAddressType = ipAddressType
 	}
 	return a
@@ -298,6 +304,13 @@ func (a *Adapter) WithWafWebAclId(wafWebAclId string) *Adapter {
 // WithHttpRedirectToHttps returns the receiver adapter after changing the flag to effect HTTP->HTTPS redirection
 func (a *Adapter) WithHttpRedirectToHttps(httpRedirectToHttps bool) *Adapter {
 	a.httpRedirectToHttps = httpRedirectToHttps
+	return a
+}
+
+// WithNLBCrossZone returns the receiver adapter after setting the nlbCrossZone
+// config.
+func (a *Adapter) WithNLBCrossZone(nlbCrossZone bool) *Adapter {
+	a.nlbCrossZone = nlbCrossZone
 	return a
 }
 
@@ -496,6 +509,7 @@ func (a *Adapter) CreateStack(certificateARNs []string, scheme, securityGroup, o
 		wafWebAclId:                  a.wafWebAclId,
 		cwAlarms:                     cwAlarms,
 		httpRedirectToHttps:          a.httpRedirectToHttps,
+		nlbCrossZone:                 a.nlbCrossZone,
 	}
 
 	return createStack(a.cloudformation, spec)

@@ -70,16 +70,23 @@ func generateTemplate(spec *stackSpec) (string, error) {
 		parameterIpAddressTypeParameter: &cloudformation.Parameter{
 			Type:        "String",
 			Description: "IP Address Type, 'ipv4' or 'dualstack'",
-			Default:     "ipv4",
+			Default:     IPAddressTypeIPV4,
 		},
 		parameterLoadBalancerTypeParameter: &cloudformation.Parameter{
 			Type:        "String",
 			Description: "Loadbalancer Type, 'application' or 'network'",
-			Default:     "application",
+			Default:     LoadBalancerTypeApplication,
 		},
 	}
 
-	if spec.httpRedirectToHttps {
+	protocol := "HTTP"
+	tlsProtocol := "HTTPS"
+	if spec.loadbalancerType == LoadBalancerTypeNetwork {
+		protocol = "TCP"
+		tlsProtocol = "TLS"
+	}
+
+	if spec.loadbalancerType == LoadBalancerTypeApplication && spec.httpRedirectToHttps {
 		template.AddResource("HTTPListener", &cloudformation.ElasticLoadBalancingV2Listener{
 			DefaultActions: &cloudformation.ElasticLoadBalancingV2ListenerActionList{
 				{
@@ -108,7 +115,7 @@ func generateTemplate(spec *stackSpec) (string, error) {
 			},
 			LoadBalancerArn: cloudformation.Ref("LB").String(),
 			Port:            cloudformation.Integer(80),
-			Protocol:        cloudformation.String("HTTP"),
+			Protocol:        cloudformation.String(protocol),
 		})
 	}
 
@@ -137,7 +144,7 @@ func generateTemplate(spec *stackSpec) (string, error) {
 			},
 			LoadBalancerArn: cloudformation.Ref("LB").String(),
 			Port:            cloudformation.Integer(443),
-			Protocol:        cloudformation.String("HTTPS"),
+			Protocol:        cloudformation.String(tlsProtocol),
 			SslPolicy:       cloudformation.Ref(parameterListenerSslPolicyParameter).String(),
 		})
 
@@ -160,12 +167,25 @@ func generateTemplate(spec *stackSpec) (string, error) {
 
 	// Build up the LoadBalancerAttributes list, as there is no way to make attributes conditional in the template
 	albAttrList := make(cloudformation.ElasticLoadBalancingV2LoadBalancerLoadBalancerAttributeList, 0, 4)
-	albAttrList = append(albAttrList,
-		cloudformation.ElasticLoadBalancingV2LoadBalancerLoadBalancerAttribute{
-			Key:   cloudformation.String("idle_timeout.timeout_seconds"),
-			Value: cloudformation.String(fmt.Sprintf("%d", spec.idleConnectionTimeoutSeconds)),
-		},
-	)
+
+	if spec.loadbalancerType == LoadBalancerTypeApplication {
+		albAttrList = append(albAttrList,
+			cloudformation.ElasticLoadBalancingV2LoadBalancerLoadBalancerAttribute{
+				Key:   cloudformation.String("idle_timeout.timeout_seconds"),
+				Value: cloudformation.String(fmt.Sprintf("%d", spec.idleConnectionTimeoutSeconds)),
+			},
+		)
+	}
+
+	if spec.nlbCrossZone && spec.loadbalancerType == LoadBalancerTypeNetwork {
+		albAttrList = append(albAttrList,
+			cloudformation.ElasticLoadBalancingV2LoadBalancerLoadBalancerAttribute{
+				Key:   cloudformation.String("load_balancing.cross_zone.enabled"),
+				Value: cloudformation.String("true"),
+			},
+		)
+	}
+
 	if spec.albLogsS3Bucket != "" {
 		albAttrList = append(albAttrList,
 			cloudformation.ElasticLoadBalancingV2LoadBalancerLoadBalancerAttribute{
@@ -199,10 +219,9 @@ func generateTemplate(spec *stackSpec) (string, error) {
 	lb := &cloudformation.ElasticLoadBalancingV2LoadBalancer{
 		LoadBalancerAttributes: &albAttrList,
 
-		IPAddressType:  cloudformation.Ref(parameterIpAddressTypeParameter).String(),
-		Scheme:         cloudformation.Ref(parameterLoadBalancerSchemeParameter).String(),
-		SecurityGroups: cloudformation.Ref(parameterLoadBalancerSecurityGroupParameter).StringList(),
-		Subnets:        cloudformation.Ref(parameterLoadBalancerSubnetsParameter).StringList(),
+		IPAddressType: cloudformation.Ref(parameterIpAddressTypeParameter).String(),
+		Scheme:        cloudformation.Ref(parameterLoadBalancerSchemeParameter).String(),
+		Subnets:       cloudformation.Ref(parameterLoadBalancerSubnetsParameter).StringList(),
 		Tags: &cloudformation.TagList{
 			{
 				Key:   cloudformation.String("StackName"),
@@ -211,12 +230,17 @@ func generateTemplate(spec *stackSpec) (string, error) {
 		},
 	}
 
+	// Security groups can't be set for 'network' load balancers
+	if spec.loadbalancerType != LoadBalancerTypeNetwork {
+		lb.SecurityGroups = cloudformation.Ref(parameterLoadBalancerSecurityGroupParameter).StringList()
+	}
+
 	// TODO(mlarsen): hack to only set type on "new" stacks where this
 	// features was enabled. Adding the Type value for existing Load
 	// Balancers will cause them to be recreated which is disruptive (and
 	// breaks because AWS tries to attach the same TG to multiple LBs).
 	// Can be removed in a later version.
-	if spec.loadbalancerType == "application" || spec.loadbalancerType == "network" {
+	if spec.loadbalancerType == LoadBalancerTypeApplication || spec.loadbalancerType == LoadBalancerTypeNetwork {
 		lb.Type = cloudformation.Ref(parameterLoadBalancerTypeParameter).String()
 	}
 
@@ -225,12 +249,13 @@ func generateTemplate(spec *stackSpec) (string, error) {
 		HealthCheckIntervalSeconds: cloudformation.Ref(parameterTargetGroupHealthCheckIntervalParameter).Integer(),
 		HealthCheckPath:            cloudformation.Ref(parameterTargetGroupHealthCheckPathParameter).String(),
 		HealthCheckPort:            cloudformation.Ref(parameterTargetGroupHealthCheckPortParameter).String(),
+		HealthCheckProtocol:        cloudformation.String("HTTP"),
 		Port:                       cloudformation.Ref(parameterTargetTargetPortParameter).Integer(),
-		Protocol:                   cloudformation.String("HTTP"),
+		Protocol:                   cloudformation.String(protocol),
 		VPCID:                      cloudformation.Ref(parameterTargetGroupVPCIDParameter).String(),
 	})
 
-	if spec.wafWebAclId != "" {
+	if spec.loadbalancerType == LoadBalancerTypeApplication && spec.wafWebAclId != "" {
 		template.AddResource("WAFAssociation", &cloudformation.WAFRegionalWebACLAssociation{
 			ResourceArn: cloudformation.Ref("LB").String(),
 			WebACLID:    cloudformation.String(spec.wafWebAclId),

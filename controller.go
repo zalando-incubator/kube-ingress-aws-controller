@@ -66,6 +66,7 @@ var (
 	cwAlarmConfigMap           string
 	cwAlarmConfigMapLocation   *kubernetes.ResourceLocation
 	loadBalancerType           string
+	nlbCrossZone               bool
 )
 
 func loadSettings() error {
@@ -113,7 +114,8 @@ func loadSettings() error {
 	flag.StringVar(&wafWebAclId, "aws-waf-web-acl-id", aws.DefaultWafWebAclId, "Waf web acl id to be associated with the ALB")
 	flag.StringVar(&cwAlarmConfigMap, "cloudwatch-alarms-config-map", "", "ConfigMap location of the form 'namespace/config-map-name' where to read CloudWatch Alarm configuration from. Ignored if empty.")
 	flag.BoolVar(&httpRedirectToHttps, "redirect-http-to-https", defaultHttpRedirectToHttps, "Configure HTTP listener to redirect to HTTPS")
-	flag.StringVar(&loadBalancerType, "load-balancer-type", aws.DefaultLoadBalancerType, "Sets default Load Balancer type (application or network).")
+	flag.StringVar(&loadBalancerType, "load-balancer-type", aws.LoadBalancerTypeApplication, "Sets default Load Balancer type (application or network).")
+	flag.BoolVar(&nlbCrossZone, "nlb-cross-zone", aws.DefaultNLBCrossZone, "Specify whether Network Load Balancers should balance cross availablity zones. This setting only apply to 'network' Load Balancers.")
 
 	flag.Parse()
 
@@ -170,7 +172,7 @@ func loadSettings() error {
 		cwAlarmConfigMapLocation = loc
 	}
 
-	if loadBalancerType != "application" && loadBalancerType != "network" {
+	if loadBalancerType != aws.LoadBalancerTypeApplication && loadBalancerType != aws.LoadBalancerTypeNetwork {
 		return fmt.Errorf("invalid load-balancer-type, must be 'application' or 'network'")
 	}
 
@@ -257,6 +259,7 @@ func main() {
 		WithAlbLogsS3Prefix(albLogsS3Prefix).
 		WithWafWebAclId(wafWebAclId).
 		WithHttpRedirectToHttps(httpRedirectToHttps).
+		WithNLBCrossZone(nlbCrossZone).
 		WithCustomFilter(customFilter)
 
 	certificatesProvider, err := certs.NewCachingProvider(
