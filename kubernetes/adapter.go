@@ -142,8 +142,10 @@ func (a *Adapter) newIngressFromKube(kubeIngress *ingress) *Ingress {
 		sslPolicy = a.ingressDefaultSSLPolicy
 	}
 
-	// TODO: validate teh value
 	loadBalancerType := kubeIngress.getAnnotationsString(ingressLoadBalancerTypeAnnotation, a.ingressDefaultLoadBalancerType)
+	if _, ok := loadBalancerTypesIngressToAWS[loadBalancerType]; !ok {
+		loadBalancerType = a.ingressDefaultLoadBalancerType
+	}
 
 	// convert to the internal naming e.g. nlb -> network
 	loadBalancerType = loadBalancerTypesIngressToAWS[loadBalancerType]
