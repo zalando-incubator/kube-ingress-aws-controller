@@ -17,6 +17,11 @@ type Adapter struct {
 	ingressDefaultLoadBalancerType string
 }
 
+const (
+	loadBalancerTypeNLB = "nlb"
+	loadBalancerTypeALB = "alb"
+)
+
 var (
 	// ErrMissingKubernetesEnv is returned when the Kubernetes API server environment variables are not defined
 	ErrMissingKubernetesEnv = errors.New("unable to load in-cluster configuration, KUBERNETES_SERVICE_HOST and " +
@@ -35,6 +40,16 @@ var (
 	// ErrInvalidCertificates is returned when the CA certificates required to communicate with the
 	// API server are invalid
 	ErrInvalidCertificates = errors.New("invalid CA certificates")
+
+	loadBalancerTypesIngressToAWS = map[string]string{
+		loadBalancerTypeALB: aws.LoadBalancerTypeApplication,
+		loadBalancerTypeNLB: aws.LoadBalancerTypeNetwork,
+	}
+
+	loadBalancerTypesAWSToIngress = map[string]string{
+		aws.LoadBalancerTypeApplication: loadBalancerTypeALB,
+		aws.LoadBalancerTypeNetwork:     loadBalancerTypeNLB,
+	}
 )
 
 // Ingress is the ingress-controller's business object
@@ -84,7 +99,7 @@ func NewAdapter(config *Config, ingressClassFilters []string, ingressDefaultSecu
 		ingressFilters:                 ingressClassFilters,
 		ingressDefaultSecurityGroup:    ingressDefaultSecurityGroup,
 		ingressDefaultSSLPolicy:        ingressDefaultSSLPolicy,
-		ingressDefaultLoadBalancerType: ingressDefaultLoadBalancerType,
+		ingressDefaultLoadBalancerType: loadBalancerTypesAWSToIngress[ingressDefaultLoadBalancerType],
 	}, nil
 }
 
@@ -127,7 +142,12 @@ func (a *Adapter) newIngressFromKube(kubeIngress *ingress) *Ingress {
 		sslPolicy = a.ingressDefaultSSLPolicy
 	}
 
+	// TODO: validate teh value
 	loadBalancerType := kubeIngress.getAnnotationsString(ingressLoadBalancerTypeAnnotation, a.ingressDefaultLoadBalancerType)
+
+	// convert to the internal naming e.g. nlb -> network
+	loadBalancerType = loadBalancerTypesIngressToAWS[loadBalancerType]
+
 	if loadBalancerType == aws.LoadBalancerTypeNetwork {
 		// ensure ipv4 for network load balancers
 		ipAddressType = aws.IPAddressTypeIPV4
@@ -166,7 +186,7 @@ func newIngressForKube(i *Ingress) *ingress {
 				ingressSecurityGroupAnnotation:    i.SecurityGroup,
 				ingressSSLPolicyAnnotation:        i.SSLPolicy,
 				ingressALBIPAddressType:           i.IPAddressType,
-				ingressLoadBalancerTypeAnnotation: i.LoadBalancerType,
+				ingressLoadBalancerTypeAnnotation: loadBalancerTypesAWSToIngress[i.LoadBalancerType],
 			},
 		},
 		Status: ingressStatus{

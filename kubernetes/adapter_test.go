@@ -22,7 +22,8 @@ var (
 	testSSLPolicy                   = "ELBSecurityPolicy-TLS-1-2-2017-01"
 	testIPAddressTypeDualStack      = aws.IPAddressTypeDualstack
 	testIPAddressTypeDefault        = aws.IPAddressTypeIPV4
-	testLoadBalancerType            = aws.LoadBalancerTypeApplication
+	testLoadBalancerTypeIngress     = loadBalancerTypeALB
+	testLoadBalancerTypeAWS         = aws.LoadBalancerTypeApplication
 )
 
 func TestMappingRoundtrip(tt *testing.T) {
@@ -44,7 +45,7 @@ func TestMappingRoundtrip(tt *testing.T) {
 				SecurityGroup:    testSecurityGroup,
 				SSLPolicy:        testSSLPolicy,
 				IPAddressType:    testIPAddressTypeDefault,
-				LoadBalancerType: testLoadBalancerType,
+				LoadBalancerType: testLoadBalancerTypeAWS,
 			},
 			kubeIngress: &ingress{
 				Metadata: ingressItemMetadata{
@@ -57,7 +58,7 @@ func TestMappingRoundtrip(tt *testing.T) {
 						ingressSecurityGroupAnnotation:    testSecurityGroup,
 						ingressSSLPolicyAnnotation:        testSSLPolicy,
 						ingressALBIPAddressType:           testIPAddressTypeDefault,
-						ingressLoadBalancerTypeAnnotation: testLoadBalancerType,
+						ingressLoadBalancerTypeAnnotation: testLoadBalancerTypeIngress,
 					},
 				},
 				Spec: ingressSpec{
@@ -89,7 +90,7 @@ func TestMappingRoundtrip(tt *testing.T) {
 				SecurityGroup:    testSecurityGroup,
 				SSLPolicy:        testSSLPolicy,
 				IPAddressType:    testIPAddressTypeDefault,
-				LoadBalancerType: testLoadBalancerType,
+				LoadBalancerType: testLoadBalancerTypeAWS,
 			},
 			kubeIngress: &ingress{
 				Metadata: ingressItemMetadata{
@@ -102,7 +103,7 @@ func TestMappingRoundtrip(tt *testing.T) {
 						ingressSecurityGroupAnnotation:    testSecurityGroup,
 						ingressSSLPolicyAnnotation:        testSSLPolicy,
 						ingressALBIPAddressType:           testIPAddressTypeDefault,
-						ingressLoadBalancerTypeAnnotation: testLoadBalancerType,
+						ingressLoadBalancerTypeAnnotation: testLoadBalancerTypeIngress,
 					},
 				},
 				Status: ingressStatus{
@@ -127,7 +128,7 @@ func TestMappingRoundtrip(tt *testing.T) {
 				SecurityGroup:    testSecurityGroup,
 				SSLPolicy:        testSSLPolicy,
 				IPAddressType:    testIPAddressTypeDualStack,
-				LoadBalancerType: testLoadBalancerType,
+				LoadBalancerType: testLoadBalancerTypeAWS,
 			},
 			kubeIngress: &ingress{
 				Metadata: ingressItemMetadata{
@@ -140,7 +141,7 @@ func TestMappingRoundtrip(tt *testing.T) {
 						ingressSecurityGroupAnnotation:    testSecurityGroup,
 						ingressSSLPolicyAnnotation:        testSSLPolicy,
 						ingressALBIPAddressType:           testIPAddressTypeDualStack,
-						ingressLoadBalancerTypeAnnotation: testLoadBalancerType,
+						ingressLoadBalancerTypeAnnotation: testLoadBalancerTypeIngress,
 					},
 				},
 				Status: ingressStatus{
@@ -155,7 +156,7 @@ func TestMappingRoundtrip(tt *testing.T) {
 		},
 	} {
 		tt.Run(tc.msg, func(t *testing.T) {
-			a, err := NewAdapter(testConfig, testIngressFilter, testIngressDefaultSecurityGroup, testSSLPolicy, testLoadBalancerType)
+			a, err := NewAdapter(testConfig, testIngressFilter, testIngressDefaultSecurityGroup, testSSLPolicy, testLoadBalancerTypeAWS)
 			if err != nil {
 				t.Fatalf("cannot create kubernetes adapter: %v", err)
 			}
@@ -222,7 +223,7 @@ func (c *mockClient) patch(res string, payload []byte) (io.ReadCloser, error) {
 }
 
 func TestListIngress(t *testing.T) {
-	a, _ := NewAdapter(testConfig, testIngressFilter, testIngressDefaultSecurityGroup, testSSLPolicy, testLoadBalancerType)
+	a, _ := NewAdapter(testConfig, testIngressFilter, testIngressDefaultSecurityGroup, testSSLPolicy, testLoadBalancerTypeAWS)
 	client := &mockClient{}
 	a.kubeClient = client
 	ingresses, err := a.ListIngress()
@@ -240,7 +241,7 @@ func TestListIngress(t *testing.T) {
 }
 
 func TestUpdateIngressLoadBalancer(t *testing.T) {
-	a, _ := NewAdapter(testConfig, testIngressFilter, testSecurityGroup, testSSLPolicy, testLoadBalancerType)
+	a, _ := NewAdapter(testConfig, testIngressFilter, testSecurityGroup, testSSLPolicy, testLoadBalancerTypeAWS)
 	client := &mockClient{}
 	a.kubeClient = client
 	ing := &Ingress{
@@ -275,7 +276,7 @@ func TestBrokenConfig(t *testing.T) {
 		{"broken-cert", &Config{BaseURL: "dontcare", TLSClientConfig: TLSClientConfig{CAFile: "testdata/broken.pem"}}},
 	} {
 		t.Run(fmt.Sprintf("%v", test.cfg), func(t *testing.T) {
-			_, err := NewAdapter(test.cfg, testIngressFilter, testSecurityGroup, testSSLPolicy, testLoadBalancerType)
+			_, err := NewAdapter(test.cfg, testIngressFilter, testSecurityGroup, testSSLPolicy, testLoadBalancerTypeAWS)
 			if err == nil {
 				t.Error("expected an error")
 			}
@@ -284,7 +285,7 @@ func TestBrokenConfig(t *testing.T) {
 }
 
 func TestAdapter_GetConfigMap(t *testing.T) {
-	a, _ := NewAdapter(testConfig, testIngressFilter, testIngressDefaultSecurityGroup, testSSLPolicy, testLoadBalancerType)
+	a, _ := NewAdapter(testConfig, testIngressFilter, testIngressDefaultSecurityGroup, testSSLPolicy, testLoadBalancerTypeAWS)
 	client := &mockClient{}
 	a.kubeClient = client
 
