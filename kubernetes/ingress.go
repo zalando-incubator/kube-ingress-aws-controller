@@ -60,15 +60,16 @@ type ingressLoadBalancer struct {
 
 const (
 	// ingressALBIPAddressType is used in external-dns, https://github.com/kubernetes-incubator/external-dns/pull/1079
-	ingressALBIPAddressType         = "alb.ingress.kubernetes.io/ip-address-type"
-	ingressListResource             = "/apis/extensions/v1beta1/ingresses"
-	ingressPatchStatusResource      = "/apis/extensions/v1beta1/namespaces/%s/ingresses/%s/status"
-	ingressCertificateARNAnnotation = "zalando.org/aws-load-balancer-ssl-cert"
-	ingressSchemeAnnotation         = "zalando.org/aws-load-balancer-scheme"
-	ingressSharedAnnotation         = "zalando.org/aws-load-balancer-shared"
-	ingressSecurityGroupAnnotation  = "zalando.org/aws-load-balancer-security-group"
-	ingressSSLPolicyAnnotation      = "zalando.org/aws-load-balancer-ssl-policy"
-	ingressClassAnnotation          = "kubernetes.io/ingress.class"
+	ingressALBIPAddressType           = "alb.ingress.kubernetes.io/ip-address-type"
+	ingressListResource               = "/apis/extensions/v1beta1/ingresses"
+	ingressPatchStatusResource        = "/apis/extensions/v1beta1/namespaces/%s/ingresses/%s/status"
+	ingressCertificateARNAnnotation   = "zalando.org/aws-load-balancer-ssl-cert"
+	ingressSchemeAnnotation           = "zalando.org/aws-load-balancer-scheme"
+	ingressSharedAnnotation           = "zalando.org/aws-load-balancer-shared"
+	ingressSecurityGroupAnnotation    = "zalando.org/aws-load-balancer-security-group"
+	ingressSSLPolicyAnnotation        = "zalando.org/aws-load-balancer-ssl-policy"
+	ingressLoadBalancerTypeAnnotation = "zalando.org/aws-load-balancer-type"
+	ingressClassAnnotation            = "kubernetes.io/ingress.class"
 )
 
 func (i *ingress) getAnnotationsString(key string, defaultValue string) string {

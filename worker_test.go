@@ -45,10 +45,10 @@ func TestAddIngress(tt *testing.T) {
 		{
 			name: "ip address type not matching",
 			loadBalancer: &loadBalancer{
-				ipAddressType: "ipv4",
+				ipAddressType: aws.IPAddressTypeIPV4,
 			},
 			ingress: &kubernetes.Ingress{
-				IPAddressType: "dualstack",
+				IPAddressType: aws.IPAddressTypeDualstack,
 			},
 			added: false,
 		},

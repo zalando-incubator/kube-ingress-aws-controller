@@ -26,6 +26,7 @@ type Stack struct {
 	SecurityGroup     string
 	SSLPolicy         string
 	IpAddressType     string
+	LoadBalancerType  string
 	OwnerIngress      string
 	CWAlarmConfigHash string
 	TargetGroupARN    string
@@ -110,6 +111,7 @@ const (
 	parameterListenerCertificatesParameter           = "ListenerCertificatesParameter"
 	parameterListenerSslPolicyParameter              = "ListenerSslPolicyParameter"
 	parameterIpAddressTypeParameter                  = "IpAddressType"
+	parameterLoadBalancerTypeParameter               = "Type"
 )
 
 type stackSpec struct {
@@ -130,11 +132,13 @@ type stackSpec struct {
 	controllerID                 string
 	sslPolicy                    string
 	ipAddressType                string
+	loadbalancerType             string
 	albLogsS3Bucket              string
 	albLogsS3Prefix              string
 	wafWebAclId                  string
 	cwAlarms                     CloudWatchAlarmList
 	httpRedirectToHttps          bool
+	nlbCrossZone                 bool
 }
 
 type healthCheck struct {
@@ -160,6 +164,7 @@ func createStack(svc cloudformationiface.CloudFormationAPI, spec *stackSpec) (st
 			cfParam(parameterTargetTargetPortParameter, fmt.Sprintf("%d", spec.targetPort)),
 			cfParam(parameterListenerSslPolicyParameter, spec.sslPolicy),
 			cfParam(parameterIpAddressTypeParameter, spec.ipAddressType),
+			cfParam(parameterLoadBalancerTypeParameter, spec.loadbalancerType),
 		},
 		Tags: []*cloudformation.Tag{
 			cfTag(kubernetesCreatorTag, spec.controllerID),
@@ -214,6 +219,7 @@ func updateStack(svc cloudformationiface.CloudFormationAPI, spec *stackSpec) (st
 			cfParam(parameterTargetTargetPortParameter, fmt.Sprintf("%d", spec.targetPort)),
 			cfParam(parameterListenerSslPolicyParameter, spec.sslPolicy),
 			cfParam(parameterIpAddressTypeParameter, spec.ipAddressType),
+			cfParam(parameterLoadBalancerTypeParameter, spec.loadbalancerType),
 		},
 		Tags: []*cloudformation.Tag{
 			cfTag(kubernetesCreatorTag, spec.controllerID),
@@ -360,6 +366,7 @@ func mapToManagedStack(stack *cloudformation.Stack) *Stack {
 		SecurityGroup:     parameters[parameterLoadBalancerSecurityGroupParameter],
 		SSLPolicy:         parameters[parameterListenerSslPolicyParameter],
 		IpAddressType:     parameters[parameterIpAddressTypeParameter],
+		LoadBalancerType:  parameters[parameterLoadBalancerTypeParameter],
 		CertificateARNs:   certificateARNs,
 		tags:              tags,
 		OwnerIngress:      ownerIngress,

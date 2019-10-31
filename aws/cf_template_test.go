@@ -96,6 +96,50 @@ func TestGenerateTemplate(t *testing.T) {
 				)
 			},
 		},
+		{
+			name: "http -> https redirect should be enabled for Application load balancers",
+			spec: &stackSpec{
+				loadbalancerType:    LoadBalancerTypeApplication,
+				httpRedirectToHttps: true,
+			},
+			validate: func(t *testing.T, template *cloudformation.Template) {
+				require.NotNil(t, template.Resources["HTTPListener"])
+				listener := template.Resources["HTTPListener"].Properties.(*cloudformation.ElasticLoadBalancingV2Listener)
+				require.Len(t, *listener.DefaultActions, 1)
+				redirectConfig := []cloudformation.ElasticLoadBalancingV2ListenerAction(*listener.DefaultActions)[0].RedirectConfig
+				require.NotNil(t, redirectConfig)
+				require.Equal(t, redirectConfig.Protocol, cloudformation.String("HTTPS"))
+				require.Equal(t, redirectConfig.StatusCode, cloudformation.String("HTTP_301"))
+			},
+		},
+		{
+			name: "http -> https redirect should NOT be enabled for Network load balancers",
+			spec: &stackSpec{
+				loadbalancerType:    LoadBalancerTypeNetwork,
+				httpRedirectToHttps: true,
+			},
+			validate: func(t *testing.T, template *cloudformation.Template) {
+				require.NotNil(t, template.Resources["HTTPListener"])
+				listener := template.Resources["HTTPListener"].Properties.(*cloudformation.ElasticLoadBalancingV2Listener)
+				require.Len(t, *listener.DefaultActions, 1)
+				redirectConfig := []cloudformation.ElasticLoadBalancingV2ListenerAction(*listener.DefaultActions)[0].RedirectConfig
+				require.Nil(t, redirectConfig)
+			},
+		},
+		{
+			name: "nlb cross zone load balancing can be enabled for Network load balancers",
+			spec: &stackSpec{
+				loadbalancerType: LoadBalancerTypeNetwork,
+				nlbCrossZone:     true,
+			},
+			validate: func(t *testing.T, template *cloudformation.Template) {
+				require.NotNil(t, template.Resources["LB"])
+				properties := template.Resources["LB"].Properties.(*cloudformation.ElasticLoadBalancingV2LoadBalancer)
+				attributes := []cloudformation.ElasticLoadBalancingV2LoadBalancerLoadBalancerAttribute(*properties.LoadBalancerAttributes)
+				require.Equal(t, attributes[0].Key.Literal, "load_balancing.cross_zone.enabled")
+				require.Equal(t, attributes[0].Value.Literal, "true")
+			},
+		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			generated, err := generateTemplate(test.spec)

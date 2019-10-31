@@ -20,6 +20,7 @@ This information is used to manage AWS resources for each ingress objects of the
 - Automatic discovery of SSL certificates
 - Automatic forwarding of requests to all Worker Nodes, even with auto scaling
 - Automatic cleanup of unnecessary managed resources
+- Support for both [Application Load Balancers](https://docs.aws.amazon.com/elasticloadbalancing/latest/application/introduction.html) and [Network Load Balancers](https://docs.aws.amazon.com/elasticloadbalancing/latest/network/introduction.html).
 - Support for internet-facing and internal load balancers
 - Support for multiple Auto Scaling Groups
 - Support for instances that are not part of Auto Scaling Group
@@ -84,15 +85,18 @@ running has the clusterID tag `kubernetes.io/cluster/<cluster-id>=owned` set
 Overview of annotations which can be set.
 
 ### Annotations
-|Name                       | Type |Default
+|Name                       | Value |Default
 |---------------------------|------|------|
-|[alb.ingress.kubernetes.io/ip-address-type](#ip-address-type)|ipv4 \| dualstack|ipv4|
-|zalando.org/aws-load-balancer-ssl-cert|string|N/A|
-|zalando.org/aws-load-balancer-scheme|internal \| internet-facing |internet-facing|
-|zalando.org/aws-load-balancer-shared|true \| false|false|
-|zalando.org/aws-load-balancer-security-group|string|N/A|
-|zalando.org/aws-load-balancer-ssl-policy|string|ELBSecurityPolicy-2016-08|
-|kubernetes.io/ingress.class|string|N/A|
+|[`alb.ingress.kubernetes.io/ip-address-type`](#ip-address-type)|`ipv4` \| `dualstack` |`ipv4`|
+|`zalando.org/aws-load-balancer-ssl-cert`|`string`|N/A|
+|`zalando.org/aws-load-balancer-scheme`|`internal` \| `internet-facing` |`internet-facing`|
+|`zalando.org/aws-load-balancer-shared`|`true` \| `false`|`false`|
+|`zalando.org/aws-load-balancer-security-group`|`string`|N/A|
+|`zalando.org/aws-load-balancer-ssl-policy`|`string`|`ELBSecurityPolicy-2016-08`|
+|`zalando.org/aws-load-balancer-type`| `nlb` \| `alb`|`alb`|
+|`kubernetes.io/ingress.class`|`string`|N/A|
+
+The defaults can also be configured globally via a flag on the controller.
 
 ## AWS Tags
 

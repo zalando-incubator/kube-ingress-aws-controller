@@ -58,6 +58,7 @@ type Adapter struct {
 	albLogsS3Prefix            string
 	wafWebAclId                string
 	httpRedirectToHttps        bool
+	nlbCrossZone               bool
 	customFilter               string
 }
 
@@ -98,9 +99,15 @@ const (
 	DefaultAlbS3LogsPrefix = ""
 	DefaultWafWebAclId     = ""
 	DefaultCustomFilter    = ""
+	// DefaultNLBCrossZone specifies the default configuration for cross
+	// zone load balancing: https://docs.aws.amazon.com/elasticloadbalancing/latest/network/network-load-balancers.html#load-balancer-attributes
+	DefaultNLBCrossZone = false
 
-	ipAddressTypeDualstack = "dualstack"
-	nameTag                = "Name"
+	nameTag                     = "Name"
+	LoadBalancerTypeApplication = "application"
+	LoadBalancerTypeNetwork     = "network"
+	IPAddressTypeIPV4           = "ipv4"
+	IPAddressTypeDualstack      = "dualstack"
 )
 
 var (
@@ -173,6 +180,7 @@ func NewAdapter(newControllerID string) (adapter *Adapter, err error) {
 		albLogsS3Bucket:     DefaultAlbS3LogsBucket,
 		albLogsS3Prefix:     DefaultAlbS3LogsPrefix,
 		wafWebAclId:         DefaultWafWebAclId,
+		nlbCrossZone:        DefaultNLBCrossZone,
 		customFilter:        DefaultCustomFilter,
 	}
 
@@ -269,7 +277,7 @@ func (a *Adapter) WithStackTerminationProtection(terminationProtection bool) *Ad
 
 // WithIpAddressType returns the receiver with ipv4 or dualstack configuration, defaults to ipv4.
 func (a *Adapter) WithIpAddressType(ipAddressType string) *Adapter {
-	if ipAddressType == ipAddressTypeDualstack {
+	if ipAddressType == IPAddressTypeDualstack {
 		a.ipAddressType = ipAddressType
 	}
 	return a
@@ -296,6 +304,13 @@ func (a *Adapter) WithWafWebAclId(wafWebAclId string) *Adapter {
 // WithHttpRedirectToHttps returns the receiver adapter after changing the flag to effect HTTP->HTTPS redirection
 func (a *Adapter) WithHttpRedirectToHttps(httpRedirectToHttps bool) *Adapter {
 	a.httpRedirectToHttps = httpRedirectToHttps
+	return a
+}
+
+// WithNLBCrossZone returns the receiver adapter after setting the nlbCrossZone
+// config.
+func (a *Adapter) WithNLBCrossZone(nlbCrossZone bool) *Adapter {
+	a.nlbCrossZone = nlbCrossZone
 	return a
 }
 
@@ -453,7 +468,7 @@ func (a *Adapter) UpdateTargetGroupsAndAutoScalingGroups(stacks []*Stack) {
 // All the required resources (listeners and target group) are created in a
 // transactional fashion.
 // Failure to create the stack causes it to be deleted automatically.
-func (a *Adapter) CreateStack(certificateARNs []string, scheme, securityGroup, owner, sslPolicy, ipAddressType string, cwAlarms CloudWatchAlarmList) (string, error) {
+func (a *Adapter) CreateStack(certificateARNs []string, scheme, securityGroup, owner, sslPolicy, ipAddressType string, cwAlarms CloudWatchAlarmList, loadBalancerType string) (string, error) {
 	certARNs := make(map[string]time.Time, len(certificateARNs))
 	for _, arn := range certificateARNs {
 		certARNs[arn] = time.Time{}
@@ -488,17 +503,19 @@ func (a *Adapter) CreateStack(certificateARNs []string, scheme, securityGroup, o
 		controllerID:                 a.controllerID,
 		sslPolicy:                    sslPolicy,
 		ipAddressType:                ipAddressType,
+		loadbalancerType:             loadBalancerType,
 		albLogsS3Bucket:              a.albLogsS3Bucket,
 		albLogsS3Prefix:              a.albLogsS3Prefix,
 		wafWebAclId:                  a.wafWebAclId,
 		cwAlarms:                     cwAlarms,
 		httpRedirectToHttps:          a.httpRedirectToHttps,
+		nlbCrossZone:                 a.nlbCrossZone,
 	}
 
 	return createStack(a.cloudformation, spec)
 }
 
-func (a *Adapter) UpdateStack(stackName string, certificateARNs map[string]time.Time, scheme, sslPolicy, ipAddressType string, cwAlarms CloudWatchAlarmList) (string, error) {
+func (a *Adapter) UpdateStack(stackName string, certificateARNs map[string]time.Time, scheme, sslPolicy, ipAddressType string, cwAlarms CloudWatchAlarmList, loadBalancerType string) (string, error) {
 	if _, ok := SSLPolicies[sslPolicy]; !ok {
 		return "", fmt.Errorf("invalid SSLPolicy '%s' defined", sslPolicy)
 	}
@@ -523,6 +540,7 @@ func (a *Adapter) UpdateStack(stackName string, certificateARNs map[string]time.
 		controllerID:                 a.controllerID,
 		sslPolicy:                    sslPolicy,
 		ipAddressType:                ipAddressType,
+		loadbalancerType:             loadBalancerType,
 		albLogsS3Bucket:              a.albLogsS3Bucket,
 		albLogsS3Prefix:              a.albLogsS3Prefix,
 		wafWebAclId:                  a.wafWebAclId,

@@ -162,9 +162,11 @@ func updateTargetGroupsForAutoScalingGroup(svc autoscalingiface.AutoScalingAPI, 
 	// get all target groups to ensure we are only working with target
 	// groups that still exists.
 	tgParams := &elbv2.DescribeTargetGroupsInput{}
-	allTGs := make([]*elbv2.TargetGroup, 0, len(resp.LoadBalancerTargetGroups))
+	allTGs := make(map[string]struct{}, len(resp.LoadBalancerTargetGroups))
 	err = elbv2svc.DescribeTargetGroupsPagesWithContext(context.TODO(), tgParams, func(resp *elbv2.DescribeTargetGroupsOutput, lastPage bool) bool {
-		allTGs = append(allTGs, resp.TargetGroups...)
+		for _, tg := range resp.TargetGroups {
+			allTGs[aws.StringValue(tg.TargetGroupArn)] = struct{}{}
+		}
 		return true
 	})
 	if err != nil {
@@ -178,11 +180,7 @@ func updateTargetGroupsForAutoScalingGroup(svc autoscalingiface.AutoScalingAPI, 
 			arns = append(arns, tg.LoadBalancerTargetGroupARN)
 		}
 
-		tgParams := &elbv2.DescribeTagsInput{
-			ResourceArns: arns,
-		}
-
-		tgResp, err := elbv2svc.DescribeTags(tgParams)
+		descs, err := describeTagsChunked(elbv2svc, arns)
 		if err != nil {
 			return err
 		}
@@ -192,14 +190,14 @@ func updateTargetGroupsForAutoScalingGroup(svc autoscalingiface.AutoScalingAPI, 
 			tgARN := aws.StringValue(tg.LoadBalancerTargetGroupARN)
 
 			// check that TG exists at all, otherwise detach it
-			if !tgExists(tgARN, allTGs) {
+			if _, ok := allTGs[tgARN]; !ok {
 				detachARNs = append(detachARNs, tgARN)
 				continue
 			}
 
 			// only consider detaching TGs which are owned by the
 			// controller
-			if !tgHasTags(tgResp.TagDescriptions, tgARN, ownerTags) {
+			if !tgHasTags(descs, tgARN, ownerTags) {
 				continue
 			}
 
@@ -243,15 +241,33 @@ func updateTargetGroupsForAutoScalingGroup(svc autoscalingiface.AutoScalingAPI, 
 	return nil
 }
 
-// tgExists returns true if the targetGroupARN is found in the list of
-// targetGroups.
-func tgExists(targetGroupARN string, targetGroups []*elbv2.TargetGroup) bool {
-	for _, tg := range targetGroups {
-		if aws.StringValue(tg.TargetGroupArn) == targetGroupARN {
-			return true
+func describeTagsChunked(svc elbv2iface.ELBV2API, arns []*string) ([]*elbv2.TagDescription, error) {
+	descs := make([]*elbv2.TagDescription, 0, len(arns))
+	chunkSize := 20
+
+	for i := 0; i < len(arns); i += chunkSize {
+		end := i + chunkSize
+
+		if end > len(arns) {
+			end = len(arns)
+		}
+
+		arnsChunked := arns[i:end]
+		if len(arnsChunked) > 0 {
+			tgParams := &elbv2.DescribeTagsInput{
+				ResourceArns: arnsChunked,
+			}
+
+			tgResp, err := svc.DescribeTags(tgParams)
+			if err != nil {
+				return nil, err
+			}
+
+			descs = append(descs, tgResp.TagDescriptions...)
 		}
 	}
-	return false
+
+	return descs, nil
 }
 
 // tgHasTags returns true if the specified resource has the expected tags.
@@ -283,13 +299,28 @@ func hasTags(tags []*elbv2.Tag, expectedTags map[string]string) bool {
 }
 
 func detachTargetGroupsFromAutoScalingGroup(svc autoscalingiface.AutoScalingAPI, targetGroupARNs []string, autoScalingGroupName string) error {
-	params := &autoscaling.DetachLoadBalancerTargetGroupsInput{
-		AutoScalingGroupName: aws.String(autoScalingGroupName),
-		TargetGroupARNs:      aws.StringSlice(targetGroupARNs),
-	}
-	_, err := svc.DetachLoadBalancerTargetGroups(params)
-	if err != nil {
-		return err
+	// limit target group updates to 10 at a time since this is the limit
+	// in AWS API.
+	chunkSize := 10
+
+	for i := 0; i < len(targetGroupARNs); i += chunkSize {
+		end := i + chunkSize
+
+		if end > len(targetGroupARNs) {
+			end = len(targetGroupARNs)
+		}
+
+		targetGroupARNsChunked := targetGroupARNs[i:end]
+		if len(targetGroupARNsChunked) > 0 {
+			params := &autoscaling.DetachLoadBalancerTargetGroupsInput{
+				AutoScalingGroupName: aws.String(autoScalingGroupName),
+				TargetGroupARNs:      aws.StringSlice(targetGroupARNsChunked),
+			}
+			_, err := svc.DetachLoadBalancerTargetGroups(params)
+			if err != nil {
+				return err
+			}
+		}
 	}
 
 	return nil
