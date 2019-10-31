@@ -31,6 +31,16 @@ This information is used to manage AWS resources for each ingress objects of the
 
 ## Upgrade
 
+### <0.9.0 to >=v0.9.0
+
+Version `v0.9.0` changes the internal flag parsing library to
+[kingpin][kingpin] this means flags are now defined with `--` (two dashes)
+instead of a single dash. You need to change all the flags like this:
+`-stack-termination-protection` -> `--stack-termination-protection` before
+running `v0.9.0` of the controller.
+
+[kingpin]: https://github.com/alecthomas/kingpin
+
 ### <v0.8.0 to >=v0.8.0
 
 Version `v0.8.0` added certificate verification check to automatically ignore
@@ -104,7 +114,7 @@ SecurityGroup auto detection needs the following AWS Tags on the
 SecurityGroup:
 - `kubernetes.io/cluster/<cluster-id>=owned`
 - `kubernetes:application=<controller-id>`, controller-id defaults to
-`kube-ingress-aws-controller` and can be set by flag `-controller-id=<my-ctrl-id>`.
+`kube-ingress-aws-controller` and can be set by flag `--controller-id=<my-ctrl-id>`.
 
 AutoScalingGroup auto detection needs the same AWS tags  on the
 AutoScalingGroup as defined for the SecurityGroup.
@@ -225,7 +235,7 @@ latter will use the automatically selected certificates.
 
 By default the ingress-controller will aggregate all ingresses under as few
 Application Load Balancers as possible (unless running with
-`-disable-sni-support`). If you like to provision an Application Load Balancer
+`--disable-sni-support`). If you like to provision an Application Load Balancer
 that is unique for an ingress you can use the annotation
 `zalando.org/aws-load-balancer-shared: "false"`.
 
@@ -286,7 +296,7 @@ You can only select from `internet-facing` (default) and `internal` options.
 
 You can select the default
 [SSLPolicy](https://docs.aws.amazon.com/elasticloadbalancing/latest/application/create-https-listener.html#describe-ssl-policies),
-with the flag `-ssl-policy=ELBSecurityPolicy-TLS-1-2-2017-01`. This
+with the flag `--ssl-policy=ELBSecurityPolicy-TLS-1-2-2017-01`. This
 choice can be overriden by the Kubernetes Ingress annotation
 `zalando.org/aws-load-balancer-ssl-policy` to any valid value. Valid
 values will be checked by the controller.
@@ -386,7 +396,7 @@ In some cases it might be useful to run multiple instances of this controller:
 * Using a different set of traffic processing nodes
 * Using different frontend routers (e.g.: Skipper and Traefik)
 
-You can use the flag `-controller-id` to set a token that will be used to isolate resources between controller instances.
+You can use the flag `--controller-id` to set a token that will be used to isolate resources between controller instances.
 This value will be used to tag those resources.
 
 If you don't pass an ID, the default `kube-ingress-aws-controller` will be used.
@@ -408,8 +418,8 @@ By default, the controller will expose both HTTP and HTTPS ports on the load bal
 
 ### Backward Compatibility
 
-The controller used to have only the `-health-check-port` flag available, and would use the same port as health check and the target port.
-Those ports are now configured individually. If you relied on this behavior, please include the `-target-port` in your configuration.
+The controller used to have only the `--health-check-port` flag available, and would use the same port as health check and the target port.
+Those ports are now configured individually. If you relied on this behavior, please include the `--target-port` in your configuration.
 
 ## Trying it out
 

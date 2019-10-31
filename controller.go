@@ -7,13 +7,10 @@ import (
 	"os"
 	"os/signal"
 	"path"
+	"strconv"
 	"strings"
 	"syscall"
-
-	"flag"
 	"time"
-
-	"io/ioutil"
 
 	"github.com/aws/aws-sdk-go/service/elbv2"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -21,12 +18,13 @@ import (
 	"github.com/zalando-incubator/kube-ingress-aws-controller/aws"
 	"github.com/zalando-incubator/kube-ingress-aws-controller/certs"
 	"github.com/zalando-incubator/kube-ingress-aws-controller/kubernetes"
+	"gopkg.in/alecthomas/kingpin.v2"
 )
 
 const (
-	defaultDisableSNISupport   = false
-	defaultHttpRedirectToHttps = false
-	defaultCertTTL             = 30 * time.Minute
+	defaultDisableSNISupport   = "false"
+	defaultHTTPRedirectToHTTPS = "false"
+	defaultCertTTL             = "30m"
 	customTagFilterEnvVarName  = "CUSTOM_FILTERS"
 )
 
@@ -37,7 +35,6 @@ var (
 	versionFlag                bool
 	apiServerBaseURL           string
 	pollingInterval            time.Duration
-	cfCustomTemplate           string
 	creationTimeout            time.Duration
 	certPollingInterval        time.Duration
 	healthCheckPath            string
@@ -53,13 +50,13 @@ var (
 	controllerID               string
 	maxCertsPerALB             int
 	sslPolicy                  string
-	blacklistCertARN           string
+	blacklistCertARNs          []string
 	blacklistCertArnMap        map[string]bool
 	ipAddressType              string
 	albLogsS3Bucket            string
 	albLogsS3Prefix            string
 	wafWebAclId                string
-	httpRedirectToHttps        bool
+	httpRedirectToHTTPS        bool
 	debugFlag                  bool
 	quietFlag                  bool
 	firstRun                   bool = true
@@ -70,77 +67,68 @@ var (
 )
 
 func loadSettings() error {
-	flag.Usage = usage
-	flag.BoolVar(&versionFlag, "version", false, "Print version and exit")
-	flag.BoolVar(&debugFlag, "debug", false, "Enables debug logging level")
-	flag.BoolVar(&quietFlag, "quiet", false, "Enables quiet logging")
-	flag.StringVar(&apiServerBaseURL, "api-server-base-url", "", "sets the kubernetes api "+
-		"server base url. If empty will try to use the configuration from the running cluster, else it will use InsecureConfig, that does not use encryption or authentication (use case to develop with kubectl proxy).")
-	flag.DurationVar(&pollingInterval, "polling-interval", 30*time.Second, "sets the polling interval for "+
-		"ingress resources. The flag accepts a value acceptable to time.ParseDuration")
-	flag.StringVar(&cfCustomTemplate, "cf-custom-template", "",
-		"filename for a custom cloud formation template to use instead of the built in")
-	flag.DurationVar(&creationTimeout, "creation-timeout", aws.DefaultCreationTimeout,
-		"sets the stack creation timeout. The flag accepts a value acceptable to time.ParseDuration. "+
-			"Should be >= 1min")
-	flag.DurationVar(&certPollingInterval, "cert-polling-interval", aws.DefaultCertificateUpdateInterval,
-		"sets the polling interval for the certificates cache refresh. The flag accepts a value "+
-			"acceptable to time.ParseDuration")
-	flag.BoolVar(&disableSNISupport, "disable-sni-support", defaultDisableSNISupport, "disables SNI support limiting the number of certificates per ALB to 1.")
-	flag.BoolVar(&stackTerminationProtection, "stack-termination-protection", false, "enables stack termination protection for the stacks managed by the controller.")
-	flag.DurationVar(&certTTL, "cert-ttl-timeout", defaultCertTTL,
-		"sets the timeout of how long a certificate is kept on an old ALB to be decommissioned.")
-	flag.StringVar(&healthCheckPath, "health-check-path", aws.DefaultHealthCheckPath,
-		"sets the health check path for the created target groups")
-	flag.UintVar(&healthCheckPort, "health-check-port", aws.DefaultHealthCheckPort,
-		"sets the health check port for the created target groups")
-	flag.UintVar(&targetPort, "target-port", 9999,
-		"sets the target port for the created target groups")
-	flag.DurationVar(&healthCheckInterval, "health-check-interval", aws.DefaultHealthCheckInterval,
-		"sets the health check interval for the created target groups. The flag accepts a value "+
-			"acceptable to time.ParseDuration")
-	flag.DurationVar(&idleConnectionTimeout, "idle-connection-timeout", aws.DefaultIdleConnectionTimeout,
-		"sets the idle connection timeout of all ALBs. The flag accepts a value acceptable to time.ParseDuration and are between 1s and 4000s.")
-	flag.StringVar(&metricsAddress, "metrics-address", ":7979", "defines where to serve metrics")
-	flag.StringVar(&ingressClassFilters, "ingress-class-filter", "", "optional comma-seperated list of kubernetes.io/ingress.class annotation values to filter behaviour on. ")
-	flag.StringVar(&controllerID, "controller-id", aws.DefaultControllerID, "controller ID used to differentiate resources from multiple aws ingress controller instances")
-	flag.IntVar(&maxCertsPerALB, "max-certs-alb", aws.DefaultMaxCertsPerALB,
-		fmt.Sprintf("sets the maximum number of certificates to be attached to an ALB. Cannot be higher than %d", aws.DefaultMaxCertsPerALB))
-	flag.StringVar(&sslPolicy, "ssl-policy", aws.DefaultSslPolicy, "Security policy that will define the protocols/ciphers accepts by the SSL listener")
-	flag.StringVar(&blacklistCertARN, "blacklist-certificate-arns", "", "Certificate ARNs to not consider by the controller: arn1,arn2,..")
-	flag.StringVar(&ipAddressType, "ip-addr-type", aws.DefaultIpAddressType, "IP Address type to use, one of 'ipv4' or 'dualstack'")
-	flag.StringVar(&albLogsS3Bucket, "logs-s3-bucket", aws.DefaultAlbS3LogsBucket, "S3 bucket to be used for ALB logging")
-	flag.StringVar(&albLogsS3Prefix, "logs-s3-prefix", aws.DefaultAlbS3LogsPrefix, "Prefix within S3 bucket to be used for ALB logging")
-	flag.StringVar(&wafWebAclId, "aws-waf-web-acl-id", aws.DefaultWafWebAclId, "Waf web acl id to be associated with the ALB")
-	flag.StringVar(&cwAlarmConfigMap, "cloudwatch-alarms-config-map", "", "ConfigMap location of the form 'namespace/config-map-name' where to read CloudWatch Alarm configuration from. Ignored if empty.")
-	flag.BoolVar(&httpRedirectToHttps, "redirect-http-to-https", defaultHttpRedirectToHttps, "Configure HTTP listener to redirect to HTTPS")
-	flag.StringVar(&loadBalancerType, "load-balancer-type", aws.LoadBalancerTypeApplication, "Sets default Load Balancer type (application or network).")
-	flag.BoolVar(&nlbCrossZone, "nlb-cross-zone", aws.DefaultNLBCrossZone, "Specify whether Network Load Balancers should balance cross availablity zones. This setting only apply to 'network' Load Balancers.")
-
-	flag.Parse()
+	kingpin.Flag("version", "Print version and exit").Default("false").BoolVar(&versionFlag)
+	kingpin.Flag("debug", "Enables debug logging level").Default("false").BoolVar(&debugFlag)
+	kingpin.Flag("quiet", "Enables quiet logging").Default("false").BoolVar(&quietFlag)
+	kingpin.Flag("api-server-base-url", "sets the kubernetes api server base url. If empty will try to use the configuration from the running cluster, else it will use InsecureConfig, that does not use encryption or authentication (use case to develop with kubectl proxy).").
+		Envar("API_SERVER_BASE_URL").StringVar(&apiServerBaseURL)
+	kingpin.Flag("polling-interval", "sets the polling interval for ingress resources. The flag accepts a value acceptable to time.ParseDuration").
+		Envar("POLLING_INTERVAL").Default("30s").DurationVar(&pollingInterval)
+	kingpin.Flag("creation-timeout", "sets the stack creation timeout. The flag accepts a value acceptable to time.ParseDuration. Should be >= 1min").
+		Envar("CREATION_TIMEOUT").Default(aws.DefaultCreationTimeout.String()).DurationVar(&creationTimeout)
+	kingpin.Flag("cert-polling-interval", "sets the polling interval for the certificates cache refresh. The flag accepts a value acceptable to time.ParseDuration").
+		Envar("CERT_POLLING_INTERVAL").Default(aws.DefaultCertificateUpdateInterval.String()).DurationVar(&certPollingInterval)
+	kingpin.Flag("disable-sni-support", "disables SNI support limiting the number of certificates per ALB to 1.").
+		Default(defaultDisableSNISupport).BoolVar(&disableSNISupport)
+	kingpin.Flag("stack-termination-protection", "enables stack termination protection for the stacks managed by the controller.").
+		Default("false").BoolVar(&stackTerminationProtection)
+	kingpin.Flag("cert-ttl-timeout", "sets the timeout of how long a certificate is kept on an old ALB to be decommissioned.").
+		Default(defaultCertTTL).DurationVar(&certTTL)
+	kingpin.Flag("health-check-path", "sets the health check path for the created target groups").
+		Default(aws.DefaultHealthCheckPath).StringVar(&healthCheckPath)
+	kingpin.Flag("health-check-port", "sets the health check port for the created target groups").
+		Default(strconv.FormatUint(aws.DefaultHealthCheckPort, 10)).UintVar(&healthCheckPort)
+	kingpin.Flag("target-port", "sets the target port for the created target groups").
+		Default(strconv.FormatUint(aws.DefaultTargetPort, 10)).UintVar(&targetPort)
+	kingpin.Flag("health-check-interval", "sets the health check interval for the created target groups. The flag accepts a value acceptable to time.ParseDuration").
+		Default(aws.DefaultHealthCheckInterval.String()).DurationVar(&healthCheckInterval)
+	kingpin.Flag("idle-connection-timeout", "sets the idle connection timeout of all ALBs. The flag accepts a value acceptable to time.ParseDuration and are between 1s and 4000s.").
+		Default(aws.DefaultIdleConnectionTimeout.String()).DurationVar(&idleConnectionTimeout)
+	kingpin.Flag("metrics-address", "defines where to serve metrics").Default(":7979").StringVar(&metricsAddress)
+	kingpin.Flag("ingress-class-filter", "optional comma-seperated list of kubernetes.io/ingress.class annotation values to filter behaviour on.").
+		StringVar(&ingressClassFilters)
+	kingpin.Flag("controller-id", "controller ID used to differentiate resources from multiple aws ingress controller instances").
+		Default(aws.DefaultControllerID).StringVar(&controllerID)
+	kingpin.Flag("max-certs-alb", fmt.Sprintf("sets the maximum number of certificates to be attached to an ALB. Cannot be higher than %d", aws.DefaultMaxCertsPerALB)).
+		Default(strconv.Itoa(aws.DefaultMaxCertsPerALB)).IntVar(&maxCertsPerALB) // TODO: max
+	kingpin.Flag("ssl-policy", "Security policy that will define the protocols/ciphers accepts by the SSL listener").
+		Default(aws.DefaultSslPolicy).EnumVar(&sslPolicy, aws.SSLPoliciesList...)
+	kingpin.Flag("blacklist-certificate-arns", "Certificate ARNs to not consider by the controller.").StringsVar(&blacklistCertARNs)
+	kingpin.Flag("ip-addr-type", "IP Address type to use.").
+		Default(aws.DefaultIpAddressType).EnumVar(&ipAddressType, aws.IPAddressTypeIPV4, aws.IPAddressTypeDualstack)
+	kingpin.Flag("logs-s3-bucket", "S3 bucket to be used for ALB logging").
+		Default(aws.DefaultAlbS3LogsBucket).StringVar(&albLogsS3Bucket)
+	kingpin.Flag("logs-s3-prefix", "Prefix within S3 bucket to be used for ALB logging").
+		Default(aws.DefaultAlbS3LogsPrefix).StringVar(&albLogsS3Prefix)
+	kingpin.Flag("aws-waf-web-acl-id", "Waf web acl id to be associated with the ALB").
+		Default(aws.DefaultWafWebAclId).StringVar(&wafWebAclId)
+	kingpin.Flag("cloudwatch-alarms-config-map", "ConfigMap location of the form 'namespace/config-map-name' where to read CloudWatch Alarm configuration from. Ignored if empty.").
+		StringVar(&cwAlarmConfigMap)
+	kingpin.Flag("redirect-http-to-https", "Configure HTTP listener to redirect to HTTPS").
+		Default(defaultHTTPRedirectToHTTPS).BoolVar(&httpRedirectToHTTPS)
+	kingpin.Flag("load-balancer-type", "Sets default Load Balancer type (application or network).").
+		Default(aws.LoadBalancerTypeApplication).EnumVar(&loadBalancerType, aws.LoadBalancerTypeApplication, aws.LoadBalancerTypeNetwork)
+	kingpin.Flag("nlb-cross-zone", "Specify whether Network Load Balancers should balance cross availablity zones. This setting only apply to 'network' Load Balancers.").
+		Default("false").BoolVar(&nlbCrossZone)
+	kingpin.Parse()
 
 	blacklistCertArnMap = make(map[string]bool)
-	for _, s := range strings.Split(blacklistCertARN, ",") {
+	for _, s := range blacklistCertARNs {
 		blacklistCertArnMap[s] = true
 	}
 
-	if tmp, defined := os.LookupEnv("API_SERVER_BASE_URL"); defined {
-		apiServerBaseURL = tmp
-	}
-
-	if err := loadDurationFromEnv("POLLING_INTERVAL", &pollingInterval); err != nil {
-		return err
-	}
-
-	if err := loadDurationFromEnv("CREATION_TIMEOUT", &creationTimeout); err != nil {
-		return err
-	}
 	if creationTimeout < 1*time.Minute {
 		return fmt.Errorf("invalid creation timeout %d. please specify a value > 1min", creationTimeout)
-	}
-
-	if err := loadDurationFromEnv("CERT_POLLING_INTERVAL", &certPollingInterval); err != nil {
-		return err
 	}
 
 	if healthCheckPort == 0 || healthCheckPort > 65535 {
@@ -149,14 +137,6 @@ func loadSettings() error {
 
 	if targetPort == 0 || targetPort > 65535 {
 		return fmt.Errorf("invalid target port: %d. please use a valid TCP port", targetPort)
-	}
-
-	if cfCustomTemplate != "" {
-		buf, err := ioutil.ReadFile(cfCustomTemplate)
-		if err != nil {
-			return err
-		}
-		cfCustomTemplate = string(buf)
 	}
 
 	if maxCertsPerALB > aws.DefaultMaxCertsPerALB {
@@ -170,10 +150,6 @@ func loadSettings() error {
 		}
 
 		cwAlarmConfigMapLocation = loc
-	}
-
-	if loadBalancerType != aws.LoadBalancerTypeApplication && loadBalancerType != aws.LoadBalancerTypeNetwork {
-		return fmt.Errorf("invalid load-balancer-type, must be 'application' or 'network'")
 	}
 
 	if quietFlag && debugFlag {
@@ -202,13 +178,6 @@ func loadDurationFromEnv(varName string, dest *time.Duration) error {
 		*dest = interval
 	}
 	return nil
-}
-
-func usage() {
-	fmt.Fprintf(os.Stderr, "usage: %s [options]\n", os.Args[0])
-	fmt.Fprintln(os.Stderr, "where options can be:")
-	flag.PrintDefaults()
-	os.Exit(2)
 }
 
 func main() {
@@ -249,7 +218,6 @@ func main() {
 		WithHealthCheckInterval(healthCheckInterval).
 		WithTargetPort(targetPort).
 		WithCreationTimeout(creationTimeout).
-		WithCustomTemplate(cfCustomTemplate).
 		WithStackTerminationProtection(stackTerminationProtection).
 		WithIdleConnectionTimeout(idleConnectionTimeout).
 		WithControllerID(controllerID).
@@ -258,7 +226,7 @@ func main() {
 		WithAlbLogsS3Bucket(albLogsS3Bucket).
 		WithAlbLogsS3Prefix(albLogsS3Prefix).
 		WithWafWebAclId(wafWebAclId).
-		WithHttpRedirectToHttps(httpRedirectToHttps).
+		WithHTTPRedirectToHTTPS(httpRedirectToHTTPS).
 		WithNLBCrossZone(nlbCrossZone).
 		WithCustomFilter(customFilter)
 
@@ -306,7 +274,7 @@ func main() {
 	log.Infof("\tPublic subnet IDs: %s", awsAdapter.FindLBSubnets(elbv2.LoadBalancerSchemeEnumInternetFacing))
 	log.Infof("\tEC2 filters: %s", awsAdapter.FiltersString())
 	log.Infof("\tCertificates per ALB: %d (SNI: %t)", certificatesPerALB, certificatesPerALB > 1)
-	log.Infof("\tBlacklisted Certificate ARNs (%d): %s", len(blacklistCertArnMap), blacklistCertARN)
+	log.Infof("\tBlacklisted Certificate ARNs (%d): %s", len(blacklistCertARNs), strings.Join(blacklistCertARNs, ","))
 	log.Infof("\tIngress class filters: %s", kubeAdapter.IngressFiltersString())
 	log.Infof("\tALB Logging S3 Bucket: %s", awsAdapter.S3Bucket())
 	log.Infof("\tALB Logging S3 Prefix: %s", awsAdapter.S3Prefix())

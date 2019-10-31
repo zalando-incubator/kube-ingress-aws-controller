@@ -100,7 +100,7 @@ func TestGenerateTemplate(t *testing.T) {
 			name: "http -> https redirect should be enabled for Application load balancers",
 			spec: &stackSpec{
 				loadbalancerType:    LoadBalancerTypeApplication,
-				httpRedirectToHttps: true,
+				httpRedirectToHTTPS: true,
 			},
 			validate: func(t *testing.T, template *cloudformation.Template) {
 				require.NotNil(t, template.Resources["HTTPListener"])
@@ -116,7 +116,7 @@ func TestGenerateTemplate(t *testing.T) {
 			name: "http -> https redirect should NOT be enabled for Network load balancers",
 			spec: &stackSpec{
 				loadbalancerType:    LoadBalancerTypeNetwork,
-				httpRedirectToHttps: true,
+				httpRedirectToHTTPS: true,
 			},
 			validate: func(t *testing.T, template *cloudformation.Template) {
 				require.NotNil(t, template.Resources["HTTPListener"])
