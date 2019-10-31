@@ -137,7 +137,7 @@ type stackSpec struct {
 	albLogsS3Prefix              string
 	wafWebAclId                  string
 	cwAlarms                     CloudWatchAlarmList
-	httpRedirectToHttps          bool
+	httpRedirectToHTTPS          bool
 	nlbCrossZone                 bool
 }
 

@@ -37,7 +37,6 @@ type Adapter struct {
 	iam            iamiface.IAMAPI
 	cloudformation cloudformationiface.CloudFormationAPI
 
-	customTemplate             string
 	manifest                   *manifest
 	healthCheckPath            string
 	healthCheckPort            uint
@@ -57,7 +56,7 @@ type Adapter struct {
 	albLogsS3Bucket            string
 	albLogsS3Prefix            string
 	wafWebAclId                string
-	httpRedirectToHttps        bool
+	httpRedirectToHTTPS        bool
 	nlbCrossZone               bool
 	customFilter               string
 }
@@ -135,6 +134,15 @@ var (
 		"ELBSecurityPolicy-TLS-1-1-2017-01":     true,
 		"ELBSecurityPolicy-2015-05":             true,
 		"ELBSecurityPolicy-TLS-1-0-2015-04":     true,
+	}
+	SSLPoliciesList = []string{
+		"ELBSecurityPolicy-2016-08",
+		"ELBSecurityPolicy-FS-2018-06",
+		"ELBSecurityPolicy-TLS-1-2-2017-01",
+		"ELBSecurityPolicy-TLS-1-2-Ext-2018-06",
+		"ELBSecurityPolicy-TLS-1-1-2017-01",
+		"ELBSecurityPolicy-2015-05",
+		"ELBSecurityPolicy-TLS-1-0-2015-04",
 	}
 )
 
@@ -247,13 +255,6 @@ func (a *Adapter) WithIdleConnectionTimeout(interval time.Duration) *Adapter {
 	return a
 }
 
-// WithCustomTemplate returns the receiver adapter after changing the CloudFormation template that should be used
-// to create Load Balancer stacks
-func (a *Adapter) WithCustomTemplate(template string) *Adapter {
-	a.customTemplate = template
-	return a
-}
-
 // WithControllerID returns the receiver adapter after changing the CloudFormation template that should be used
 // to create Load Balancer stacks
 func (a *Adapter) WithControllerID(id string) *Adapter {
@@ -301,9 +302,9 @@ func (a *Adapter) WithWafWebAclId(wafWebAclId string) *Adapter {
 	return a
 }
 
-// WithHttpRedirectToHttps returns the receiver adapter after changing the flag to effect HTTP->HTTPS redirection
-func (a *Adapter) WithHttpRedirectToHttps(httpRedirectToHttps bool) *Adapter {
-	a.httpRedirectToHttps = httpRedirectToHttps
+// WithHTTPRedirectToHTTPS returns the receiver adapter after changing the flag to effect HTTP->HTTPS redirection
+func (a *Adapter) WithHTTPRedirectToHTTPS(httpRedirectToHTTPS bool) *Adapter {
+	a.httpRedirectToHTTPS = httpRedirectToHTTPS
 	return a
 }
 
@@ -508,7 +509,7 @@ func (a *Adapter) CreateStack(certificateARNs []string, scheme, securityGroup, o
 		albLogsS3Prefix:              a.albLogsS3Prefix,
 		wafWebAclId:                  a.wafWebAclId,
 		cwAlarms:                     cwAlarms,
-		httpRedirectToHttps:          a.httpRedirectToHttps,
+		httpRedirectToHTTPS:          a.httpRedirectToHTTPS,
 		nlbCrossZone:                 a.nlbCrossZone,
 	}
 
@@ -545,7 +546,7 @@ func (a *Adapter) UpdateStack(stackName string, certificateARNs map[string]time.
 		albLogsS3Prefix:              a.albLogsS3Prefix,
 		wafWebAclId:                  a.wafWebAclId,
 		cwAlarms:                     cwAlarms,
-		httpRedirectToHttps:          a.httpRedirectToHttps,
+		httpRedirectToHTTPS:          a.httpRedirectToHTTPS,
 	}
 
 	return updateStack(a.cloudformation, spec)

@@ -29,4 +29,4 @@ spec:
         - name: AWS_REGION
           value: <REGIOn>
         args:
-          - "-ip-addr-type=dualstack" OR "-ip-addr-type=ipv4" OR OMIT TO HAVE ipv4
+          - "--ip-addr-type=dualstack" OR "--ip-addr-type=ipv4" OR OMIT TO HAVE ipv4

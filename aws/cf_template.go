@@ -86,7 +86,7 @@ func generateTemplate(spec *stackSpec) (string, error) {
 		tlsProtocol = "TLS"
 	}
 
-	if spec.loadbalancerType == LoadBalancerTypeApplication && spec.httpRedirectToHttps {
+	if spec.loadbalancerType == LoadBalancerTypeApplication && spec.httpRedirectToHTTPS {
 		template.AddResource("HTTPListener", &cloudformation.ElasticLoadBalancingV2Listener{
 			DefaultActions: &cloudformation.ElasticLoadBalancingV2ListenerActionList{
 				{
