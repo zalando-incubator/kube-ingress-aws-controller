@@ -23,5 +23,50 @@ pipeline:
       else
         IMAGE=registry-write.opensource.zalan.do/teapot/kube-ingress-aws-controller-test
         VERSION=$CDP_BUILD_VERSION
+        IMAGE=$IMAGE VERSION=$VERSION make build.push
       fi
+- id: buildprod
+  when:
+    branch: master
+  overlay: ci/golang
+  type: script
+  env:
+    GOFLAGS: "-mod=readonly"
+  cache:
+    paths:
+    - /go/pkg/mod       # pkg cache for Go modules
+    - ~/.cache/go-build # Go build cache
+  commands:
+  - desc: create tag and release
+    cmd: |
+      LATEST_VERSION=$(git describe --tags --always | awk -F \- '{print $1}')
+      CUR_PART=$(echo $LATEST_VERSION | awk -F . '{print $1"."$2}')
+      VERSION_PART=$(cat VERSION)
+      OLD_PATCH=$(echo $LATEST_VERSION | awk -F . '{print $3}')
+      NEW_PATCH=$((OLD_PATCH + 1))
+      if [ "$CUR_PART" != "$VERSION_PART" ]; then NEW_PATCH=0; fi
+      VERSION=${VERSION_PART}.${NEW_PATCH}
+      echo "Creating release for tag: ${VERSION}"
+      git gh-tag $VERSION
+      echo "create and push docker container"
+      IMAGE=registry-write.opensource.zalan.do/kube-ingress-aws-controller
+      IMAGE=$IMAGE VERSION=$VERSION make build.docker
+      git diff --stat --exit-code
       IMAGE=$IMAGE VERSION=$VERSION make build.push
+      echo "create release page"
+      CHANGELOG=$(git log -1 --pretty=%B | grep -v 'Signed-off-by:' | grep -v -E '^\s*$' | tail -n +2)
+      MSG="### Changes\n\n${CHANGELOG}\n"
+      MSG="$MSG\n"$(cat <<"EOF"
+
+      ### Docker image
+
+      Docker image is available in Zalando's Open Source registry:
+
+      ```
+      docker run -it registry.opensource.zalan.do/teapot/kube-ingress-aws-controller:VERSION --help
+      ```
+
+      EOF
+      )
+      MSG=$(echo $MSG | sed "s/VERSION/$VERSION/")
+      git gh-release -m "${MSG}" $VERSION
