@@ -55,13 +55,13 @@ pipeline:
       IMAGE=$IMAGE VERSION=$VERSION make build.push
       echo "create release page"
       tf=$(mktemp)
-      echo "### Changes\n" >$tf
+      echo -e "### Changes\n" >$tf
       git log -1 --pretty=%B | grep -v 'Signed-off-by:' | grep -v -E '^\s*$' | grep -vE '^\*' >>$tf
-      echo "\n### Docker image\n" >>$tf
-      echo "Docker image is available in Zalando's Open Source registry:\n" >>$tf
-      echo '```' >>$tf
-      echo "docker run -it registry.opensource.zalan.do/teapot/kube-ingress-aws-controller:${VERSION} --help" >>$tf
-      echo '```' >>$tf
+      echo -e "\n### Docker image\n" >>$tf
+      echo -e "Docker image is available in Zalando's Open Source registry:\n" >>$tf
+      echo -e '```' >>$tf
+      echo -e "docker run -it registry.opensource.zalan.do/teapot/kube-ingress-aws-controller:${VERSION} --help" >>$tf
+      echo -e '```' >>$tf
       echo "################################"
       cat $tf
       echo "################################"
