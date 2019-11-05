@@ -54,7 +54,7 @@ pipeline:
       git diff --stat --exit-code
       IMAGE=$IMAGE VERSION=$VERSION make build.push
       echo "create release page"
-      CHANGELOG=$(git log -1 --pretty=%B | grep -v 'Signed-off-by:' | grep -v -E '^\s*$' | tail -n +2)
+      CHANGELOG=$(git log -1 --pretty=%B | grep -v 'Signed-off-by:' | grep -v -E '^\s*$' | grep -vE '^\*')
       MSG="### Changes\n\n${CHANGELOG}\n"
       MSG="$MSG\n"$(cat <<"EOF"
 
