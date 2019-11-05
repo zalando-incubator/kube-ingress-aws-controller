@@ -54,19 +54,15 @@ pipeline:
       git diff --stat --exit-code
       IMAGE=$IMAGE VERSION=$VERSION make build.push
       echo "create release page"
-      CHANGELOG=$(git log -1 --pretty=%B | grep -v 'Signed-off-by:' | grep -v -E '^\s*$' | grep -vE '^\*')
-      MSG="### Changes\n\n${CHANGELOG}\n"
-      MSG="$MSG\n"$(cat <<"EOF"
-
-      ### Docker image
-
-      Docker image is available in Zalando's Open Source registry:
-
-      ```
-      docker run -it registry.opensource.zalan.do/teapot/kube-ingress-aws-controller:VERSION --help
-      ```
-
-      EOF
-      )
-      MSG=$(echo $MSG | sed "s/VERSION/$VERSION/")
-      git gh-release -m "${MSG}" $VERSION
+      tf=$(mktemp)
+      echo "### Changes\n" >$tf
+      git log -1 --pretty=%B | grep -v 'Signed-off-by:' | grep -v -E '^\s*$' | grep -vE '^\*' >>$tf
+      echo "\n### Docker image\n" >>$tf
+      echo "Docker image is available in Zalando's Open Source registry:\n" >>$tf
+      echo '```' >>$tf
+      echo "docker run -it registry.opensource.zalan.do/teapot/kube-ingress-aws-controller:${VERSION} --help" >>$tf
+      echo '```' >>$tf
+      echo "################################"
+      cat $tf
+      echo "################################"
+      git gh-release --message-from-file "${tf}" $VERSION
