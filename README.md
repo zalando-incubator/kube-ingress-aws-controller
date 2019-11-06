@@ -20,7 +20,7 @@ This information is used to manage AWS resources for each ingress objects of the
 - Automatic discovery of SSL certificates
 - Automatic forwarding of requests to all Worker Nodes, even with auto scaling
 - Automatic cleanup of unnecessary managed resources
-- Support for both [Application Load Balancers](https://docs.aws.amazon.com/elasticloadbalancing/latest/application/introduction.html) and [Network Load Balancers](https://docs.aws.amazon.com/elasticloadbalancing/latest/network/introduction.html).
+- Support for both [Application Load Balancers][alb] and [Network Load Balancers][nlb].
 - Support for internet-facing and internal load balancers
 - Support for multiple Auto Scaling Groups
 - Support for instances that are not part of Auto Scaling Group
@@ -92,7 +92,7 @@ running has the clusterID tag `kubernetes.io/cluster/<cluster-id>=owned` set
 
 ## Ingress annotations
 
-Overview of annotations which can be set.
+Overview of configuration which can be set via Ingress annotations.
 
 ### Annotations
 |Name                       | Value |Default
@@ -107,6 +107,26 @@ Overview of annotations which can be set.
 |`kubernetes.io/ingress.class`|`string`|N/A|
 
 The defaults can also be configured globally via a flag on the controller.
+
+## Load Balancers types
+
+The controller supports both [Application Load Balancers][alb] and [Network
+Load Balancers][nlb]. Below is an overview of which features can be used with
+the individual Load Balancer types.
+
+|Feature                 | Application Load Balancer | Network Load Balancer |
+|------------------------|------|------|
+| HTTPS                  | :heavy_check_mark: | :heavy_check_mark:  |
+| HTTP                   | :heavy_check_mark: | :heavy_check_mark: `--nlb-http-enabled` |
+| HTTP -> HTTPS redirect | :heavy_check_mark: `--redirect-http-to-https` | :heavy_multiplication_x: |
+| [Cross Zone Load Balancing][cross_zone] | :heavy_check_mark: (only option) | :heavy_check_mark: `--nlb-cross-zone` |
+| [Dualstack support][dualstack] | :heavy_check_mark: `--ip-addr-type=dualstack` | :heavy_multiplication_x: |
+| [Idle Timeout][idle_timeout] | :heavy_check_mark: `--idle-connection-timeout` | :heavy_multiplication_x: |
+| Custom Security Group | :heavy_check_mark: | :heavy_multiplication_x: |
+
+[cross_zone]: https://docs.aws.amazon.com/elasticloadbalancing/latest/network/network-load-balancers.html#availability-zones
+[dualstack]: https://docs.aws.amazon.com/elasticloadbalancing/latest/application/application-load-balancers.html#ip-address-type
+[idle_timeout]: https://docs.aws.amazon.com/elasticloadbalancing/latest/application/application-load-balancers.html#load-balancer-attributes
 
 ## AWS Tags
 
@@ -463,3 +483,9 @@ The MIT License (MIT) Copyright © [2017] Zalando SE, https://tech.zalando.com
 Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the “Software”), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
 The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
 THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+
+
+
+[alb]: https://docs.aws.amazon.com/elasticloadbalancing/latest/application/introduction.html
+[nlb]: https://docs.aws.amazon.com/elasticloadbalancing/latest/network/introduction.html

@@ -105,7 +105,7 @@ func generateTemplate(spec *stackSpec) (string, error) {
 			Port:            cloudformation.Integer(80),
 			Protocol:        cloudformation.String("HTTP"),
 		})
-	} else {
+	} else if spec.loadbalancerType == LoadBalancerTypeApplication || spec.nlbHTTPEnabled {
 		template.AddResource("HTTPListener", &cloudformation.ElasticLoadBalancingV2Listener{
 			DefaultActions: &cloudformation.ElasticLoadBalancingV2ListenerActionList{
 				{

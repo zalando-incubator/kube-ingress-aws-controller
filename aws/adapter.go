@@ -58,6 +58,7 @@ type Adapter struct {
 	wafWebAclId                string
 	httpRedirectToHTTPS        bool
 	nlbCrossZone               bool
+	nlbHTTPEnabled             bool
 	customFilter               string
 }
 
@@ -100,7 +101,8 @@ const (
 	DefaultCustomFilter    = ""
 	// DefaultNLBCrossZone specifies the default configuration for cross
 	// zone load balancing: https://docs.aws.amazon.com/elasticloadbalancing/latest/network/network-load-balancers.html#load-balancer-attributes
-	DefaultNLBCrossZone = false
+	DefaultNLBCrossZone   = false
+	DefaultNLBHTTPEnabled = false
 
 	nameTag                     = "Name"
 	LoadBalancerTypeApplication = "application"
@@ -189,6 +191,7 @@ func NewAdapter(newControllerID string) (adapter *Adapter, err error) {
 		albLogsS3Prefix:     DefaultAlbS3LogsPrefix,
 		wafWebAclId:         DefaultWafWebAclId,
 		nlbCrossZone:        DefaultNLBCrossZone,
+		nlbHTTPEnabled:      DefaultNLBHTTPEnabled,
 		customFilter:        DefaultCustomFilter,
 	}
 
@@ -312,6 +315,13 @@ func (a *Adapter) WithHTTPRedirectToHTTPS(httpRedirectToHTTPS bool) *Adapter {
 // config.
 func (a *Adapter) WithNLBCrossZone(nlbCrossZone bool) *Adapter {
 	a.nlbCrossZone = nlbCrossZone
+	return a
+}
+
+// WithNLBHTTPEnabled returns the receiver adapter after setting the
+// nlbHTTPEnabled config.
+func (a *Adapter) WithNLBHTTPEnabled(nlbHTTPEnabled bool) *Adapter {
+	a.nlbHTTPEnabled = nlbHTTPEnabled
 	return a
 }
 
@@ -511,6 +521,7 @@ func (a *Adapter) CreateStack(certificateARNs []string, scheme, securityGroup, o
 		cwAlarms:                     cwAlarms,
 		httpRedirectToHTTPS:          a.httpRedirectToHTTPS,
 		nlbCrossZone:                 a.nlbCrossZone,
+		nlbHTTPEnabled:               a.nlbHTTPEnabled,
 	}
 
 	return createStack(a.cloudformation, spec)
@@ -547,6 +558,8 @@ func (a *Adapter) UpdateStack(stackName string, certificateARNs map[string]time.
 		wafWebAclId:                  a.wafWebAclId,
 		cwAlarms:                     cwAlarms,
 		httpRedirectToHTTPS:          a.httpRedirectToHTTPS,
+		nlbCrossZone:                 a.nlbCrossZone,
+		nlbHTTPEnabled:               a.nlbHTTPEnabled,
 	}
 
 	return updateStack(a.cloudformation, spec)

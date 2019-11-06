@@ -117,6 +117,7 @@ func TestGenerateTemplate(t *testing.T) {
 			spec: &stackSpec{
 				loadbalancerType:    LoadBalancerTypeNetwork,
 				httpRedirectToHTTPS: true,
+				nlbHTTPEnabled:      true,
 			},
 			validate: func(t *testing.T, template *cloudformation.Template) {
 				require.NotNil(t, template.Resources["HTTPListener"])
@@ -138,6 +139,16 @@ func TestGenerateTemplate(t *testing.T) {
 				attributes := []cloudformation.ElasticLoadBalancingV2LoadBalancerLoadBalancerAttribute(*properties.LoadBalancerAttributes)
 				require.Equal(t, attributes[0].Key.Literal, "load_balancing.cross_zone.enabled")
 				require.Equal(t, attributes[0].Value.Literal, "true")
+			},
+		},
+		{
+			name: "nlb HTTP listener should not be enabled when nlbHTTPEnabled is set to false",
+			spec: &stackSpec{
+				loadbalancerType: LoadBalancerTypeNetwork,
+				nlbHTTPEnabled:   false,
+			},
+			validate: func(t *testing.T, template *cloudformation.Template) {
+				require.NotContains(t, template.Resources, "HTTPListener")
 			},
 		},
 	} {

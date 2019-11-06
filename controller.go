@@ -64,6 +64,7 @@ var (
 	cwAlarmConfigMapLocation   *kubernetes.ResourceLocation
 	loadBalancerType           string
 	nlbCrossZone               bool
+	nlbHTTPEnabled             bool
 )
 
 func loadSettings() error {
@@ -120,6 +121,8 @@ func loadSettings() error {
 		Default(aws.LoadBalancerTypeApplication).EnumVar(&loadBalancerType, aws.LoadBalancerTypeApplication, aws.LoadBalancerTypeNetwork)
 	kingpin.Flag("nlb-cross-zone", "Specify whether Network Load Balancers should balance cross availablity zones. This setting only apply to 'network' Load Balancers.").
 		Default("false").BoolVar(&nlbCrossZone)
+	kingpin.Flag("nlb-http-enabled", "Enable HTTP (port 80) for Network Load Balancers. By default this is disabled as NLB can't provide HTTP -> HTTPS redirect.").
+		Default("false").BoolVar(&nlbHTTPEnabled)
 	kingpin.Parse()
 
 	blacklistCertArnMap = make(map[string]bool)
@@ -228,6 +231,7 @@ func main() {
 		WithWafWebAclId(wafWebAclId).
 		WithHTTPRedirectToHTTPS(httpRedirectToHTTPS).
 		WithNLBCrossZone(nlbCrossZone).
+		WithNLBHTTPEnabled(nlbHTTPEnabled).
 		WithCustomFilter(customFilter)
 
 	certificatesProvider, err := certs.NewCachingProvider(
