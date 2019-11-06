@@ -49,7 +49,7 @@ pipeline:
       echo "Creating release for tag: ${VERSION}"
       git gh-tag $VERSION
       echo "create and push docker container"
-      IMAGE=registry-write.opensource.zalan.do/kube-ingress-aws-controller
+      IMAGE=registry-write.opensource.zalan.do/teapot/kube-ingress-aws-controller
       IMAGE=$IMAGE VERSION=$VERSION make build.docker
       git diff --stat --exit-code
       IMAGE=$IMAGE VERSION=$VERSION make build.push
