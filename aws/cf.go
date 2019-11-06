@@ -139,6 +139,7 @@ type stackSpec struct {
 	cwAlarms                     CloudWatchAlarmList
 	httpRedirectToHTTPS          bool
 	nlbCrossZone                 bool
+	nlbHTTPEnabled               bool
 }
 
 type healthCheck struct {
