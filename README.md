@@ -420,6 +420,7 @@ This value will be used to tag those resources.
 If you don't pass an ID, the default `kube-ingress-aws-controller` will be used.
 
 Usually you would want to combine this flag with `ingress-class-filter` so different types of ingresses are associated with the different controllers.
+To make `kube-ingress-aws-controller` manage both specific ingress class and an empty one (or ingresses without ingress class annotation) add an empty class to the list. For example to manage ingress class `foo` and ingresses without class set parameter like this `--ingress-class-filter=foo,` (notice the comma in the end).
 
 ## Target and Health Check Ports
 
