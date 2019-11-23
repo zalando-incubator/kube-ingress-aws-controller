@@ -217,11 +217,9 @@ func (a *Adapter) ListIngress() ([]*Ingress, error) {
 		ret = make([]*Ingress, 0)
 		for _, ingress := range il.Items {
 			ingressClass := ingress.getAnnotationsString(ingressClassAnnotation, "")
-			if ingressClass != "" {
-				for _, v := range a.ingressFilters {
-					if v == ingressClass {
-						ret = append(ret, a.newIngressFromKube(ingress))
-					}
+			for _, v := range a.ingressFilters {
+				if v == ingressClass {
+					ret = append(ret, a.newIngressFromKube(ingress))
 				}
 			}
 		}

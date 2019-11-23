@@ -306,3 +306,75 @@ func TestAdapter_GetConfigMap(t *testing.T) {
 		t.Error("expected an error")
 	}
 }
+
+func TestListIngressFilterClass(t *testing.T) {
+	for name, test := range map[string]struct {
+		ingressClassFilters  []string
+		expectedIngressNames []string
+	}{
+		"emptyIngressClassFilters": {
+			ingressClassFilters: nil,
+			expectedIngressNames: []string{
+				"fixture01",
+				"fixture02",
+				"fixture03",
+			},
+		},
+		"emptyIngressClassFilters2": {
+			ingressClassFilters: []string{},
+			expectedIngressNames: []string{
+				"fixture01",
+				"fixture02",
+				"fixture03",
+			},
+		},
+		"singleIngressClass1": {
+			ingressClassFilters: []string{"skipper"},
+			expectedIngressNames: []string{
+				"fixture02",
+			},
+		},
+		"singleIngressClass2": {
+			ingressClassFilters: []string{"other"},
+			expectedIngressNames: []string{
+				"fixture03",
+			},
+		},
+		"multipleIngressClass": {
+			ingressClassFilters: []string{"skipper", "other"},
+			expectedIngressNames: []string{
+				"fixture02",
+				"fixture03",
+			},
+		},
+		"multipleIngressClassWithDefault": {
+			ingressClassFilters: []string{"skipper", ""},
+			expectedIngressNames: []string{
+				"fixture01",
+				"fixture02",
+			},
+		},
+		"multipleIngressClassWithDefault2": {
+			ingressClassFilters: []string{"other", ""},
+			expectedIngressNames: []string{
+				"fixture01",
+				"fixture03",
+			},
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			a, _ := NewAdapter(testConfig, test.ingressClassFilters, testIngressDefaultSecurityGroup, testSSLPolicy, testLoadBalancerTypeAWS)
+			client := &mockClient{}
+			a.kubeClient = client
+			ingresses, err := a.ListIngress()
+			if err != nil {
+				t.Error(err)
+			}
+			ingressNames := make([]string, len(ingresses))
+			for i, ing := range ingresses {
+				ingressNames[i] = ing.Name
+			}
+			assert.ElementsMatch(t, test.expectedIngressNames, ingressNames, "ingress names mismatch")
+		})
+	}
+}
