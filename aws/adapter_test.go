@@ -777,31 +777,41 @@ func TestFindLBSubnets(tt *testing.T) {
 
 func TestParseFilterTagsDefault(t *testing.T) {
 	for _, test := range []struct {
-		name      string
-		clusterId string
-		want      map[string][]string
+		name         string
+		clusterID    string
+		customFilter string
+		want         map[string][]string
 	}{
 		{
-			"success-default-filter-asg",
-			"mycluster",
-			map[string][]string{
+			name:      "success-default-filter-asg",
+			clusterID: "mycluster",
+			want: map[string][]string{
 				clusterIDTagPrefix + "mycluster": []string{resourceLifecycleOwned},
+			},
+		},
+		{
+			name:         "success-custom-filter-asg",
+			clusterID:    "aws:12345678910:eu-central-1:mycluster",
+			customFilter: "tag:kubernetes.io/cluster/aws:12345678910:eu-central-1:mycluster=owned tag:node.kubernetes.io/role=worker",
+			want: map[string][]string{
+				clusterIDTagPrefix + "aws:12345678910:eu-central-1:mycluster": []string{resourceLifecycleOwned},
+				"node.kubernetes.io/role":                                     []string{"worker"},
 			},
 		},
 	} {
 		t.Run(fmt.Sprintf("%v", test.name), func(t *testing.T) {
 			a := Adapter{
-				customFilter: "",
+				customFilter: test.customFilter,
 				ec2Details:   map[string]*instanceDetails{},
 				manifest: &manifest{
 					instance: &instanceDetails{
 						tags: map[string]string{
-							clusterIDTagPrefix + test.clusterId: resourceLifecycleOwned,
+							clusterIDTagPrefix + test.clusterID: resourceLifecycleOwned,
 						},
 					},
 				},
 			}
-			got := a.parseAutoscaleFilterTags(test.clusterId)
+			got := a.parseAutoscaleFilterTags(test.clusterID)
 
 			if !reflect.DeepEqual(test.want, got) {
 				t.Errorf("unexpected result. wanted %+v, got %+v", test.want, got)
