@@ -789,8 +789,8 @@ func (a *Adapter) parseAutoscaleFilterTags(clusterId string) map[string][]string
 			if parts[0] == "tag-key" {
 				filterTags[parts[1]] = []string{}
 			} else if strings.HasPrefix(parts[0], "tag:") {
-				tagparts := strings.Split(parts[0], ":")
-				filterTags[tagparts[1]] = strings.Split(parts[1], ",")
+				tagKey := strings.TrimPrefix(parts[0], "tag:")
+				filterTags[tagKey] = strings.Split(parts[1], ",")
 			} else {
 				filterTags[parts[0]] = strings.Split(parts[1], ",")
 			}
