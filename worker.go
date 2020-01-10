@@ -255,7 +255,8 @@ func doWork(certsProvider certs.CertificatesProvider, certsPerALB int, certTTL t
 	}
 
 	awsAdapter.UpdateTargetGroupsAndAutoScalingGroups(stacks)
-	log.Infof("Found %d auto scaling group(s)", len(awsAdapter.AutoScalingGroupNames()))
+	log.Infof("Found %d owned auto scaling group(s)", len(awsAdapter.OwnedAutoScalingGroups))
+	log.Infof("Found %d targeted auto scaling group(s)", len(awsAdapter.TargetedAutoScalingGroups))
 	log.Infof("Found %d single instance(s)", len(awsAdapter.SingleInstances()))
 	log.Infof("Found %d EC2 instance(s)", awsAdapter.CachedInstances())
 	log.Infof("Found %d certificate(s)", len(certificateSummaries))

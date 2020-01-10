@@ -45,7 +45,8 @@ type Adapter struct {
 	creationTimeout            time.Duration
 	idleConnectionTimeout      time.Duration
 	stackTTL                   time.Duration
-	autoScalingGroups          map[string]*autoScalingGroupDetails
+	TargetedAutoScalingGroups  map[string]*autoScalingGroupDetails
+	OwnedAutoScalingGroups     map[string]*autoScalingGroupDetails
 	ec2Details                 map[string]*instanceDetails
 	singleInstances            map[string]*instanceDetails
 	obsoleteInstances          []string
@@ -180,19 +181,19 @@ func NewAdapter(newControllerID string) (adapter *Adapter, err error) {
 		healthCheckInterval: DefaultHealthCheckInterval,
 		creationTimeout:     DefaultCreationTimeout,
 		stackTTL:            DefaultStackTTL,
-		autoScalingGroups:   make(map[string]*autoScalingGroupDetails),
-		ec2Details:          make(map[string]*instanceDetails),
-		singleInstances:     make(map[string]*instanceDetails),
-		obsoleteInstances:   make([]string, 0),
-		controllerID:        newControllerID,
-		sslPolicy:           DefaultSslPolicy,
-		ipAddressType:       DefaultIpAddressType,
-		albLogsS3Bucket:     DefaultAlbS3LogsBucket,
-		albLogsS3Prefix:     DefaultAlbS3LogsPrefix,
-		wafWebAclId:         DefaultWafWebAclId,
-		nlbCrossZone:        DefaultNLBCrossZone,
-		nlbHTTPEnabled:      DefaultNLBHTTPEnabled,
-		customFilter:        DefaultCustomFilter,
+		// autoScalingGroups:   make(map[string]*autoScalingGroupDetails),
+		ec2Details:        make(map[string]*instanceDetails),
+		singleInstances:   make(map[string]*instanceDetails),
+		obsoleteInstances: make([]string, 0),
+		controllerID:      newControllerID,
+		sslPolicy:         DefaultSslPolicy,
+		ipAddressType:     DefaultIpAddressType,
+		albLogsS3Bucket:   DefaultAlbS3LogsBucket,
+		albLogsS3Prefix:   DefaultAlbS3LogsPrefix,
+		wafWebAclId:       DefaultWafWebAclId,
+		nlbCrossZone:      DefaultNLBCrossZone,
+		nlbHTTPEnabled:    DefaultNLBHTTPEnabled,
+		customFilter:      DefaultCustomFilter,
 	}
 
 	adapter.manifest, err = buildManifest(adapter)
@@ -360,18 +361,6 @@ func (a *Adapter) S3Prefix() string {
 	return a.albLogsS3Prefix
 }
 
-// AutoScalingGroupNames returns names of the Auto Scaling Groups that
-// kubernetes nodes belong to.
-func (a *Adapter) AutoScalingGroupNames() []string {
-	result := make([]string, len(a.autoScalingGroups))
-	i := 0
-	for name := range a.autoScalingGroups {
-		result[i] = name
-		i++
-	}
-	return result
-}
-
 // SingleInstances returns list of IDs of instances that do not belong to any
 // Auto Scaling Group and should be managed manually.
 func (a *Adapter) SingleInstances() []string {
@@ -450,12 +439,22 @@ func (a *Adapter) UpdateTargetGroupsAndAutoScalingGroups(stacks []*Stack) {
 		kubernetesCreatorTag:               a.controllerID,
 	}
 
-	for _, asg := range a.autoScalingGroups {
+	for _, asg := range a.TargetedAutoScalingGroups {
 		// This call is idempotent and safe to execute every time
 		if err := updateTargetGroupsForAutoScalingGroup(a.autoscaling, a.elbv2, targetGroupARNs, asg.name, ownerTags); err != nil {
 			log.Errorf("UpdateTargetGroupsAndAutoScalingGroups() failed to attach target groups to ASG '%s': %v", asg.name, err)
 		}
 	}
+
+	// remove owned TGs from non-targeted ASGs
+	nonTargetedASGs := nonTargetedASGs(a.OwnedAutoScalingGroups, a.TargetedAutoScalingGroups)
+	for _, asg := range nonTargetedASGs {
+		// This call is idempotent and safe to execute every time
+		if err := updateTargetGroupsForAutoScalingGroup(a.autoscaling, a.elbv2, nil, asg.name, ownerTags); err != nil {
+			log.Errorf("UpdateTargetGroupsAndAutoScalingGroups() failed to attach target groups to ASG '%s': %v", asg.name, err)
+		}
+	}
+
 	runningSingleInstances := a.RunningSingleInstances()
 	if len(runningSingleInstances) != 0 {
 		// This call is idempotent too
@@ -576,7 +575,7 @@ func (a *Adapter) GetStack(stackID string) (*Stack, error) {
 
 // DeleteStack deletes the CloudFormation stack with the given name
 func (a *Adapter) DeleteStack(stack *Stack) error {
-	for _, asg := range a.autoScalingGroups {
+	for _, asg := range a.TargetedAutoScalingGroups {
 		if err := detachTargetGroupsFromAutoScalingGroup(a.autoscaling, []string{stack.TargetGroupARN}, asg.name); err != nil {
 			return fmt.Errorf("DeleteStack failed to detach: %v", err)
 		}
@@ -721,17 +720,17 @@ func (a *Adapter) UpdateAutoScalingGroupsAndInstances() error {
 		}
 	}
 
-	newAutoScalingGroups := make(map[string]*autoScalingGroupDetails)
-	fetchedAutoScalingGroups, err := getOwnedAutoScalingGroups(a.autoscaling, a.manifest.asgFilters)
+	ownedTag := map[string]string{
+		clusterIDTagPrefix + a.ClusterID(): resourceLifecycleOwned,
+	}
+
+	targetedASGs, ownedASGs, err := getOwnedAndTargetedAutoScalingGroups(a.autoscaling, a.manifest.asgFilters, ownedTag)
 	if err != nil {
 		return err
 	}
 
-	for name, asg := range fetchedAutoScalingGroups {
-		newAutoScalingGroups[name] = asg
-	}
-
-	a.autoScalingGroups = newAutoScalingGroups
+	a.TargetedAutoScalingGroups = targetedASGs
+	a.OwnedAutoScalingGroups = ownedASGs
 	return nil
 }
 
@@ -805,4 +804,16 @@ func generateDefaultAutoscaleFilterTags(clusterId string) map[string][]string {
 	filterTags := make(map[string][]string)
 	filterTags[clusterIDTagPrefix+clusterId] = []string{resourceLifecycleOwned}
 	return filterTags
+}
+
+func nonTargetedASGs(ownedASGs, targetedASGs map[string]*autoScalingGroupDetails) map[string]*autoScalingGroupDetails {
+	nonTargetedASGs := make(map[string]*autoScalingGroupDetails)
+
+	for name, asg := range ownedASGs {
+		if _, ok := targetedASGs[name]; !ok {
+			nonTargetedASGs[name] = asg
+		}
+	}
+
+	return nonTargetedASGs
 }
