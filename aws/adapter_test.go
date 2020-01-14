@@ -9,6 +9,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/aws/aws-sdk-go/service/elbv2"
+	"github.com/stretchr/testify/require"
 )
 
 func TesGenerateDefaultFilters(tt *testing.T) {
@@ -244,7 +245,6 @@ func TestUpdateAutoScalingGroupsAndInstances(tt *testing.T) {
 	clusterID := "aws:123:eu-central-1:kube-1"
 	a := Adapter{
 		ec2Details:        map[string]*instanceDetails{},
-		autoScalingGroups: make(map[string]*autoScalingGroupDetails),
 		singleInstances:   make(map[string]*instanceDetails),
 		obsoleteInstances: make([]string, 0),
 		manifest: &manifest{
@@ -627,7 +627,10 @@ func TestUpdateAutoScalingGroupsAndInstances(tt *testing.T) {
 				adapterSingleIds := a.SingleInstances()
 				adapterRunningIds := a.RunningSingleInstances()
 				adapterObsoleteIds := a.ObsoleteSingleInstances()
-				asgs := a.AutoScalingGroupNames()
+				asgs := make([]string, 0, len(a.TargetedAutoScalingGroups))
+				for name := range a.TargetedAutoScalingGroups {
+					asgs = append(asgs, name)
+				}
 				sort.Strings(adapterSingleIds)
 				sort.Strings(adapterRunningIds)
 				sort.Strings(adapterObsoleteIds)
@@ -873,6 +876,37 @@ func TestParseFilterTagsCustom(t *testing.T) {
 			if !reflect.DeepEqual(test.want, got) {
 				t.Errorf("unexpected result. wanted %+v, got %+v", test.want, got)
 			}
+		})
+	}
+}
+
+func TestNonTargetedASGs(t *testing.T) {
+	for _, test := range []struct {
+		name                    string
+		ownedASGs               map[string]*autoScalingGroupDetails
+		targetedASGs            map[string]*autoScalingGroupDetails
+		expectedNonTargetedASGs map[string]*autoScalingGroupDetails
+	}{
+		{
+			name: "",
+			ownedASGs: map[string]*autoScalingGroupDetails{
+				"a": nil,
+				"b": nil,
+				"c": nil,
+			},
+			targetedASGs: map[string]*autoScalingGroupDetails{
+				"b": nil,
+				"c": nil,
+				"d": nil,
+			},
+			expectedNonTargetedASGs: map[string]*autoScalingGroupDetails{
+				"a": nil,
+			},
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			nonTargetedASGs := nonTargetedASGs(test.ownedASGs, test.targetedASGs)
+			require.Equal(t, test.expectedNonTargetedASGs, nonTargetedASGs)
 		})
 	}
 }

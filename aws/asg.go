@@ -113,15 +113,15 @@ func testFilterTags(filterTags map[string][]string, asgTags map[string]string) b
 	return false
 }
 
-func getOwnedAutoScalingGroups(service autoscalingiface.AutoScalingAPI, filterTags map[string][]string) (map[string]*autoScalingGroupDetails, error) {
+func getOwnedAndTargetedAutoScalingGroups(service autoscalingiface.AutoScalingAPI, filterTags map[string][]string, ownedTags map[string]string) (map[string]*autoScalingGroupDetails, map[string]*autoScalingGroupDetails, error) {
 	params := &autoscaling.DescribeAutoScalingGroupsInput{}
 
-	result := make(map[string]*autoScalingGroupDetails)
+	targetedASGs := make(map[string]*autoScalingGroupDetails)
+	ownedASGs := make(map[string]*autoScalingGroupDetails)
 	err := service.DescribeAutoScalingGroupsPages(params,
 		func(page *autoscaling.DescribeAutoScalingGroupsOutput, lastPage bool) bool {
 			for _, g := range page.AutoScalingGroups {
 				name := aws.StringValue(g.AutoScalingGroupName)
-
 				tags := make(map[string]string)
 				for _, td := range g.Tags {
 					key := aws.StringValue(td.Key)
@@ -129,24 +129,30 @@ func getOwnedAutoScalingGroups(service autoscalingiface.AutoScalingAPI, filterTa
 					tags[key] = value
 				}
 
+				asg := &autoScalingGroupDetails{
+					name:                    name,
+					arn:                     aws.StringValue(g.AutoScalingGroupARN),
+					launchConfigurationName: aws.StringValue(g.LaunchConfigurationName),
+					targetGroups:            aws.StringValueSlice(g.TargetGroupARNs),
+					tags:                    tags,
+				}
+
+				if hasTagsASG(g.Tags, ownedTags) {
+					ownedASGs[name] = asg
+				}
+
 				if testFilterTags(filterTags, tags) {
-					result[name] = &autoScalingGroupDetails{
-						name:                    name,
-						arn:                     aws.StringValue(g.AutoScalingGroupARN),
-						launchConfigurationName: aws.StringValue(g.LaunchConfigurationName),
-						targetGroups:            aws.StringValueSlice(g.TargetGroupARNs),
-						tags:                    tags,
-					}
+					targetedASGs[name] = asg
 				}
 			}
 
 			return true
 		})
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	return result, nil
+	return targetedASGs, ownedASGs, nil
 }
 
 func updateTargetGroupsForAutoScalingGroup(svc autoscalingiface.AutoScalingAPI, elbv2svc elbv2iface.ELBV2API, targetGroupARNs []string, autoScalingGroupName string, ownerTags map[string]string) error {
@@ -282,6 +288,24 @@ func tgHasTags(descs []*elbv2.TagDescription, arn string, tags map[string]string
 
 // hasTags returns true if the expectedTags are found in the list of tags.
 func hasTags(tags []*elbv2.Tag, expectedTags map[string]string) bool {
+	for key, val := range expectedTags {
+		found := false
+		for _, tag := range tags {
+			if aws.StringValue(tag.Key) == key && aws.StringValue(tag.Value) == val {
+				found = true
+				break
+			}
+		}
+
+		if !found {
+			return false
+		}
+	}
+	return true
+}
+
+// hasTagsASG returns true if the expectedTags are found in the list of tags.
+func hasTagsASG(tags []*autoscaling.TagDescription, expectedTags map[string]string) bool {
 	for key, val := range expectedTags {
 		found := false
 		for _, tag := range tags {
