@@ -207,6 +207,13 @@ Single Instances. On each cycle instances on this list are registered as targets
 If call to get instances from EC2 did not return previously known Single Instance, it is deregistered from Target Group and removed from list of Single Instances.
 Call to deregister instances is aggregated so that maximum 1 call to deregister is issued in poll cycle.
 
+For Auto Scaling Groups, the controller will always try to build a list of
+*owned* Auto Scaling Groups based on the tag:
+`kubernetes.io/cluster/<cluster-id>=owned` even if this tag is not specified in
+the `CUSTOM_FILTERS` configuration. Tracking the *owned* Auto Scaling Groups is
+done to automatically deregister any ASGs which are no longer targeted by the
+`CUSTOM_FILTERS`.
+
 ### Discovery
 
 On startup, the controller discovers the AWS resources required for the controller operations:
