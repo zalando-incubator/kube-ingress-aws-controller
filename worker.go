@@ -227,7 +227,7 @@ func doWork(certsProvider certs.CertificatesProvider, certsPerALB int, certTTL t
 		return nil
 	}()
 
-	ingresses, err := kubeAdapter.ListIngress()
+	ingresses, err := kubeAdapter.ListResources()
 	if err != nil {
 		return fmt.Errorf("doWork failed to list ingress resources: %v", err)
 	}
