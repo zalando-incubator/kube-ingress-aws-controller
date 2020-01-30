@@ -46,6 +46,7 @@ func TestMappingRoundtrip(tt *testing.T) {
 				SSLPolicy:        testSSLPolicy,
 				IPAddressType:    testIPAddressTypeDefault,
 				LoadBalancerType: testLoadBalancerTypeAWS,
+				resourceType:     ingressTypeIngress,
 			},
 			kubeIngress: &ingress{
 				Metadata: ingressItemMetadata{
@@ -91,6 +92,7 @@ func TestMappingRoundtrip(tt *testing.T) {
 				SSLPolicy:        testSSLPolicy,
 				IPAddressType:    testIPAddressTypeDefault,
 				LoadBalancerType: testLoadBalancerTypeAWS,
+				resourceType:     ingressTypeIngress,
 			},
 			kubeIngress: &ingress{
 				Metadata: ingressItemMetadata{
@@ -129,6 +131,7 @@ func TestMappingRoundtrip(tt *testing.T) {
 				SSLPolicy:        testSSLPolicy,
 				IPAddressType:    testIPAddressTypeDualStack,
 				LoadBalancerType: testLoadBalancerTypeAWS,
+				resourceType:     ingressTypeIngress,
 			},
 			kubeIngress: &ingress{
 				Metadata: ingressItemMetadata{
@@ -200,6 +203,8 @@ func (c *mockClient) get(res string) (io.ReadCloser, error) {
 
 	var fixture string
 	switch res {
+	case routegroupListResource:
+		fixture = "testdata/fixture01_rg.json"
 	case ingressListResource:
 		fixture = "testdata/fixture01.json"
 	case fmt.Sprintf(configMapResource, "foo-ns", "foo-name"):
@@ -216,8 +221,13 @@ func (c *mockClient) get(res string) (io.ReadCloser, error) {
 }
 
 func (c *mockClient) patch(res string, payload []byte) (io.ReadCloser, error) {
-	if !c.broken && res == "/apis/extensions/v1beta1/namespaces/default/ingresses/foo/status" {
-		return ioutil.NopCloser(strings.NewReader(":)")), nil
+	if !c.broken {
+		switch res {
+		case "/apis/extensions/v1beta1/namespaces/default/ingresses/foo/status":
+			return ioutil.NopCloser(strings.NewReader(":)")), nil
+		case "/apis/zalando.org/v1/namespaces/default/routegroups/foo/status":
+			return ioutil.NopCloser(strings.NewReader(":)")), nil
+		}
 	}
 	return nil, errors.New("mocked error")
 }
@@ -249,6 +259,33 @@ func TestUpdateIngressLoadBalancer(t *testing.T) {
 		Name:           "foo",
 		Hostname:       "bar",
 		CertificateARN: "zbr",
+		resourceType:   ingressTypeIngress,
+	}
+	if err := a.UpdateIngressLoadBalancer(ing, "xpto"); err != nil {
+		t.Error(err)
+	}
+	client.broken = true
+	if err := a.UpdateIngressLoadBalancer(ing, "xpto"); err == nil {
+		t.Error("expected an error")
+	}
+	if err := a.UpdateIngressLoadBalancer(ing, ""); err == nil {
+		t.Error("expected an error")
+	}
+	if err := a.UpdateIngressLoadBalancer(nil, "xpto"); err == nil {
+		t.Error("expected an error")
+	}
+}
+
+func TestUpdateRouteGroupLoadBalancer(t *testing.T) {
+	a, _ := NewAdapter(testConfig, testIngressFilter, testSecurityGroup, testSSLPolicy, testLoadBalancerTypeAWS)
+	client := &mockClient{}
+	a.kubeClient = client
+	ing := &Ingress{
+		Namespace:      "default",
+		Name:           "foo",
+		Hostname:       "bar",
+		CertificateARN: "zbr",
+		resourceType:   ingressTypeRouteGroup,
 	}
 	if err := a.UpdateIngressLoadBalancer(ing, "xpto"); err != nil {
 		t.Error(err)
@@ -318,6 +355,9 @@ func TestListIngressFilterClass(t *testing.T) {
 				"fixture01",
 				"fixture02",
 				"fixture03",
+				"fixture-rg01",
+				"fixture-rg02",
+				"fixture-rg03",
 			},
 		},
 		"emptyIngressClassFilters2": {
@@ -326,18 +366,23 @@ func TestListIngressFilterClass(t *testing.T) {
 				"fixture01",
 				"fixture02",
 				"fixture03",
+				"fixture-rg01",
+				"fixture-rg02",
+				"fixture-rg03",
 			},
 		},
 		"singleIngressClass1": {
 			ingressClassFilters: []string{"skipper"},
 			expectedIngressNames: []string{
 				"fixture02",
+				"fixture-rg02",
 			},
 		},
 		"singleIngressClass2": {
 			ingressClassFilters: []string{"other"},
 			expectedIngressNames: []string{
 				"fixture03",
+				"fixture-rg03",
 			},
 		},
 		"multipleIngressClass": {
@@ -345,6 +390,8 @@ func TestListIngressFilterClass(t *testing.T) {
 			expectedIngressNames: []string{
 				"fixture02",
 				"fixture03",
+				"fixture-rg02",
+				"fixture-rg03",
 			},
 		},
 		"multipleIngressClassWithDefault": {
@@ -352,6 +399,8 @@ func TestListIngressFilterClass(t *testing.T) {
 			expectedIngressNames: []string{
 				"fixture01",
 				"fixture02",
+				"fixture-rg01",
+				"fixture-rg02",
 			},
 		},
 		"multipleIngressClassWithDefault2": {
@@ -359,6 +408,8 @@ func TestListIngressFilterClass(t *testing.T) {
 			expectedIngressNames: []string{
 				"fixture01",
 				"fixture03",
+				"fixture-rg01",
+				"fixture-rg03",
 			},
 		},
 	} {
@@ -366,7 +417,7 @@ func TestListIngressFilterClass(t *testing.T) {
 			a, _ := NewAdapter(testConfig, test.ingressClassFilters, testIngressDefaultSecurityGroup, testSSLPolicy, testLoadBalancerTypeAWS)
 			client := &mockClient{}
 			a.kubeClient = client
-			ingresses, err := a.ListIngress()
+			ingresses, err := a.ListResources()
 			if err != nil {
 				t.Error(err)
 			}

@@ -101,7 +101,7 @@ func (c *simpleClient) patch(resource string, payload []byte) (io.ReadCloser, er
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("Content-Type", "application/strategic-merge-patch+json")
+	req.Header.Set("Content-Type", "application/merge-patch+json")
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return nil, err

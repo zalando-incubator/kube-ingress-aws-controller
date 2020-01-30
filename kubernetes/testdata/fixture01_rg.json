@@ -1,0 +1,75 @@
+{
+  "kind": "RoutegroupList",
+  "apiVersion": "zalando.org/v1",
+  "metadata": {
+    "selfLink": "/apis/zalando.org/v1/routegroups",
+    "resourceVersion": "42"
+  },
+  "items": [
+    {
+      "metadata": {
+        "name": "fixture-rg01",
+        "namespace": "default",
+        "selfLink": "/apis/zalando.org/v1/namespaces/default/routegroups/fixture-rg01",
+        "uid": "fixture-rg01",
+        "resourceVersion": "42",
+        "generation": 1,
+        "creationTimestamp": "2016-11-29T14:53:42Z",
+        "annotations": {
+          "zalando.org/aws-load-balancer-ssl-cert": "fixture-rg01"
+        }
+      },
+      "status": {
+        "loadBalancer": {
+          "routegroup": [
+            {"hostname": "example.org"}
+          ]
+        }
+      }
+    },
+    {
+      "metadata": {
+        "name": "fixture-rg02",
+        "namespace": "default",
+        "selfLink": "/apis/zalando.org/v1/namespaces/default/routegroups/fixture-rg02",
+        "uid": "fixture-rg02",
+        "resourceVersion": "42",
+        "generation": 1,
+        "creationTimestamp": "2016-11-29T14:53:42Z",
+        "annotations": {
+          "zalando.org/aws-load-balancer-ssl-cert": "fixture-rg02",
+          "kubernetes.io/ingress.class": "skipper"
+        }
+      },
+      "status": {
+        "loadBalancer": {
+          "routegroup": [
+            {"hostname": "skipper.example.org"}
+          ]
+        }
+      }
+    },
+    {
+      "metadata": {
+        "name": "fixture-rg03",
+        "namespace": "default",
+        "selfLink": "/apis/zalando.org/v1/namespaces/default/routegroups/fixture-rg03",
+        "uid": "fixture-rg03",
+        "resourceVersion": "42",
+        "generation": 1,
+        "creationTimestamp": "2016-11-29T14:53:42Z",
+        "annotations": {
+          "zalando.org/aws-load-balancer-ssl-cert": "fixture-rg03",
+          "kubernetes.io/ingress.class": "other"
+        }
+      },
+      "status": {
+        "loadBalancer": {
+          "routegroup": [
+            {"hostname": "other.example.org"}
+          ]
+        }
+      }
+    }
+  ]
+}

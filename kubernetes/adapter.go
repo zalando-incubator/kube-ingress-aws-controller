@@ -17,6 +17,24 @@ type Adapter struct {
 	ingressDefaultLoadBalancerType string
 }
 
+type ingressType int
+
+const (
+	ingressTypeIngress ingressType = iota + 1
+	ingressTypeRouteGroup
+)
+
+func (t ingressType) String() string {
+	switch t {
+	case ingressTypeIngress:
+		return "ingress"
+	case ingressTypeRouteGroup:
+		return "routegroup"
+	default:
+		return "unknown"
+	}
+}
+
 const (
 	loadBalancerTypeNLB = "nlb"
 	loadBalancerTypeALB = "alb"
@@ -52,7 +70,8 @@ var (
 	}
 )
 
-// Ingress is the ingress-controller's business object
+// Ingress is the ingress-controller's business object. It is used to
+// store Kubernetes ingress and routegroup resources.
 type Ingress struct {
 	CertificateARN   string
 	Namespace        string
@@ -65,6 +84,7 @@ type Ingress struct {
 	SSLPolicy        string
 	IPAddressType    string
 	LoadBalancerType string
+	resourceType     ingressType
 }
 
 // String returns a string representation of the Ingress instance containing the namespace and the resource name.
@@ -167,6 +187,75 @@ func (a *Adapter) newIngressFromKube(kubeIngress *ingress) *Ingress {
 		SSLPolicy:        sslPolicy,
 		IPAddressType:    ipAddressType,
 		LoadBalancerType: loadBalancerType,
+		resourceType:     ingressTypeIngress,
+	}
+}
+
+func (a *Adapter) newIngressFromRouteGroup(rg *routegroup) *Ingress {
+	var host, scheme string
+	var hostnames []string
+	for _, lb := range rg.Status.LoadBalancer.Routegroup {
+		if lb.Hostname != "" {
+			host = lb.Hostname
+			break
+		}
+	}
+
+	for _, host := range rg.Spec.Hosts {
+		if host != "" {
+			hostnames = append(hostnames, host)
+		}
+	}
+
+	// Set schema to default if annotation value is not valid
+	switch rg.getAnnotationsString(ingressSchemeAnnotation, "") {
+	case elbv2.LoadBalancerSchemeEnumInternal:
+		scheme = elbv2.LoadBalancerSchemeEnumInternal
+	default:
+		scheme = elbv2.LoadBalancerSchemeEnumInternetFacing
+	}
+
+	shared := true
+	if rg.getAnnotationsString(ingressSharedAnnotation, "") == "false" {
+		shared = false
+	}
+
+	ipAddressType := aws.IPAddressTypeIPV4
+	if rg.getAnnotationsString(ingressALBIPAddressType, "") == aws.IPAddressTypeDualstack {
+		ipAddressType = aws.IPAddressTypeDualstack
+	}
+
+	sslPolicy := rg.getAnnotationsString(ingressSSLPolicyAnnotation, a.ingressDefaultSSLPolicy)
+	if _, ok := aws.SSLPolicies[sslPolicy]; !ok {
+		sslPolicy = a.ingressDefaultSSLPolicy
+	}
+
+	loadBalancerType := rg.getAnnotationsString(ingressLoadBalancerTypeAnnotation, a.ingressDefaultLoadBalancerType)
+	if _, ok := loadBalancerTypesIngressToAWS[loadBalancerType]; !ok {
+		loadBalancerType = a.ingressDefaultLoadBalancerType
+	}
+
+	// convert to the internal naming e.g. nlb -> network
+	loadBalancerType = loadBalancerTypesIngressToAWS[loadBalancerType]
+
+	if loadBalancerType == aws.LoadBalancerTypeNetwork {
+		// ensure ipv4 for network load balancers
+		ipAddressType = aws.IPAddressTypeIPV4
+	}
+
+	return &Ingress{
+		CertificateARN:   rg.getAnnotationsString(ingressCertificateARNAnnotation, ""),
+		Namespace:        rg.Metadata.Namespace,
+		Name:             rg.Metadata.Name,
+		Hostname:         host,
+		Scheme:           scheme,
+		Hostnames:        hostnames,
+		Shared:           shared,
+		SecurityGroup:    rg.getAnnotationsString(ingressSecurityGroupAnnotation, a.ingressDefaultSecurityGroup),
+		SSLPolicy:        sslPolicy,
+		IPAddressType:    ipAddressType,
+		LoadBalancerType: loadBalancerType,
+		resourceType:     ingressTypeRouteGroup,
 	}
 }
 
@@ -201,12 +290,62 @@ func newIngressForKube(i *Ingress) *ingress {
 	}
 }
 
+func newRouteGroupForKube(i *Ingress) *routegroup {
+	shared := "true"
+
+	if !i.Shared {
+		shared = "false"
+	}
+
+	return &routegroup{
+		Metadata: routegroupItemMetadata{
+			Namespace: i.Namespace,
+			Name:      i.Name,
+			Annotations: map[string]interface{}{
+				ingressCertificateARNAnnotation:   i.CertificateARN,
+				ingressSchemeAnnotation:           i.Scheme,
+				ingressSharedAnnotation:           shared,
+				ingressSecurityGroupAnnotation:    i.SecurityGroup,
+				ingressSSLPolicyAnnotation:        i.SSLPolicy,
+				ingressALBIPAddressType:           i.IPAddressType,
+				ingressLoadBalancerTypeAnnotation: loadBalancerTypesAWSToIngress[i.LoadBalancerType],
+			},
+		},
+		Status: routegroupStatus{
+			LoadBalancer: routegroupLoadBalancerStatus{
+				Routegroup: []routegroupLoadBalancer{
+					{Hostname: i.Hostname},
+				},
+			},
+		},
+	}
+}
+
 // Get ingress class filters that are used to filter ingresses acted upon.
 func (a *Adapter) IngressFiltersString() string {
 	return strings.TrimSpace(strings.Join(a.ingressFilters, ","))
 }
 
-// ListIngress can be used to obtain the list of ingress resources for all namespaces.
+// ListResources can be used to obtain the list of ingress and
+// routegroup resources for all namespaces filtered by class. It
+// returns the Ingress business object, that for the controller does
+// not matter to be routegroup or ingress..
+func (a *Adapter) ListResources() ([]*Ingress, error) {
+	ings, err := a.ListIngress()
+	if err != nil {
+		return nil, err
+	}
+	rgs, err := a.ListRoutegroups()
+	if err != nil {
+		return nil, err
+	}
+	return append(ings, rgs...), nil
+}
+
+// ListIngress can be used to obtain the list of ingress resources for
+// all namespaces filtered by class. It returns the Ingress business
+// object, that for the controller does not matter to be routegroup or
+// ingress..
 func (a *Adapter) ListIngress() ([]*Ingress, error) {
 	il, err := listIngress(a.kubeClient)
 	if err != nil {
@@ -232,6 +371,35 @@ func (a *Adapter) ListIngress() ([]*Ingress, error) {
 	return ret, nil
 }
 
+// ListRoutegroups can be used to obtain the list of Ingress resources
+// for all namespaces filtered by class. It returns the Ingress
+// business object, that for the controller does not matter to be
+// routegroup or ingress.
+func (a *Adapter) ListRoutegroups() ([]*Ingress, error) {
+	rgs, err := listRoutegroups(a.kubeClient)
+	if err != nil {
+		return nil, err
+	}
+	var ret []*Ingress
+	if len(a.ingressFilters) > 0 {
+		ret = make([]*Ingress, 0)
+		for _, rg := range rgs.Items {
+			ingressClass := rg.getAnnotationsString(ingressClassAnnotation, "")
+			for _, v := range a.ingressFilters {
+				if v == ingressClass {
+					ret = append(ret, a.newIngressFromRouteGroup(rg))
+				}
+			}
+		}
+	} else {
+		ret = make([]*Ingress, len(rgs.Items))
+		for i, rg := range rgs.Items {
+			ret[i] = a.newIngressFromRouteGroup(rg)
+		}
+	}
+	return ret, nil
+}
+
 // UpdateIngressLoadBalancer can be used to update the loadBalancer object of an ingress resource. It will update
 // the hostname property with the provided load balancer DNS name.
 func (a *Adapter) UpdateIngressLoadBalancer(ingress *Ingress, loadBalancerDNSName string) error {
@@ -239,7 +407,13 @@ func (a *Adapter) UpdateIngressLoadBalancer(ingress *Ingress, loadBalancerDNSNam
 		return ErrInvalidIngressUpdateParams
 	}
 
-	return updateIngressLoadBalancer(a.kubeClient, newIngressForKube(ingress), loadBalancerDNSName)
+	switch ingress.resourceType {
+	case ingressTypeRouteGroup:
+		return updateRoutegroupLoadBalancer(a.kubeClient, newRouteGroupForKube(ingress), loadBalancerDNSName)
+	case ingressTypeIngress:
+		return updateIngressLoadBalancer(a.kubeClient, newIngressForKube(ingress), loadBalancerDNSName)
+	}
+	return fmt.Errorf("Unknown resourceType '%s', failed to update Kubernetes resource", ingress.resourceType)
 }
 
 // GetConfigMap retrieves the ConfigMap with name from namespace.
