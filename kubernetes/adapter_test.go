@@ -46,7 +46,7 @@ func TestMappingRoundtrip(tt *testing.T) {
 				SSLPolicy:        testSSLPolicy,
 				IPAddressType:    testIPAddressTypeDefault,
 				LoadBalancerType: testLoadBalancerTypeAWS,
-				typ:              ingressTypeIngress,
+				resourceType:     ingressTypeIngress,
 			},
 			kubeIngress: &ingress{
 				Metadata: ingressItemMetadata{
@@ -92,7 +92,7 @@ func TestMappingRoundtrip(tt *testing.T) {
 				SSLPolicy:        testSSLPolicy,
 				IPAddressType:    testIPAddressTypeDefault,
 				LoadBalancerType: testLoadBalancerTypeAWS,
-				typ:              ingressTypeIngress,
+				resourceType:     ingressTypeIngress,
 			},
 			kubeIngress: &ingress{
 				Metadata: ingressItemMetadata{
@@ -131,7 +131,7 @@ func TestMappingRoundtrip(tt *testing.T) {
 				SSLPolicy:        testSSLPolicy,
 				IPAddressType:    testIPAddressTypeDualStack,
 				LoadBalancerType: testLoadBalancerTypeAWS,
-				typ:              ingressTypeIngress,
+				resourceType:     ingressTypeIngress,
 			},
 			kubeIngress: &ingress{
 				Metadata: ingressItemMetadata{
@@ -259,7 +259,7 @@ func TestUpdateIngressLoadBalancer(t *testing.T) {
 		Name:           "foo",
 		Hostname:       "bar",
 		CertificateARN: "zbr",
-		typ:            ingressTypeIngress,
+		resourceType:   ingressTypeIngress,
 	}
 	if err := a.UpdateIngressLoadBalancer(ing, "xpto"); err != nil {
 		t.Error(err)
@@ -285,7 +285,7 @@ func TestUpdateRouteGroupLoadBalancer(t *testing.T) {
 		Name:           "foo",
 		Hostname:       "bar",
 		CertificateARN: "zbr",
-		typ:            ingressTypeRouteGroup,
+		resourceType:   ingressTypeRouteGroup,
 	}
 	if err := a.UpdateIngressLoadBalancer(ing, "xpto"); err != nil {
 		t.Error(err)

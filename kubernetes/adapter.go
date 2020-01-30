@@ -84,7 +84,7 @@ type Ingress struct {
 	SSLPolicy        string
 	IPAddressType    string
 	LoadBalancerType string
-	typ              ingressType
+	resourceType     ingressType
 }
 
 // String returns a string representation of the Ingress instance containing the namespace and the resource name.
@@ -187,7 +187,7 @@ func (a *Adapter) newIngressFromKube(kubeIngress *ingress) *Ingress {
 		SSLPolicy:        sslPolicy,
 		IPAddressType:    ipAddressType,
 		LoadBalancerType: loadBalancerType,
-		typ:              ingressTypeIngress,
+		resourceType:     ingressTypeIngress,
 	}
 }
 
@@ -255,7 +255,7 @@ func (a *Adapter) newIngressFromRouteGroup(rg *routegroup) *Ingress {
 		SSLPolicy:        sslPolicy,
 		IPAddressType:    ipAddressType,
 		LoadBalancerType: loadBalancerType,
-		typ:              ingressTypeRouteGroup,
+		resourceType:     ingressTypeRouteGroup,
 	}
 }
 
@@ -407,13 +407,13 @@ func (a *Adapter) UpdateIngressLoadBalancer(ingress *Ingress, loadBalancerDNSNam
 		return ErrInvalidIngressUpdateParams
 	}
 
-	switch ingress.typ {
+	switch ingress.resourceType {
 	case ingressTypeRouteGroup:
 		return updateRoutegroupLoadBalancer(a.kubeClient, newRouteGroupForKube(ingress), loadBalancerDNSName)
 	case ingressTypeIngress:
 		return updateIngressLoadBalancer(a.kubeClient, newIngressForKube(ingress), loadBalancerDNSName)
 	}
-	return fmt.Errorf("Unknown typ '%s', failed to update Kubernetes resource", ingress.typ)
+	return fmt.Errorf("Unknown resourceType '%s', failed to update Kubernetes resource", ingress.resourceType)
 }
 
 // GetConfigMap retrieves the ConfigMap with name from namespace.
