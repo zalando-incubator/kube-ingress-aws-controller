@@ -17,11 +17,27 @@ type Adapter struct {
 	ingressDefaultLoadBalancerType string
 }
 
+type ingressType int
+
 const (
-	loadBalancerTypeNLB   = "nlb"
-	loadBalancerTypeALB   = "alb"
-	ingressTypeIngress    = "ingress"
-	ingressTypeRouteGroup = "routegroup"
+	ingressTypeIngress ingressType = iota + 1
+	ingressTypeRouteGroup
+)
+
+func (t ingressType) String() string {
+	switch t {
+	case ingressTypeIngress:
+		return "ingress"
+	case ingressTypeRouteGroup:
+		return "routegroup"
+	default:
+		return "unknown"
+	}
+}
+
+const (
+	loadBalancerTypeNLB = "nlb"
+	loadBalancerTypeALB = "alb"
 )
 
 var (
@@ -68,7 +84,7 @@ type Ingress struct {
 	SSLPolicy        string
 	IPAddressType    string
 	LoadBalancerType string
-	typ              string // "ingress" or "routegroup" to patch status based on that
+	typ              ingressType
 }
 
 // String returns a string representation of the Ingress instance containing the namespace and the resource name.
