@@ -100,10 +100,11 @@ Overview of configuration which can be set via Ingress annotations.
 |[`alb.ingress.kubernetes.io/ip-address-type`](#ip-address-type)|`ipv4` \| `dualstack` |`ipv4`|
 |`zalando.org/aws-load-balancer-ssl-cert`|`string`|N/A|
 |`zalando.org/aws-load-balancer-scheme`|`internal` \| `internet-facing` |`internet-facing`|
-|`zalando.org/aws-load-balancer-shared`|`true` \| `false`|`false`|
+|`zalando.org/aws-load-balancer-shared`|`true` \| `false`|`true`|
 |`zalando.org/aws-load-balancer-security-group`|`string`|N/A|
 |`zalando.org/aws-load-balancer-ssl-policy`|`string`|`ELBSecurityPolicy-2016-08`|
 |`zalando.org/aws-load-balancer-type`| `nlb` \| `alb`|`alb`|
+|`zalando.org/aws-load-balancer-http2`| `true` \| `false`|`true`|
 |`kubernetes.io/ingress.class`|`string`|N/A|
 
 The defaults can also be configured globally via a flag on the controller.
@@ -123,6 +124,7 @@ the individual Load Balancer types.
 | [Dualstack support][dualstack] | :heavy_check_mark: `--ip-addr-type=dualstack` | :heavy_multiplication_x: |
 | [Idle Timeout][idle_timeout] | :heavy_check_mark: `--idle-connection-timeout` | :heavy_multiplication_x: |
 | Custom Security Group | :heavy_check_mark: | :heavy_multiplication_x: |
+| HTTP/2 Support | :white_check_mark: | (not relevant) |
 
 [cross_zone]: https://docs.aws.amazon.com/elasticloadbalancing/latest/network/network-load-balancers.html#availability-zones
 [dualstack]: https://docs.aws.amazon.com/elasticloadbalancing/latest/application/application-load-balancers.html#ip-address-type

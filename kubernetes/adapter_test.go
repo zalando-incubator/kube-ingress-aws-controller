@@ -41,6 +41,7 @@ func TestMappingRoundtrip(tt *testing.T) {
 				Scheme:           "internal",
 				CertificateARN:   "zbr",
 				Shared:           true,
+				HTTP2:            true,
 				Hostnames:        []string{"domain.example.org"},
 				SecurityGroup:    testSecurityGroup,
 				SSLPolicy:        testSSLPolicy,
@@ -49,13 +50,14 @@ func TestMappingRoundtrip(tt *testing.T) {
 				resourceType:     ingressTypeIngress,
 			},
 			kubeIngress: &ingress{
-				Metadata: ingressItemMetadata{
+				Metadata: kubeItemMetadata{
 					Namespace: "default",
 					Name:      "foo",
-					Annotations: map[string]interface{}{
+					Annotations: map[string]string{
 						ingressCertificateARNAnnotation:   "zbr",
 						ingressSchemeAnnotation:           "internal",
 						ingressSharedAnnotation:           "true",
+						ingressHTTP2Annotation:            "true",
 						ingressSecurityGroupAnnotation:    testSecurityGroup,
 						ingressSSLPolicyAnnotation:        testSSLPolicy,
 						ingressALBIPAddressType:           testIPAddressTypeDefault,
@@ -80,7 +82,7 @@ func TestMappingRoundtrip(tt *testing.T) {
 			},
 		},
 		{
-			msg: "test parsing an ingress object with shared=false annotation",
+			msg: "test parsing an ingress object with shared=false,h2-enabled=false annotations",
 			ingress: &Ingress{
 				Namespace:        "default",
 				Name:             "foo",
@@ -88,6 +90,7 @@ func TestMappingRoundtrip(tt *testing.T) {
 				Scheme:           "internal",
 				CertificateARN:   "zbr",
 				Shared:           false,
+				HTTP2:            false,
 				SecurityGroup:    testSecurityGroup,
 				SSLPolicy:        testSSLPolicy,
 				IPAddressType:    testIPAddressTypeDefault,
@@ -95,13 +98,14 @@ func TestMappingRoundtrip(tt *testing.T) {
 				resourceType:     ingressTypeIngress,
 			},
 			kubeIngress: &ingress{
-				Metadata: ingressItemMetadata{
+				Metadata: kubeItemMetadata{
 					Namespace: "default",
 					Name:      "foo",
-					Annotations: map[string]interface{}{
+					Annotations: map[string]string{
 						ingressCertificateARNAnnotation:   "zbr",
 						ingressSchemeAnnotation:           "internal",
 						ingressSharedAnnotation:           "false",
+						ingressHTTP2Annotation:            "false",
 						ingressSecurityGroupAnnotation:    testSecurityGroup,
 						ingressSSLPolicyAnnotation:        testSSLPolicy,
 						ingressALBIPAddressType:           testIPAddressTypeDefault,
@@ -127,6 +131,7 @@ func TestMappingRoundtrip(tt *testing.T) {
 				Scheme:           "internal",
 				CertificateARN:   "zbr",
 				Shared:           true,
+				HTTP2:            true,
 				SecurityGroup:    testSecurityGroup,
 				SSLPolicy:        testSSLPolicy,
 				IPAddressType:    testIPAddressTypeDualStack,
@@ -134,13 +139,14 @@ func TestMappingRoundtrip(tt *testing.T) {
 				resourceType:     ingressTypeIngress,
 			},
 			kubeIngress: &ingress{
-				Metadata: ingressItemMetadata{
+				Metadata: kubeItemMetadata{
 					Namespace: "default",
 					Name:      "foo",
-					Annotations: map[string]interface{}{
+					Annotations: map[string]string{
 						ingressCertificateARNAnnotation:   "zbr",
 						ingressSchemeAnnotation:           "internal",
 						ingressSharedAnnotation:           "true",
+						ingressHTTP2Annotation:            "true",
 						ingressSecurityGroupAnnotation:    testSecurityGroup,
 						ingressSSLPolicyAnnotation:        testSSLPolicy,
 						ingressALBIPAddressType:           testIPAddressTypeDualStack,

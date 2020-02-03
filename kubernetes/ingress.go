@@ -15,9 +15,9 @@ type ingressList struct {
 }
 
 type ingress struct {
-	Metadata ingressItemMetadata `json:"metadata"`
-	Spec     ingressSpec         `json:"spec"`
-	Status   ingressStatus       `json:"status"`
+	Metadata kubeItemMetadata `json:"metadata"`
+	Spec     ingressSpec      `json:"spec"`
+	Status   ingressStatus    `json:"status"`
 }
 
 type ingressListMetadata struct {
@@ -25,17 +25,17 @@ type ingressListMetadata struct {
 	ResourceVersion string `json:"resourceVersion"`
 }
 
-type ingressItemMetadata struct {
-	Namespace         string                 `json:"namespace"`
-	Name              string                 `json:"name"`
-	UID               string                 `json:"uid"`
-	Annotations       map[string]interface{} `json:"annotations"`
-	SelfLink          string                 `json:"selfLink"`
-	ResourceVersion   string                 `json:"resourceVersion"`
-	Generation        int                    `json:"generation"`
-	CreationTimestamp time.Time              `json:"creationTimestamp"`
-	DeletionTimestamp time.Time              `json:"deletionTimestamp"`
-	Labels            map[string]interface{} `json:"labels"`
+type kubeItemMetadata struct {
+	Namespace         string            `json:"namespace"`
+	Name              string            `json:"name"`
+	UID               string            `json:"uid"`
+	Annotations       map[string]string `json:"annotations"`
+	SelfLink          string            `json:"selfLink"`
+	ResourceVersion   string            `json:"resourceVersion"`
+	Generation        int               `json:"generation"`
+	CreationTimestamp time.Time         `json:"creationTimestamp"`
+	DeletionTimestamp time.Time         `json:"deletionTimestamp"`
+	Labels            map[string]string `json:"labels"`
 }
 
 type ingressSpec struct {
@@ -69,11 +69,12 @@ const (
 	ingressSecurityGroupAnnotation    = "zalando.org/aws-load-balancer-security-group"
 	ingressSSLPolicyAnnotation        = "zalando.org/aws-load-balancer-ssl-policy"
 	ingressLoadBalancerTypeAnnotation = "zalando.org/aws-load-balancer-type"
+	ingressHTTP2Annotation            = "zalando.org/aws-load-balancer-http2"
 	ingressClassAnnotation            = "kubernetes.io/ingress.class"
 )
 
-func (i *ingress) getAnnotationsString(key string, defaultValue string) string {
-	if val, ok := i.Metadata.Annotations[key].(string); ok {
+func getAnnotationsString(annotations map[string]string, key string, defaultValue string) string {
+	if val, ok := annotations[key]; ok {
 		return val
 	}
 	return defaultValue

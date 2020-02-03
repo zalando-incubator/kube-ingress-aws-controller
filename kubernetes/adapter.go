@@ -80,6 +80,7 @@ type Ingress struct {
 	Scheme           string
 	Hostnames        []string
 	Shared           bool
+	HTTP2            bool
 	SecurityGroup    string
 	SSLPolicy        string
 	IPAddressType    string
@@ -124,7 +125,7 @@ func NewAdapter(config *Config, ingressClassFilters []string, ingressDefaultSecu
 }
 
 func (a *Adapter) newIngressFromKube(kubeIngress *ingress) *Ingress {
-	var host, scheme string
+	var host string
 	var hostnames []string
 	for _, ingressLoadBalancer := range kubeIngress.Status.LoadBalancer.Ingress {
 		if ingressLoadBalancer.Hostname != "" {
@@ -139,60 +140,19 @@ func (a *Adapter) newIngressFromKube(kubeIngress *ingress) *Ingress {
 		}
 	}
 
-	// Set schema to default if annotation value is not valid
-	switch kubeIngress.getAnnotationsString(ingressSchemeAnnotation, "") {
-	case elbv2.LoadBalancerSchemeEnumInternal:
-		scheme = elbv2.LoadBalancerSchemeEnumInternal
-	default:
-		scheme = elbv2.LoadBalancerSchemeEnumInternetFacing
-	}
+	ingress := a.parseAnnotations(kubeIngress.Metadata.Annotations)
 
-	shared := true
-	if kubeIngress.getAnnotationsString(ingressSharedAnnotation, "") == "false" {
-		shared = false
-	}
+	ingress.Namespace = kubeIngress.Metadata.Namespace
+	ingress.Name = kubeIngress.Metadata.Name
+	ingress.Hostname = host
+	ingress.Hostnames = hostnames
+	ingress.resourceType = ingressTypeIngress
 
-	ipAddressType := aws.IPAddressTypeIPV4
-	if kubeIngress.getAnnotationsString(ingressALBIPAddressType, "") == aws.IPAddressTypeDualstack {
-		ipAddressType = aws.IPAddressTypeDualstack
-	}
-
-	sslPolicy := kubeIngress.getAnnotationsString(ingressSSLPolicyAnnotation, a.ingressDefaultSSLPolicy)
-	if _, ok := aws.SSLPolicies[sslPolicy]; !ok {
-		sslPolicy = a.ingressDefaultSSLPolicy
-	}
-
-	loadBalancerType := kubeIngress.getAnnotationsString(ingressLoadBalancerTypeAnnotation, a.ingressDefaultLoadBalancerType)
-	if _, ok := loadBalancerTypesIngressToAWS[loadBalancerType]; !ok {
-		loadBalancerType = a.ingressDefaultLoadBalancerType
-	}
-
-	// convert to the internal naming e.g. nlb -> network
-	loadBalancerType = loadBalancerTypesIngressToAWS[loadBalancerType]
-
-	if loadBalancerType == aws.LoadBalancerTypeNetwork {
-		// ensure ipv4 for network load balancers
-		ipAddressType = aws.IPAddressTypeIPV4
-	}
-
-	return &Ingress{
-		CertificateARN:   kubeIngress.getAnnotationsString(ingressCertificateARNAnnotation, ""),
-		Namespace:        kubeIngress.Metadata.Namespace,
-		Name:             kubeIngress.Metadata.Name,
-		Hostname:         host,
-		Scheme:           scheme,
-		Hostnames:        hostnames,
-		Shared:           shared,
-		SecurityGroup:    kubeIngress.getAnnotationsString(ingressSecurityGroupAnnotation, a.ingressDefaultSecurityGroup),
-		SSLPolicy:        sslPolicy,
-		IPAddressType:    ipAddressType,
-		LoadBalancerType: loadBalancerType,
-		resourceType:     ingressTypeIngress,
-	}
+	return ingress
 }
 
 func (a *Adapter) newIngressFromRouteGroup(rg *routegroup) *Ingress {
-	var host, scheme string
+	var host string
 	var hostnames []string
 	for _, lb := range rg.Status.LoadBalancer.Routegroup {
 		if lb.Hostname != "" {
@@ -207,8 +167,23 @@ func (a *Adapter) newIngressFromRouteGroup(rg *routegroup) *Ingress {
 		}
 	}
 
+	ingress := a.parseAnnotations(rg.Metadata.Annotations)
+
+	ingress.Namespace = rg.Metadata.Namespace
+	ingress.Name = rg.Metadata.Name
+	ingress.Hostname = host
+	ingress.Hostnames = hostnames
+	ingress.resourceType = ingressTypeRouteGroup
+
+	return ingress
+}
+
+// parseAnnotations parses the ingress configuration from the annotations of an
+// Ingress or ReouteGroup resource.
+func (a *Adapter) parseAnnotations(annotations map[string]string) *Ingress {
+	var scheme string
 	// Set schema to default if annotation value is not valid
-	switch rg.getAnnotationsString(ingressSchemeAnnotation, "") {
+	switch getAnnotationsString(annotations, ingressSchemeAnnotation, "") {
 	case elbv2.LoadBalancerSchemeEnumInternal:
 		scheme = elbv2.LoadBalancerSchemeEnumInternal
 	default:
@@ -216,21 +191,21 @@ func (a *Adapter) newIngressFromRouteGroup(rg *routegroup) *Ingress {
 	}
 
 	shared := true
-	if rg.getAnnotationsString(ingressSharedAnnotation, "") == "false" {
+	if getAnnotationsString(annotations, ingressSharedAnnotation, "") == "false" {
 		shared = false
 	}
 
 	ipAddressType := aws.IPAddressTypeIPV4
-	if rg.getAnnotationsString(ingressALBIPAddressType, "") == aws.IPAddressTypeDualstack {
+	if getAnnotationsString(annotations, ingressALBIPAddressType, "") == aws.IPAddressTypeDualstack {
 		ipAddressType = aws.IPAddressTypeDualstack
 	}
 
-	sslPolicy := rg.getAnnotationsString(ingressSSLPolicyAnnotation, a.ingressDefaultSSLPolicy)
+	sslPolicy := getAnnotationsString(annotations, ingressSSLPolicyAnnotation, a.ingressDefaultSSLPolicy)
 	if _, ok := aws.SSLPolicies[sslPolicy]; !ok {
 		sslPolicy = a.ingressDefaultSSLPolicy
 	}
 
-	loadBalancerType := rg.getAnnotationsString(ingressLoadBalancerTypeAnnotation, a.ingressDefaultLoadBalancerType)
+	loadBalancerType := getAnnotationsString(annotations, ingressLoadBalancerTypeAnnotation, a.ingressDefaultLoadBalancerType)
 	if _, ok := loadBalancerTypesIngressToAWS[loadBalancerType]; !ok {
 		loadBalancerType = a.ingressDefaultLoadBalancerType
 	}
@@ -243,43 +218,53 @@ func (a *Adapter) newIngressFromRouteGroup(rg *routegroup) *Ingress {
 		ipAddressType = aws.IPAddressTypeIPV4
 	}
 
+	http2 := true
+	if getAnnotationsString(annotations, ingressHTTP2Annotation, "") == "false" {
+		http2 = false
+	}
+
 	return &Ingress{
-		CertificateARN:   rg.getAnnotationsString(ingressCertificateARNAnnotation, ""),
-		Namespace:        rg.Metadata.Namespace,
-		Name:             rg.Metadata.Name,
-		Hostname:         host,
+		CertificateARN:   getAnnotationsString(annotations, ingressCertificateARNAnnotation, ""),
 		Scheme:           scheme,
-		Hostnames:        hostnames,
 		Shared:           shared,
-		SecurityGroup:    rg.getAnnotationsString(ingressSecurityGroupAnnotation, a.ingressDefaultSecurityGroup),
+		SecurityGroup:    getAnnotationsString(annotations, ingressSecurityGroupAnnotation, a.ingressDefaultSecurityGroup),
 		SSLPolicy:        sslPolicy,
 		IPAddressType:    ipAddressType,
 		LoadBalancerType: loadBalancerType,
-		resourceType:     ingressTypeRouteGroup,
+		HTTP2:            http2,
 	}
 }
 
-func newIngressForKube(i *Ingress) *ingress {
+func newMetadataForKube(i *Ingress) kubeItemMetadata {
 	shared := "true"
-
 	if !i.Shared {
 		shared = "false"
 	}
 
-	return &ingress{
-		Metadata: ingressItemMetadata{
-			Namespace: i.Namespace,
-			Name:      i.Name,
-			Annotations: map[string]interface{}{
-				ingressCertificateARNAnnotation:   i.CertificateARN,
-				ingressSchemeAnnotation:           i.Scheme,
-				ingressSharedAnnotation:           shared,
-				ingressSecurityGroupAnnotation:    i.SecurityGroup,
-				ingressSSLPolicyAnnotation:        i.SSLPolicy,
-				ingressALBIPAddressType:           i.IPAddressType,
-				ingressLoadBalancerTypeAnnotation: loadBalancerTypesAWSToIngress[i.LoadBalancerType],
-			},
+	http2 := "true"
+	if !i.HTTP2 {
+		http2 = "false"
+	}
+
+	return kubeItemMetadata{
+		Namespace: i.Namespace,
+		Name:      i.Name,
+		Annotations: map[string]string{
+			ingressCertificateARNAnnotation:   i.CertificateARN,
+			ingressSchemeAnnotation:           i.Scheme,
+			ingressSharedAnnotation:           shared,
+			ingressHTTP2Annotation:            http2,
+			ingressSecurityGroupAnnotation:    i.SecurityGroup,
+			ingressSSLPolicyAnnotation:        i.SSLPolicy,
+			ingressALBIPAddressType:           i.IPAddressType,
+			ingressLoadBalancerTypeAnnotation: loadBalancerTypesAWSToIngress[i.LoadBalancerType],
 		},
+	}
+}
+
+func newIngressForKube(i *Ingress) *ingress {
+	return &ingress{
+		Metadata: newMetadataForKube(i),
 		Status: ingressStatus{
 			LoadBalancer: ingressLoadBalancerStatus{
 				Ingress: []ingressLoadBalancer{
@@ -291,26 +276,8 @@ func newIngressForKube(i *Ingress) *ingress {
 }
 
 func newRouteGroupForKube(i *Ingress) *routegroup {
-	shared := "true"
-
-	if !i.Shared {
-		shared = "false"
-	}
-
 	return &routegroup{
-		Metadata: routegroupItemMetadata{
-			Namespace: i.Namespace,
-			Name:      i.Name,
-			Annotations: map[string]interface{}{
-				ingressCertificateARNAnnotation:   i.CertificateARN,
-				ingressSchemeAnnotation:           i.Scheme,
-				ingressSharedAnnotation:           shared,
-				ingressSecurityGroupAnnotation:    i.SecurityGroup,
-				ingressSSLPolicyAnnotation:        i.SSLPolicy,
-				ingressALBIPAddressType:           i.IPAddressType,
-				ingressLoadBalancerTypeAnnotation: loadBalancerTypesAWSToIngress[i.LoadBalancerType],
-			},
-		},
+		Metadata: newMetadataForKube(i),
 		Status: routegroupStatus{
 			LoadBalancer: routegroupLoadBalancerStatus{
 				Routegroup: []routegroupLoadBalancer{
@@ -355,7 +322,7 @@ func (a *Adapter) ListIngress() ([]*Ingress, error) {
 	if len(a.ingressFilters) > 0 {
 		ret = make([]*Ingress, 0)
 		for _, ingress := range il.Items {
-			ingressClass := ingress.getAnnotationsString(ingressClassAnnotation, "")
+			ingressClass := getAnnotationsString(ingress.Metadata.Annotations, ingressClassAnnotation, "")
 			for _, v := range a.ingressFilters {
 				if v == ingressClass {
 					ret = append(ret, a.newIngressFromKube(ingress))
@@ -384,7 +351,7 @@ func (a *Adapter) ListRoutegroups() ([]*Ingress, error) {
 	if len(a.ingressFilters) > 0 {
 		ret = make([]*Ingress, 0)
 		for _, rg := range rgs.Items {
-			ingressClass := rg.getAnnotationsString(ingressClassAnnotation, "")
+			ingressClass := getAnnotationsString(rg.Metadata.Annotations, ingressClassAnnotation, "")
 			for _, v := range a.ingressFilters {
 				if v == ingressClass {
 					ret = append(ret, a.newIngressFromRouteGroup(rg))

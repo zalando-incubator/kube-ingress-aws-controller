@@ -25,6 +25,7 @@ type loadBalancer struct {
 	scheme           string
 	stack            *aws.Stack
 	shared           bool
+	http2            bool
 	securityGroup    string
 	sslPolicy        string
 	ipAddressType    string
@@ -74,7 +75,8 @@ func (l *loadBalancer) AddIngress(certificateARNs []string, ingress *kubernetes.
 		l.scheme != ingress.Scheme ||
 		l.securityGroup != ingress.SecurityGroup ||
 		l.sslPolicy != ingress.SSLPolicy ||
-		l.loadBalancerType != ingress.LoadBalancerType {
+		l.loadBalancerType != ingress.LoadBalancerType ||
+		l.http2 != ingress.HTTP2 {
 		return false
 	}
 
@@ -305,6 +307,7 @@ func getAllLoadBalancers(certTTL time.Duration, stacks []*aws.Stack) []*loadBala
 			sslPolicy:        stack.SSLPolicy,
 			ipAddressType:    stack.IpAddressType,
 			loadBalancerType: stack.LoadBalancerType,
+			http2:            stack.HTTP2,
 			certTTL:          certTTL,
 		}
 		// initialize ingresses map with existing certificates from the
@@ -372,6 +375,7 @@ func matchIngressesToLoadBalancers(loadBalancers []*loadBalancer, certs Certific
 					sslPolicy:        ingress.SSLPolicy,
 					ipAddressType:    ingress.IPAddressType,
 					loadBalancerType: ingress.LoadBalancerType,
+					http2:            ingress.HTTP2,
 				},
 			)
 		}
@@ -410,7 +414,7 @@ func createStack(awsAdapter *aws.Adapter, lb *loadBalancer) {
 
 	log.Infof("creating stack for certificates %q / ingress %q", certificates, lb.ingresses)
 
-	stackId, err := awsAdapter.CreateStack(certificates, lb.scheme, lb.securityGroup, lb.Owner(), lb.sslPolicy, lb.ipAddressType, lb.cwAlarms, lb.loadBalancerType)
+	stackId, err := awsAdapter.CreateStack(certificates, lb.scheme, lb.securityGroup, lb.Owner(), lb.sslPolicy, lb.ipAddressType, lb.cwAlarms, lb.loadBalancerType, lb.http2)
 	if err != nil {
 		if isAlreadyExistsError(err) {
 			lb.stack, err = awsAdapter.GetStack(stackId)
@@ -429,7 +433,7 @@ func updateStack(awsAdapter *aws.Adapter, lb *loadBalancer) {
 
 	log.Infof("updating %q stack for %d certificates / %d ingresses", lb.scheme, len(certificates), len(lb.ingresses))
 
-	stackId, err := awsAdapter.UpdateStack(lb.stack.Name, certificates, lb.scheme, lb.sslPolicy, lb.ipAddressType, lb.cwAlarms, lb.loadBalancerType)
+	stackId, err := awsAdapter.UpdateStack(lb.stack.Name, certificates, lb.scheme, lb.sslPolicy, lb.ipAddressType, lb.cwAlarms, lb.loadBalancerType, lb.http2)
 	if isNoUpdatesToBePerformedError(err) {
 		log.Debugf("stack(%q) is already up to date", certificates)
 	} else if err != nil {

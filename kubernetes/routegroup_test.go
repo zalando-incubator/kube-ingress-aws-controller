@@ -23,8 +23,8 @@ func TestListRoutegroups(t *testing.T) {
 	kubeClient, _ := newSimpleClient(&Config{BaseURL: testServer.URL})
 	want := newRouteGroupList(
 		newRoutegroup("fixture-rg01", nil, "example.org", "fixture-rg01"),
-		newRoutegroup("fixture-rg02", map[string]interface{}{ingressClassAnnotation: "skipper"}, "skipper.example.org", "fixture-rg02"),
-		newRoutegroup("fixture-rg03", map[string]interface{}{ingressClassAnnotation: "other"}, "other.example.org", "fixture-rg03"),
+		newRoutegroup("fixture-rg02", map[string]string{ingressClassAnnotation: "skipper"}, "skipper.example.org", "fixture-rg02"),
+		newRoutegroup("fixture-rg03", map[string]string{ingressClassAnnotation: "other"}, "other.example.org", "fixture-rg03"),
 	)
 	got, err := listRoutegroups(kubeClient)
 	if err != nil {
@@ -93,7 +93,7 @@ func TestUpdateRoutegroupLoaBalancer(t *testing.T) {
 	cfg := &Config{BaseURL: testServer.URL}
 	kubeClient, _ := newSimpleClient(cfg)
 	ing := &routegroup{
-		Metadata: routegroupItemMetadata{
+		Metadata: kubeItemMetadata{
 			Namespace: "foo",
 			Name:      "bar",
 		},
@@ -117,7 +117,7 @@ func TestUpdateRoutegroupFailureScenarios(t *testing.T) {
 		{newRoutegroup("foo", nil, "example.com", "")},
 		{newRoutegroup("foo", nil, "example.org", "")},
 	} {
-		arn := test.rg.getAnnotationsString(ingressCertificateARNAnnotation, "<missing>")
+		arn := getAnnotationsString(test.rg.Metadata.Annotations, ingressCertificateARNAnnotation, "<missing>")
 		t.Run(fmt.Sprintf("%v/%v", test.rg.Status.LoadBalancer.Routegroup[0].Hostname, arn), func(t *testing.T) {
 			err := updateRoutegroupLoadBalancer(kubeClient, test.rg, "example.com")
 			if err == nil {
@@ -128,7 +128,7 @@ func TestUpdateRoutegroupFailureScenarios(t *testing.T) {
 }
 
 func TestRouteGroupAnnotationsFallback(t *testing.T) {
-	have := &routegroup{Metadata: routegroupItemMetadata{Annotations: map[string]interface{}{"foo": "bar"}}}
+	have := &routegroup{Metadata: kubeItemMetadata{Annotations: map[string]string{"foo": "bar"}}}
 	for _, test := range []struct {
 		key      string
 		fallback string
@@ -138,7 +138,7 @@ func TestRouteGroupAnnotationsFallback(t *testing.T) {
 		{"missing", "fallback", "fallback"},
 	} {
 		t.Run(fmt.Sprintf("%s/%s/%s", test.key, test.want, test.fallback), func(t *testing.T) {
-			if got := have.getAnnotationsString(test.key, test.fallback); got != test.want {
+			if got := getAnnotationsString(have.Metadata.Annotations, test.key, test.fallback); got != test.want {
 				t.Errorf("unexpected metadata value. wanted %q, got %q", test.want, got)
 			}
 		})
@@ -158,9 +158,9 @@ func newRouteGroupList(rgs ...*routegroup) *routegroupList {
 	return &ret
 }
 
-func newRoutegroup(name string, annotations map[string]interface{}, hostname string, arn string) *routegroup {
+func newRoutegroup(name string, annotations map[string]string, hostname string, arn string) *routegroup {
 	ret := routegroup{
-		Metadata: routegroupItemMetadata{
+		Metadata: kubeItemMetadata{
 			Name:              name,
 			Namespace:         "default",
 			Annotations:       annotations,
@@ -173,7 +173,7 @@ func newRoutegroup(name string, annotations map[string]interface{}, hostname str
 	}
 	if arn != "" {
 		if annotations == nil {
-			ret.Metadata.Annotations = map[string]interface{}{ingressCertificateARNAnnotation: arn}
+			ret.Metadata.Annotations = map[string]string{ingressCertificateARNAnnotation: arn}
 		} else {
 			ret.Metadata.Annotations[ingressCertificateARNAnnotation] = arn
 		}
