@@ -80,6 +80,7 @@ type Ingress struct {
 	Scheme           string
 	Hostnames        []string
 	Shared           bool
+	HTTP2            bool
 	SecurityGroup    string
 	SSLPolicy        string
 	IPAddressType    string
@@ -217,6 +218,11 @@ func (a *Adapter) parseAnnotations(annotations map[string]string) *Ingress {
 		ipAddressType = aws.IPAddressTypeIPV4
 	}
 
+	http2 := true
+	if getAnnotationsString(annotations, ingressHTTP2Annotation, "") == "false" {
+		http2 = false
+	}
+
 	return &Ingress{
 		CertificateARN:   getAnnotationsString(annotations, ingressCertificateARNAnnotation, ""),
 		Scheme:           scheme,
@@ -225,6 +231,7 @@ func (a *Adapter) parseAnnotations(annotations map[string]string) *Ingress {
 		SSLPolicy:        sslPolicy,
 		IPAddressType:    ipAddressType,
 		LoadBalancerType: loadBalancerType,
+		HTTP2:            http2,
 	}
 }
 
@@ -234,6 +241,11 @@ func newMetadataForKube(i *Ingress) kubeItemMetadata {
 		shared = "false"
 	}
 
+	http2 := "true"
+	if !i.HTTP2 {
+		http2 = "false"
+	}
+
 	return kubeItemMetadata{
 		Namespace: i.Namespace,
 		Name:      i.Name,
@@ -241,6 +253,7 @@ func newMetadataForKube(i *Ingress) kubeItemMetadata {
 			ingressCertificateARNAnnotation:   i.CertificateARN,
 			ingressSchemeAnnotation:           i.Scheme,
 			ingressSharedAnnotation:           shared,
+			ingressHTTP2Annotation:            http2,
 			ingressSecurityGroupAnnotation:    i.SecurityGroup,
 			ingressSSLPolicyAnnotation:        i.SSLPolicy,
 			ingressALBIPAddressType:           i.IPAddressType,

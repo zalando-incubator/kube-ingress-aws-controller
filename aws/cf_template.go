@@ -77,6 +77,11 @@ func generateTemplate(spec *stackSpec) (string, error) {
 			Description: "Loadbalancer Type, 'application' or 'network'",
 			Default:     LoadBalancerTypeApplication,
 		},
+		parameterHTTP2Parameter: &cloudformation.Parameter{
+			Type:        "String",
+			Description: "H2 Enabled",
+			Default:     "true",
+		},
 	}
 
 	protocol := "HTTP"
@@ -166,19 +171,26 @@ func generateTemplate(spec *stackSpec) (string, error) {
 	}
 
 	// Build up the LoadBalancerAttributes list, as there is no way to make attributes conditional in the template
-	albAttrList := make(cloudformation.ElasticLoadBalancingV2LoadBalancerLoadBalancerAttributeList, 0, 4)
+	lbAttrList := make(cloudformation.ElasticLoadBalancingV2LoadBalancerLoadBalancerAttributeList, 0, 4)
 
 	if spec.loadbalancerType == LoadBalancerTypeApplication {
-		albAttrList = append(albAttrList,
+		lbAttrList = append(lbAttrList,
 			cloudformation.ElasticLoadBalancingV2LoadBalancerLoadBalancerAttribute{
 				Key:   cloudformation.String("idle_timeout.timeout_seconds"),
 				Value: cloudformation.String(fmt.Sprintf("%d", spec.idleConnectionTimeoutSeconds)),
 			},
 		)
+
+		lbAttrList = append(lbAttrList,
+			cloudformation.ElasticLoadBalancingV2LoadBalancerLoadBalancerAttribute{
+				Key:   cloudformation.String("routing.http2.enabled"),
+				Value: cloudformation.String(fmt.Sprintf("%t", spec.http2)),
+			},
+		)
 	}
 
 	if spec.nlbCrossZone && spec.loadbalancerType == LoadBalancerTypeNetwork {
-		albAttrList = append(albAttrList,
+		lbAttrList = append(lbAttrList,
 			cloudformation.ElasticLoadBalancingV2LoadBalancerLoadBalancerAttribute{
 				Key:   cloudformation.String("load_balancing.cross_zone.enabled"),
 				Value: cloudformation.String("true"),
@@ -187,20 +199,20 @@ func generateTemplate(spec *stackSpec) (string, error) {
 	}
 
 	if spec.albLogsS3Bucket != "" {
-		albAttrList = append(albAttrList,
+		lbAttrList = append(lbAttrList,
 			cloudformation.ElasticLoadBalancingV2LoadBalancerLoadBalancerAttribute{
 				Key:   cloudformation.String("access_logs.s3.enabled"),
 				Value: cloudformation.String("true"),
 			},
 		)
-		albAttrList = append(albAttrList,
+		lbAttrList = append(lbAttrList,
 			cloudformation.ElasticLoadBalancingV2LoadBalancerLoadBalancerAttribute{
 				Key:   cloudformation.String("access_logs.s3.bucket"),
 				Value: cloudformation.String(spec.albLogsS3Bucket),
 			},
 		)
 		if spec.albLogsS3Prefix != "" {
-			albAttrList = append(albAttrList,
+			lbAttrList = append(lbAttrList,
 				cloudformation.ElasticLoadBalancingV2LoadBalancerLoadBalancerAttribute{
 					Key:   cloudformation.String("access_logs.s3.prefix"),
 					Value: cloudformation.String(spec.albLogsS3Prefix),
@@ -208,7 +220,7 @@ func generateTemplate(spec *stackSpec) (string, error) {
 			)
 		}
 	} else {
-		albAttrList = append(albAttrList,
+		lbAttrList = append(lbAttrList,
 			cloudformation.ElasticLoadBalancingV2LoadBalancerLoadBalancerAttribute{
 				Key:   cloudformation.String("access_logs.s3.enabled"),
 				Value: cloudformation.String("false"),
@@ -217,7 +229,7 @@ func generateTemplate(spec *stackSpec) (string, error) {
 	}
 
 	lb := &cloudformation.ElasticLoadBalancingV2LoadBalancer{
-		LoadBalancerAttributes: &albAttrList,
+		LoadBalancerAttributes: &lbAttrList,
 
 		IPAddressType: cloudformation.Ref(parameterIpAddressTypeParameter).String(),
 		Scheme:        cloudformation.Ref(parameterLoadBalancerSchemeParameter).String(),

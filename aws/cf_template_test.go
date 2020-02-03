@@ -151,6 +151,34 @@ func TestGenerateTemplate(t *testing.T) {
 				require.NotContains(t, template.Resources, "HTTPListener")
 			},
 		},
+		{
+			name: "h2 should be enabled on ALB if set to true",
+			spec: &stackSpec{
+				loadbalancerType: LoadBalancerTypeApplication,
+				http2:            true,
+			},
+			validate: func(t *testing.T, template *cloudformation.Template) {
+				require.NotNil(t, template.Resources["LB"])
+				properties := template.Resources["LB"].Properties.(*cloudformation.ElasticLoadBalancingV2LoadBalancer)
+				attributes := []cloudformation.ElasticLoadBalancingV2LoadBalancerLoadBalancerAttribute(*properties.LoadBalancerAttributes)
+				require.Equal(t, attributes[1].Key.Literal, "routing.http2.enabled")
+				require.Equal(t, attributes[1].Value.Literal, "true")
+			},
+		},
+		{
+			name: "h2 should NOT be enabled on ALB if set to false",
+			spec: &stackSpec{
+				loadbalancerType: LoadBalancerTypeApplication,
+				http2:            false,
+			},
+			validate: func(t *testing.T, template *cloudformation.Template) {
+				require.NotNil(t, template.Resources["LB"])
+				properties := template.Resources["LB"].Properties.(*cloudformation.ElasticLoadBalancingV2LoadBalancer)
+				attributes := []cloudformation.ElasticLoadBalancingV2LoadBalancerLoadBalancerAttribute(*properties.LoadBalancerAttributes)
+				require.Equal(t, attributes[1].Key.Literal, "routing.http2.enabled")
+				require.Equal(t, attributes[1].Value.Literal, "false")
+			},
+		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			generated, err := generateTemplate(test.spec)

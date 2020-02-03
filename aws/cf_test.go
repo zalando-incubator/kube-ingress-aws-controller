@@ -298,6 +298,7 @@ func TestFindManagedStacks(t *testing.T) {
 						certificateARNTagPrefix + "cert-arn": time.Time{}.Format(time.RFC3339),
 					},
 					status: cloudformation.StackStatusUpdateInProgress,
+					HTTP2:  true,
 				},
 				{
 					Name:    "managed-stack",
@@ -312,6 +313,7 @@ func TestFindManagedStacks(t *testing.T) {
 						certificateARNTagPrefix + "cert-arn": time.Time{}.Format(time.RFC3339),
 					},
 					status: cloudformation.StackStatusCreateComplete,
+					HTTP2:  true,
 				},
 				{
 					Name:            "managed-stack-not-ready",
@@ -321,6 +323,7 @@ func TestFindManagedStacks(t *testing.T) {
 						clusterIDTagPrefix + "test-cluster": resourceLifecycleOwned,
 					},
 					status: cloudformation.StackStatusUpdateInProgress,
+					HTTP2:  true,
 				},
 			},
 			wantErr: false,
@@ -369,6 +372,7 @@ func TestFindManagedStacks(t *testing.T) {
 						clusterIDTagPrefix + "test-cluster": resourceLifecycleOwned,
 					},
 					status: cloudformation.StackStatusReviewInProgress,
+					HTTP2:  true,
 				},
 				{
 					Name:            "managed-stack",
@@ -380,6 +384,7 @@ func TestFindManagedStacks(t *testing.T) {
 						clusterIDTagPrefix + "test-cluster": resourceLifecycleOwned,
 					},
 					status: cloudformation.StackStatusRollbackComplete,
+					HTTP2:  true,
 				},
 			},
 			wantErr: false,
@@ -460,6 +465,7 @@ func TestGetStack(t *testing.T) {
 					certificateARNTagPrefix + "cert-arn": time.Time{}.Format(time.RFC3339),
 				},
 				status: cloudformation.StackStatusCreateComplete,
+				HTTP2:  true,
 			},
 			wantErr: false,
 		},
