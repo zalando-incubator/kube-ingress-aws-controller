@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
-	"time"
 )
 
 type routegroupList struct {
@@ -15,27 +14,14 @@ type routegroupList struct {
 }
 
 type routegroup struct {
-	Metadata routegroupItemMetadata `json:"metadata"`
-	Spec     routegroupSpec         `json:"spec"`
-	Status   routegroupStatus       `json:"status"`
+	Metadata kubeItemMetadata `json:"metadata"`
+	Spec     routegroupSpec   `json:"spec"`
+	Status   routegroupStatus `json:"status"`
 }
 
 type routegroupListMetadata struct {
 	SelfLink        string `json:"selfLink"`
 	ResourceVersion string `json:"resourceVersion"`
-}
-
-type routegroupItemMetadata struct {
-	Namespace         string                 `json:"namespace"`
-	Name              string                 `json:"name"`
-	UID               string                 `json:"uid"`
-	Annotations       map[string]interface{} `json:"annotations"`
-	SelfLink          string                 `json:"selfLink"`
-	ResourceVersion   string                 `json:"resourceVersion"`
-	Generation        int                    `json:"generation"`
-	CreationTimestamp time.Time              `json:"creationTimestamp"`
-	DeletionTimestamp time.Time              `json:"deletionTimestamp"`
-	Labels            map[string]interface{} `json:"labels"`
 }
 
 type routegroupSpec struct {
@@ -59,13 +45,6 @@ const (
 	routegroupNamespacedResource  = "/apis/zalando.org/v1/namespaces/%s/routegroups/%s"
 	routegroupPatchStatusResource = "/apis/zalando.org/v1/namespaces/%s/routegroups/%s/status"
 )
-
-func (rg *routegroup) getAnnotationsString(key string, defaultValue string) string {
-	if val, ok := rg.Metadata.Annotations[key].(string); ok {
-		return val
-	}
-	return defaultValue
-}
 
 func listRoutegroups(c client) (*routegroupList, error) {
 	r, err := c.get(routegroupListResource)

@@ -49,10 +49,10 @@ func TestMappingRoundtrip(tt *testing.T) {
 				resourceType:     ingressTypeIngress,
 			},
 			kubeIngress: &ingress{
-				Metadata: ingressItemMetadata{
+				Metadata: kubeItemMetadata{
 					Namespace: "default",
 					Name:      "foo",
-					Annotations: map[string]interface{}{
+					Annotations: map[string]string{
 						ingressCertificateARNAnnotation:   "zbr",
 						ingressSchemeAnnotation:           "internal",
 						ingressSharedAnnotation:           "true",
@@ -95,10 +95,10 @@ func TestMappingRoundtrip(tt *testing.T) {
 				resourceType:     ingressTypeIngress,
 			},
 			kubeIngress: &ingress{
-				Metadata: ingressItemMetadata{
+				Metadata: kubeItemMetadata{
 					Namespace: "default",
 					Name:      "foo",
-					Annotations: map[string]interface{}{
+					Annotations: map[string]string{
 						ingressCertificateARNAnnotation:   "zbr",
 						ingressSchemeAnnotation:           "internal",
 						ingressSharedAnnotation:           "false",
@@ -134,10 +134,10 @@ func TestMappingRoundtrip(tt *testing.T) {
 				resourceType:     ingressTypeIngress,
 			},
 			kubeIngress: &ingress{
-				Metadata: ingressItemMetadata{
+				Metadata: kubeItemMetadata{
 					Namespace: "default",
 					Name:      "foo",
-					Annotations: map[string]interface{}{
+					Annotations: map[string]string{
 						ingressCertificateARNAnnotation:   "zbr",
 						ingressSchemeAnnotation:           "internal",
 						ingressSharedAnnotation:           "true",
