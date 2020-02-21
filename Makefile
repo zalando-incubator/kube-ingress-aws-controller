@@ -11,26 +11,31 @@ BUILD_FLAGS   ?= -v
 LDFLAGS       ?= -X main.version=$(VERSION) -X main.buildstamp=$(shell date -u '+%Y-%m-%d_%I:%M:%S%p') -X main.githash=$(shell git rev-parse HEAD) -w -s
 
 
-default: build.local
+default: help
 
+## clean: cleans the binary
 clean:
 	rm -rf build
 
+## test: runs go test
 test:
 	go test -v -race -cover $(GOPKGS)
 
+## lint: runs golangci-lint
 lint:
 	golangci-lint run ./...
 
+## fmt: formats all go files
 fmt:
 	go fmt $(GOPKGS)
 
-check:
-	golint $(GOPKGS)
-	go vet -v $(GOPKGS)
-
+## build.local: builds a local binary in build directory
 build.local: build/$(BINARY)
+
+## build.local: builds a binary for linux/amd64 in build directory
 build.linux: build/linux/$(BINARY)
+
+## build.osx: builds a binary for osx/amd64 in build directory
 build.osx: build/osx/$(BINARY)
 
 build/$(BINARY): $(SOURCES)
@@ -42,9 +47,11 @@ build/linux/$(BINARY): $(SOURCES)
 build/osx/$(BINARY): $(SOURCES)
 	GOOS=darwin GOARCH=amd64 CGO_ENABLED=0 go build $(BUILD_FLAGS) -o build/osx/$(BINARY) -ldflags "$(LDFLAGS)" .
 
+## build.docker: builds docker image
 build.docker: build.linux
 	docker build --rm -t "$(IMAGE):$(TAG)" -f $(DOCKERFILE) .
 
+## build.push: pushes docker image to registry
 build.push: build.docker
 	docker push "$(IMAGE):$(TAG)"
 
@@ -75,6 +82,7 @@ DNS.1 = *.domain.name
 IP.1  = 127.0.0.1
 endef
 
+## recreate.ca: recreates a signed local test certificate
 recreate.ca: recreate.cnf
 	openssl req -config kubernetes/testdata/test.cnf -new -x509 -sha256 -nodes -keyout kubernetes/testdata/key.pem -days $$((10*365)) -out kubernetes/testdata/ca.crt -subj "/"
 	cp kubernetes/testdata/ca.crt kubernetes/testdata/cert.pem
@@ -82,3 +90,8 @@ recreate.ca: recreate.cnf
 export TEST_CNF
 recreate.cnf:
 	@echo "$$TEST_CNF" > kubernetes/testdata/test.cnf
+
+## help: prints this help message
+help:
+	@echo "Usage: \n"
+	@sed -n 's/^##//p' ${MAKEFILE_LIST} | column -t -s ':' |  sed -e 's/^/ /'
