@@ -11,7 +11,7 @@ BUILD_FLAGS   ?= -v
 LDFLAGS       ?= -X main.version=$(VERSION) -X main.buildstamp=$(shell date -u '+%Y-%m-%d_%I:%M:%S%p') -X main.githash=$(shell git rev-parse HEAD) -w -s
 
 
-default: help
+default: build.local
 
 ## clean: cleans the binary
 clean:
