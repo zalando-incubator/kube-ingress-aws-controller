@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/aws/aws-sdk-go/service/elbv2"
+	log "github.com/sirupsen/logrus"
 	"github.com/zalando-incubator/kube-ingress-aws-controller/aws"
 )
 
@@ -304,6 +305,11 @@ func (a *Adapter) ListResources() ([]*Ingress, error) {
 	}
 	rgs, err := a.ListRoutegroups()
 	if err != nil {
+		log.Warnf("Failed to list RouteGroups: %v, to get more information https://opensource.zalando.com/skipper/kubernetes/routegroups/#routegroups", err)
+		// RouteGroup CRD does not exist
+		if err == ErrRessourceNotFound {
+			return ings, nil
+		}
 		return nil, err
 	}
 	return append(ings, rgs...), nil
