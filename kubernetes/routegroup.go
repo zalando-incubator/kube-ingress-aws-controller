@@ -49,7 +49,7 @@ const (
 func listRoutegroups(c client) (*routegroupList, error) {
 	r, err := c.get(routegroupListResource)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get routegroup list: %v", err)
+		return nil, err
 	}
 
 	defer r.Close()

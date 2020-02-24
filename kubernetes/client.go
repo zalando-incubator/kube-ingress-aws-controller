@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto/tls"
 	"crypto/x509"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -14,6 +15,8 @@ import (
 
 	"github.com/linki/instrumented_http"
 )
+
+var ErrRessourceNotFound = errors.New("Resource not found")
 
 type client interface {
 	get(string) (io.ReadCloser, error)
@@ -84,16 +87,20 @@ func (c *simpleClient) get(resource string) (io.ReadCloser, error) {
 	if err != nil {
 		return nil, err
 	}
-	if resp.StatusCode != http.StatusOK {
-		var err error
-		b, err := ioutil.ReadAll(resp.Body)
-		if err == nil {
-			err = fmt.Errorf("unexpected status code (%s) for GET %q: %s", http.StatusText(resp.StatusCode), resource, b)
-		}
-		resp.Body.Close()
-		return nil, err
+
+	if resp.StatusCode == http.StatusOK {
+		return resp.Body, nil
 	}
-	return resp.Body, nil
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusNotFound {
+		return nil, ErrRessourceNotFound
+	}
+	b, err := ioutil.ReadAll(resp.Body)
+	if err == nil {
+		err = fmt.Errorf("unexpected status code (%s) for GET %q: %s", http.StatusText(resp.StatusCode), resource, b)
+	}
+	return nil, err
 }
 
 func (c *simpleClient) patch(resource string, payload []byte) (io.ReadCloser, error) {

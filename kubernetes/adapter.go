@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/aws/aws-sdk-go/service/elbv2"
+	log "github.com/sirupsen/logrus"
 	"github.com/zalando-incubator/kube-ingress-aws-controller/aws"
 )
 
@@ -15,6 +16,7 @@ type Adapter struct {
 	ingressDefaultSecurityGroup    string
 	ingressDefaultSSLPolicy        string
 	ingressDefaultLoadBalancerType string
+	routeGroupSupport              bool
 }
 
 type ingressType int
@@ -121,6 +123,7 @@ func NewAdapter(config *Config, ingressClassFilters []string, ingressDefaultSecu
 		ingressDefaultSecurityGroup:    ingressDefaultSecurityGroup,
 		ingressDefaultSSLPolicy:        ingressDefaultSSLPolicy,
 		ingressDefaultLoadBalancerType: loadBalancerTypesAWSToIngress[ingressDefaultLoadBalancerType],
+		routeGroupSupport:              true,
 	}, nil
 }
 
@@ -304,8 +307,17 @@ func (a *Adapter) ListResources() ([]*Ingress, error) {
 	}
 	rgs, err := a.ListRoutegroups()
 	if err != nil {
+		if a.routeGroupSupport {
+			a.routeGroupSupport = false
+			log.Warnf("Failed to list RouteGroups: %v, to get more information https://opensource.zalando.com/skipper/kubernetes/routegroups/#routegroups", err)
+		}
+		// RouteGroup CRD does not exist
+		if err == ErrRessourceNotFound {
+			return ings, nil
+		}
 		return nil, err
 	}
+	a.routeGroupSupport = true
 	return append(ings, rgs...), nil
 }
 
