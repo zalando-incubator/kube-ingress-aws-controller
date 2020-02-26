@@ -138,9 +138,13 @@ func (a *Adapter) newIngressFromKube(kubeIngress *ingress) *Ingress {
 	}
 
 	for _, rule := range kubeIngress.Spec.Rules {
-		if rule.Host != "" {
+		if rule.Host != "" && !strings.HasSuffix(rule.Host, clusterLocalDomain) {
 			hostnames = append(hostnames, rule.Host)
 		}
+	}
+
+	if len(hostnames) < 1 {
+		return nil
 	}
 
 	ingress := a.parseAnnotations(kubeIngress.Metadata.Annotations)
@@ -165,9 +169,13 @@ func (a *Adapter) newIngressFromRouteGroup(rg *routegroup) *Ingress {
 	}
 
 	for _, host := range rg.Spec.Hosts {
-		if host != "" {
+		if host != "" && !strings.HasSuffix(host, clusterLocalDomain) {
 			hostnames = append(hostnames, host)
 		}
+	}
+
+	if len(hostnames) < 1 {
+		return nil
 	}
 
 	ingress := a.parseAnnotations(rg.Metadata.Annotations)
@@ -332,19 +340,23 @@ func (a *Adapter) ListIngress() ([]*Ingress, error) {
 	}
 	var ret []*Ingress
 	if len(a.ingressFilters) > 0 {
-		ret = make([]*Ingress, 0)
 		for _, ingress := range il.Items {
 			ingressClass := getAnnotationsString(ingress.Metadata.Annotations, ingressClassAnnotation, "")
 			for _, v := range a.ingressFilters {
 				if v == ingressClass {
-					ret = append(ret, a.newIngressFromKube(ingress))
+					ing := a.newIngressFromKube(ingress)
+					if ing != nil {
+						ret = append(ret, ing)
+					}
 				}
 			}
 		}
 	} else {
-		ret = make([]*Ingress, len(il.Items))
-		for i, ingress := range il.Items {
-			ret[i] = a.newIngressFromKube(ingress)
+		for _, ingress := range il.Items {
+			ing := a.newIngressFromKube(ingress)
+			if ing != nil {
+				ret = append(ret, ing)
+			}
 		}
 	}
 	return ret, nil
@@ -359,21 +371,27 @@ func (a *Adapter) ListRoutegroups() ([]*Ingress, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	var ret []*Ingress
 	if len(a.ingressFilters) > 0 {
-		ret = make([]*Ingress, 0)
 		for _, rg := range rgs.Items {
 			ingressClass := getAnnotationsString(rg.Metadata.Annotations, ingressClassAnnotation, "")
 			for _, v := range a.ingressFilters {
 				if v == ingressClass {
-					ret = append(ret, a.newIngressFromRouteGroup(rg))
+					ing := a.newIngressFromRouteGroup(rg)
+					if ing != nil {
+						ret = append(ret, ing)
+					}
 				}
 			}
 		}
 	} else {
-		ret = make([]*Ingress, len(rgs.Items))
-		for i, rg := range rgs.Items {
-			ret[i] = a.newIngressFromRouteGroup(rg)
+		for _, rg := range rgs.Items {
+			ing := a.newIngressFromRouteGroup(rg)
+			if ing != nil {
+				ret = append(ret, ing)
+			}
+
 		}
 	}
 	return ret, nil

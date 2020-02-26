@@ -71,6 +71,7 @@ const (
 	ingressLoadBalancerTypeAnnotation = "zalando.org/aws-load-balancer-type"
 	ingressHTTP2Annotation            = "zalando.org/aws-load-balancer-http2"
 	ingressClassAnnotation            = "kubernetes.io/ingress.class"
+	clusterLocalDomain                = ".cluster.local"
 )
 
 func getAnnotationsString(annotations map[string]string, key string, defaultValue string) string {
