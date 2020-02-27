@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"math"
 	"reflect"
 	"sort"
 	"time"
@@ -26,6 +27,7 @@ type loadBalancer struct {
 	stack            *aws.Stack
 	shared           bool
 	http2            bool
+	clusterLocal     bool
 	securityGroup    string
 	sslPolicy        string
 	ipAddressType    string
@@ -46,6 +48,9 @@ const (
 )
 
 func (l *loadBalancer) Status() int {
+	if l.clusterLocal {
+		return ready
+	}
 	if l.stack.ShouldDelete() {
 		return delete
 	}
@@ -71,6 +76,16 @@ func (l *loadBalancer) inSync() bool {
 // adding can fail in case the load balancer reached its limit of ingress
 // certificates or if the scheme doesn't match.
 func (l *loadBalancer) AddIngress(certificateARNs []string, ingress *kubernetes.Ingress, maxCerts int) bool {
+
+	if ingress.ClusterLocal {
+		if ingresses, ok := l.ingresses[kubernetes.DefaultClusterLocalDomain]; ok {
+			l.ingresses[kubernetes.DefaultClusterLocalDomain] = append(ingresses, ingress)
+		} else {
+			l.ingresses[kubernetes.DefaultClusterLocalDomain] = []*kubernetes.Ingress{ingress}
+		}
+		return true
+	}
+
 	if l.ipAddressType != ingress.IPAddressType ||
 		l.scheme != ingress.Scheme ||
 		l.securityGroup != ingress.SecurityGroup ||
@@ -321,8 +336,26 @@ func getAllLoadBalancers(certTTL time.Duration, stacks []*aws.Stack) []*loadBala
 	return loadBalancers
 }
 
+func getClusterLocal(loadBalancers []*loadBalancer) *loadBalancer {
+	for _, lb := range loadBalancers {
+		if lb.clusterLocal {
+			return lb
+		}
+	}
+
+	return &loadBalancer{
+		clusterLocal: true,
+	}
+}
+
 func matchIngressesToLoadBalancers(loadBalancers []*loadBalancer, certs CertificatesFinder, certsPerALB int, ingresses []*kubernetes.Ingress) []*loadBalancer {
 	for _, ingress := range ingresses {
+		if ingress.ClusterLocal {
+			lb := getClusterLocal(loadBalancers)
+			lb.AddIngress(nil, ingress, math.MaxInt64)
+			continue
+		}
+
 		var certificateARNs []string
 
 		if ingress.CertificateARN != "" {
@@ -461,11 +494,16 @@ func isNoUpdatesToBePerformedError(err error) bool {
 }
 
 func updateIngress(kubeAdapter *kubernetes.Adapter, lb *loadBalancer) {
-	// only update ingress if the stack exists and is in a complete state.
-	if lb.stack == nil || !lb.stack.IsComplete() {
-		return
+	var dnsName string
+	if lb.clusterLocal {
+		dnsName = kubernetes.DefaultClusterLocalDomain
+	} else {
+		// only update ingress if the stack exists and is in a complete state.
+		if lb.stack == nil || !lb.stack.IsComplete() {
+			return
+		}
+		dnsName = strings.ToLower(lb.stack.DNSName) // lower case to satisfy Kubernetes reqs
 	}
-	dnsName := strings.ToLower(lb.stack.DNSName) // lower case to satisfy Kubernetes reqs
 	for _, ingresses := range lb.ingresses {
 		for _, ing := range ingresses {
 			if err := kubeAdapter.UpdateIngressLoadBalancer(ing, dnsName); err != nil {

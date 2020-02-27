@@ -402,6 +402,10 @@ func (a *Adapter) UpdateIngressLoadBalancer(ingress *Ingress, loadBalancerDNSNam
 		return ErrInvalidIngressUpdateParams
 	}
 
+	if loadBalancerDNSName == DefaultClusterLocalDomain {
+		loadBalancerDNSName = ""
+	}
+
 	switch ingress.resourceType {
 	case ingressTypeRouteGroup:
 		return updateRoutegroupLoadBalancer(a.kubeClient, newRouteGroupForKube(ingress), loadBalancerDNSName)
