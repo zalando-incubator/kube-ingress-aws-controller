@@ -16,6 +16,7 @@ type Adapter struct {
 	ingressDefaultSecurityGroup    string
 	ingressDefaultSSLPolicy        string
 	ingressDefaultLoadBalancerType string
+	clusterLocalDomain             string
 	routeGroupSupport              bool
 }
 
@@ -38,8 +39,9 @@ func (t ingressType) String() string {
 }
 
 const (
-	loadBalancerTypeNLB = "nlb"
-	loadBalancerTypeALB = "alb"
+	DefaultClusterLocalDomain = ".cluster.local"
+	loadBalancerTypeNLB       = "nlb"
+	loadBalancerTypeALB       = "alb"
 )
 
 var (
@@ -75,18 +77,19 @@ var (
 // Ingress is the ingress-controller's business object. It is used to
 // store Kubernetes ingress and routegroup resources.
 type Ingress struct {
+	Shared           bool
+	HTTP2            bool
+	ClusterLocal     bool
 	CertificateARN   string
 	Namespace        string
 	Name             string
 	Hostname         string
 	Scheme           string
-	Hostnames        []string
-	Shared           bool
-	HTTP2            bool
 	SecurityGroup    string
 	SSLPolicy        string
 	IPAddressType    string
 	LoadBalancerType string
+	Hostnames        []string
 	resourceType     ingressType
 }
 
@@ -109,7 +112,7 @@ func (c *ConfigMap) String() string {
 }
 
 // NewAdapter creates an Adapter for Kubernetes using a given configuration.
-func NewAdapter(config *Config, ingressClassFilters []string, ingressDefaultSecurityGroup, ingressDefaultSSLPolicy, ingressDefaultLoadBalancerType string) (*Adapter, error) {
+func NewAdapter(config *Config, ingressClassFilters []string, ingressDefaultSecurityGroup, ingressDefaultSSLPolicy, ingressDefaultLoadBalancerType, clusterLocalDomain string) (*Adapter, error) {
 	if config == nil || config.BaseURL == "" {
 		return nil, ErrInvalidConfiguration
 	}
@@ -123,6 +126,7 @@ func NewAdapter(config *Config, ingressClassFilters []string, ingressDefaultSecu
 		ingressDefaultSecurityGroup:    ingressDefaultSecurityGroup,
 		ingressDefaultSSLPolicy:        ingressDefaultSSLPolicy,
 		ingressDefaultLoadBalancerType: loadBalancerTypesAWSToIngress[ingressDefaultLoadBalancerType],
+		clusterLocalDomain:             clusterLocalDomain,
 		routeGroupSupport:              true,
 	}, nil
 }
@@ -138,13 +142,9 @@ func (a *Adapter) newIngressFromKube(kubeIngress *ingress) *Ingress {
 	}
 
 	for _, rule := range kubeIngress.Spec.Rules {
-		if rule.Host != "" && !strings.HasSuffix(rule.Host, clusterLocalDomain) {
+		if rule.Host != "" && !strings.HasSuffix(rule.Host, a.clusterLocalDomain) {
 			hostnames = append(hostnames, rule.Host)
 		}
-	}
-
-	if len(hostnames) < 1 {
-		return nil
 	}
 
 	ingress := a.parseAnnotations(kubeIngress.Metadata.Annotations)
@@ -154,6 +154,7 @@ func (a *Adapter) newIngressFromKube(kubeIngress *ingress) *Ingress {
 	ingress.Hostname = host
 	ingress.Hostnames = hostnames
 	ingress.resourceType = ingressTypeIngress
+	ingress.ClusterLocal = len(hostnames) < 1
 
 	return ingress
 }
@@ -169,13 +170,9 @@ func (a *Adapter) newIngressFromRouteGroup(rg *routegroup) *Ingress {
 	}
 
 	for _, host := range rg.Spec.Hosts {
-		if host != "" && !strings.HasSuffix(host, clusterLocalDomain) {
+		if host != "" && !strings.HasSuffix(host, a.clusterLocalDomain) {
 			hostnames = append(hostnames, host)
 		}
-	}
-
-	if len(hostnames) < 1 {
-		return nil
 	}
 
 	ingress := a.parseAnnotations(rg.Metadata.Annotations)
@@ -185,6 +182,7 @@ func (a *Adapter) newIngressFromRouteGroup(rg *routegroup) *Ingress {
 	ingress.Hostname = host
 	ingress.Hostnames = hostnames
 	ingress.resourceType = ingressTypeRouteGroup
+	ingress.ClusterLocal = len(hostnames) < 1
 
 	return ingress
 }
