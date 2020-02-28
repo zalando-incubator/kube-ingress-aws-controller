@@ -342,19 +342,13 @@ func (a *Adapter) ListIngress() ([]*Ingress, error) {
 			ingressClass := getAnnotationsString(ingress.Metadata.Annotations, ingressClassAnnotation, "")
 			for _, v := range a.ingressFilters {
 				if v == ingressClass {
-					ing := a.newIngressFromKube(ingress)
-					if ing != nil {
-						ret = append(ret, ing)
-					}
+					ret = append(ret, a.newIngressFromKube(ingress))
 				}
 			}
 		}
 	} else {
 		for _, ingress := range il.Items {
-			ing := a.newIngressFromKube(ingress)
-			if ing != nil {
-				ret = append(ret, ing)
-			}
+			ret = append(ret, a.newIngressFromKube(ingress))
 		}
 	}
 	return ret, nil
@@ -376,20 +370,13 @@ func (a *Adapter) ListRoutegroups() ([]*Ingress, error) {
 			ingressClass := getAnnotationsString(rg.Metadata.Annotations, ingressClassAnnotation, "")
 			for _, v := range a.ingressFilters {
 				if v == ingressClass {
-					ing := a.newIngressFromRouteGroup(rg)
-					if ing != nil {
-						ret = append(ret, ing)
-					}
+					ret = append(ret, a.newIngressFromRouteGroup(rg))
 				}
 			}
 		}
 	} else {
 		for _, rg := range rgs.Items {
-			ing := a.newIngressFromRouteGroup(rg)
-			if ing != nil {
-				ret = append(ret, ing)
-			}
-
+			ret = append(ret, a.newIngressFromRouteGroup(rg))
 		}
 	}
 	return ret, nil
