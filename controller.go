@@ -101,8 +101,8 @@ func loadSettings() error {
 		StringVar(&ingressClassFilters)
 	kingpin.Flag("controller-id", "controller ID used to differentiate resources from multiple aws ingress controller instances").
 		Default(aws.DefaultControllerID).StringVar(&controllerID)
-	kingpin.Flag("cluster-local-domain", "Cluster local domain is used to detect hostnames, that won't trigger a creation of an AWS load balancer").
-		Default(kubernetes.DefaultClusterLocalDomain).StringVar(&clusterLocalDomain)
+	kingpin.Flag("cluster-local-domain", "Cluster local domain is used to detect hostnames, that won't trigger a creation of an AWS load balancer, empty string will not change the default behavior. In Kubernetes you might want to pass cluster.local").
+		Default("").StringVar(&clusterLocalDomain)
 	kingpin.Flag("max-certs-alb", fmt.Sprintf("sets the maximum number of certificates to be attached to an ALB. Cannot be higher than %d", aws.DefaultMaxCertsPerALB)).
 		Default(strconv.Itoa(aws.DefaultMaxCertsPerALB)).IntVar(&maxCertsPerALB) // TODO: max
 	kingpin.Flag("ssl-policy", "Security policy that will define the protocols/ciphers accepts by the SSL listener").

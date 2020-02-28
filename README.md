@@ -22,7 +22,7 @@ This information is used to manage AWS resources for each ingress objects of the
 - Automatic cleanup of unnecessary managed resources
 - Support for both [Application Load Balancers][alb] and [Network Load Balancers][nlb].
 - Support for internet-facing and internal load balancers
-- Support for ignoring internal ingress, that only have `cluster.local` domains
+- Support for ignoring cluster-internal ingress, that only have `--cluster-local-domain=cluster.local` domains.
 - Support for multiple Auto Scaling Groups
 - Support for instances that are not part of Auto Scaling Group
 - Support for SSLPolicy, set default and per ingress

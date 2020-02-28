@@ -142,7 +142,7 @@ func (a *Adapter) newIngressFromKube(kubeIngress *ingress) *Ingress {
 	}
 
 	for _, rule := range kubeIngress.Spec.Rules {
-		if rule.Host != "" && !strings.HasSuffix(rule.Host, a.clusterLocalDomain) {
+		if rule.Host != "" && (a.clusterLocalDomain == "" || !strings.HasSuffix(rule.Host, a.clusterLocalDomain)) {
 			hostnames = append(hostnames, rule.Host)
 		}
 	}
@@ -170,7 +170,7 @@ func (a *Adapter) newIngressFromRouteGroup(rg *routegroup) *Ingress {
 	}
 
 	for _, host := range rg.Spec.Hosts {
-		if host != "" && !strings.HasSuffix(host, a.clusterLocalDomain) {
+		if host != "" && (a.clusterLocalDomain == "" || !strings.HasSuffix(host, a.clusterLocalDomain)) {
 			hostnames = append(hostnames, host)
 		}
 	}
