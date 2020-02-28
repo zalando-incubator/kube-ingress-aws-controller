@@ -336,23 +336,15 @@ func getAllLoadBalancers(certTTL time.Duration, stacks []*aws.Stack) []*loadBala
 	return loadBalancers
 }
 
-func getClusterLocal(loadBalancers []*loadBalancer) *loadBalancer {
-	for _, lb := range loadBalancers {
-		if lb.clusterLocal {
-			return lb
-		}
-	}
-
-	return &loadBalancer{
+func matchIngressesToLoadBalancers(loadBalancers []*loadBalancer, certs CertificatesFinder, certsPerALB int, ingresses []*kubernetes.Ingress) []*loadBalancer {
+	clusterLocalLB := &loadBalancer{
 		clusterLocal: true,
 	}
-}
+	loadBalancers = append(loadBalancers, clusterLocalLB)
 
-func matchIngressesToLoadBalancers(loadBalancers []*loadBalancer, certs CertificatesFinder, certsPerALB int, ingresses []*kubernetes.Ingress) []*loadBalancer {
 	for _, ingress := range ingresses {
 		if ingress.ClusterLocal {
-			lb := getClusterLocal(loadBalancers)
-			lb.AddIngress(nil, ingress, math.MaxInt64)
+			clusterLocalLB.AddIngress(nil, ingress, math.MaxInt64)
 			continue
 		}
 
