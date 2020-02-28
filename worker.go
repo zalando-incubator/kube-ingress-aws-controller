@@ -339,6 +339,7 @@ func getAllLoadBalancers(certTTL time.Duration, stacks []*aws.Stack) []*loadBala
 func matchIngressesToLoadBalancers(loadBalancers []*loadBalancer, certs CertificatesFinder, certsPerALB int, ingresses []*kubernetes.Ingress) []*loadBalancer {
 	clusterLocalLB := &loadBalancer{
 		clusterLocal: true,
+		ingresses:    make(map[string][]*kubernetes.Ingress),
 	}
 	loadBalancers = append(loadBalancers, clusterLocalLB)
 
