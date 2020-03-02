@@ -16,6 +16,7 @@ type Adapter struct {
 	ingressDefaultSecurityGroup    string
 	ingressDefaultSSLPolicy        string
 	ingressDefaultLoadBalancerType string
+	clusterLocalDomain             string
 	routeGroupSupport              bool
 }
 
@@ -38,8 +39,9 @@ func (t ingressType) String() string {
 }
 
 const (
-	loadBalancerTypeNLB = "nlb"
-	loadBalancerTypeALB = "alb"
+	DefaultClusterLocalDomain = ".cluster.local"
+	loadBalancerTypeNLB       = "nlb"
+	loadBalancerTypeALB       = "alb"
 )
 
 var (
@@ -75,18 +77,19 @@ var (
 // Ingress is the ingress-controller's business object. It is used to
 // store Kubernetes ingress and routegroup resources.
 type Ingress struct {
+	Shared           bool
+	HTTP2            bool
+	ClusterLocal     bool
 	CertificateARN   string
 	Namespace        string
 	Name             string
 	Hostname         string
 	Scheme           string
-	Hostnames        []string
-	Shared           bool
-	HTTP2            bool
 	SecurityGroup    string
 	SSLPolicy        string
 	IPAddressType    string
 	LoadBalancerType string
+	Hostnames        []string
 	resourceType     ingressType
 }
 
@@ -109,7 +112,7 @@ func (c *ConfigMap) String() string {
 }
 
 // NewAdapter creates an Adapter for Kubernetes using a given configuration.
-func NewAdapter(config *Config, ingressClassFilters []string, ingressDefaultSecurityGroup, ingressDefaultSSLPolicy, ingressDefaultLoadBalancerType string) (*Adapter, error) {
+func NewAdapter(config *Config, ingressClassFilters []string, ingressDefaultSecurityGroup, ingressDefaultSSLPolicy, ingressDefaultLoadBalancerType, clusterLocalDomain string) (*Adapter, error) {
 	if config == nil || config.BaseURL == "" {
 		return nil, ErrInvalidConfiguration
 	}
@@ -123,6 +126,7 @@ func NewAdapter(config *Config, ingressClassFilters []string, ingressDefaultSecu
 		ingressDefaultSecurityGroup:    ingressDefaultSecurityGroup,
 		ingressDefaultSSLPolicy:        ingressDefaultSSLPolicy,
 		ingressDefaultLoadBalancerType: loadBalancerTypesAWSToIngress[ingressDefaultLoadBalancerType],
+		clusterLocalDomain:             clusterLocalDomain,
 		routeGroupSupport:              true,
 	}, nil
 }
@@ -138,7 +142,7 @@ func (a *Adapter) newIngressFromKube(kubeIngress *ingress) *Ingress {
 	}
 
 	for _, rule := range kubeIngress.Spec.Rules {
-		if rule.Host != "" {
+		if rule.Host != "" && (a.clusterLocalDomain == "" || !strings.HasSuffix(rule.Host, a.clusterLocalDomain)) {
 			hostnames = append(hostnames, rule.Host)
 		}
 	}
@@ -150,6 +154,7 @@ func (a *Adapter) newIngressFromKube(kubeIngress *ingress) *Ingress {
 	ingress.Hostname = host
 	ingress.Hostnames = hostnames
 	ingress.resourceType = ingressTypeIngress
+	ingress.ClusterLocal = len(hostnames) < 1
 
 	return ingress
 }
@@ -165,7 +170,7 @@ func (a *Adapter) newIngressFromRouteGroup(rg *routegroup) *Ingress {
 	}
 
 	for _, host := range rg.Spec.Hosts {
-		if host != "" {
+		if host != "" && (a.clusterLocalDomain == "" || !strings.HasSuffix(host, a.clusterLocalDomain)) {
 			hostnames = append(hostnames, host)
 		}
 	}
@@ -177,6 +182,7 @@ func (a *Adapter) newIngressFromRouteGroup(rg *routegroup) *Ingress {
 	ingress.Hostname = host
 	ingress.Hostnames = hostnames
 	ingress.resourceType = ingressTypeRouteGroup
+	ingress.ClusterLocal = len(hostnames) < 1
 
 	return ingress
 }
@@ -332,7 +338,6 @@ func (a *Adapter) ListIngress() ([]*Ingress, error) {
 	}
 	var ret []*Ingress
 	if len(a.ingressFilters) > 0 {
-		ret = make([]*Ingress, 0)
 		for _, ingress := range il.Items {
 			ingressClass := getAnnotationsString(ingress.Metadata.Annotations, ingressClassAnnotation, "")
 			for _, v := range a.ingressFilters {
@@ -342,9 +347,8 @@ func (a *Adapter) ListIngress() ([]*Ingress, error) {
 			}
 		}
 	} else {
-		ret = make([]*Ingress, len(il.Items))
-		for i, ingress := range il.Items {
-			ret[i] = a.newIngressFromKube(ingress)
+		for _, ingress := range il.Items {
+			ret = append(ret, a.newIngressFromKube(ingress))
 		}
 	}
 	return ret, nil
@@ -359,9 +363,9 @@ func (a *Adapter) ListRoutegroups() ([]*Ingress, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	var ret []*Ingress
 	if len(a.ingressFilters) > 0 {
-		ret = make([]*Ingress, 0)
 		for _, rg := range rgs.Items {
 			ingressClass := getAnnotationsString(rg.Metadata.Annotations, ingressClassAnnotation, "")
 			for _, v := range a.ingressFilters {
@@ -371,9 +375,8 @@ func (a *Adapter) ListRoutegroups() ([]*Ingress, error) {
 			}
 		}
 	} else {
-		ret = make([]*Ingress, len(rgs.Items))
-		for i, rg := range rgs.Items {
-			ret[i] = a.newIngressFromRouteGroup(rg)
+		for _, rg := range rgs.Items {
+			ret = append(ret, a.newIngressFromRouteGroup(rg))
 		}
 	}
 	return ret, nil
@@ -384,6 +387,10 @@ func (a *Adapter) ListRoutegroups() ([]*Ingress, error) {
 func (a *Adapter) UpdateIngressLoadBalancer(ingress *Ingress, loadBalancerDNSName string) error {
 	if ingress == nil || loadBalancerDNSName == "" {
 		return ErrInvalidIngressUpdateParams
+	}
+
+	if loadBalancerDNSName == DefaultClusterLocalDomain {
+		loadBalancerDNSName = ""
 	}
 
 	switch ingress.resourceType {

@@ -22,6 +22,7 @@ This information is used to manage AWS resources for each ingress objects of the
 - Automatic cleanup of unnecessary managed resources
 - Support for both [Application Load Balancers][alb] and [Network Load Balancers][nlb].
 - Support for internet-facing and internal load balancers
+- Support for ignoring cluster-internal ingress, that only have `--cluster-local-domain=cluster.local` domains.
 - Support for multiple Auto Scaling Groups
 - Support for instances that are not part of Auto Scaling Group
 - Support for SSLPolicy, set default and per ingress
@@ -190,7 +191,7 @@ During startup phase EC2 filters are constructed as follows:
   filters are `tag:kubernetes.io/cluster/<cluster-id>=owned tag-key=k8s.io/role/node` where `<cluster-id>`
   is determined from EC2 tags of instance on which Ingress Controller pod is started.
 
-`CUSTOM_FILTERS` is a list of filters separated by spaces. Each filter has a form of `name=value` where name can be a `tag:` or `tag-key:` prefixed expression, as would be recognized by the EC2 API, and value is value of a filter, or a comma seperated list of values. 
+`CUSTOM_FILTERS` is a list of filters separated by spaces. Each filter has a form of `name=value` where name can be a `tag:` or `tag-key:` prefixed expression, as would be recognized by the EC2 API, and value is value of a filter, or a comma seperated list of values.
 
 For example:
 
@@ -320,6 +321,30 @@ spec:
 ```
 
 You can only select from `internet-facing` (default) and `internal` options.
+
+#### Omit to create a Load Balancer for cluster internal domains
+
+Since `>=v0.10.5`, you can create Ingress objects with `host` rules,
+that have the `.cluster.local` and the controller will not create an
+ALB for this.
+
+```yaml
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  name: myingress
+spec:
+  rules:
+  - host: test-app.skipper.cluster.local
+    http:
+      paths:
+      - backend:
+          serviceName: test-app-service
+          servicePort: main-port
+```
+
+If you pass `--cluster-local-domain=".cluster.local"`, you can change
+what domain is considered cluster internal.
 
 #### Create Load Balancer with SSL Policy
 
