@@ -31,7 +31,7 @@ type Stack struct {
 	OwnerIngress      string
 	CWAlarmConfigHash string
 	TargetGroupARN    string
-	WafWebACLId		  string
+	WafWebACLId       string
 	CertificateARNs   map[string]time.Time
 	tags              map[string]string
 }
@@ -388,7 +388,7 @@ func mapToManagedStack(stack *cloudformation.Stack) *Stack {
 		OwnerIngress:      ownerIngress,
 		status:            aws.StringValue(stack.StackStatus),
 		CWAlarmConfigHash: tags[cwAlarmConfigHashTag],
-		WafWebACLId: 	   parameters[parameterLoadBalancerWafWebACLIdParameter],
+		WafWebACLId:       parameters[parameterLoadBalancerWafWebACLIdParameter],
 	}
 }
 

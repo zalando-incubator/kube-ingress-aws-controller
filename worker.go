@@ -31,7 +31,7 @@ type loadBalancer struct {
 	securityGroup    string
 	sslPolicy        string
 	ipAddressType    string
-	wafWebACLId		 string
+	wafWebACLId      string
 	certTTL          time.Duration
 	cwAlarms         aws.CloudWatchAlarmList
 	loadBalancerType string
@@ -325,7 +325,7 @@ func getAllLoadBalancers(certTTL time.Duration, stacks []*aws.Stack) []*loadBala
 			loadBalancerType: stack.LoadBalancerType,
 			http2:            stack.HTTP2,
 			certTTL:          certTTL,
-			wafWebACLId:	  stack.WafWebACLId,
+			wafWebACLId:      stack.WafWebACLId,
 		}
 		// initialize ingresses map with existing certificates from the
 		// stack.
@@ -365,7 +365,7 @@ func matchIngressesToLoadBalancers(loadBalancers []*loadBalancer, certs Certific
 				log.Errorf("No certificates found for %v", ingress.Hostnames)
 				continue
 			}
-		}	
+		}
 
 		// try to add ingress to existing ALB stacks until certificate
 		// limit is exeeded.
@@ -404,7 +404,7 @@ func matchIngressesToLoadBalancers(loadBalancers []*loadBalancer, certs Certific
 					ipAddressType:    ingress.IPAddressType,
 					loadBalancerType: ingress.LoadBalancerType,
 					http2:            ingress.HTTP2,
-					wafWebACLId: 	  ingress.WafWebACLId,	
+					wafWebACLId:      ingress.WafWebACLId,
 				},
 			)
 		}

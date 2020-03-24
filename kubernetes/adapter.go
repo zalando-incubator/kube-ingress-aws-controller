@@ -268,7 +268,7 @@ func newMetadataForKube(i *Ingress) kubeItemMetadata {
 			ingressSecurityGroupAnnotation:    i.SecurityGroup,
 			ingressSSLPolicyAnnotation:        i.SSLPolicy,
 			ingressALBIPAddressType:           i.IPAddressType,
-			ingressWafWebACLIdAnnotation: 	   i.WafWebACLId,
+			ingressWafWebACLIdAnnotation:      i.WafWebACLId,
 			ingressLoadBalancerTypeAnnotation: loadBalancerTypesAWSToIngress[i.LoadBalancerType],
 		},
 	}
