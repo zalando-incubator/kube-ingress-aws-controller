@@ -14,7 +14,6 @@ type Adapter struct {
 	kubeClient                     client
 	ingressFilters                 []string
 	ingressDefaultSecurityGroup    string
-	ingressWafWebACLId      	   string
 	ingressDefaultSSLPolicy        string
 	ingressDefaultLoadBalancerType string
 	clusterLocalDomain             string
@@ -90,6 +89,7 @@ type Ingress struct {
 	SSLPolicy        string
 	IPAddressType    string
 	LoadBalancerType string
+	WafWebACLId      string
 	Hostnames        []string
 	resourceType     ingressType
 }
@@ -113,7 +113,7 @@ func (c *ConfigMap) String() string {
 }
 
 // NewAdapter creates an Adapter for Kubernetes using a given configuration.
-func NewAdapter(config *Config, ingressClassFilters []string, ingressDefaultSecurityGroup, ingressWafWebACLId, ingressDefaultSSLPolicy, ingressDefaultLoadBalancerType, clusterLocalDomain string) (*Adapter, error) {
+func NewAdapter(config *Config, ingressClassFilters []string, ingressDefaultSecurityGroup, ingressDefaultSSLPolicy, ingressDefaultLoadBalancerType, clusterLocalDomain string) (*Adapter, error) {
 	if config == nil || config.BaseURL == "" {
 		return nil, ErrInvalidConfiguration
 	}
@@ -125,7 +125,6 @@ func NewAdapter(config *Config, ingressClassFilters []string, ingressDefaultSecu
 		kubeClient:                     c,
 		ingressFilters:                 ingressClassFilters,
 		ingressDefaultSecurityGroup:    ingressDefaultSecurityGroup,
-		ingressWafWebACLId				ingressWafWebACLId, 
 		ingressDefaultSSLPolicy:        ingressDefaultSSLPolicy,
 		ingressDefaultLoadBalancerType: loadBalancerTypesAWSToIngress[ingressDefaultLoadBalancerType],
 		clusterLocalDomain:             clusterLocalDomain,
@@ -216,12 +215,6 @@ func (a *Adapter) parseAnnotations(annotations map[string]string) *Ingress {
 		sslPolicy = a.ingressDefaultSSLPolicy
 	}
 
-	ingressWafWebACLId :=  getAnnotationsString(annotations, ingressWafWebACLIdAnnotation, a.ingressWafWebACLId)
-	// additionaly check if the waf id is valid, need to add
-	if ingressWafWebACLId != null {
-		ingressWafWebACLId = a.ingressWafWebACLId
-	}
-
 	loadBalancerType := getAnnotationsString(annotations, ingressLoadBalancerTypeAnnotation, a.ingressDefaultLoadBalancerType)
 	if _, ok := loadBalancerTypesIngressToAWS[loadBalancerType]; !ok {
 		loadBalancerType = a.ingressDefaultLoadBalancerType
@@ -248,6 +241,7 @@ func (a *Adapter) parseAnnotations(annotations map[string]string) *Ingress {
 		SSLPolicy:        sslPolicy,
 		IPAddressType:    ipAddressType,
 		LoadBalancerType: loadBalancerType,
+		WafWebACLId:      getAnnotationsString(annotations, ingressWafWebACLIdAnnotation, ""),
 		HTTP2:            http2,
 	}
 }
@@ -274,6 +268,7 @@ func newMetadataForKube(i *Ingress) kubeItemMetadata {
 			ingressSecurityGroupAnnotation:    i.SecurityGroup,
 			ingressSSLPolicyAnnotation:        i.SSLPolicy,
 			ingressALBIPAddressType:           i.IPAddressType,
+			ingressWafWebACLIdAnnotation: 	   i.WafWebACLId,
 			ingressLoadBalancerTypeAnnotation: loadBalancerTypesAWSToIngress[i.LoadBalancerType],
 		},
 	}
