@@ -187,7 +187,7 @@ func loadDurationFromEnv(varName string, dest *time.Duration) error {
 }
 
 func main() {
-	log.Infof("starting %s", os.Args[0])
+	log.Infof("starting %s %s", os.Args[0], version)
 	var (
 		awsAdapter  *aws.Adapter
 		kubeAdapter *kubernetes.Adapter
