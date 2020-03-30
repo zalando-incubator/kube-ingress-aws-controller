@@ -63,6 +63,60 @@ func TestCreatingStack(t *testing.T) {
 	}
 }
 
+func TestUpdatingStack(t *testing.T) {
+	for _, ti := range []struct {
+		name         string
+		givenSpec    stackSpec
+		givenOutputs cfMockOutputs
+		want         string
+		wantErr      bool
+	}{
+		{
+			"successful-call",
+			stackSpec{
+				name:            "foo",
+				securityGroupID: "bar",
+				vpcID:           "baz",
+				certificateARNs: map[string]time.Time{
+					"arn-default": time.Time{},
+					"arn-second":  time.Time{},
+				},
+			},
+			cfMockOutputs{updateStack: R(mockUSOutput("fake-stack-id"), nil)},
+			"fake-stack-id",
+			false,
+		},
+		{
+			"successful-call",
+			stackSpec{name: "foo", securityGroupID: "bar", vpcID: "baz"},
+			cfMockOutputs{updateStack: R(mockUSOutput("fake-stack-id"), nil)},
+			"fake-stack-id",
+			false,
+		},
+		{
+			"fail-call",
+			stackSpec{name: "foo", securityGroupID: "bar", vpcID: "baz"},
+			cfMockOutputs{updateStack: R(nil, errDummy)},
+			"fake-stack-id",
+			true,
+		},
+	} {
+		t.Run(ti.name, func(t *testing.T) {
+			c := &mockCloudFormationClient{outputs: ti.givenOutputs}
+			got, err := updateStack(c, &ti.givenSpec)
+			if ti.wantErr {
+				if !ti.wantErr {
+					t.Error("unexpected error", err)
+				}
+			} else {
+				if ti.want != got {
+					t.Errorf("unexpected result. wanted %+v, got %+v", ti.want, got)
+				}
+			}
+		})
+	}
+}
+
 func TestDeleteStack(t *testing.T) {
 	for _, ti := range []struct {
 		msg          string
