@@ -118,6 +118,26 @@ func TestAddIngress(tt *testing.T) {
 			maxCerts: 1,
 			added:    false,
 		},
+		{
+			name: "wafacl id not matching",
+			loadBalancer: &loadBalancer{
+				wafWebACLId: "WAFZXX",
+			},
+			ingress: &kubernetes.Ingress{
+				WafWebACLId: "WAFZXC",
+			},
+			added: false,
+		},
+		{
+			name: "wafacl id not matching",
+			loadBalancer: &loadBalancer{
+				wafWebACLId: aws.DefaultWafWebAclId,
+			},
+			ingress: &kubernetes.Ingress{
+				WafWebACLId: "WAFZXC",
+			},
+			added: false,
+		},
 	} {
 		tt.Run(test.name, func(t *testing.T) {
 			assert.Equal(t, test.loadBalancer.AddIngress(test.certificateARNs, test.ingress, test.maxCerts), test.added)

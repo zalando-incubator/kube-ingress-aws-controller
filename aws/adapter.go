@@ -98,8 +98,10 @@ const (
 	DefaultAlbS3LogsBucket = ""
 	// DefaultAlbS3LogsPrefix is a blank string, and optionally set if desired
 	DefaultAlbS3LogsPrefix = ""
-	DefaultWafWebAclId     = ""
-	DefaultCustomFilter    = ""
+	// DefaultWafWebAclId is a blank string, set if desired.
+	DefaultWafWebAclId = ""
+
+	DefaultCustomFilter = ""
 	// DefaultNLBCrossZone specifies the default configuration for cross
 	// zone load balancing: https://docs.aws.amazon.com/elasticloadbalancing/latest/network/network-load-balancers.html#load-balancer-attributes
 	DefaultNLBCrossZone   = false
