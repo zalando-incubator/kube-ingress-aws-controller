@@ -31,6 +31,7 @@ type Stack struct {
 	OwnerIngress      string
 	CWAlarmConfigHash string
 	TargetGroupARN    string
+	WafWebACLId       string
 	CertificateARNs   map[string]time.Time
 	tags              map[string]string
 }
@@ -113,6 +114,7 @@ const (
 	parameterListenerSslPolicyParameter              = "ListenerSslPolicyParameter"
 	parameterIpAddressTypeParameter                  = "IpAddressType"
 	parameterLoadBalancerTypeParameter               = "Type"
+	parameterLoadBalancerWafWebACLIdParameter        = "LoadBalancerWafWebACLIdParameter"
 	parameterHTTP2Parameter                          = "HTTP2"
 )
 
@@ -170,6 +172,7 @@ func createStack(svc cloudformationiface.CloudFormationAPI, spec *stackSpec) (st
 			cfParam(parameterIpAddressTypeParameter, spec.ipAddressType),
 			cfParam(parameterLoadBalancerTypeParameter, spec.loadbalancerType),
 			cfParam(parameterHTTP2Parameter, fmt.Sprintf("%t", spec.http2)),
+			cfParam(parameterLoadBalancerWafWebACLIdParameter, spec.wafWebAclId),
 		},
 		Tags: []*cloudformation.Tag{
 			cfTag(kubernetesCreatorTag, spec.controllerID),
@@ -226,6 +229,7 @@ func updateStack(svc cloudformationiface.CloudFormationAPI, spec *stackSpec) (st
 			cfParam(parameterIpAddressTypeParameter, spec.ipAddressType),
 			cfParam(parameterLoadBalancerTypeParameter, spec.loadbalancerType),
 			cfParam(parameterHTTP2Parameter, fmt.Sprintf("%t", spec.http2)),
+			cfParam(parameterLoadBalancerWafWebACLIdParameter, spec.wafWebAclId),
 		},
 		Tags: []*cloudformation.Tag{
 			cfTag(kubernetesCreatorTag, spec.controllerID),
@@ -384,6 +388,7 @@ func mapToManagedStack(stack *cloudformation.Stack) *Stack {
 		OwnerIngress:      ownerIngress,
 		status:            aws.StringValue(stack.StackStatus),
 		CWAlarmConfigHash: tags[cwAlarmConfigHashTag],
+		WafWebACLId:       parameters[parameterLoadBalancerWafWebACLIdParameter],
 	}
 }
 

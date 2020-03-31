@@ -24,6 +24,7 @@ var (
 	testIPAddressTypeDefault        = aws.IPAddressTypeIPV4
 	testLoadBalancerTypeIngress     = loadBalancerTypeALB
 	testLoadBalancerTypeAWS         = aws.LoadBalancerTypeApplication
+	testWafWebACLId                 = "zbr-1234"
 )
 
 func TestMappingRoundtrip(tt *testing.T) {
@@ -48,6 +49,7 @@ func TestMappingRoundtrip(tt *testing.T) {
 				IPAddressType:    testIPAddressTypeDefault,
 				LoadBalancerType: testLoadBalancerTypeAWS,
 				resourceType:     ingressTypeIngress,
+				WafWebACLId:      testWafWebACLId,
 			},
 			kubeIngress: &ingress{
 				Metadata: kubeItemMetadata{
@@ -62,6 +64,7 @@ func TestMappingRoundtrip(tt *testing.T) {
 						ingressSSLPolicyAnnotation:        testSSLPolicy,
 						ingressALBIPAddressType:           testIPAddressTypeDefault,
 						ingressLoadBalancerTypeAnnotation: testLoadBalancerTypeIngress,
+						ingressWafWebACLIdAnnotation:      testWafWebACLId,
 					},
 				},
 				Spec: ingressSpec{
@@ -97,6 +100,7 @@ func TestMappingRoundtrip(tt *testing.T) {
 				IPAddressType:    testIPAddressTypeDefault,
 				LoadBalancerType: testLoadBalancerTypeAWS,
 				resourceType:     ingressTypeIngress,
+				WafWebACLId:      testWafWebACLId,
 			},
 			kubeIngress: &ingress{
 				Metadata: kubeItemMetadata{
@@ -111,6 +115,7 @@ func TestMappingRoundtrip(tt *testing.T) {
 						ingressSSLPolicyAnnotation:        testSSLPolicy,
 						ingressALBIPAddressType:           testIPAddressTypeDefault,
 						ingressLoadBalancerTypeAnnotation: testLoadBalancerTypeIngress,
+						ingressWafWebACLIdAnnotation:      testWafWebACLId,
 					},
 				},
 				Spec: ingressSpec{
@@ -146,6 +151,7 @@ func TestMappingRoundtrip(tt *testing.T) {
 				IPAddressType:    testIPAddressTypeDefault,
 				LoadBalancerType: testLoadBalancerTypeAWS,
 				resourceType:     ingressTypeIngress,
+				WafWebACLId:      testWafWebACLId,
 			},
 			kubeIngress: &ingress{
 				Metadata: kubeItemMetadata{
@@ -160,6 +166,7 @@ func TestMappingRoundtrip(tt *testing.T) {
 						ingressSSLPolicyAnnotation:        testSSLPolicy,
 						ingressALBIPAddressType:           testIPAddressTypeDefault,
 						ingressLoadBalancerTypeAnnotation: testLoadBalancerTypeIngress,
+						ingressWafWebACLIdAnnotation:      testWafWebACLId,
 					},
 				},
 				Status: ingressStatus{
@@ -188,6 +195,7 @@ func TestMappingRoundtrip(tt *testing.T) {
 				IPAddressType:    testIPAddressTypeDualStack,
 				LoadBalancerType: testLoadBalancerTypeAWS,
 				resourceType:     ingressTypeIngress,
+				WafWebACLId:      testWafWebACLId,
 			},
 			kubeIngress: &ingress{
 				Metadata: kubeItemMetadata{
@@ -202,6 +210,7 @@ func TestMappingRoundtrip(tt *testing.T) {
 						ingressSSLPolicyAnnotation:        testSSLPolicy,
 						ingressALBIPAddressType:           testIPAddressTypeDualStack,
 						ingressLoadBalancerTypeAnnotation: testLoadBalancerTypeIngress,
+						ingressWafWebACLIdAnnotation:      testWafWebACLId,
 					},
 				},
 				Status: ingressStatus{

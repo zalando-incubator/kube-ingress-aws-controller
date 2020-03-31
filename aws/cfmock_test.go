@@ -10,6 +10,7 @@ type cfMockOutputs struct {
 	describeStackPages          *apiResponse
 	describeStacks              *apiResponse
 	createStack                 *apiResponse
+	updateStack                 *apiResponse
 	deleteStack                 *apiResponse
 	updateTerminationProtection *apiResponse
 }
@@ -53,6 +54,19 @@ func (m *mockCloudFormationClient) CreateStack(params *cloudformation.CreateStac
 
 func mockCSOutput(stackId string) *cloudformation.CreateStackOutput {
 	return &cloudformation.CreateStackOutput{
+		StackId: aws.String(stackId),
+	}
+}
+
+func (m *mockCloudFormationClient) UpdateStack(params *cloudformation.UpdateStackInput) (*cloudformation.UpdateStackOutput, error) {
+	if out, ok := m.outputs.updateStack.response.(*cloudformation.UpdateStackOutput); ok {
+		return out, m.outputs.updateStack.err
+	}
+	return nil, m.outputs.updateStack.err
+}
+
+func mockUSOutput(stackId string) *cloudformation.UpdateStackOutput {
+	return &cloudformation.UpdateStackOutput{
 		StackId: aws.String(stackId),
 	}
 }
