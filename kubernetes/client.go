@@ -16,7 +16,7 @@ import (
 	"github.com/linki/instrumented_http"
 )
 
-var ErrResourceNotFound = errors.New("Resource not found")
+var ErrResourceNotFound = errors.New("resource not found")
 
 type client interface {
 	get(string) (io.ReadCloser, error)
