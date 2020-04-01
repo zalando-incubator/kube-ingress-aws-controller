@@ -17,6 +17,7 @@ import (
 )
 
 var ErrResourceNotFound = errors.New("resource not found")
+var ErrNoPermissionToAccessResource = errors.New("no permission to access resource")
 
 type client interface {
 	get(string) (io.ReadCloser, error)
@@ -95,6 +96,9 @@ func (c *simpleClient) get(resource string) (io.ReadCloser, error) {
 
 	if resp.StatusCode == http.StatusNotFound {
 		return nil, ErrResourceNotFound
+	}
+	if resp.StatusCode == http.StatusForbidden {
+		return nil, ErrNoPermissionToAccessResource
 	}
 	b, err := ioutil.ReadAll(resp.Body)
 	if err == nil {
