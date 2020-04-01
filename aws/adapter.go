@@ -601,10 +601,13 @@ func (a *Adapter) DeleteStack(stack *Stack) error {
 func buildManifest(awsAdapter *Adapter) (*manifest, error) {
 	var err error
 
+	log.Debug("aws.ec2metadata.GetMetadata")
 	myID, err := awsAdapter.ec2metadata.GetMetadata("instance-id")
 	if err != nil {
 		return nil, err
 	}
+
+	log.Debug("aws.getInstanceDetails")
 	instanceDetails, err := getInstanceDetails(awsAdapter.ec2, myID)
 	if err != nil {
 		return nil, err
@@ -612,11 +615,13 @@ func buildManifest(awsAdapter *Adapter) (*manifest, error) {
 
 	clusterID := instanceDetails.clusterID()
 
+	log.Debug("aws.findSecurityGroupWithClusterID")
 	securityGroupDetails, err := findSecurityGroupWithClusterID(awsAdapter.ec2, clusterID, awsAdapter.controllerID)
 	if err != nil {
 		return nil, err
 	}
 
+	log.Debug("aws.getSubnets")
 	subnets, err := getSubnets(awsAdapter.ec2, instanceDetails.vpcID, clusterID)
 	if err != nil {
 		return nil, err

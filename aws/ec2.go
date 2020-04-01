@@ -168,6 +168,7 @@ func getSubnets(svc ec2iface.EC2API, vpcID, clusterID string) ([]*subnetDetails,
 		return nil, err
 	}
 
+	log.Debug("aws.getRouteTables")
 	rt, err := getRouteTables(svc, vpcID)
 	if err != nil {
 		return nil, err
