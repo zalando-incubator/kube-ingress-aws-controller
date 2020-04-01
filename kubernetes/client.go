@@ -16,7 +16,7 @@ import (
 	"github.com/linki/instrumented_http"
 )
 
-var ErrRessourceNotFound = errors.New("Resource not found")
+var ErrResourceNotFound = errors.New("Resource not found")
 
 type client interface {
 	get(string) (io.ReadCloser, error)
@@ -94,7 +94,7 @@ func (c *simpleClient) get(resource string) (io.ReadCloser, error) {
 	defer resp.Body.Close()
 
 	if resp.StatusCode == http.StatusNotFound {
-		return nil, ErrRessourceNotFound
+		return nil, ErrResourceNotFound
 	}
 	b, err := ioutil.ReadAll(resp.Body)
 	if err == nil {
