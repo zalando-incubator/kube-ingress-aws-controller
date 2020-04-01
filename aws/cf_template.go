@@ -85,7 +85,6 @@ func generateTemplate(spec *stackSpec) (string, error) {
 		parameterLoadBalancerWafWebACLIdParameter: &cloudformation.Parameter{
 			Type:        "String",
 			Description: "Associated WAF ID.",
-			Default:     "",
 		},
 	}
 
