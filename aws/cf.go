@@ -172,7 +172,6 @@ func createStack(svc cloudformationiface.CloudFormationAPI, spec *stackSpec) (st
 			cfParam(parameterIpAddressTypeParameter, spec.ipAddressType),
 			cfParam(parameterLoadBalancerTypeParameter, spec.loadbalancerType),
 			cfParam(parameterHTTP2Parameter, fmt.Sprintf("%t", spec.http2)),
-			cfParam(parameterLoadBalancerWafWebACLIdParameter, spec.wafWebAclId),
 		},
 		Tags: []*cloudformation.Tag{
 			cfTag(kubernetesCreatorTag, spec.controllerID),
@@ -181,6 +180,13 @@ func createStack(svc cloudformationiface.CloudFormationAPI, spec *stackSpec) (st
 		TemplateBody:                aws.String(template),
 		TimeoutInMinutes:            aws.Int64(int64(spec.timeoutInMinutes)),
 		EnableTerminationProtection: aws.Bool(spec.stackTerminationProtection),
+	}
+
+	if spec.wafWebAclId != "" {
+		params.Parameters = append(
+			params.Parameters,
+			cfParam(parameterLoadBalancerWafWebACLIdParameter, spec.wafWebAclId),
+		)
 	}
 
 	for certARN, ttl := range spec.certificateARNs {
@@ -229,13 +235,19 @@ func updateStack(svc cloudformationiface.CloudFormationAPI, spec *stackSpec) (st
 			cfParam(parameterIpAddressTypeParameter, spec.ipAddressType),
 			cfParam(parameterLoadBalancerTypeParameter, spec.loadbalancerType),
 			cfParam(parameterHTTP2Parameter, fmt.Sprintf("%t", spec.http2)),
-			cfParam(parameterLoadBalancerWafWebACLIdParameter, spec.wafWebAclId),
 		},
 		Tags: []*cloudformation.Tag{
 			cfTag(kubernetesCreatorTag, spec.controllerID),
 			cfTag(clusterIDTagPrefix+spec.clusterID, resourceLifecycleOwned),
 		},
 		TemplateBody: aws.String(template),
+	}
+
+	if spec.wafWebAclId != "" {
+		params.Parameters = append(
+			params.Parameters,
+			cfParam(parameterLoadBalancerWafWebACLIdParameter, spec.wafWebAclId),
+		)
 	}
 
 	for certARN, ttl := range spec.certificateARNs {
