@@ -175,17 +175,6 @@ func loadSettings() error {
 	return nil
 }
 
-func loadDurationFromEnv(varName string, dest *time.Duration) error {
-	if tmp, defined := os.LookupEnv(varName); defined {
-		interval, err := time.ParseDuration(tmp)
-		if err != nil || interval <= 0 {
-			return err
-		}
-		*dest = interval
-	}
-	return nil
-}
-
 func main() {
 	log.Infof("starting %s %s", os.Args[0], version)
 	var (
