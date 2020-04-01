@@ -32,6 +32,10 @@ This information is used to manage AWS resources for each ingress objects of the
 
 ## Upgrade
 
+### <0.10.0 to >=v0.10.0
+
+Version `v0.10.0` introduces support for Skipper RouteGroups. You need to upgrade the [RBAC permissions](https://github.com/zalando-incubator/kube-ingress-aws-controller/pull/311/commits/ee221961da7ef60b113d0294c9b79592ac1257c6) of the service account, even when you don't use RouteGroups.
+
 ### <0.9.0 to >=v0.9.0
 
 Version `v0.9.0` changes the internal flag parsing library to
