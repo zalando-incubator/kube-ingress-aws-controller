@@ -89,7 +89,7 @@ type Ingress struct {
 	SSLPolicy        string
 	IPAddressType    string
 	LoadBalancerType string
-	WafWebACLId      string
+	WAFWebACLId      string
 	Hostnames        []string
 	resourceType     ingressType
 }
@@ -241,7 +241,7 @@ func (a *Adapter) parseAnnotations(annotations map[string]string) *Ingress {
 		SSLPolicy:        sslPolicy,
 		IPAddressType:    ipAddressType,
 		LoadBalancerType: loadBalancerType,
-		WafWebACLId:      getAnnotationsString(annotations, ingressWafWebACLIdAnnotation, ""),
+		WAFWebACLId:      getAnnotationsString(annotations, ingressWAFWebACLIdAnnotation, ""),
 		HTTP2:            http2,
 	}
 }
@@ -268,7 +268,7 @@ func newMetadataForKube(i *Ingress) kubeItemMetadata {
 			ingressSecurityGroupAnnotation:    i.SecurityGroup,
 			ingressSSLPolicyAnnotation:        i.SSLPolicy,
 			ingressALBIPAddressType:           i.IPAddressType,
-			ingressWafWebACLIdAnnotation:      i.WafWebACLId,
+			ingressWAFWebACLIdAnnotation:      i.WAFWebACLId,
 			ingressLoadBalancerTypeAnnotation: loadBalancerTypesAWSToIngress[i.LoadBalancerType],
 		},
 	}

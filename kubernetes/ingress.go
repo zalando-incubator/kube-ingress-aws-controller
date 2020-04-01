@@ -70,7 +70,7 @@ const (
 	ingressSSLPolicyAnnotation        = "zalando.org/aws-load-balancer-ssl-policy"
 	ingressLoadBalancerTypeAnnotation = "zalando.org/aws-load-balancer-type"
 	ingressHTTP2Annotation            = "zalando.org/aws-load-balancer-http2"
-	ingressWafWebACLIdAnnotation      = "zalando.org/aws-waf-web-acl-id"
+	ingressWAFWebACLIdAnnotation      = "zalando.org/aws-waf-web-acl-id"
 	ingressClassAnnotation            = "kubernetes.io/ingress.class"
 )
 

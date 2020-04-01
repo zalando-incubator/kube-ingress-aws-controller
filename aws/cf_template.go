@@ -90,6 +90,13 @@ func generateTemplate(spec *stackSpec) (string, error) {
 		},
 	}
 
+	if spec.wafWebAclId != "" {
+		template.Parameters[parameterLoadBalancerWAFWebACLIdParameter] = &cloudformation.Parameter{
+			Type:        "String",
+			Description: "Associated WAF ID.",
+		}
+	}
+
 	protocol := "HTTP"
 	tlsProtocol := "HTTPS"
 	if spec.loadbalancerType == LoadBalancerTypeNetwork {
@@ -277,12 +284,12 @@ func generateTemplate(spec *stackSpec) (string, error) {
 		if strings.HasPrefix(spec.wafWebAclId, "arn:aws:wafv2") {
 			template.AddResource("WAFAssociation", &cloudformation.WAFv2WebACLAssociation{
 				ResourceArn: cloudformation.Ref("LB").String(),
-				WebACLArn:   cloudformation.String(spec.wafWebAclId),
+				WebACLID:    cloudformation.Ref(parameterLoadBalancerWAFWebACLIdParameter).String(),
 			})
 		} else {
 			template.AddResource("WAFAssociation", &cloudformation.WAFRegionalWebACLAssociation{
 				ResourceArn: cloudformation.Ref("LB").String(),
-				WebACLID:    cloudformation.String(spec.wafWebAclId),
+				WebACLID:    cloudformation.Ref(parameterLoadBalancerWAFWebACLIdParameter).String(),
 			})
 		}
 	}
