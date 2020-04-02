@@ -22,50 +22,52 @@ import (
 )
 
 const (
-	defaultDisableSNISupport   = "false"
-	defaultHTTPRedirectToHTTPS = "false"
-	defaultCertTTL             = "30m"
-	customTagFilterEnvVarName  = "CUSTOM_FILTERS"
+	defaultDisableSNISupport      = "false"
+	defaultInstrumentedHttpClient = "false"
+	defaultHTTPRedirectToHTTPS    = "false"
+	defaultCertTTL                = "30m"
+	customTagFilterEnvVarName     = "CUSTOM_FILTERS"
 )
 
 var (
-	buildstamp                 = "Not set"
-	githash                    = "Not set"
-	version                    = "Not set"
-	versionFlag                bool
-	apiServerBaseURL           string
-	pollingInterval            time.Duration
-	creationTimeout            time.Duration
-	certPollingInterval        time.Duration
-	healthCheckPath            string
-	healthCheckPort            uint
-	healthCheckInterval        time.Duration
-	targetPort                 uint
-	metricsAddress             string
-	disableSNISupport          bool
-	certTTL                    time.Duration
-	stackTerminationProtection bool
-	idleConnectionTimeout      time.Duration
-	ingressClassFilters        string
-	controllerID               string
-	clusterLocalDomain         string
-	maxCertsPerALB             int
-	sslPolicy                  string
-	blacklistCertARNs          []string
-	blacklistCertArnMap        map[string]bool
-	ipAddressType              string
-	albLogsS3Bucket            string
-	albLogsS3Prefix            string
-	wafWebAclId                string
-	httpRedirectToHTTPS        bool
-	debugFlag                  bool
-	quietFlag                  bool
-	firstRun                   bool = true
-	cwAlarmConfigMap           string
-	cwAlarmConfigMapLocation   *kubernetes.ResourceLocation
-	loadBalancerType           string
-	nlbCrossZone               bool
-	nlbHTTPEnabled             bool
+	buildstamp                    = "Not set"
+	githash                       = "Not set"
+	version                       = "Not set"
+	versionFlag                   bool
+	apiServerBaseURL              string
+	pollingInterval               time.Duration
+	creationTimeout               time.Duration
+	certPollingInterval           time.Duration
+	healthCheckPath               string
+	healthCheckPort               uint
+	healthCheckInterval           time.Duration
+	targetPort                    uint
+	metricsAddress                string
+	disableSNISupport             bool
+	disableInstrumentedHttpClient bool
+	certTTL                       time.Duration
+	stackTerminationProtection    bool
+	idleConnectionTimeout         time.Duration
+	ingressClassFilters           string
+	controllerID                  string
+	clusterLocalDomain            string
+	maxCertsPerALB                int
+	sslPolicy                     string
+	blacklistCertARNs             []string
+	blacklistCertArnMap           map[string]bool
+	ipAddressType                 string
+	albLogsS3Bucket               string
+	albLogsS3Prefix               string
+	wafWebAclId                   string
+	httpRedirectToHTTPS           bool
+	debugFlag                     bool
+	quietFlag                     bool
+	firstRun                      bool = true
+	cwAlarmConfigMap              string
+	cwAlarmConfigMapLocation      *kubernetes.ResourceLocation
+	loadBalancerType              string
+	nlbCrossZone                  bool
+	nlbHTTPEnabled                bool
 )
 
 func loadSettings() error {
@@ -82,6 +84,8 @@ func loadSettings() error {
 		Envar("CERT_POLLING_INTERVAL").Default(aws.DefaultCertificateUpdateInterval.String()).DurationVar(&certPollingInterval)
 	kingpin.Flag("disable-sni-support", "disables SNI support limiting the number of certificates per ALB to 1.").
 		Default(defaultDisableSNISupport).BoolVar(&disableSNISupport)
+	kingpin.Flag("disable-instrumented-http-client", "disables instrumented http client.").
+		Default(defaultInstrumentedHttpClient).BoolVar(&disableInstrumentedHttpClient)
 	kingpin.Flag("stack-termination-protection", "enables stack termination protection for the stacks managed by the controller.").
 		Default("false").BoolVar(&stackTerminationProtection)
 	kingpin.Flag("cert-ttl-timeout", "sets the timeout of how long a certificate is kept on an old ALB to be decommissioned.").
@@ -175,17 +179,6 @@ func loadSettings() error {
 	return nil
 }
 
-func loadDurationFromEnv(varName string, dest *time.Duration) error {
-	if tmp, defined := os.LookupEnv(varName); defined {
-		interval, err := time.ParseDuration(tmp)
-		if err != nil || interval <= 0 {
-			return err
-		}
-		*dest = interval
-	}
-	return nil
-}
-
 func main() {
 	log.Infof("starting %s %s", os.Args[0], version)
 	var (
@@ -208,7 +201,7 @@ func main() {
 		os.Exit(0)
 	}
 
-	awsAdapter, err = aws.NewAdapter(controllerID, debugFlag)
+	awsAdapter, err = aws.NewAdapter(controllerID, debugFlag, disableInstrumentedHttpClient)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -261,7 +254,7 @@ func main() {
 		ingressClassFiltersList = strings.Split(ingressClassFilters, ",")
 	}
 
-	kubeAdapter, err = kubernetes.NewAdapter(kubeConfig, ingressClassFiltersList, awsAdapter.SecurityGroupID(), sslPolicy, loadBalancerType, clusterLocalDomain)
+	kubeAdapter, err = kubernetes.NewAdapter(kubeConfig, ingressClassFiltersList, awsAdapter.SecurityGroupID(), sslPolicy, loadBalancerType, clusterLocalDomain, disableInstrumentedHttpClient)
 	if err != nil {
 		log.Fatal(err)
 	}

@@ -113,11 +113,11 @@ func (c *ConfigMap) String() string {
 }
 
 // NewAdapter creates an Adapter for Kubernetes using a given configuration.
-func NewAdapter(config *Config, ingressClassFilters []string, ingressDefaultSecurityGroup, ingressDefaultSSLPolicy, ingressDefaultLoadBalancerType, clusterLocalDomain string) (*Adapter, error) {
+func NewAdapter(config *Config, ingressClassFilters []string, ingressDefaultSecurityGroup, ingressDefaultSSLPolicy, ingressDefaultLoadBalancerType, clusterLocalDomain string, disableInstrumentedHttpClient bool) (*Adapter, error) {
 	if config == nil || config.BaseURL == "" {
 		return nil, ErrInvalidConfiguration
 	}
-	c, err := newSimpleClient(config)
+	c, err := newSimpleClient(config, disableInstrumentedHttpClient)
 	if err != nil {
 		return nil, err
 	}

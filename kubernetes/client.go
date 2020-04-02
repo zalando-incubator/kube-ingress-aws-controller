@@ -30,7 +30,7 @@ type simpleClient struct {
 
 const defaultControllerUserAgent = "kube-ingress-aws-controller"
 
-func newSimpleClient(cfg *Config) (client, error) {
+func newSimpleClient(cfg *Config, disableInstrumentedHttpClient bool) (client, error) {
 	var (
 		tlsConfig *tls.Config
 		transport http.RoundTripper = http.DefaultTransport
@@ -68,12 +68,14 @@ func newSimpleClient(cfg *Config) (client, error) {
 		}
 	}
 
-	c = instrumented_http.NewClient(c, &instrumented_http.Callbacks{
-		PathProcessor: func(path string) string {
-			parts := strings.Split(path, "/")
-			return parts[len(parts)-1]
-		},
-	})
+	if !disableInstrumentedHttpClient {
+		c = instrumented_http.NewClient(c, &instrumented_http.Callbacks{
+			PathProcessor: func(path string) string {
+				parts := strings.Split(path, "/")
+				return parts[len(parts)-1]
+			},
+		})
+	}
 
 	return &simpleClient{cfg: cfg, httpClient: c}, nil
 }

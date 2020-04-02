@@ -151,12 +151,14 @@ var (
 	}
 )
 
-func newConfigProvider(debug bool) client.ConfigProvider {
+func newConfigProvider(debug, disableInstrumentedHttpClient bool) client.ConfigProvider {
 	cfg := aws.NewConfig().WithMaxRetries(3)
 	if debug {
 		cfg = cfg.WithLogLevel(aws.LogDebugWithRequestErrors)
 	}
-	cfg = cfg.WithHTTPClient(instrumented_http.NewClient(cfg.HTTPClient, nil))
+	if !disableInstrumentedHttpClient {
+		cfg = cfg.WithHTTPClient(instrumented_http.NewClient(cfg.HTTPClient, nil))
+	}
 	opts := session.Options{
 		SharedConfigState: session.SharedConfigEnable,
 		Config:            *cfg,
@@ -168,8 +170,8 @@ func newConfigProvider(debug bool) client.ConfigProvider {
 // Before returning there is a discovery process for VPC and EC2 details. It tries to find the Auto Scaling Group and
 // Security Group that should be used for newly created Load Balancers. If any of those critical steps fail
 // an appropriate error is returned.
-func NewAdapter(newControllerID string, debug bool) (adapter *Adapter, err error) {
-	p := newConfigProvider(debug)
+func NewAdapter(newControllerID string, debug, disableInstrumentedHttpClient bool) (adapter *Adapter, err error) {
+	p := newConfigProvider(debug, disableInstrumentedHttpClient)
 	adapter = &Adapter{
 		ec2:                 ec2.New(p),
 		elbv2:               elbv2.New(p),
