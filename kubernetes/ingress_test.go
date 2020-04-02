@@ -20,7 +20,7 @@ func TestListIngresses(t *testing.T) {
 		io.Copy(rw, f)
 	}))
 	defer testServer.Close()
-	kubeClient, _ := newSimpleClient(&Config{BaseURL: testServer.URL})
+	kubeClient, _ := newSimpleClient(&Config{BaseURL: testServer.URL}, false)
 	want := newList(
 		newIngress("fixture01", nil, "example.org", "fixture01"),
 		newIngress("fixture02", map[string]string{ingressClassAnnotation: "skipper"}, "skipper.example.org", "fixture02"),
@@ -51,7 +51,7 @@ func TestListIngressFailureScenarios(t *testing.T) {
 			}))
 			defer testServer.Close()
 			cfg := &Config{BaseURL: testServer.URL}
-			kubeClient, _ := newSimpleClient(cfg)
+			kubeClient, _ := newSimpleClient(cfg, false)
 
 			_, err := listIngress(kubeClient)
 			if err == nil {
@@ -91,7 +91,7 @@ func TestUpdateIngressLoaBalancer(t *testing.T) {
 	}))
 	defer testServer.Close()
 	cfg := &Config{BaseURL: testServer.URL}
-	kubeClient, _ := newSimpleClient(cfg)
+	kubeClient, _ := newSimpleClient(cfg, false)
 	ing := &ingress{
 		Metadata: kubeItemMetadata{
 			Namespace: "foo",
@@ -110,7 +110,7 @@ func TestUpdateIngressFailureScenarios(t *testing.T) {
 	}))
 	defer testServer.Close()
 	cfg := &Config{BaseURL: testServer.URL}
-	kubeClient, _ := newSimpleClient(cfg)
+	kubeClient, _ := newSimpleClient(cfg, false)
 	for _, test := range []struct {
 		ing *ingress
 	}{
