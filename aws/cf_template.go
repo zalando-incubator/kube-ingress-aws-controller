@@ -82,10 +82,13 @@ func generateTemplate(spec *stackSpec) (string, error) {
 			Description: "H2 Enabled",
 			Default:     "true",
 		},
-		parameterLoadBalancerWafWebACLIdParameter: &cloudformation.Parameter{
+	}
+
+	if spec.wafWebAclId != "" {
+		template.Parameters[parameterLoadBalancerWafWebACLIdParameter] = &cloudformation.Parameter{
 			Type:        "String",
 			Description: "Associated WAF ID.",
-		},
+		}
 	}
 
 	protocol := "HTTP"
