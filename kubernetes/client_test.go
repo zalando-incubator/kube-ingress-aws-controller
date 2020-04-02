@@ -47,7 +47,7 @@ func TestClientGet(t *testing.T) {
 				baseURL = server.URL
 			}
 			cfg := &Config{BaseURL: baseURL}
-			c, _ := newSimpleClient(cfg)
+			c, _ := newSimpleClient(cfg, false)
 			r, err := c.get(test.resource)
 			if err != nil && !test.wantError {
 				t.Error("got unexpected error", err)
@@ -113,7 +113,7 @@ func TestClientPatch(t *testing.T) {
 				baseURL = server.URL
 			}
 			cfg := &Config{BaseURL: baseURL}
-			c, _ := newSimpleClient(cfg)
+			c, _ := newSimpleClient(cfg, false)
 			r, err := c.patch(test.resource, test.payload)
 			if err != nil && !test.wantError {
 				t.Error("got unexpected error", err)
@@ -167,7 +167,7 @@ func TestTLS(t *testing.T) {
 		Timeout:         5 * time.Second,
 	}
 
-	c, err := newSimpleClient(cfg)
+	c, err := newSimpleClient(cfg, false)
 	if err != nil {
 		t.Error(err)
 	}

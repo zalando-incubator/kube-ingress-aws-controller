@@ -20,7 +20,7 @@ func TestListRoutegroups(t *testing.T) {
 		io.Copy(rw, f)
 	}))
 	defer testServer.Close()
-	kubeClient, _ := newSimpleClient(&Config{BaseURL: testServer.URL})
+	kubeClient, _ := newSimpleClient(&Config{BaseURL: testServer.URL}, false)
 	want := newRouteGroupList(
 		newRoutegroup("fixture-rg01", nil, "example.org", "fixture-rg01"),
 		newRoutegroup("fixture-rg02", map[string]string{ingressClassAnnotation: "skipper"}, "skipper.example.org", "fixture-rg02"),
@@ -51,7 +51,7 @@ func TestListRoutegroupFailureScenarios(t *testing.T) {
 			}))
 			defer testServer.Close()
 			cfg := &Config{BaseURL: testServer.URL}
-			kubeClient, _ := newSimpleClient(cfg)
+			kubeClient, _ := newSimpleClient(cfg, false)
 
 			_, err := listRoutegroups(kubeClient)
 			if err == nil {
@@ -91,7 +91,7 @@ func TestUpdateRoutegroupLoaBalancer(t *testing.T) {
 	}))
 	defer testServer.Close()
 	cfg := &Config{BaseURL: testServer.URL}
-	kubeClient, _ := newSimpleClient(cfg)
+	kubeClient, _ := newSimpleClient(cfg, false)
 	ing := &routegroup{
 		Metadata: kubeItemMetadata{
 			Namespace: "foo",
@@ -110,7 +110,7 @@ func TestUpdateRoutegroupFailureScenarios(t *testing.T) {
 	}))
 	defer testServer.Close()
 	cfg := &Config{BaseURL: testServer.URL}
-	kubeClient, _ := newSimpleClient(cfg)
+	kubeClient, _ := newSimpleClient(cfg, false)
 	for _, test := range []struct {
 		rg *routegroup
 	}{

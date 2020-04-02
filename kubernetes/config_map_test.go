@@ -19,7 +19,7 @@ func TestGetConfigMap(t *testing.T) {
 	}))
 	defer testServer.Close()
 
-	kubeClient, _ := newSimpleClient(&Config{BaseURL: testServer.URL})
+	kubeClient, _ := newSimpleClient(&Config{BaseURL: testServer.URL}, false)
 
 	want := newConfigMap("foo-ns", "foo-name", map[string]string{
 		"some-key": "key1: val1\nkey2: val2\n",
@@ -50,7 +50,7 @@ func TestGetConfigMapFailureScenarios(t *testing.T) {
 			}))
 			defer testServer.Close()
 
-			kubeClient, _ := newSimpleClient(&Config{BaseURL: testServer.URL})
+			kubeClient, _ := newSimpleClient(&Config{BaseURL: testServer.URL}, false)
 
 			_, err := getConfigMap(kubeClient, "foo-ns", "foo-name")
 			if err == nil {
