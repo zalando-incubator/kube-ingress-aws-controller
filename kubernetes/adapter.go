@@ -318,10 +318,10 @@ func (a *Adapter) ListResources() ([]*Ingress, error) {
 	if err != nil {
 		if a.routeGroupSupport {
 			a.routeGroupSupport = false
-			log.Warnf("Failed to list RouteGroups: %v, to get more information https://opensource.zalando.com/skipper/kubernetes/routegroups/#routegroups", err)
+			log.Warnf("Disabling RouteGroup support because listing RouteGroups failed: %v, to get more information https://opensource.zalando.com/skipper/kubernetes/routegroups/#routegroups", err)
 		}
-		// RouteGroup CRD does not exist
-		if err == ErrRessourceNotFound {
+		// RouteGroup CRD does not exist or no permission to access RouteGroup resources
+		if err == ErrResourceNotFound || err == ErrNoPermissionToAccessResource {
 			return ings, nil
 		}
 		return nil, err

@@ -16,7 +16,8 @@ import (
 	"github.com/linki/instrumented_http"
 )
 
-var ErrRessourceNotFound = errors.New("Resource not found")
+var ErrResourceNotFound = errors.New("resource not found")
+var ErrNoPermissionToAccessResource = errors.New("no permission to access resource")
 
 type client interface {
 	get(string) (io.ReadCloser, error)
@@ -96,7 +97,10 @@ func (c *simpleClient) get(resource string) (io.ReadCloser, error) {
 	defer resp.Body.Close()
 
 	if resp.StatusCode == http.StatusNotFound {
-		return nil, ErrRessourceNotFound
+		return nil, ErrResourceNotFound
+	}
+	if resp.StatusCode == http.StatusForbidden {
+		return nil, ErrNoPermissionToAccessResource
 	}
 	b, err := ioutil.ReadAll(resp.Body)
 	if err == nil {
