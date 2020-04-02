@@ -139,6 +139,9 @@ var (
 		"ELBSecurityPolicy-TLS-1-1-2017-01":     true,
 		"ELBSecurityPolicy-2015-05":             true,
 		"ELBSecurityPolicy-TLS-1-0-2015-04":     true,
+		"ELBSecurityPolicy-FS-1-1-2019-08":      true,
+		"ELBSecurityPolicy-FS-1-2-2019-08":      true,
+		"ELBSecurityPolicy-FS-1-2-Res-2019-08":  true,
 	}
 	SSLPoliciesList = []string{
 		"ELBSecurityPolicy-2016-08",
@@ -148,6 +151,9 @@ var (
 		"ELBSecurityPolicy-TLS-1-1-2017-01",
 		"ELBSecurityPolicy-2015-05",
 		"ELBSecurityPolicy-TLS-1-0-2015-04",
+		"ELBSecurityPolicy-FS-1-1-2019-08",
+		"ELBSecurityPolicy-FS-1-2-2019-08",
+		"ELBSecurityPolicy-FS-1-2-Res-2019-08",
 	}
 )
 
