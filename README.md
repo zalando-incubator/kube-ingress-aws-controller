@@ -4,7 +4,7 @@ This is an ingress controller for [Kubernetes](http://kubernetes.io/) — the op
 scaling, and management system — on AWS. It runs inside a Kubernetes cluster to monitor changes to your ingress
 resources and orchestrate [AWS Load Balancers](https://aws.amazon.com/elasticloadbalancing/) accordingly.
 
-[![Build Status](https://travis-ci.org/zalando-incubator/kube-ingress-aws-controller.svg?branch=master)](https://travis-ci.org/zalando-incubator/kube-ingress-aws-controller)
+[![Build Status](https://github.com/zalando-incubator/kube-ingress-aws-controller/workflows/ci/badge.svg)](https://github.com/zalando-incubator/kube-ingress-aws-controller/actions?query=branch:master)
 [![Coverage Status](https://coveralls.io/repos/github/zalando-incubator/kube-ingress-aws-controller/badge.svg?branch=master)](https://coveralls.io/github/zalando-incubator/kube-ingress-aws-controller?branch=master)
 [![GitHub release](https://img.shields.io/github/release/zalando-incubator/kube-ingress-aws-controller.svg)](https://github.com/zalando-incubator/kube-ingress-aws-controller/releases)
 [![go-doc](https://godoc.org/github.com/zalando-incubator/kube-ingress-aws-controller?status.svg)](https://godoc.org/github.com/zalando-incubator/kube-ingress-aws-controller)
