@@ -1,5 +1,5 @@
 name: ci
-on: [pull_request]
+on: [push, pull_request]
 env:
   GO111MODULE: on
 jobs:
