@@ -201,6 +201,7 @@ func main() {
 		os.Exit(0)
 	}
 
+	log.Debug("aws.NewAdapter")
 	awsAdapter, err = aws.NewAdapter(controllerID, debugFlag, disableInstrumentedHttpClient)
 	if err != nil {
 		log.Fatal(err)
@@ -230,6 +231,7 @@ func main() {
 		WithNLBHTTPEnabled(nlbHTTPEnabled).
 		WithCustomFilter(customFilter)
 
+	log.Debug("certs.NewCachingProvider")
 	certificatesProvider, err := certs.NewCachingProvider(
 		certPollingInterval,
 		blacklistCertArnMap,
@@ -241,11 +243,13 @@ func main() {
 	}
 
 	if apiServerBaseURL == "" {
+		log.Debug("kubernetes.InClusterConfig")
 		kubeConfig, err = kubernetes.InClusterConfig()
 		if err != nil {
 			log.Fatal(err)
 		}
 	} else {
+		log.Debug("kubernetes.InsecureConfig")
 		kubeConfig = kubernetes.InsecureConfig(apiServerBaseURL)
 	}
 
@@ -254,6 +258,7 @@ func main() {
 		ingressClassFiltersList = strings.Split(ingressClassFilters, ",")
 	}
 
+	log.Debug("kubernetes.NewAdapter")
 	kubeAdapter, err = kubernetes.NewAdapter(kubeConfig, ingressClassFiltersList, awsAdapter.SecurityGroupID(), sslPolicy, loadBalancerType, clusterLocalDomain, disableInstrumentedHttpClient)
 	if err != nil {
 		log.Fatal(err)
