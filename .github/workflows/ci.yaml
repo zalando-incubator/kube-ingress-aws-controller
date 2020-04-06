@@ -1,5 +1,5 @@
 name: ci
-on: [pull_request]
+on: [push, pull_request]
 env:
   GO111MODULE: on
 jobs:
@@ -10,6 +10,16 @@ jobs:
     - uses: actions/setup-go@v2-beta
       with:
         go-version: '^1.14'
+    - run: echo "::add-path::$(go env GOPATH)/bin"
     - run: go version
+    - run: go get github.com/mattn/goveralls
+      env:
+        GO111MODULE: off
+    - run: curl -sfL https://install.goreleaser.com/github.com/golangci/golangci-lint.sh | sh -s -- -b $(go env GOPATH)/bin ${GOLANGCI_RELEASE}
+      env:
+        GOLANGCI_RELEASE: v1.24.0
     - run: make test
     - run: make lint
+    - run: goveralls -coverprofile=profile.cov -service=github
+      env:
+        COVERALLS_TOKEN: ${{ secrets.GITHUB_TOKEN }}

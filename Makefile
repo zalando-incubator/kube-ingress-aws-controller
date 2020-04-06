@@ -19,7 +19,7 @@ clean:
 
 ## test: runs go test
 test:
-	go test -v -race -cover $(GOPKGS)
+	go test -v -race -coverprofile=profile.cov -cover $(GOPKGS)
 
 ## lint: runs golangci-lint
 lint:
