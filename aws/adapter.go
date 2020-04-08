@@ -98,8 +98,8 @@ const (
 	DefaultAlbS3LogsBucket = ""
 	// DefaultAlbS3LogsPrefix is a blank string, and optionally set if desired
 	DefaultAlbS3LogsPrefix = ""
-	// DefaultWafWebAclId is a blank string, set if desired.
-	DefaultWafWebAclId = ""
+	// DefaultWAFWebAclId is a blank string, set if desired.
+	DefaultWAFWebAclId = ""
 
 	DefaultCustomFilter = ""
 	// DefaultNLBCrossZone specifies the default configuration for cross
@@ -191,7 +191,7 @@ func NewAdapter(newControllerID string) (adapter *Adapter, err error) {
 		ipAddressType:       DefaultIpAddressType,
 		albLogsS3Bucket:     DefaultAlbS3LogsBucket,
 		albLogsS3Prefix:     DefaultAlbS3LogsPrefix,
-		wafWebAclId:         DefaultWafWebAclId,
+		wafWebAclId:         DefaultWAFWebAclId,
 		nlbCrossZone:        DefaultNLBCrossZone,
 		nlbHTTPEnabled:      DefaultNLBHTTPEnabled,
 		customFilter:        DefaultCustomFilter,
@@ -301,8 +301,8 @@ func (a *Adapter) WithAlbLogsS3Prefix(prefix string) *Adapter {
 	return a
 }
 
-// WithWafWebAclId returns the receiver adapter after changing the waf web acl id for waf association
-func (a *Adapter) WithWafWebAclId(wafWebAclId string) *Adapter {
+// WithWAFWebAclId returns the receiver adapter after changing the waf web acl id for waf association
+func (a *Adapter) WithWAFWebAclId(wafWebAclId string) *Adapter {
 	a.wafWebAclId = wafWebAclId
 	return a
 }

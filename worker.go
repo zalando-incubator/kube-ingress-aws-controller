@@ -69,14 +69,15 @@ func (l *loadBalancer) Status() int {
 // defined on the stack and the cloudwatch alarm config is up-to-date.
 func (l *loadBalancer) inSync() bool {
 	return reflect.DeepEqual(l.CertificateARNs(), l.stack.CertificateARNs) &&
-		l.stack.CWAlarmConfigHash == l.cwAlarms.Hash()
+		l.stack.CWAlarmConfigHash == l.cwAlarms.Hash() &&
+		l.wafWebACLId == l.stack.WAFWebACLId
 }
 
-// AddIngress adds an ingress object to the load balancer.
+// addIngress adds an ingress object to the load balancer.
 // The function returns true when the ingress was successfully added. The
 // adding can fail in case the load balancer reached its limit of ingress
 // certificates or if the scheme doesn't match.
-func (l *loadBalancer) AddIngress(certificateARNs []string, ingress *kubernetes.Ingress, maxCerts int) bool {
+func (l *loadBalancer) addIngress(certificateARNs []string, ingress *kubernetes.Ingress, maxCerts int) bool {
 
 	if ingress.ClusterLocal {
 		if ingresses, ok := l.ingresses[kubernetes.DefaultClusterLocalDomain]; ok {
@@ -92,7 +93,7 @@ func (l *loadBalancer) AddIngress(certificateARNs []string, ingress *kubernetes.
 		l.securityGroup != ingress.SecurityGroup ||
 		l.sslPolicy != ingress.SSLPolicy ||
 		l.loadBalancerType != ingress.LoadBalancerType ||
-		l.http2 != ingress.HTTP2 || l.wafWebACLId != ingress.WafWebACLId {
+		l.http2 != ingress.HTTP2 {
 		return false
 	}
 
@@ -121,21 +122,20 @@ func (l *loadBalancer) AddIngress(certificateARNs []string, ingress *kubernetes.
 		newCerts++
 	}
 
-	// if adding this ingress would result in more than maxCerts then we
+	// if adding this ingress would result in more than maxCerts, then we
 	// don't add the ingress
 	if len(l.ingresses)+newCerts > maxCerts {
 		return false
 	}
 
 	for _, certificateARN := range certificateARNs {
-		if ingresses, ok := l.ingresses[certificateARN]; ok {
-			l.ingresses[certificateARN] = append(ingresses, ingress)
-		} else {
-			l.ingresses[certificateARN] = []*kubernetes.Ingress{ingress}
-		}
+		l.ingresses[certificateARN] = append(l.ingresses[certificateARN], ingress)
 	}
 
 	l.shared = ingress.Shared
+	if !ingress.ClusterLocal {
+		l.wafWebACLId = ingress.WAFWebACLId
+	}
 
 	return true
 }
@@ -325,7 +325,6 @@ func getAllLoadBalancers(certTTL time.Duration, stacks []*aws.Stack) []*loadBala
 			loadBalancerType: stack.LoadBalancerType,
 			http2:            stack.HTTP2,
 			certTTL:          certTTL,
-			wafWebACLId:      stack.WafWebACLId,
 		}
 		// initialize ingresses map with existing certificates from the
 		// stack.
@@ -338,6 +337,31 @@ func getAllLoadBalancers(certTTL time.Duration, stacks []*aws.Stack) []*loadBala
 	return loadBalancers
 }
 
+func groupLBsByWAF(lbs []*loadBalancer) map[string][]*loadBalancer {
+	m := make(map[string][]*loadBalancer)
+	for _, lb := range lbs {
+		var group string
+		if lb.stack != nil {
+			group = lb.stack.WAFWebACLId
+		}
+
+		m[group] = append(m[group], lb)
+	}
+
+	return m
+}
+
+func flattenLBs(lbs map[string][]*loadBalancer) []*loadBalancer {
+	var flat []*loadBalancer
+	for _, group := range lbs {
+		for _, lb := range group {
+			flat = append(flat, lb)
+		}
+	}
+
+	return flat
+}
+
 func matchIngressesToLoadBalancers(loadBalancers []*loadBalancer, certs CertificatesFinder, certsPerALB int, ingresses []*kubernetes.Ingress) []*loadBalancer {
 	clusterLocalLB := &loadBalancer{
 		clusterLocal: true,
@@ -345,9 +369,10 @@ func matchIngressesToLoadBalancers(loadBalancers []*loadBalancer, certs Certific
 	}
 	loadBalancers = append(loadBalancers, clusterLocalLB)
 
+	lbsByWAF := groupLBsByWAF(loadBalancers)
 	for _, ingress := range ingresses {
 		if ingress.ClusterLocal {
-			clusterLocalLB.AddIngress(nil, ingress, math.MaxInt64)
+			clusterLocalLB.addIngress(nil, ingress, math.MaxInt64)
 			continue
 		}
 
@@ -370,7 +395,7 @@ func matchIngressesToLoadBalancers(loadBalancers []*loadBalancer, certs Certific
 		// try to add ingress to existing ALB stacks until certificate
 		// limit is exeeded.
 		added := false
-		for _, lb := range loadBalancers {
+		for _, lb := range lbsByWAF[ingress.WAFWebACLId] {
 			// TODO(mlarsen): hack to phase out old load balancers
 			// which can't be updated to include type
 			// specification.
@@ -379,7 +404,7 @@ func matchIngressesToLoadBalancers(loadBalancers []*loadBalancer, certs Certific
 				continue
 			}
 
-			if lb.AddIngress(certificateARNs, ingress, certsPerALB) {
+			if lb.addIngress(certificateARNs, ingress, certsPerALB) {
 				added = true
 				break
 			}
@@ -393,8 +418,8 @@ func matchIngressesToLoadBalancers(loadBalancers []*loadBalancer, certs Certific
 			for _, certificateARN := range certificateARNs {
 				i[certificateARN] = []*kubernetes.Ingress{ingress}
 			}
-			loadBalancers = append(
-				loadBalancers,
+			lbsByWAF[ingress.WAFWebACLId] = append(
+				lbsByWAF[ingress.WAFWebACLId],
 				&loadBalancer{
 					ingresses:        i,
 					scheme:           ingress.Scheme,
@@ -404,13 +429,13 @@ func matchIngressesToLoadBalancers(loadBalancers []*loadBalancer, certs Certific
 					ipAddressType:    ingress.IPAddressType,
 					loadBalancerType: ingress.LoadBalancerType,
 					http2:            ingress.HTTP2,
-					wafWebACLId:      ingress.WafWebACLId,
+					wafWebACLId:      ingress.WAFWebACLId,
 				},
 			)
 		}
 	}
 
-	return loadBalancers
+	return flattenLBs(lbsByWAF)
 }
 
 // addCloudWatchAlarms attaches CloudWatch Alarms to each load balancer model
