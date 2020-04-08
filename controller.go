@@ -118,7 +118,7 @@ func loadSettings() error {
 		Default(aws.DefaultAlbS3LogsBucket).StringVar(&albLogsS3Bucket)
 	kingpin.Flag("logs-s3-prefix", "Prefix within S3 bucket to be used for ALB logging").
 		Default(aws.DefaultAlbS3LogsPrefix).StringVar(&albLogsS3Prefix)
-	kingpin.Flag("aws-waf-web-acl-id", "Waf web acl id to be associated with the ALB").
+	kingpin.Flag("aws-waf-web-acl-id", "Waf web acl id to be associated with the ALB. For WAF v2 it is possible to specify the WebACL ARN arn:aws:wafv2:<region>:<account>:regional/webacl/<name>/<id>").
 		Default(aws.DefaultWafWebAclId).StringVar(&wafWebAclId)
 	kingpin.Flag("cloudwatch-alarms-config-map", "ConfigMap location of the form 'namespace/config-map-name' where to read CloudWatch Alarm configuration from. Ignored if empty.").
 		StringVar(&cwAlarmConfigMap)

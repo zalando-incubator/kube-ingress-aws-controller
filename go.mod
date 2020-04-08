@@ -10,7 +10,7 @@ require (
 	github.com/google/uuid v1.1.1
 	github.com/leodido/go-urn v1.1.0 // indirect
 	github.com/linki/instrumented_http v0.3.0
-	github.com/mweagle/go-cloudformation v0.0.0-20190927125801-911e86284f4e
+	github.com/mweagle/go-cloudformation v0.0.0-20200214045450-244753d8838e
 	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.1.0
 	github.com/sirupsen/logrus v1.4.2
