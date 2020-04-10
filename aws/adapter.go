@@ -44,7 +44,6 @@ type Adapter struct {
 	targetPort                 uint
 	creationTimeout            time.Duration
 	idleConnectionTimeout      time.Duration
-	stackTTL                   time.Duration
 	TargetedAutoScalingGroups  map[string]*autoScalingGroupDetails
 	OwnedAutoScalingGroups     map[string]*autoScalingGroupDetails
 	ec2Details                 map[string]*instanceDetails
@@ -80,7 +79,6 @@ const (
 	DefaultHealthCheckInterval       = 10 * time.Second
 	DefaultCertificateUpdateInterval = 30 * time.Minute
 	DefaultCreationTimeout           = 5 * time.Minute
-	DefaultStackTTL                  = 5 * time.Minute
 	DefaultIdleConnectionTimeout     = 1 * time.Minute
 	DefaultControllerID              = "kube-ingress-aws-controller"
 	// DefaultMaxCertsPerALB defines the maximum number of certificates per
@@ -191,7 +189,6 @@ func NewAdapter(newControllerID string, debug, disableInstrumentedHttpClient boo
 		targetPort:          DefaultTargetPort,
 		healthCheckInterval: DefaultHealthCheckInterval,
 		creationTimeout:     DefaultCreationTimeout,
-		stackTTL:            DefaultStackTTL,
 		ec2Details:          make(map[string]*instanceDetails),
 		singleInstances:     make(map[string]*instanceDetails),
 		obsoleteInstances:   make([]string, 0),
