@@ -227,7 +227,6 @@ func main() {
 		WithIpAddressType(ipAddressType).
 		WithAlbLogsS3Bucket(albLogsS3Bucket).
 		WithAlbLogsS3Prefix(albLogsS3Prefix).
-		WithWAFWebAclId(wafWebAclId).
 		WithHTTPRedirectToHTTPS(httpRedirectToHTTPS).
 		WithNLBCrossZone(nlbCrossZone).
 		WithNLBHTTPEnabled(nlbHTTPEnabled).
@@ -291,7 +290,16 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	go handleTerminationSignals(cancel, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
 	go serveMetrics(metricsAddress)
-	startPolling(ctx, certificatesProvider, certificatesPerALB, certTTL, awsAdapter, kubeAdapter, pollingInterval)
+	startPolling(
+		ctx,
+		certificatesProvider,
+		certificatesPerALB,
+		certTTL,
+		awsAdapter,
+		kubeAdapter,
+		pollingInterval,
+		wafWebAclId,
+	)
 
 	log.Infof("Terminating %s", os.Args[0])
 }

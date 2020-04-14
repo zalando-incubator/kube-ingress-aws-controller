@@ -55,7 +55,6 @@ type Adapter struct {
 	ipAddressType              string
 	albLogsS3Bucket            string
 	albLogsS3Prefix            string
-	wafWebAclId                string
 	httpRedirectToHTTPS        bool
 	nlbCrossZone               bool
 	nlbHTTPEnabled             bool
@@ -197,7 +196,6 @@ func NewAdapter(newControllerID string, debug, disableInstrumentedHttpClient boo
 		ipAddressType:       DefaultIpAddressType,
 		albLogsS3Bucket:     DefaultAlbS3LogsBucket,
 		albLogsS3Prefix:     DefaultAlbS3LogsPrefix,
-		wafWebAclId:         DefaultWAFWebAclId,
 		nlbCrossZone:        DefaultNLBCrossZone,
 		nlbHTTPEnabled:      DefaultNLBHTTPEnabled,
 		customFilter:        DefaultCustomFilter,
@@ -304,12 +302,6 @@ func (a *Adapter) WithAlbLogsS3Bucket(bucket string) *Adapter {
 // WithAlbLogsS3Bucket returns the receiver adapter after changing the S3 prefix within the bucket for logging
 func (a *Adapter) WithAlbLogsS3Prefix(prefix string) *Adapter {
 	a.albLogsS3Prefix = prefix
-	return a
-}
-
-// WithWAFWebAclId returns the receiver adapter after changing the waf web acl id for waf association
-func (a *Adapter) WithWAFWebAclId(wafWebAclId string) *Adapter {
-	a.wafWebAclId = wafWebAclId
 	return a
 }
 
@@ -495,10 +487,6 @@ func (a *Adapter) CreateStack(certificateARNs []string, scheme, securityGroup, o
 		sslPolicy = a.sslPolicy
 	}
 
-	if wafWebACLId == "" {
-		wafWebACLId = a.wafWebAclId
-	}
-
 	if _, ok := SSLPolicies[sslPolicy]; !ok {
 		return "", fmt.Errorf("invalid SSLPolicy '%s' defined", sslPolicy)
 	}
@@ -541,10 +529,6 @@ func (a *Adapter) CreateStack(certificateARNs []string, scheme, securityGroup, o
 func (a *Adapter) UpdateStack(stackName string, certificateARNs map[string]time.Time, scheme, sslPolicy, ipAddressType, wafWebACLId string, cwAlarms CloudWatchAlarmList, loadBalancerType string, http2 bool) (string, error) {
 	if _, ok := SSLPolicies[sslPolicy]; !ok {
 		return "", fmt.Errorf("invalid SSLPolicy '%s' defined", sslPolicy)
-	}
-
-	if wafWebACLId == "" {
-		wafWebACLId = a.wafWebAclId
 	}
 
 	spec := &stackSpec{

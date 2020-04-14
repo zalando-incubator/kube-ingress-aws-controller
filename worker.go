@@ -219,9 +219,18 @@ func (c *Certificates) FindMatchingCertificateIDs(hostnames []string) []string {
 	return certIDs
 }
 
-func startPolling(ctx context.Context, certsProvider certs.CertificatesProvider, certsPerALB int, certTTL time.Duration, awsAdapter *aws.Adapter, kubeAdapter *kubernetes.Adapter, pollingInterval time.Duration) {
+func startPolling(
+	ctx context.Context,
+	certsProvider certs.CertificatesProvider,
+	certsPerALB int,
+	certTTL time.Duration,
+	awsAdapter *aws.Adapter,
+	kubeAdapter *kubernetes.Adapter,
+	pollingInterval time.Duration,
+	globalWAFACL string,
+) {
 	for {
-		if err := doWork(certsProvider, certsPerALB, certTTL, awsAdapter, kubeAdapter); err != nil {
+		if err := doWork(certsProvider, certsPerALB, certTTL, awsAdapter, kubeAdapter, globalWAFACL); err != nil {
 			log.Error(err)
 		}
 		firstRun = false
@@ -235,7 +244,14 @@ func startPolling(ctx context.Context, certsProvider certs.CertificatesProvider,
 	}
 }
 
-func doWork(certsProvider certs.CertificatesProvider, certsPerALB int, certTTL time.Duration, awsAdapter *aws.Adapter, kubeAdapter *kubernetes.Adapter) error {
+func doWork(
+	certsProvider certs.CertificatesProvider,
+	certsPerALB int,
+	certTTL time.Duration,
+	awsAdapter *aws.Adapter,
+	kubeAdapter *kubernetes.Adapter,
+	globalWAFACL string,
+) error {
 	defer func() error {
 		if r := recover(); r != nil {
 			log.Errorln("shit has hit the fan:", errors.Wrap(r.(error), "panic caused by"))
@@ -281,7 +297,7 @@ func doWork(certsProvider certs.CertificatesProvider, certsPerALB int, certTTL t
 	log.Infof("Found %d cloudwatch alarm configuration(s)", len(cwAlarms))
 
 	certs := &Certificates{certificateSummaries: certificateSummaries}
-	model := buildManagedModel(certs, certsPerALB, certTTL, ingresses, stacks, cwAlarms)
+	model := buildManagedModel(certs, certsPerALB, certTTL, ingresses, stacks, cwAlarms, globalWAFACL)
 	log.Debugf("Have %d model(s)", len(model))
 	for _, loadBalancer := range model {
 		switch loadBalancer.Status() {
@@ -451,11 +467,30 @@ func attachCloudWatchAlarms(loadBalancers []*loadBalancer, cwAlarms aws.CloudWat
 	}
 }
 
-func buildManagedModel(certs CertificatesFinder, certsPerALB int, certTTL time.Duration, ingresses []*kubernetes.Ingress, stacks []*aws.Stack, cwAlarms aws.CloudWatchAlarmList) []*loadBalancer {
+func attachGlobalWAFACL(lbs []*loadBalancer, globalWAFACL string) {
+	for _, lb := range lbs {
+		if lb.wafWebACLId != "" {
+			continue
+		}
+
+		lb.wafWebACLId = globalWAFACL
+	}
+}
+
+func buildManagedModel(
+	certs CertificatesFinder,
+	certsPerALB int,
+	certTTL time.Duration,
+	ingresses []*kubernetes.Ingress,
+	stacks []*aws.Stack,
+	cwAlarms aws.CloudWatchAlarmList,
+	globalWAFACL string,
+) []*loadBalancer {
 	sortStacks(stacks)
 	model := getAllLoadBalancers(certTTL, stacks)
 	model = matchIngressesToLoadBalancers(model, certs, certsPerALB, ingresses)
 	attachCloudWatchAlarms(model, cwAlarms)
+	attachGlobalWAFACL(model, globalWAFACL)
 
 	return model
 }
