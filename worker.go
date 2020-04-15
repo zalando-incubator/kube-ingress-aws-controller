@@ -383,7 +383,6 @@ func matchIngressesToLoadBalancers(
 	certs CertificatesFinder,
 	certsPerALB int,
 	ingresses []*kubernetes.Ingress,
-	globalWAFACL string,
 ) []*loadBalancer {
 	clusterLocalLB := &loadBalancer{
 		clusterLocal: true,
@@ -419,15 +418,10 @@ func matchIngressesToLoadBalancers(
 			}
 		}
 
-		wafACLID := ingress.WAFWebACLId
-		if wafACLID == "" {
-			wafACLID = globalWAFACL
-		}
-
 		// try to add ingress to existing ALB stacks until certificate
 		// limit is exeeded.
 		added := false
-		for _, lb := range lbsByWAF[wafACLID] {
+		for _, lb := range lbsByWAF[ingress.WAFWebACLId] {
 			// TODO(mlarsen): hack to phase out old load balancers
 			// which can't be updated to include type
 			// specification.
@@ -452,8 +446,8 @@ func matchIngressesToLoadBalancers(
 			for _, certificateARN := range certificateARNs {
 				i[certificateARN] = []*kubernetes.Ingress{ingress}
 			}
-			lbsByWAF[wafACLID] = append(
-				lbsByWAF[wafACLID],
+			lbsByWAF[ingress.WAFWebACLId] = append(
+				lbsByWAF[ingress.WAFWebACLId],
 				&loadBalancer{
 					ingresses:        i,
 					scheme:           ingress.Scheme,
@@ -463,7 +457,7 @@ func matchIngressesToLoadBalancers(
 					ipAddressType:    ingress.IPAddressType,
 					loadBalancerType: ingress.LoadBalancerType,
 					http2:            ingress.HTTP2,
-					wafWebACLId:      wafACLID,
+					wafWebACLId:      ingress.WAFWebACLId,
 				},
 			)
 		}
@@ -485,6 +479,16 @@ func attachCloudWatchAlarms(loadBalancers []*loadBalancer, cwAlarms aws.CloudWat
 	}
 }
 
+func attachGlobalWAFACL(ings []*kubernetes.Ingress, globalWAFACL string) {
+	for _, ing := range ings {
+		if ing.WAFWebACLId != "" {
+			continue
+		}
+
+		ing.WAFWebACLId = globalWAFACL
+	}
+}
+
 func buildManagedModel(
 	certs CertificatesFinder,
 	certsPerALB int,
@@ -495,8 +499,9 @@ func buildManagedModel(
 	globalWAFACL string,
 ) []*loadBalancer {
 	sortStacks(stacks)
+	attachGlobalWAFACL(ingresses, globalWAFACL)
 	model := getAllLoadBalancers(certTTL, stacks)
-	model = matchIngressesToLoadBalancers(model, certs, certsPerALB, ingresses, globalWAFACL)
+	model = matchIngressesToLoadBalancers(model, certs, certsPerALB, ingresses)
 	attachCloudWatchAlarms(model, cwAlarms)
 
 	return model
