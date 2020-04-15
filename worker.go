@@ -353,7 +353,7 @@ func getAllLoadBalancers(certTTL time.Duration, stacks []*aws.Stack) []*loadBala
 	return loadBalancers
 }
 
-func groupLBsByWAF(lbs []*loadBalancer) map[string][]*loadBalancer {
+func groupLBsByCurrentWAF(lbs []*loadBalancer) map[string][]*loadBalancer {
 	m := make(map[string][]*loadBalancer)
 	for _, lb := range lbs {
 		var group string
@@ -378,14 +378,20 @@ func flattenLBs(lbs map[string][]*loadBalancer) []*loadBalancer {
 	return flat
 }
 
-func matchIngressesToLoadBalancers(loadBalancers []*loadBalancer, certs CertificatesFinder, certsPerALB int, ingresses []*kubernetes.Ingress) []*loadBalancer {
+func matchIngressesToLoadBalancers(
+	loadBalancers []*loadBalancer,
+	certs CertificatesFinder,
+	certsPerALB int,
+	ingresses []*kubernetes.Ingress,
+	globalWAFACL string,
+) []*loadBalancer {
 	clusterLocalLB := &loadBalancer{
 		clusterLocal: true,
 		ingresses:    make(map[string][]*kubernetes.Ingress),
 	}
 	loadBalancers = append(loadBalancers, clusterLocalLB)
 
-	lbsByWAF := groupLBsByWAF(loadBalancers)
+	lbsByWAF := groupLBsByCurrentWAF(loadBalancers)
 	for _, ingress := range ingresses {
 		if ingress.ClusterLocal {
 			clusterLocalLB.addIngress(nil, ingress, math.MaxInt64)
@@ -396,7 +402,12 @@ func matchIngressesToLoadBalancers(loadBalancers []*loadBalancer, certs Certific
 
 		if ingress.CertificateARN != "" {
 			if !certs.CertificateExists(ingress.CertificateARN) {
-				log.Errorf("Failed to find certificate '%s' for ingress '%s/%s'", ingress.CertificateARN, ingress.Namespace, ingress.Name)
+				log.Errorf(
+					"Failed to find certificate '%s' for ingress '%s/%s'",
+					ingress.CertificateARN,
+					ingress.Namespace,
+					ingress.Name,
+				)
 				continue
 			}
 			certificateARNs = []string{ingress.CertificateARN}
@@ -408,15 +419,22 @@ func matchIngressesToLoadBalancers(loadBalancers []*loadBalancer, certs Certific
 			}
 		}
 
+		wafACLID := ingress.WAFWebACLId
+		if wafACLID == "" {
+			wafACLID = globalWAFACL
+		}
+
 		// try to add ingress to existing ALB stacks until certificate
 		// limit is exeeded.
 		added := false
-		for _, lb := range lbsByWAF[ingress.WAFWebACLId] {
+		for _, lb := range lbsByWAF[wafACLID] {
 			// TODO(mlarsen): hack to phase out old load balancers
 			// which can't be updated to include type
 			// specification.
 			// Can be removed in a later version
-			if lb.loadBalancerType != aws.LoadBalancerTypeApplication && lb.loadBalancerType != aws.LoadBalancerTypeNetwork {
+			supportedLBType := lb.loadBalancerType == aws.LoadBalancerTypeApplication ||
+				lb.loadBalancerType == aws.LoadBalancerTypeNetwork
+			if !supportedLBType {
 				continue
 			}
 
@@ -434,8 +452,8 @@ func matchIngressesToLoadBalancers(loadBalancers []*loadBalancer, certs Certific
 			for _, certificateARN := range certificateARNs {
 				i[certificateARN] = []*kubernetes.Ingress{ingress}
 			}
-			lbsByWAF[ingress.WAFWebACLId] = append(
-				lbsByWAF[ingress.WAFWebACLId],
+			lbsByWAF[wafACLID] = append(
+				lbsByWAF[wafACLID],
 				&loadBalancer{
 					ingresses:        i,
 					scheme:           ingress.Scheme,
@@ -445,7 +463,7 @@ func matchIngressesToLoadBalancers(loadBalancers []*loadBalancer, certs Certific
 					ipAddressType:    ingress.IPAddressType,
 					loadBalancerType: ingress.LoadBalancerType,
 					http2:            ingress.HTTP2,
-					wafWebACLId:      ingress.WAFWebACLId,
+					wafWebACLId:      wafACLID,
 				},
 			)
 		}
@@ -467,16 +485,6 @@ func attachCloudWatchAlarms(loadBalancers []*loadBalancer, cwAlarms aws.CloudWat
 	}
 }
 
-func attachGlobalWAFACL(lbs []*loadBalancer, globalWAFACL string) {
-	for _, lb := range lbs {
-		if lb.wafWebACLId != "" {
-			continue
-		}
-
-		lb.wafWebACLId = globalWAFACL
-	}
-}
-
 func buildManagedModel(
 	certs CertificatesFinder,
 	certsPerALB int,
@@ -488,9 +496,8 @@ func buildManagedModel(
 ) []*loadBalancer {
 	sortStacks(stacks)
 	model := getAllLoadBalancers(certTTL, stacks)
-	model = matchIngressesToLoadBalancers(model, certs, certsPerALB, ingresses)
+	model = matchIngressesToLoadBalancers(model, certs, certsPerALB, ingresses, globalWAFACL)
 	attachCloudWatchAlarms(model, cwAlarms)
-	attachGlobalWAFACL(model, globalWAFACL)
 
 	return model
 }
