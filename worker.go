@@ -78,7 +78,6 @@ func (l *loadBalancer) inSync() bool {
 // adding can fail in case the load balancer reached its limit of ingress
 // certificates or if the scheme doesn't match.
 func (l *loadBalancer) addIngress(certificateARNs []string, ingress *kubernetes.Ingress, maxCerts int) bool {
-
 	if ingress.ClusterLocal {
 		if ingresses, ok := l.ingresses[kubernetes.DefaultClusterLocalDomain]; ok {
 			l.ingresses[kubernetes.DefaultClusterLocalDomain] = append(ingresses, ingress)

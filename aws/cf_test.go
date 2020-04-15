@@ -46,6 +46,18 @@ func TestCreatingStack(t *testing.T) {
 			"fake-stack-id",
 			true,
 		},
+		{
+			"stack with WAF association",
+			stackSpec{
+				name:            "foo",
+				securityGroupID: "bar",
+				vpcID:           "baz",
+				wafWebAclId:     "foo-bar-baz",
+			},
+			cfMockOutputs{createStack: R(mockCSOutput("fake-stack-id"), nil)},
+			"fake-stack-id",
+			false,
+		},
 	} {
 		t.Run(ti.name, func(t *testing.T) {
 			c := &mockCloudFormationClient{outputs: ti.givenOutputs}
@@ -99,6 +111,18 @@ func TestUpdatingStack(t *testing.T) {
 			cfMockOutputs{updateStack: R(nil, errDummy)},
 			"fake-stack-id",
 			true,
+		},
+		{
+			"stack with WAF association",
+			stackSpec{
+				name:            "foo",
+				securityGroupID: "bar",
+				vpcID:           "baz",
+				wafWebAclId:     "foo-bar-baz",
+			},
+			cfMockOutputs{updateStack: R(mockUSOutput("fake-stack-id"), nil)},
+			"fake-stack-id",
+			false,
 		},
 	} {
 		t.Run(ti.name, func(t *testing.T) {

@@ -95,8 +95,6 @@ const (
 	DefaultAlbS3LogsBucket = ""
 	// DefaultAlbS3LogsPrefix is a blank string, and optionally set if desired
 	DefaultAlbS3LogsPrefix = ""
-	// DefaultWAFWebAclId is a blank string, set if desired.
-	DefaultWAFWebAclId = ""
 
 	DefaultCustomFilter = ""
 	// DefaultNLBCrossZone specifies the default configuration for cross

@@ -179,6 +179,19 @@ func TestGenerateTemplate(t *testing.T) {
 				require.Equal(t, attributes[1].Value.Literal, "false")
 			},
 		},
+		{
+			name: "stack has WAF Web ACL",
+			spec: &stackSpec{
+				loadbalancerType: LoadBalancerTypeApplication,
+				wafWebAclId:      "foo-bar-baz",
+			},
+			validate: func(t *testing.T, template *cloudformation.Template) {
+				require.NotNil(t, template.Resources["WAFAssociation"])
+				props := template.Resources["WAFAssociation"].Properties.(*cloudformation.WAFRegionalWebACLAssociation)
+				require.NotNil(t, props.ResourceArn)
+				require.NotNil(t, props.WebACLID)
+			},
+		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			generated, err := generateTemplate(test.spec)
