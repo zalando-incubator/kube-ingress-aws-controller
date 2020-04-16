@@ -25,7 +25,7 @@ const (
 	defaultDisableSNISupport      = "false"
 	defaultInstrumentedHttpClient = "false"
 	defaultHTTPRedirectToHTTPS    = "false"
-	defaultCertTTL                = "30m"
+	defaultCertTTL                = "1h"
 	customTagFilterEnvVarName     = "CUSTOM_FILTERS"
 )
 
