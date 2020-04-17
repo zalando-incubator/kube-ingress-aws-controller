@@ -3,6 +3,7 @@ package aws
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"crypto/sha256"
 	"sort"
@@ -81,6 +82,11 @@ func generateTemplate(spec *stackSpec) (string, error) {
 			Type:        "String",
 			Description: "H2 Enabled",
 			Default:     "true",
+		},
+		parameterLoadBalancerWafWebACLIdParameter: &cloudformation.Parameter{
+			Type:        "String",
+			Description: "WAF Id or ARN",
+			Default:     "",
 		},
 	}
 
@@ -268,10 +274,17 @@ func generateTemplate(spec *stackSpec) (string, error) {
 	})
 
 	if spec.loadbalancerType == LoadBalancerTypeApplication && spec.wafWebAclId != "" {
-		template.AddResource("WAFAssociation", &cloudformation.WAFRegionalWebACLAssociation{
-			ResourceArn: cloudformation.Ref("LB").String(),
-			WebACLID:    cloudformation.String(spec.wafWebAclId),
-		})
+		if strings.HasPrefix(spec.wafWebAclId, "arn:aws:wafv2") {
+			template.AddResource("WAFAssociation", &cloudformation.WAFv2WebACLAssociation{
+				ResourceArn: cloudformation.Ref("LB").String(),
+				WebACLArn:   cloudformation.String(spec.wafWebAclId),
+			})
+		} else {
+			template.AddResource("WAFAssociation", &cloudformation.WAFRegionalWebACLAssociation{
+				ResourceArn: cloudformation.Ref("LB").String(),
+				WebACLID:    cloudformation.String(spec.wafWebAclId),
+			})
+		}
 	}
 
 	for idx, alarm := range spec.cwAlarms {
