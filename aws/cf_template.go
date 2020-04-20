@@ -281,7 +281,7 @@ func generateTemplate(spec *stackSpec) (string, error) {
 	})
 
 	if spec.loadbalancerType == LoadBalancerTypeApplication && spec.wafWebAclId != "" {
-		if strings.HasPrefix(spec.wafWebAclId, "arn:aws:wafv2") {
+		if strings.HasPrefix(spec.wafWebAclId, "arn:aws:wafv2:") {
 			template.AddResource("WAFAssociation", &cloudformation.WAFv2WebACLAssociation{
 				ResourceArn: cloudformation.Ref("LB").String(),
 				WebACLArn:   cloudformation.Ref(parameterLoadBalancerWAFWebACLIDParameter).String(),

@@ -418,7 +418,7 @@ those ingresses using a separate WAF association.
 The controller supports two versions of AWS WAF:
 
 - WAF (v1 or "classic"): the Web ACL is identified by a UUID
-- WAFv2: the Web ACL is identified by its ARN, prefixed with `arn:aws:wafv2`
+- WAFv2: the Web ACL is identified by its ARN, prefixed with `arn:aws:wafv2:`
 
 Only one WAF association can be used for a load balancer, and the same command line flag and ingress annotation
 is used for both versions, only the format of the value differs.
@@ -426,7 +426,7 @@ is used for both versions, only the format of the value differs.
 ##### Starting the controller with global WAF association:
 
 ```
-kube-ingress-aws-controller --aws-waf-web-acl-id=arn:aws:wafv2:abcdefgh-1234-5678-9012-abcdefghijkl
+kube-ingress-aws-controller --aws-waf-web-acl-id=arn:aws:wafv2:eu-central-1:123456789012:regional/webacl/test-waf-acl/12345678-abcd-efgh-ijkl-901234567890
 ```
 
 ##### Setting ingress specicif WAF association:
@@ -437,7 +437,7 @@ kind: Ingress
 metadata:
   name: myingress
   annotations:
-    zalando.org/aws-waf-web-acl-id: arn:aws:wafv2:abcdefgh-1234-5678-9012-abcdefghijkl
+    zalando.org/aws-waf-web-acl-id: arn:aws:wafv2:eu-central-1:123456789012:regional/webacl/test-waf-acl/12345678-abcd-efgh-ijkl-901234567890
 spec:
   rules:
   - host: test-app.example.org
