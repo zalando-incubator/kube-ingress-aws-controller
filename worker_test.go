@@ -21,7 +21,6 @@ func TestAddIngress(tt *testing.T) {
 		ingress         *kubernetes.Ingress
 		maxCerts        int
 		added           bool
-		validateLB      func(*testing.T, *loadBalancer)
 	}{
 		{
 			name: "scheme not matching",
@@ -125,50 +124,54 @@ func TestAddIngress(tt *testing.T) {
 				ingresses: make(map[string][]*kubernetes.Ingress),
 			},
 			ingress: &kubernetes.Ingress{
-				WAFWebACLId:  "WAFZXX",
+				WAFWebACLID:  "WAFZXX",
 				Shared:       true,
 				ClusterLocal: true,
 			},
 			added: true,
-			validateLB: func(t *testing.T, lb *loadBalancer) {
-				assert.Empty(t, lb.wafWebACLId)
-			},
 		},
 		{
 			name: "with WAF ACL id",
 			loadBalancer: &loadBalancer{
+				ingresses:   make(map[string][]*kubernetes.Ingress),
+				wafWebACLID: "WAFZXX",
+			},
+			ingress: &kubernetes.Ingress{
+				WAFWebACLID: "WAFZXX",
+				Shared:      true,
+			},
+			added: true,
+		},
+		{
+			name: "with WAF ACL id, to not matching LB",
+			loadBalancer: &loadBalancer{
 				ingresses: make(map[string][]*kubernetes.Ingress),
 			},
 			ingress: &kubernetes.Ingress{
-				WAFWebACLId: "WAFZXX",
+				WAFWebACLID: "WAFZXX",
 				Shared:      true,
 			},
-			added: true,
-			validateLB: func(t *testing.T, lb *loadBalancer) {
-				assert.Equal(t, lb.wafWebACLId, "WAFZXX")
-			},
+			added: false,
 		},
 		{
-			name: "remove WAF ACL id",
+			name: "with WAF ACL id, to not matching LB, with different ACL id",
 			loadBalancer: &loadBalancer{
 				ingresses:   make(map[string][]*kubernetes.Ingress),
-				wafWebACLId: "WAFZXX",
+				wafWebACLID: "WAFZYY",
 			},
 			ingress: &kubernetes.Ingress{
-				WAFWebACLId: "",
+				WAFWebACLID: "WAFZXX",
 				Shared:      true,
 			},
-			added: true,
-			validateLB: func(t *testing.T, lb *loadBalancer) {
-				assert.Empty(t, lb.wafWebACLId)
-			},
+			added: false,
 		},
 	} {
 		tt.Run(test.name, func(t *testing.T) {
-			assert.Equal(t, test.loadBalancer.addIngress(test.certificateARNs, test.ingress, test.maxCerts), test.added)
-			if test.validateLB != nil {
-				test.validateLB(t, test.loadBalancer)
-			}
+			assert.Equal(
+				t,
+				test.loadBalancer.addIngress(test.certificateARNs, test.ingress, test.maxCerts),
+				test.added,
+			)
 		})
 	}
 }
@@ -452,10 +455,10 @@ func TestIsLBInSync(t *testing.T) {
 					"bar": time.Time{},
 				},
 				CWAlarmConfigHash: aws.CloudWatchAlarmList{{}}.Hash(),
-				WAFWebACLId:       "foo-bar-baz",
+				WAFWebACLID:       "foo-bar-baz",
 			},
 			cwAlarms:    aws.CloudWatchAlarmList{{}},
-			wafWebACLId: "foo-bar-baz",
+			wafWebACLID: "foo-bar-baz",
 		},
 	}, {
 		title: "not matching alarm",
@@ -472,10 +475,10 @@ func TestIsLBInSync(t *testing.T) {
 					"baz": time.Time{},
 				},
 				CWAlarmConfigHash: aws.CloudWatchAlarmList{{}}.Hash(),
-				WAFWebACLId:       "foo-bar-baz",
+				WAFWebACLID:       "foo-bar-baz",
 			},
 			cwAlarms:    aws.CloudWatchAlarmList{{}, {}},
-			wafWebACLId: "foo-bar-baz",
+			wafWebACLID: "foo-bar-baz",
 		},
 	}, {
 		title: "not matching WAF",
@@ -492,10 +495,10 @@ func TestIsLBInSync(t *testing.T) {
 					"baz": time.Time{},
 				},
 				CWAlarmConfigHash: aws.CloudWatchAlarmList{{}}.Hash(),
-				WAFWebACLId:       "foo-bar-baz",
+				WAFWebACLID:       "foo-bar-baz",
 			},
 			cwAlarms:    aws.CloudWatchAlarmList{{}},
-			wafWebACLId: "foo-bar",
+			wafWebACLID: "foo-bar",
 		},
 	}, {
 		title: "in sync",
@@ -512,10 +515,10 @@ func TestIsLBInSync(t *testing.T) {
 					"baz": time.Time{},
 				},
 				CWAlarmConfigHash: aws.CloudWatchAlarmList{{}}.Hash(),
-				WAFWebACLId:       "foo-bar-baz",
+				WAFWebACLID:       "foo-bar-baz",
 			},
 			cwAlarms:    aws.CloudWatchAlarmList{{}},
-			wafWebACLId: "foo-bar-baz",
+			wafWebACLID: "foo-bar-baz",
 		},
 		expect: true,
 	}} {
@@ -675,7 +678,7 @@ func TestMatchIngressesToLoadbalancers(t *testing.T) {
 				"foo.org",
 				"bar.org",
 			},
-			WAFWebACLId: "foo-bar-baz",
+			WAFWebACLID: "foo-bar-baz",
 		}, {
 			Name:             "bar-ingress",
 			LoadBalancerType: aws.LoadBalancerTypeApplication,
@@ -684,7 +687,7 @@ func TestMatchIngressesToLoadbalancers(t *testing.T) {
 				"foo.org",
 				"bar.org",
 			},
-			WAFWebACLId: "foo-bar-baz",
+			WAFWebACLID: "foo-bar-baz",
 		}},
 		validate: func(t *testing.T, lbs []*loadBalancer) {
 			require.Equal(t, 2, len(lbs))
@@ -706,7 +709,7 @@ func TestMatchIngressesToLoadbalancers(t *testing.T) {
 				"foo.org",
 				"bar.org",
 			},
-			WAFWebACLId: "foo-bar-baz",
+			WAFWebACLID: "foo-bar-baz",
 		}, {
 			Name:             "bar-ingress",
 			LoadBalancerType: aws.LoadBalancerTypeApplication,
@@ -715,7 +718,7 @@ func TestMatchIngressesToLoadbalancers(t *testing.T) {
 				"foo.org",
 				"bar.org",
 			},
-			WAFWebACLId: "qux-quz-quuz",
+			WAFWebACLID: "qux-quz-quuz",
 		}},
 		validate: func(t *testing.T, lbs []*loadBalancer) {
 			require.Equal(t, 3, len(lbs))
@@ -789,7 +792,7 @@ func TestBuildModel(t *testing.T) {
 				}
 
 				require.Equal(t, 0, len(lb.cwAlarms))
-				require.Empty(t, lb.wafWebACLId)
+				require.Empty(t, lb.wafWebACLID)
 			}
 		},
 	}, {
@@ -812,7 +815,7 @@ func TestBuildModel(t *testing.T) {
 				}
 
 				require.Equal(t, 1, len(lb.cwAlarms))
-				require.Empty(t, lb.wafWebACLId)
+				require.Empty(t, lb.wafWebACLID)
 			}
 		},
 	}, {
@@ -835,7 +838,7 @@ func TestBuildModel(t *testing.T) {
 				}
 
 				require.Equal(t, 0, len(lb.cwAlarms))
-				require.Equal(t, "foo-bar-baz", lb.wafWebACLId)
+				require.Equal(t, "foo-bar-baz", lb.wafWebACLID)
 			}
 		},
 	}, {
@@ -848,7 +851,7 @@ func TestBuildModel(t *testing.T) {
 				"foo.org",
 				"bar.org",
 			},
-			WAFWebACLId: "foo-bar-baz",
+			WAFWebACLID: "foo-bar-baz",
 		}},
 		validate: func(t *testing.T, lbs []*loadBalancer) {
 			require.Equal(t, 2, len(lbs))
@@ -858,7 +861,7 @@ func TestBuildModel(t *testing.T) {
 				}
 
 				require.Equal(t, 0, len(lb.cwAlarms))
-				require.Equal(t, "foo-bar-baz", lb.wafWebACLId)
+				require.Equal(t, "foo-bar-baz", lb.wafWebACLID)
 			}
 		},
 	}, {
@@ -879,7 +882,7 @@ func TestBuildModel(t *testing.T) {
 				"foo.org",
 				"bar.org",
 			},
-			WAFWebACLId: "foo-bar-baz",
+			WAFWebACLID: "foo-bar-baz",
 		}},
 		globalWAFACL: "qux-quz-quuz",
 		validate: func(t *testing.T, lbs []*loadBalancer) {
@@ -892,11 +895,11 @@ func TestBuildModel(t *testing.T) {
 
 				require.Equal(t, 0, len(lb.cwAlarms))
 
-				if lb.wafWebACLId == "foo-bar-baz" {
+				if lb.wafWebACLID == "foo-bar-baz" {
 					localFound = true
 				}
 
-				if lb.wafWebACLId == "qux-quz-quuz" {
+				if lb.wafWebACLID == "qux-quz-quuz" {
 					globalFound = true
 				}
 			}

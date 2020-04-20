@@ -475,7 +475,7 @@ func (a *Adapter) UpdateTargetGroupsAndAutoScalingGroups(stacks []*Stack) {
 // All the required resources (listeners and target group) are created in a
 // transactional fashion.
 // Failure to create the stack causes it to be deleted automatically.
-func (a *Adapter) CreateStack(certificateARNs []string, scheme, securityGroup, owner, sslPolicy, ipAddressType, wafWebACLId string, cwAlarms CloudWatchAlarmList, loadBalancerType string, http2 bool) (string, error) {
+func (a *Adapter) CreateStack(certificateARNs []string, scheme, securityGroup, owner, sslPolicy, ipAddressType, wafWebACLID string, cwAlarms CloudWatchAlarmList, loadBalancerType string, http2 bool) (string, error) {
 	certARNs := make(map[string]time.Time, len(certificateARNs))
 	for _, arn := range certificateARNs {
 		certARNs[arn] = time.Time{}
@@ -513,7 +513,7 @@ func (a *Adapter) CreateStack(certificateARNs []string, scheme, securityGroup, o
 		loadbalancerType:             loadBalancerType,
 		albLogsS3Bucket:              a.albLogsS3Bucket,
 		albLogsS3Prefix:              a.albLogsS3Prefix,
-		wafWebAclId:                  wafWebACLId,
+		wafWebAclId:                  wafWebACLID,
 		cwAlarms:                     cwAlarms,
 		httpRedirectToHTTPS:          a.httpRedirectToHTTPS,
 		nlbCrossZone:                 a.nlbCrossZone,
@@ -524,7 +524,7 @@ func (a *Adapter) CreateStack(certificateARNs []string, scheme, securityGroup, o
 	return createStack(a.cloudformation, spec)
 }
 
-func (a *Adapter) UpdateStack(stackName string, certificateARNs map[string]time.Time, scheme, sslPolicy, ipAddressType, wafWebACLId string, cwAlarms CloudWatchAlarmList, loadBalancerType string, http2 bool) (string, error) {
+func (a *Adapter) UpdateStack(stackName string, certificateARNs map[string]time.Time, scheme, sslPolicy, ipAddressType, wafWebACLID string, cwAlarms CloudWatchAlarmList, loadBalancerType string, http2 bool) (string, error) {
 	if _, ok := SSLPolicies[sslPolicy]; !ok {
 		return "", fmt.Errorf("invalid SSLPolicy '%s' defined", sslPolicy)
 	}
@@ -552,7 +552,7 @@ func (a *Adapter) UpdateStack(stackName string, certificateARNs map[string]time.
 		loadbalancerType:             loadBalancerType,
 		albLogsS3Bucket:              a.albLogsS3Bucket,
 		albLogsS3Prefix:              a.albLogsS3Prefix,
-		wafWebAclId:                  wafWebACLId,
+		wafWebAclId:                  wafWebACLID,
 		cwAlarms:                     cwAlarms,
 		httpRedirectToHTTPS:          a.httpRedirectToHTTPS,
 		nlbCrossZone:                 a.nlbCrossZone,

@@ -431,7 +431,7 @@ kube-ingress-aws-controller --aws-waf-web-acl-id=arn:aws:wafv2:abcdefgh-1234-567
 
 ##### Setting ingress specicif WAF association:
 
-```
+```yaml
 apiVersion: extensions/v1beta1
 kind: Ingress
 metadata:

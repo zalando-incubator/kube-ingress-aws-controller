@@ -31,7 +31,7 @@ type loadBalancer struct {
 	securityGroup    string
 	sslPolicy        string
 	ipAddressType    string
-	wafWebACLId      string
+	wafWebACLID      string
 	certTTL          time.Duration
 	cwAlarms         aws.CloudWatchAlarmList
 	loadBalancerType string
@@ -70,7 +70,7 @@ func (l *loadBalancer) Status() int {
 func (l *loadBalancer) inSync() bool {
 	return reflect.DeepEqual(l.CertificateARNs(), l.stack.CertificateARNs) &&
 		l.stack.CWAlarmConfigHash == l.cwAlarms.Hash() &&
-		l.wafWebACLId == l.stack.WAFWebACLId
+		l.wafWebACLID == l.stack.WAFWebACLID
 }
 
 // addIngress adds an ingress object to the load balancer.
@@ -92,7 +92,8 @@ func (l *loadBalancer) addIngress(certificateARNs []string, ingress *kubernetes.
 		l.securityGroup != ingress.SecurityGroup ||
 		l.sslPolicy != ingress.SSLPolicy ||
 		l.loadBalancerType != ingress.LoadBalancerType ||
-		l.http2 != ingress.HTTP2 {
+		l.http2 != ingress.HTTP2 ||
+		l.wafWebACLID != ingress.WAFWebACLID {
 		return false
 	}
 
@@ -132,10 +133,6 @@ func (l *loadBalancer) addIngress(certificateARNs []string, ingress *kubernetes.
 	}
 
 	l.shared = ingress.Shared
-	if !ingress.ClusterLocal {
-		l.wafWebACLId = ingress.WAFWebACLId
-	}
-
 	return true
 }
 
@@ -339,6 +336,7 @@ func getAllLoadBalancers(certTTL time.Duration, stacks []*aws.Stack) []*loadBala
 			ipAddressType:    stack.IpAddressType,
 			loadBalancerType: stack.LoadBalancerType,
 			http2:            stack.HTTP2,
+			wafWebACLID:      stack.WAFWebACLID,
 			certTTL:          certTTL,
 		}
 		// initialize ingresses map with existing certificates from the
@@ -355,12 +353,7 @@ func getAllLoadBalancers(certTTL time.Duration, stacks []*aws.Stack) []*loadBala
 func groupLBsByCurrentWAF(lbs []*loadBalancer) map[string][]*loadBalancer {
 	m := make(map[string][]*loadBalancer)
 	for _, lb := range lbs {
-		var group string
-		if lb.stack != nil {
-			group = lb.stack.WAFWebACLId
-		}
-
-		m[group] = append(m[group], lb)
+		m[lb.wafWebACLID] = append(m[lb.wafWebACLID], lb)
 	}
 
 	return m
@@ -420,7 +413,7 @@ func matchIngressesToLoadBalancers(
 		// try to add ingress to existing ALB stacks until certificate
 		// limit is exeeded.
 		added := false
-		for _, lb := range lbsByWAF[ingress.WAFWebACLId] {
+		for _, lb := range lbsByWAF[ingress.WAFWebACLID] {
 			// TODO(mlarsen): hack to phase out old load balancers
 			// which can't be updated to include type
 			// specification.
@@ -445,8 +438,8 @@ func matchIngressesToLoadBalancers(
 			for _, certificateARN := range certificateARNs {
 				i[certificateARN] = []*kubernetes.Ingress{ingress}
 			}
-			lbsByWAF[ingress.WAFWebACLId] = append(
-				lbsByWAF[ingress.WAFWebACLId],
+			lbsByWAF[ingress.WAFWebACLID] = append(
+				lbsByWAF[ingress.WAFWebACLID],
 				&loadBalancer{
 					ingresses:        i,
 					scheme:           ingress.Scheme,
@@ -456,7 +449,7 @@ func matchIngressesToLoadBalancers(
 					ipAddressType:    ingress.IPAddressType,
 					loadBalancerType: ingress.LoadBalancerType,
 					http2:            ingress.HTTP2,
-					wafWebACLId:      ingress.WAFWebACLId,
+					wafWebACLID:      ingress.WAFWebACLID,
 				},
 			)
 		}
@@ -480,11 +473,11 @@ func attachCloudWatchAlarms(loadBalancers []*loadBalancer, cwAlarms aws.CloudWat
 
 func attachGlobalWAFACL(ings []*kubernetes.Ingress, globalWAFACL string) {
 	for _, ing := range ings {
-		if ing.WAFWebACLId != "" {
+		if ing.WAFWebACLID != "" {
 			continue
 		}
 
-		ing.WAFWebACLId = globalWAFACL
+		ing.WAFWebACLID = globalWAFACL
 	}
 }
 
@@ -514,7 +507,7 @@ func createStack(awsAdapter *aws.Adapter, lb *loadBalancer) {
 
 	log.Infof("creating stack for certificates %q / ingress %q", certificates, lb.ingresses)
 
-	stackId, err := awsAdapter.CreateStack(certificates, lb.scheme, lb.securityGroup, lb.Owner(), lb.sslPolicy, lb.ipAddressType, lb.wafWebACLId, lb.cwAlarms, lb.loadBalancerType, lb.http2)
+	stackId, err := awsAdapter.CreateStack(certificates, lb.scheme, lb.securityGroup, lb.Owner(), lb.sslPolicy, lb.ipAddressType, lb.wafWebACLID, lb.cwAlarms, lb.loadBalancerType, lb.http2)
 	if err != nil {
 		if isAlreadyExistsError(err) {
 			lb.stack, err = awsAdapter.GetStack(stackId)
@@ -533,7 +526,7 @@ func updateStack(awsAdapter *aws.Adapter, lb *loadBalancer) {
 
 	log.Infof("updating %q stack for %d certificates / %d ingresses", lb.scheme, len(certificates), len(lb.ingresses))
 
-	stackId, err := awsAdapter.UpdateStack(lb.stack.Name, certificates, lb.scheme, lb.sslPolicy, lb.ipAddressType, lb.wafWebACLId, lb.cwAlarms, lb.loadBalancerType, lb.http2)
+	stackId, err := awsAdapter.UpdateStack(lb.stack.Name, certificates, lb.scheme, lb.sslPolicy, lb.ipAddressType, lb.wafWebACLID, lb.cwAlarms, lb.loadBalancerType, lb.http2)
 	if isNoUpdatesToBePerformedError(err) {
 		log.Debugf("stack(%q) is already up to date", certificates)
 	} else if err != nil {
