@@ -55,7 +55,6 @@ type Adapter struct {
 	ipAddressType              string
 	albLogsS3Bucket            string
 	albLogsS3Prefix            string
-	wafWebAclId                string
 	httpRedirectToHTTPS        bool
 	nlbCrossZone               bool
 	nlbHTTPEnabled             bool
@@ -96,8 +95,6 @@ const (
 	DefaultAlbS3LogsBucket = ""
 	// DefaultAlbS3LogsPrefix is a blank string, and optionally set if desired
 	DefaultAlbS3LogsPrefix = ""
-	// DefaultWafWebAclId is a blank string, set if desired.
-	DefaultWafWebAclId = ""
 
 	DefaultCustomFilter = ""
 	// DefaultNLBCrossZone specifies the default configuration for cross
@@ -197,7 +194,6 @@ func NewAdapter(newControllerID string, debug, disableInstrumentedHttpClient boo
 		ipAddressType:       DefaultIpAddressType,
 		albLogsS3Bucket:     DefaultAlbS3LogsBucket,
 		albLogsS3Prefix:     DefaultAlbS3LogsPrefix,
-		wafWebAclId:         DefaultWafWebAclId,
 		nlbCrossZone:        DefaultNLBCrossZone,
 		nlbHTTPEnabled:      DefaultNLBHTTPEnabled,
 		customFilter:        DefaultCustomFilter,
@@ -304,12 +300,6 @@ func (a *Adapter) WithAlbLogsS3Bucket(bucket string) *Adapter {
 // WithAlbLogsS3Bucket returns the receiver adapter after changing the S3 prefix within the bucket for logging
 func (a *Adapter) WithAlbLogsS3Prefix(prefix string) *Adapter {
 	a.albLogsS3Prefix = prefix
-	return a
-}
-
-// WithWafWebAclId returns the receiver adapter after changing the waf web acl id for waf association
-func (a *Adapter) WithWafWebAclId(wafWebAclId string) *Adapter {
-	a.wafWebAclId = wafWebAclId
 	return a
 }
 
@@ -485,7 +475,7 @@ func (a *Adapter) UpdateTargetGroupsAndAutoScalingGroups(stacks []*Stack) {
 // All the required resources (listeners and target group) are created in a
 // transactional fashion.
 // Failure to create the stack causes it to be deleted automatically.
-func (a *Adapter) CreateStack(certificateARNs []string, scheme, securityGroup, owner, sslPolicy, ipAddressType, wafWebACLId string, cwAlarms CloudWatchAlarmList, loadBalancerType string, http2 bool) (string, error) {
+func (a *Adapter) CreateStack(certificateARNs []string, scheme, securityGroup, owner, sslPolicy, ipAddressType, wafWebACLID string, cwAlarms CloudWatchAlarmList, loadBalancerType string, http2 bool) (string, error) {
 	certARNs := make(map[string]time.Time, len(certificateARNs))
 	for _, arn := range certificateARNs {
 		certARNs[arn] = time.Time{}
@@ -493,10 +483,6 @@ func (a *Adapter) CreateStack(certificateARNs []string, scheme, securityGroup, o
 
 	if sslPolicy == "" {
 		sslPolicy = a.sslPolicy
-	}
-
-	if wafWebACLId == "" {
-		wafWebACLId = a.wafWebAclId
 	}
 
 	if _, ok := SSLPolicies[sslPolicy]; !ok {
@@ -527,7 +513,7 @@ func (a *Adapter) CreateStack(certificateARNs []string, scheme, securityGroup, o
 		loadbalancerType:             loadBalancerType,
 		albLogsS3Bucket:              a.albLogsS3Bucket,
 		albLogsS3Prefix:              a.albLogsS3Prefix,
-		wafWebAclId:                  wafWebACLId,
+		wafWebAclId:                  wafWebACLID,
 		cwAlarms:                     cwAlarms,
 		httpRedirectToHTTPS:          a.httpRedirectToHTTPS,
 		nlbCrossZone:                 a.nlbCrossZone,
@@ -538,13 +524,9 @@ func (a *Adapter) CreateStack(certificateARNs []string, scheme, securityGroup, o
 	return createStack(a.cloudformation, spec)
 }
 
-func (a *Adapter) UpdateStack(stackName string, certificateARNs map[string]time.Time, scheme, sslPolicy, ipAddressType, wafWebACLId string, cwAlarms CloudWatchAlarmList, loadBalancerType string, http2 bool) (string, error) {
+func (a *Adapter) UpdateStack(stackName string, certificateARNs map[string]time.Time, scheme, sslPolicy, ipAddressType, wafWebACLID string, cwAlarms CloudWatchAlarmList, loadBalancerType string, http2 bool) (string, error) {
 	if _, ok := SSLPolicies[sslPolicy]; !ok {
 		return "", fmt.Errorf("invalid SSLPolicy '%s' defined", sslPolicy)
-	}
-
-	if wafWebACLId == "" {
-		wafWebACLId = a.wafWebAclId
 	}
 
 	spec := &stackSpec{
@@ -570,7 +552,7 @@ func (a *Adapter) UpdateStack(stackName string, certificateARNs map[string]time.
 		loadbalancerType:             loadBalancerType,
 		albLogsS3Bucket:              a.albLogsS3Bucket,
 		albLogsS3Prefix:              a.albLogsS3Prefix,
-		wafWebAclId:                  wafWebACLId,
+		wafWebAclId:                  wafWebACLID,
 		cwAlarms:                     cwAlarms,
 		httpRedirectToHTTPS:          a.httpRedirectToHTTPS,
 		nlbCrossZone:                 a.nlbCrossZone,

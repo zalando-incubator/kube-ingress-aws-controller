@@ -31,7 +31,7 @@ type loadBalancer struct {
 	securityGroup    string
 	sslPolicy        string
 	ipAddressType    string
-	wafWebACLId      string
+	wafWebACLID      string
 	certTTL          time.Duration
 	cwAlarms         aws.CloudWatchAlarmList
 	loadBalancerType string
@@ -69,15 +69,15 @@ func (l *loadBalancer) Status() int {
 // defined on the stack and the cloudwatch alarm config is up-to-date.
 func (l *loadBalancer) inSync() bool {
 	return reflect.DeepEqual(l.CertificateARNs(), l.stack.CertificateARNs) &&
-		l.stack.CWAlarmConfigHash == l.cwAlarms.Hash()
+		l.stack.CWAlarmConfigHash == l.cwAlarms.Hash() &&
+		l.wafWebACLID == l.stack.WAFWebACLID
 }
 
-// AddIngress adds an ingress object to the load balancer.
+// addIngress adds an ingress object to the load balancer.
 // The function returns true when the ingress was successfully added. The
 // adding can fail in case the load balancer reached its limit of ingress
 // certificates or if the scheme doesn't match.
-func (l *loadBalancer) AddIngress(certificateARNs []string, ingress *kubernetes.Ingress, maxCerts int) bool {
-
+func (l *loadBalancer) addIngress(certificateARNs []string, ingress *kubernetes.Ingress, maxCerts int) bool {
 	if ingress.ClusterLocal {
 		if ingresses, ok := l.ingresses[kubernetes.DefaultClusterLocalDomain]; ok {
 			l.ingresses[kubernetes.DefaultClusterLocalDomain] = append(ingresses, ingress)
@@ -92,7 +92,8 @@ func (l *loadBalancer) AddIngress(certificateARNs []string, ingress *kubernetes.
 		l.securityGroup != ingress.SecurityGroup ||
 		l.sslPolicy != ingress.SSLPolicy ||
 		l.loadBalancerType != ingress.LoadBalancerType ||
-		l.http2 != ingress.HTTP2 || l.wafWebACLId != ingress.WafWebACLId {
+		l.http2 != ingress.HTTP2 ||
+		l.wafWebACLID != ingress.WAFWebACLID {
 		return false
 	}
 
@@ -121,22 +122,17 @@ func (l *loadBalancer) AddIngress(certificateARNs []string, ingress *kubernetes.
 		newCerts++
 	}
 
-	// if adding this ingress would result in more than maxCerts then we
+	// if adding this ingress would result in more than maxCerts, then we
 	// don't add the ingress
 	if len(l.ingresses)+newCerts > maxCerts {
 		return false
 	}
 
 	for _, certificateARN := range certificateARNs {
-		if ingresses, ok := l.ingresses[certificateARN]; ok {
-			l.ingresses[certificateARN] = append(ingresses, ingress)
-		} else {
-			l.ingresses[certificateARN] = []*kubernetes.Ingress{ingress}
-		}
+		l.ingresses[certificateARN] = append(l.ingresses[certificateARN], ingress)
 	}
 
 	l.shared = ingress.Shared
-
 	return true
 }
 
@@ -219,9 +215,18 @@ func (c *Certificates) FindMatchingCertificateIDs(hostnames []string) []string {
 	return certIDs
 }
 
-func startPolling(ctx context.Context, certsProvider certs.CertificatesProvider, certsPerALB int, certTTL time.Duration, awsAdapter *aws.Adapter, kubeAdapter *kubernetes.Adapter, pollingInterval time.Duration) {
+func startPolling(
+	ctx context.Context,
+	certsProvider certs.CertificatesProvider,
+	certsPerALB int,
+	certTTL time.Duration,
+	awsAdapter *aws.Adapter,
+	kubeAdapter *kubernetes.Adapter,
+	pollingInterval time.Duration,
+	globalWAFACL string,
+) {
 	for {
-		if err := doWork(certsProvider, certsPerALB, certTTL, awsAdapter, kubeAdapter); err != nil {
+		if err := doWork(certsProvider, certsPerALB, certTTL, awsAdapter, kubeAdapter, globalWAFACL); err != nil {
 			log.Error(err)
 		}
 		firstRun = false
@@ -235,7 +240,14 @@ func startPolling(ctx context.Context, certsProvider certs.CertificatesProvider,
 	}
 }
 
-func doWork(certsProvider certs.CertificatesProvider, certsPerALB int, certTTL time.Duration, awsAdapter *aws.Adapter, kubeAdapter *kubernetes.Adapter) error {
+func doWork(
+	certsProvider certs.CertificatesProvider,
+	certsPerALB int,
+	certTTL time.Duration,
+	awsAdapter *aws.Adapter,
+	kubeAdapter *kubernetes.Adapter,
+	globalWAFACL string,
+) error {
 	defer func() error {
 		if r := recover(); r != nil {
 			log.Errorln("shit has hit the fan:", errors.Wrap(r.(error), "panic caused by"))
@@ -281,7 +293,7 @@ func doWork(certsProvider certs.CertificatesProvider, certsPerALB int, certTTL t
 	log.Infof("Found %d cloudwatch alarm configuration(s)", len(cwAlarms))
 
 	certs := &Certificates{certificateSummaries: certificateSummaries}
-	model := buildManagedModel(certs, certsPerALB, certTTL, ingresses, stacks, cwAlarms)
+	model := buildManagedModel(certs, certsPerALB, certTTL, ingresses, stacks, cwAlarms, globalWAFACL)
 	log.Debugf("Have %d model(s)", len(model))
 	for _, loadBalancer := range model {
 		switch loadBalancer.Status() {
@@ -324,8 +336,8 @@ func getAllLoadBalancers(certTTL time.Duration, stacks []*aws.Stack) []*loadBala
 			ipAddressType:    stack.IpAddressType,
 			loadBalancerType: stack.LoadBalancerType,
 			http2:            stack.HTTP2,
+			wafWebACLID:      stack.WAFWebACLID,
 			certTTL:          certTTL,
-			wafWebACLId:      stack.WafWebACLId,
 		}
 		// initialize ingresses map with existing certificates from the
 		// stack.
@@ -338,7 +350,12 @@ func getAllLoadBalancers(certTTL time.Duration, stacks []*aws.Stack) []*loadBala
 	return loadBalancers
 }
 
-func matchIngressesToLoadBalancers(loadBalancers []*loadBalancer, certs CertificatesFinder, certsPerALB int, ingresses []*kubernetes.Ingress) []*loadBalancer {
+func matchIngressesToLoadBalancers(
+	loadBalancers []*loadBalancer,
+	certs CertificatesFinder,
+	certsPerALB int,
+	ingresses []*kubernetes.Ingress,
+) []*loadBalancer {
 	clusterLocalLB := &loadBalancer{
 		clusterLocal: true,
 		ingresses:    make(map[string][]*kubernetes.Ingress),
@@ -347,7 +364,7 @@ func matchIngressesToLoadBalancers(loadBalancers []*loadBalancer, certs Certific
 
 	for _, ingress := range ingresses {
 		if ingress.ClusterLocal {
-			clusterLocalLB.AddIngress(nil, ingress, math.MaxInt64)
+			clusterLocalLB.addIngress(nil, ingress, math.MaxInt64)
 			continue
 		}
 
@@ -355,7 +372,12 @@ func matchIngressesToLoadBalancers(loadBalancers []*loadBalancer, certs Certific
 
 		if ingress.CertificateARN != "" {
 			if !certs.CertificateExists(ingress.CertificateARN) {
-				log.Errorf("Failed to find certificate '%s' for ingress '%s/%s'", ingress.CertificateARN, ingress.Namespace, ingress.Name)
+				log.Errorf(
+					"Failed to find certificate '%s' for ingress '%s/%s'",
+					ingress.CertificateARN,
+					ingress.Namespace,
+					ingress.Name,
+				)
 				continue
 			}
 			certificateARNs = []string{ingress.CertificateARN}
@@ -375,11 +397,13 @@ func matchIngressesToLoadBalancers(loadBalancers []*loadBalancer, certs Certific
 			// which can't be updated to include type
 			// specification.
 			// Can be removed in a later version
-			if lb.loadBalancerType != aws.LoadBalancerTypeApplication && lb.loadBalancerType != aws.LoadBalancerTypeNetwork {
+			supportedLBType := lb.loadBalancerType == aws.LoadBalancerTypeApplication ||
+				lb.loadBalancerType == aws.LoadBalancerTypeNetwork
+			if !supportedLBType {
 				continue
 			}
 
-			if lb.AddIngress(certificateARNs, ingress, certsPerALB) {
+			if lb.addIngress(certificateARNs, ingress, certsPerALB) {
 				added = true
 				break
 			}
@@ -404,7 +428,7 @@ func matchIngressesToLoadBalancers(loadBalancers []*loadBalancer, certs Certific
 					ipAddressType:    ingress.IPAddressType,
 					loadBalancerType: ingress.LoadBalancerType,
 					http2:            ingress.HTTP2,
-					wafWebACLId:      ingress.WafWebACLId,
+					wafWebACLID:      ingress.WAFWebACLID,
 				},
 			)
 		}
@@ -426,8 +450,27 @@ func attachCloudWatchAlarms(loadBalancers []*loadBalancer, cwAlarms aws.CloudWat
 	}
 }
 
-func buildManagedModel(certs CertificatesFinder, certsPerALB int, certTTL time.Duration, ingresses []*kubernetes.Ingress, stacks []*aws.Stack, cwAlarms aws.CloudWatchAlarmList) []*loadBalancer {
+func attachGlobalWAFACL(ings []*kubernetes.Ingress, globalWAFACL string) {
+	for _, ing := range ings {
+		if ing.WAFWebACLID != "" {
+			continue
+		}
+
+		ing.WAFWebACLID = globalWAFACL
+	}
+}
+
+func buildManagedModel(
+	certs CertificatesFinder,
+	certsPerALB int,
+	certTTL time.Duration,
+	ingresses []*kubernetes.Ingress,
+	stacks []*aws.Stack,
+	cwAlarms aws.CloudWatchAlarmList,
+	globalWAFACL string,
+) []*loadBalancer {
 	sortStacks(stacks)
+	attachGlobalWAFACL(ingresses, globalWAFACL)
 	model := getAllLoadBalancers(certTTL, stacks)
 	model = matchIngressesToLoadBalancers(model, certs, certsPerALB, ingresses)
 	attachCloudWatchAlarms(model, cwAlarms)
@@ -443,7 +486,7 @@ func createStack(awsAdapter *aws.Adapter, lb *loadBalancer) {
 
 	log.Infof("creating stack for certificates %q / ingress %q", certificates, lb.ingresses)
 
-	stackId, err := awsAdapter.CreateStack(certificates, lb.scheme, lb.securityGroup, lb.Owner(), lb.sslPolicy, lb.ipAddressType, lb.wafWebACLId, lb.cwAlarms, lb.loadBalancerType, lb.http2)
+	stackId, err := awsAdapter.CreateStack(certificates, lb.scheme, lb.securityGroup, lb.Owner(), lb.sslPolicy, lb.ipAddressType, lb.wafWebACLID, lb.cwAlarms, lb.loadBalancerType, lb.http2)
 	if err != nil {
 		if isAlreadyExistsError(err) {
 			lb.stack, err = awsAdapter.GetStack(stackId)
@@ -462,7 +505,7 @@ func updateStack(awsAdapter *aws.Adapter, lb *loadBalancer) {
 
 	log.Infof("updating %q stack for %d certificates / %d ingresses", lb.scheme, len(certificates), len(lb.ingresses))
 
-	stackId, err := awsAdapter.UpdateStack(lb.stack.Name, certificates, lb.scheme, lb.sslPolicy, lb.ipAddressType, lb.wafWebACLId, lb.cwAlarms, lb.loadBalancerType, lb.http2)
+	stackId, err := awsAdapter.UpdateStack(lb.stack.Name, certificates, lb.scheme, lb.sslPolicy, lb.ipAddressType, lb.wafWebACLID, lb.cwAlarms, lb.loadBalancerType, lb.http2)
 	if isNoUpdatesToBePerformedError(err) {
 		log.Debugf("stack(%q) is already up to date", certificates)
 	} else if err != nil {

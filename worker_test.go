@@ -119,28 +119,59 @@ func TestAddIngress(tt *testing.T) {
 			added:    false,
 		},
 		{
-			name: "wafacl id not matching",
+			name: "with WAF ACL, but cluster local",
 			loadBalancer: &loadBalancer{
-				wafWebACLId: "WAFZXX",
+				ingresses: make(map[string][]*kubernetes.Ingress),
 			},
 			ingress: &kubernetes.Ingress{
-				WafWebACLId: "WAFZXC",
+				WAFWebACLID:  "WAFZXX",
+				Shared:       true,
+				ClusterLocal: true,
+			},
+			added: true,
+		},
+		{
+			name: "with WAF ACL id",
+			loadBalancer: &loadBalancer{
+				ingresses:   make(map[string][]*kubernetes.Ingress),
+				wafWebACLID: "WAFZXX",
+			},
+			ingress: &kubernetes.Ingress{
+				WAFWebACLID: "WAFZXX",
+				Shared:      true,
+			},
+			added: true,
+		},
+		{
+			name: "with WAF ACL id, to not matching LB",
+			loadBalancer: &loadBalancer{
+				ingresses: make(map[string][]*kubernetes.Ingress),
+			},
+			ingress: &kubernetes.Ingress{
+				WAFWebACLID: "WAFZXX",
+				Shared:      true,
 			},
 			added: false,
 		},
 		{
-			name: "wafacl id not matching",
+			name: "with WAF ACL id, to not matching LB, with different ACL id",
 			loadBalancer: &loadBalancer{
-				wafWebACLId: aws.DefaultWafWebAclId,
+				ingresses:   make(map[string][]*kubernetes.Ingress),
+				wafWebACLID: "WAFZYY",
 			},
 			ingress: &kubernetes.Ingress{
-				WafWebACLId: "WAFZXC",
+				WAFWebACLID: "WAFZXX",
+				Shared:      true,
 			},
 			added: false,
 		},
 	} {
 		tt.Run(test.name, func(t *testing.T) {
-			assert.Equal(t, test.loadBalancer.AddIngress(test.certificateARNs, test.ingress, test.maxCerts), test.added)
+			assert.Equal(
+				t,
+				test.loadBalancer.addIngress(test.certificateARNs, test.ingress, test.maxCerts),
+				test.added,
+			)
 		})
 	}
 }
@@ -403,4 +434,501 @@ func TestAttachCloudWatchAlarmsCopy(t *testing.T) {
 	lbOne.cwAlarms[0].AlarmName = cloudformation.String("qux")
 
 	assert.Equal(t, cloudformation.String("baz"), lbTwo.cwAlarms[0].AlarmName)
+}
+
+func TestIsLBInSync(t *testing.T) {
+	for _, test := range []struct {
+		title  string
+		lb     *loadBalancer
+		expect bool
+	}{{
+		title: "not matching certificates",
+		lb: &loadBalancer{
+			ingresses: map[string][]*kubernetes.Ingress{
+				"foo": []*kubernetes.Ingress{{}},
+				"bar": []*kubernetes.Ingress{{}},
+				"baz": []*kubernetes.Ingress{{}},
+			},
+			stack: &aws.Stack{
+				CertificateARNs: map[string]time.Time{
+					"foo": time.Time{},
+					"bar": time.Time{},
+				},
+				CWAlarmConfigHash: aws.CloudWatchAlarmList{{}}.Hash(),
+				WAFWebACLID:       "foo-bar-baz",
+			},
+			cwAlarms:    aws.CloudWatchAlarmList{{}},
+			wafWebACLID: "foo-bar-baz",
+		},
+	}, {
+		title: "not matching alarm",
+		lb: &loadBalancer{
+			ingresses: map[string][]*kubernetes.Ingress{
+				"foo": []*kubernetes.Ingress{{}},
+				"bar": []*kubernetes.Ingress{{}},
+				"baz": []*kubernetes.Ingress{{}},
+			},
+			stack: &aws.Stack{
+				CertificateARNs: map[string]time.Time{
+					"foo": time.Time{},
+					"bar": time.Time{},
+					"baz": time.Time{},
+				},
+				CWAlarmConfigHash: aws.CloudWatchAlarmList{{}}.Hash(),
+				WAFWebACLID:       "foo-bar-baz",
+			},
+			cwAlarms:    aws.CloudWatchAlarmList{{}, {}},
+			wafWebACLID: "foo-bar-baz",
+		},
+	}, {
+		title: "not matching WAF",
+		lb: &loadBalancer{
+			ingresses: map[string][]*kubernetes.Ingress{
+				"foo": []*kubernetes.Ingress{{}},
+				"bar": []*kubernetes.Ingress{{}},
+				"baz": []*kubernetes.Ingress{{}},
+			},
+			stack: &aws.Stack{
+				CertificateARNs: map[string]time.Time{
+					"foo": time.Time{},
+					"bar": time.Time{},
+					"baz": time.Time{},
+				},
+				CWAlarmConfigHash: aws.CloudWatchAlarmList{{}}.Hash(),
+				WAFWebACLID:       "foo-bar-baz",
+			},
+			cwAlarms:    aws.CloudWatchAlarmList{{}},
+			wafWebACLID: "foo-bar",
+		},
+	}, {
+		title: "in sync",
+		lb: &loadBalancer{
+			ingresses: map[string][]*kubernetes.Ingress{
+				"foo": []*kubernetes.Ingress{{}},
+				"bar": []*kubernetes.Ingress{{}},
+				"baz": []*kubernetes.Ingress{{}},
+			},
+			stack: &aws.Stack{
+				CertificateARNs: map[string]time.Time{
+					"foo": time.Time{},
+					"bar": time.Time{},
+					"baz": time.Time{},
+				},
+				CWAlarmConfigHash: aws.CloudWatchAlarmList{{}}.Hash(),
+				WAFWebACLID:       "foo-bar-baz",
+			},
+			cwAlarms:    aws.CloudWatchAlarmList{{}},
+			wafWebACLID: "foo-bar-baz",
+		},
+		expect: true,
+	}} {
+		t.Run(test.title, func(t *testing.T) {
+			require.Equal(t, test.expect, test.lb.inSync())
+		})
+	}
+}
+
+func TestMatchIngressesToLoadbalancers(t *testing.T) {
+	defaultMaxCertsPerLB := 3
+	defaultCerts := &certmock{
+		summaries: []*certs.CertificateSummary{
+			certs.NewCertificate(
+				"foo",
+				&x509.Certificate{
+					DNSNames: []string{"foo.org", "bar.org"},
+				},
+				nil,
+			),
+		},
+	}
+
+	for _, test := range []struct {
+		title         string
+		certs         CertificatesFinder
+		maxCertsPerLB int
+		lbs           []*loadBalancer
+		ingresses     []*kubernetes.Ingress
+		validate      func(*testing.T, []*loadBalancer)
+	}{{
+		title: "only cluster local",
+		validate: func(t *testing.T, lbs []*loadBalancer) {
+			require.Equal(t, 1, len(lbs))
+			require.True(t, lbs[0].clusterLocal)
+		},
+	}, {
+		title: "cluster local and new",
+		ingresses: []*kubernetes.Ingress{{
+			Name: "foo-ingress",
+			Hostnames: []string{
+				"foo.org",
+				"bar.org",
+			},
+		}},
+		validate: func(t *testing.T, lbs []*loadBalancer) {
+			require.Equal(t, 2, len(lbs))
+			require.False(t, lbs[0].clusterLocal == lbs[1].clusterLocal)
+		},
+	}, {
+		title: "existing load balancer",
+		ingresses: []*kubernetes.Ingress{{
+			Name: "foo-ingress",
+			Hostnames: []string{
+				"foo.org",
+				"bar.org",
+			},
+			LoadBalancerType: aws.LoadBalancerTypeApplication,
+			Shared:           true,
+		}},
+		lbs: []*loadBalancer{{
+			loadBalancerType: aws.LoadBalancerTypeApplication,
+			ingresses:        make(map[string][]*kubernetes.Ingress),
+		}},
+		validate: func(t *testing.T, lbs []*loadBalancer) {
+			require.Equal(t, 2, len(lbs))
+			for _, lb := range lbs {
+				if lb.clusterLocal {
+					continue
+				}
+
+				if len(lb.ingresses["foo"]) != 1 && lb.ingresses["foo"][0].Name != "foo-ingress" {
+					t.Fatal("failed to match ingress to existing LB")
+				}
+			}
+		},
+	}, {
+		title: "certificate by ARN",
+		ingresses: []*kubernetes.Ingress{{
+			Name:             "foo-ingress",
+			CertificateARN:   "foo",
+			LoadBalancerType: aws.LoadBalancerTypeApplication,
+			Shared:           true,
+		}},
+		validate: func(t *testing.T, lbs []*loadBalancer) {
+			require.Equal(t, 2, len(lbs))
+			for _, lb := range lbs {
+				if lb.clusterLocal {
+					continue
+				}
+
+				if len(lb.ingresses["foo"]) != 1 && lb.ingresses["foo"][0].Name != "foo-ingress" {
+					t.Fatal("failed to match ingress to existing LB")
+				}
+			}
+		},
+	}, {
+		title: "certificate by ARN, does not exist",
+		ingresses: []*kubernetes.Ingress{{
+			Name:             "foo-ingress",
+			CertificateARN:   "not-existing-arn",
+			LoadBalancerType: aws.LoadBalancerTypeApplication,
+			Shared:           true,
+		}},
+		validate: func(t *testing.T, lbs []*loadBalancer) {
+			require.Equal(t, 1, len(lbs))
+		},
+	}, {
+		title: "certificate by hostname, does not exist",
+		ingresses: []*kubernetes.Ingress{{
+			Name: "foo-ingress",
+			Hostnames: []string{
+				"baz.org",
+			},
+			LoadBalancerType: aws.LoadBalancerTypeApplication,
+			Shared:           true,
+		}},
+		validate: func(t *testing.T, lbs []*loadBalancer) {
+			require.Equal(t, 1, len(lbs))
+		},
+	}, {
+		title: "multiple ingresses for the same LB",
+		ingresses: []*kubernetes.Ingress{{
+			Name:             "foo-ingress",
+			LoadBalancerType: aws.LoadBalancerTypeApplication,
+			Shared:           true,
+			Hostnames: []string{
+				"foo.org",
+				"bar.org",
+			},
+		}, {
+			Name:             "bar-ingress",
+			LoadBalancerType: aws.LoadBalancerTypeApplication,
+			Shared:           true,
+			Hostnames: []string{
+				"foo.org",
+				"bar.org",
+			},
+		}},
+		validate: func(t *testing.T, lbs []*loadBalancer) {
+			require.Equal(t, 2, len(lbs))
+			for _, lb := range lbs {
+				if lb.clusterLocal {
+					continue
+				}
+
+				require.Equal(t, 2, len(lb.ingresses["foo"]))
+			}
+		},
+	}, {
+		title: "multiple ingresses for the same LB, with WAF ID",
+		ingresses: []*kubernetes.Ingress{{
+			Name:             "foo-ingress",
+			LoadBalancerType: aws.LoadBalancerTypeApplication,
+			Shared:           true,
+			Hostnames: []string{
+				"foo.org",
+				"bar.org",
+			},
+			WAFWebACLID: "foo-bar-baz",
+		}, {
+			Name:             "bar-ingress",
+			LoadBalancerType: aws.LoadBalancerTypeApplication,
+			Shared:           true,
+			Hostnames: []string{
+				"foo.org",
+				"bar.org",
+			},
+			WAFWebACLID: "foo-bar-baz",
+		}},
+		validate: func(t *testing.T, lbs []*loadBalancer) {
+			require.Equal(t, 2, len(lbs))
+			for _, lb := range lbs {
+				if lb.clusterLocal {
+					continue
+				}
+
+				require.Equal(t, 2, len(lb.ingresses["foo"]))
+			}
+		},
+	}, {
+		title: "ingresses with different WAF IDs",
+		ingresses: []*kubernetes.Ingress{{
+			Name:             "foo-ingress",
+			LoadBalancerType: aws.LoadBalancerTypeApplication,
+			Shared:           true,
+			Hostnames: []string{
+				"foo.org",
+				"bar.org",
+			},
+			WAFWebACLID: "foo-bar-baz",
+		}, {
+			Name:             "bar-ingress",
+			LoadBalancerType: aws.LoadBalancerTypeApplication,
+			Shared:           true,
+			Hostnames: []string{
+				"foo.org",
+				"bar.org",
+			},
+			WAFWebACLID: "qux-quz-quuz",
+		}},
+		validate: func(t *testing.T, lbs []*loadBalancer) {
+			require.Equal(t, 3, len(lbs))
+			for _, lb := range lbs {
+				if lb.clusterLocal {
+					continue
+				}
+
+				require.Equal(t, 1, len(lb.ingresses["foo"]))
+			}
+		},
+	}} {
+		t.Run(test.title, func(t *testing.T) {
+			var certs CertificatesFinder = defaultCerts
+			if test.certs != nil {
+				certs = test.certs
+			}
+
+			maxCertsPerLB := defaultMaxCertsPerLB
+			if test.maxCertsPerLB > 0 {
+				maxCertsPerLB = test.maxCertsPerLB
+			}
+
+			lbs := matchIngressesToLoadBalancers(test.lbs, certs, maxCertsPerLB, test.ingresses)
+			test.validate(t, lbs)
+		})
+	}
+}
+
+func TestBuildModel(t *testing.T) {
+	defaultMaxCertsPerLB := 3
+	defaultCerts := &certmock{
+		summaries: []*certs.CertificateSummary{
+			certs.NewCertificate(
+				"foo",
+				&x509.Certificate{
+					DNSNames: []string{"foo.org", "bar.org"},
+				},
+				nil,
+			),
+		},
+	}
+
+	const certTTL = time.Hour
+
+	for _, test := range []struct {
+		title         string
+		certs         CertificatesFinder
+		maxCertsPerLB int
+		ingresses     []*kubernetes.Ingress
+		stacks        []*aws.Stack
+		alarms        aws.CloudWatchAlarmList
+		globalWAFACL  string
+		validate      func(*testing.T, []*loadBalancer)
+	}{{
+		title: "no alarm, no waf",
+		ingresses: []*kubernetes.Ingress{{
+			Name:             "foo-ingress",
+			LoadBalancerType: aws.LoadBalancerTypeApplication,
+			Shared:           true,
+			Hostnames: []string{
+				"foo.org",
+				"bar.org",
+			},
+		}},
+		validate: func(t *testing.T, lbs []*loadBalancer) {
+			require.Equal(t, 2, len(lbs))
+			for _, lb := range lbs {
+				if lb.clusterLocal {
+					continue
+				}
+
+				require.Equal(t, 0, len(lb.cwAlarms))
+				require.Empty(t, lb.wafWebACLID)
+			}
+		},
+	}, {
+		title: "with cloudwatch alarm",
+		ingresses: []*kubernetes.Ingress{{
+			Name:             "foo-ingress",
+			LoadBalancerType: aws.LoadBalancerTypeApplication,
+			Shared:           true,
+			Hostnames: []string{
+				"foo.org",
+				"bar.org",
+			},
+		}},
+		alarms: aws.CloudWatchAlarmList{{}},
+		validate: func(t *testing.T, lbs []*loadBalancer) {
+			require.Equal(t, 2, len(lbs))
+			for _, lb := range lbs {
+				if lb.clusterLocal {
+					continue
+				}
+
+				require.Equal(t, 1, len(lb.cwAlarms))
+				require.Empty(t, lb.wafWebACLID)
+			}
+		},
+	}, {
+		title: "with global WAF",
+		ingresses: []*kubernetes.Ingress{{
+			Name:             "foo-ingress",
+			LoadBalancerType: aws.LoadBalancerTypeApplication,
+			Shared:           true,
+			Hostnames: []string{
+				"foo.org",
+				"bar.org",
+			},
+		}},
+		globalWAFACL: "foo-bar-baz",
+		validate: func(t *testing.T, lbs []*loadBalancer) {
+			require.Equal(t, 2, len(lbs))
+			for _, lb := range lbs {
+				if lb.clusterLocal {
+					continue
+				}
+
+				require.Equal(t, 0, len(lb.cwAlarms))
+				require.Equal(t, "foo-bar-baz", lb.wafWebACLID)
+			}
+		},
+	}, {
+		title: "with ingress defined WAF",
+		ingresses: []*kubernetes.Ingress{{
+			Name:             "foo-ingress",
+			LoadBalancerType: aws.LoadBalancerTypeApplication,
+			Shared:           true,
+			Hostnames: []string{
+				"foo.org",
+				"bar.org",
+			},
+			WAFWebACLID: "foo-bar-baz",
+		}},
+		validate: func(t *testing.T, lbs []*loadBalancer) {
+			require.Equal(t, 2, len(lbs))
+			for _, lb := range lbs {
+				if lb.clusterLocal {
+					continue
+				}
+
+				require.Equal(t, 0, len(lb.cwAlarms))
+				require.Equal(t, "foo-bar-baz", lb.wafWebACLID)
+			}
+		},
+	}, {
+		title: "with global and ingress defined WAF",
+		ingresses: []*kubernetes.Ingress{{
+			Name:             "foo-ingress",
+			LoadBalancerType: aws.LoadBalancerTypeApplication,
+			Shared:           true,
+			Hostnames: []string{
+				"foo.org",
+				"bar.org",
+			},
+		}, {
+			Name:             "foo-ingress",
+			LoadBalancerType: aws.LoadBalancerTypeApplication,
+			Shared:           true,
+			Hostnames: []string{
+				"foo.org",
+				"bar.org",
+			},
+			WAFWebACLID: "foo-bar-baz",
+		}},
+		globalWAFACL: "qux-quz-quuz",
+		validate: func(t *testing.T, lbs []*loadBalancer) {
+			require.Equal(t, 3, len(lbs))
+			var localFound, globalFound bool
+			for _, lb := range lbs {
+				if lb.clusterLocal {
+					continue
+				}
+
+				require.Equal(t, 0, len(lb.cwAlarms))
+
+				if lb.wafWebACLID == "foo-bar-baz" {
+					localFound = true
+				}
+
+				if lb.wafWebACLID == "qux-quz-quuz" {
+					globalFound = true
+				}
+			}
+
+			require.True(t, localFound && globalFound)
+		},
+	}} {
+		t.Run(test.title, func(t *testing.T) {
+			var certs CertificatesFinder = defaultCerts
+			if test.certs != nil {
+				certs = test.certs
+			}
+
+			maxCertsPerLB := defaultMaxCertsPerLB
+			if test.maxCertsPerLB > 0 {
+				maxCertsPerLB = test.maxCertsPerLB
+			}
+
+			m := buildManagedModel(
+				certs,
+				maxCertsPerLB,
+				certTTL,
+				test.ingresses,
+				test.stacks,
+				test.alarms,
+				test.globalWAFACL,
+			)
+
+			test.validate(t, m)
+		})
+	}
 }

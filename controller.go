@@ -118,8 +118,8 @@ func loadSettings() error {
 		Default(aws.DefaultAlbS3LogsBucket).StringVar(&albLogsS3Bucket)
 	kingpin.Flag("logs-s3-prefix", "Prefix within S3 bucket to be used for ALB logging").
 		Default(aws.DefaultAlbS3LogsPrefix).StringVar(&albLogsS3Prefix)
-	kingpin.Flag("aws-waf-web-acl-id", "Waf web acl id to be associated with the ALB. For WAF v2 it is possible to specify the WebACL ARN arn:aws:wafv2:<region>:<account>:regional/webacl/<name>/<id>").
-		Default(aws.DefaultWafWebAclId).StringVar(&wafWebAclId)
+	kingpin.Flag("aws-waf-web-acl-id", "WAF web acl id to be associated with the ALB. For WAF v2 it is possible to specify the WebACL ARN arn:aws:wafv2:<region>:<account>:regional/webacl/<name>/<id>").
+		Default("").StringVar(&wafWebAclId)
 	kingpin.Flag("cloudwatch-alarms-config-map", "ConfigMap location of the form 'namespace/config-map-name' where to read CloudWatch Alarm configuration from. Ignored if empty.").
 		StringVar(&cwAlarmConfigMap)
 	kingpin.Flag("redirect-http-to-https", "Configure HTTP listener to redirect to HTTPS").
@@ -225,7 +225,6 @@ func main() {
 		WithIpAddressType(ipAddressType).
 		WithAlbLogsS3Bucket(albLogsS3Bucket).
 		WithAlbLogsS3Prefix(albLogsS3Prefix).
-		WithWafWebAclId(wafWebAclId).
 		WithHTTPRedirectToHTTPS(httpRedirectToHTTPS).
 		WithNLBCrossZone(nlbCrossZone).
 		WithNLBHTTPEnabled(nlbHTTPEnabled).
@@ -289,7 +288,16 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	go handleTerminationSignals(cancel, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
 	go serveMetrics(metricsAddress)
-	startPolling(ctx, certificatesProvider, certificatesPerALB, certTTL, awsAdapter, kubeAdapter, pollingInterval)
+	startPolling(
+		ctx,
+		certificatesProvider,
+		certificatesPerALB,
+		certTTL,
+		awsAdapter,
+		kubeAdapter,
+		pollingInterval,
+		wafWebAclId,
+	)
 
 	log.Infof("Terminating %s", os.Args[0])
 }

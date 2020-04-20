@@ -29,6 +29,7 @@ This information is used to manage AWS resources for each ingress objects of the
 - Support for [CloudWatch Alarm configuration](cloudwatch.md)
 - Can be used in clusters created by [Kops](https://github.com/kubernetes/kops), see our [deployment guide for Kops](deploy/kops.md)
 - [Support Multiple TLS Certificates per ALB (SNI)](https://aws.amazon.com/blogs/aws/new-application-load-balancer-sni/).
+- Support for AWS WAF and WAFv2
 
 ## Upgrade
 
@@ -106,6 +107,7 @@ Overview of configuration which can be set via Ingress annotations.
 |`zalando.org/aws-load-balancer-ssl-policy`|`string`|`ELBSecurityPolicy-2016-08`|
 |`zalando.org/aws-load-balancer-type`| `nlb` \| `alb`|`alb`|
 |`zalando.org/aws-load-balancer-http2`| `true` \| `false`|`true`|
+|`zalando.org/aws-waf-web-acl-id` | `string` | N/A |
 |`kubernetes.io/ingress.class`|`string`|N/A|
 
 The defaults can also be configured globally via a flag on the controller.
@@ -395,6 +397,47 @@ metadata:
   name: myingress
   annotations:
     zalando.org/aws-load-balancer-security-group: sg-somegroupeid
+spec:
+  rules:
+  - host: test-app.example.org
+    http:
+      paths:
+      - backend:
+          serviceName: test-app-service
+          servicePort: main-port
+```
+
+#### Create Load Balancers with WAF associations
+
+It is possible to define WAF associations for the created load balancers. The WAF Web ACLs need to be created
+separately via CloudFormation or the AWS Console, and they can be referenced either as a global startup
+configuration of the controller, or as ingress specific settings in the ingress object with an annotation. The
+ingress annotation overrides the global setting, and the controller will create separate load balancers for
+those ingresses using a separate WAF association.
+
+The controller supports two versions of AWS WAF:
+
+- WAF (v1 or "classic"): the Web ACL is identified by a UUID
+- WAFv2: the Web ACL is identified by its ARN, prefixed with `arn:aws:wafv2:`
+
+Only one WAF association can be used for a load balancer, and the same command line flag and ingress annotation
+is used for both versions, only the format of the value differs.
+
+##### Starting the controller with global WAF association:
+
+```
+kube-ingress-aws-controller --aws-waf-web-acl-id=arn:aws:wafv2:eu-central-1:123456789012:regional/webacl/test-waf-acl/12345678-abcd-efgh-ijkl-901234567890
+```
+
+##### Setting ingress specicif WAF association:
+
+```yaml
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  name: myingress
+  annotations:
+    zalando.org/aws-waf-web-acl-id: arn:aws:wafv2:eu-central-1:123456789012:regional/webacl/test-waf-acl/12345678-abcd-efgh-ijkl-901234567890
 spec:
   rules:
   - host: test-app.example.org
