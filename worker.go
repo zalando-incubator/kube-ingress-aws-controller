@@ -350,26 +350,6 @@ func getAllLoadBalancers(certTTL time.Duration, stacks []*aws.Stack) []*loadBala
 	return loadBalancers
 }
 
-func groupLBsByCurrentWAF(lbs []*loadBalancer) map[string][]*loadBalancer {
-	m := make(map[string][]*loadBalancer)
-	for _, lb := range lbs {
-		m[lb.wafWebACLID] = append(m[lb.wafWebACLID], lb)
-	}
-
-	return m
-}
-
-func flattenLBs(lbs map[string][]*loadBalancer) []*loadBalancer {
-	var flat []*loadBalancer
-	for _, group := range lbs {
-		for _, lb := range group {
-			flat = append(flat, lb)
-		}
-	}
-
-	return flat
-}
-
 func matchIngressesToLoadBalancers(
 	loadBalancers []*loadBalancer,
 	certs CertificatesFinder,
@@ -382,7 +362,6 @@ func matchIngressesToLoadBalancers(
 	}
 	loadBalancers = append(loadBalancers, clusterLocalLB)
 
-	lbsByWAF := groupLBsByCurrentWAF(loadBalancers)
 	for _, ingress := range ingresses {
 		if ingress.ClusterLocal {
 			clusterLocalLB.addIngress(nil, ingress, math.MaxInt64)
@@ -413,7 +392,7 @@ func matchIngressesToLoadBalancers(
 		// try to add ingress to existing ALB stacks until certificate
 		// limit is exeeded.
 		added := false
-		for _, lb := range lbsByWAF[ingress.WAFWebACLID] {
+		for _, lb := range loadBalancers {
 			// TODO(mlarsen): hack to phase out old load balancers
 			// which can't be updated to include type
 			// specification.
@@ -438,8 +417,8 @@ func matchIngressesToLoadBalancers(
 			for _, certificateARN := range certificateARNs {
 				i[certificateARN] = []*kubernetes.Ingress{ingress}
 			}
-			lbsByWAF[ingress.WAFWebACLID] = append(
-				lbsByWAF[ingress.WAFWebACLID],
+			loadBalancers = append(
+				loadBalancers,
 				&loadBalancer{
 					ingresses:        i,
 					scheme:           ingress.Scheme,
@@ -455,7 +434,7 @@ func matchIngressesToLoadBalancers(
 		}
 	}
 
-	return flattenLBs(lbsByWAF)
+	return loadBalancers
 }
 
 // addCloudWatchAlarms attaches CloudWatch Alarms to each load balancer model
