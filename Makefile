@@ -16,6 +16,7 @@ default: build.local
 ## clean: cleans the binary
 clean:
 	rm -rf build
+	rm -rf profile.cov
 
 ## test: runs go test
 test:
