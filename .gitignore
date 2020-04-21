@@ -33,3 +33,4 @@ vendor/
 Dockerfile.upstream
 /.GOPATH
 /bin
+profile.cov
