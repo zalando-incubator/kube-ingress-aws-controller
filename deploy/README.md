@@ -20,8 +20,8 @@
 ## Install
 
     # create a specific service account for skipper and ingress
-    % kubectl apply -f skipper_serviceaccount.yaml
-    % kubectl apply -f ingress-controller.yaml
+    % kubectl apply -f deploy/skipper-serviceaccount.yaml
+    % kubectl apply -f deploy/ingress-serviceaccount.yaml
     # install skipper an ingress http router
     % kubectl create -f deploy/skipper.yaml
     # install the controller which glues together AWS and the ingress implementation
