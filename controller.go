@@ -68,6 +68,7 @@ var (
 	loadBalancerType              string
 	nlbCrossZone                  bool
 	nlbHTTPEnabled                bool
+	ingressAPIVersion             string
 )
 
 func loadSettings() error {
@@ -130,6 +131,8 @@ func loadSettings() error {
 		Default("false").BoolVar(&nlbCrossZone)
 	kingpin.Flag("nlb-http-enabled", "Enable HTTP (port 80) for Network Load Balancers. By default this is disabled as NLB can't provide HTTP -> HTTPS redirect.").
 		Default("false").BoolVar(&nlbHTTPEnabled)
+	kingpin.Flag("ingress-api-version", "APIversion used for listing/updating ingresses.").
+		Default(kubernetes.IngressAPIVersionNetworking).EnumVar(&ingressAPIVersion, kubernetes.IngressAPIVersionNetworking, kubernetes.IngressAPIVersionExtensions)
 	kingpin.Parse()
 
 	blacklistCertArnMap = make(map[string]bool)
@@ -258,7 +261,7 @@ func main() {
 	}
 
 	log.Debug("kubernetes.NewAdapter")
-	kubeAdapter, err = kubernetes.NewAdapter(kubeConfig, ingressClassFiltersList, awsAdapter.SecurityGroupID(), sslPolicy, loadBalancerType, clusterLocalDomain, disableInstrumentedHttpClient)
+	kubeAdapter, err = kubernetes.NewAdapter(kubeConfig, ingressAPIVersion, ingressClassFiltersList, awsAdapter.SecurityGroupID(), sslPolicy, loadBalancerType, clusterLocalDomain, disableInstrumentedHttpClient)
 	if err != nil {
 		log.Fatal(err)
 	}

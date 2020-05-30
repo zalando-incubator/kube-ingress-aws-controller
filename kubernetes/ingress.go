@@ -61,8 +61,10 @@ type ingressLoadBalancer struct {
 const (
 	// ingressALBIPAddressType is used in external-dns, https://github.com/kubernetes-incubator/external-dns/pull/1079
 	ingressALBIPAddressType           = "alb.ingress.kubernetes.io/ip-address-type"
-	ingressListResource               = "/apis/extensions/v1beta1/ingresses"
-	ingressPatchStatusResource        = "/apis/extensions/v1beta1/namespaces/%s/ingresses/%s/status"
+	IngressAPIVersionExtensions       = "extensions/v1beta1"
+	IngressAPIVersionNetworking       = "networking.k8s.io/v1beta1"
+	ingressListResource               = "/apis/%s/ingresses"
+	ingressPatchStatusResource        = "/apis/%s/namespaces/%s/ingresses/%s/status"
 	ingressCertificateARNAnnotation   = "zalando.org/aws-load-balancer-ssl-cert"
 	ingressSchemeAnnotation           = "zalando.org/aws-load-balancer-scheme"
 	ingressSharedAnnotation           = "zalando.org/aws-load-balancer-shared"
@@ -81,8 +83,12 @@ func getAnnotationsString(annotations map[string]string, key string, defaultValu
 	return defaultValue
 }
 
-func listIngress(c client) (*ingressList, error) {
-	r, err := c.get(ingressListResource)
+type ingressClient struct {
+	apiVersion string
+}
+
+func (ic *ingressClient) listIngress(c client) (*ingressList, error) {
+	r, err := c.get(fmt.Sprintf(ingressListResource, ic.apiVersion))
 	if err != nil {
 		return nil, fmt.Errorf("failed to get ingress list: %v", err)
 	}
@@ -106,7 +112,7 @@ type patchIngressStatus struct {
 	Status ingressStatus `json:"status"`
 }
 
-func updateIngressLoadBalancer(c client, i *ingress, newHostName string) error {
+func (ic *ingressClient) updateIngressLoadBalancer(c client, i *ingress, newHostName string) error {
 	ns, name := i.Metadata.Namespace, i.Metadata.Name
 	for _, ingressLb := range i.Status.LoadBalancer.Ingress {
 		if ingressLb.Hostname == newHostName {
@@ -122,7 +128,7 @@ func updateIngressLoadBalancer(c client, i *ingress, newHostName string) error {
 		},
 	}
 
-	resource := fmt.Sprintf(ingressPatchStatusResource, ns, name)
+	resource := fmt.Sprintf(ingressPatchStatusResource, ic.apiVersion, ns, name)
 	payload, err := json.Marshal(patchStatus)
 	if err != nil {
 		return err
