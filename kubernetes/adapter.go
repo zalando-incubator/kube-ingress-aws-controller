@@ -12,6 +12,7 @@ import (
 
 type Adapter struct {
 	kubeClient                     client
+	ingressClient                  *ingressClient
 	ingressFilters                 []string
 	ingressDefaultSecurityGroup    string
 	ingressDefaultSSLPolicy        string
@@ -113,7 +114,7 @@ func (c *ConfigMap) String() string {
 }
 
 // NewAdapter creates an Adapter for Kubernetes using a given configuration.
-func NewAdapter(config *Config, ingressClassFilters []string, ingressDefaultSecurityGroup, ingressDefaultSSLPolicy, ingressDefaultLoadBalancerType, clusterLocalDomain string, disableInstrumentedHttpClient bool) (*Adapter, error) {
+func NewAdapter(config *Config, ingressAPIVersion string, ingressClassFilters []string, ingressDefaultSecurityGroup, ingressDefaultSSLPolicy, ingressDefaultLoadBalancerType, clusterLocalDomain string, disableInstrumentedHttpClient bool) (*Adapter, error) {
 	if config == nil || config.BaseURL == "" {
 		return nil, ErrInvalidConfiguration
 	}
@@ -123,6 +124,7 @@ func NewAdapter(config *Config, ingressClassFilters []string, ingressDefaultSecu
 	}
 	return &Adapter{
 		kubeClient:                     c,
+		ingressClient:                  &ingressClient{apiVersion: ingressAPIVersion},
 		ingressFilters:                 ingressClassFilters,
 		ingressDefaultSecurityGroup:    ingressDefaultSecurityGroup,
 		ingressDefaultSSLPolicy:        ingressDefaultSSLPolicy,
@@ -335,7 +337,7 @@ func (a *Adapter) ListResources() ([]*Ingress, error) {
 // object, that for the controller does not matter to be routegroup or
 // ingress..
 func (a *Adapter) ListIngress() ([]*Ingress, error) {
-	il, err := listIngress(a.kubeClient)
+	il, err := a.ingressClient.listIngress(a.kubeClient)
 	if err != nil {
 		return nil, err
 	}
@@ -400,7 +402,7 @@ func (a *Adapter) UpdateIngressLoadBalancer(ingress *Ingress, loadBalancerDNSNam
 	case ingressTypeRouteGroup:
 		return updateRoutegroupLoadBalancer(a.kubeClient, newRouteGroupForKube(ingress), loadBalancerDNSName)
 	case ingressTypeIngress:
-		return updateIngressLoadBalancer(a.kubeClient, newIngressForKube(ingress), loadBalancerDNSName)
+		return a.ingressClient.updateIngressLoadBalancer(a.kubeClient, newIngressForKube(ingress), loadBalancerDNSName)
 	}
 	return fmt.Errorf("Unknown resourceType '%s', failed to update Kubernetes resource", ingress.resourceType)
 }

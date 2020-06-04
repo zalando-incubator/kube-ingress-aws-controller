@@ -33,7 +33,18 @@ This information is used to manage AWS resources for each ingress objects of the
 
 ## Upgrade
 
-### <0.9.0 to >=v0.9.0
+### <v0.11.0 to >=0.11.0
+
+Version `v0.11.0` changes the default `apiVersion` used for fetching/updating
+ingresses from `extensions/v1beta1` to `networking.k8s.io/v1beta1`. For this to
+work the controller needs to have permissions to `list` `ingresses` and
+`update`, `patch` `ingresses/status` from the `networking.k8s.io` `apiGroup`.
+[See deployment example](deploy/ingress-serviceaccount.yaml). To fallback to
+the old behavior you can set the apiVersion via the `--ingress-api-version`
+flag. Value must be `extensions/v1beta1` or `networking.k8s.io/v1beta1`
+(default).
+
+### <v0.9.0 to >=v0.9.0
 
 Version `v0.9.0` changes the internal flag parsing library to
 [kingpin][kingpin] this means flags are now defined with `--` (two dashes)

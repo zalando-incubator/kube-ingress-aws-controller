@@ -21,12 +21,13 @@ func TestListIngresses(t *testing.T) {
 	}))
 	defer testServer.Close()
 	kubeClient, _ := newSimpleClient(&Config{BaseURL: testServer.URL}, false)
+	ingressClient := &ingressClient{apiVersion: IngressAPIVersionNetworking}
 	want := newList(
 		newIngress("fixture01", nil, "example.org", "fixture01"),
 		newIngress("fixture02", map[string]string{ingressClassAnnotation: "skipper"}, "skipper.example.org", "fixture02"),
 		newIngress("fixture03", map[string]string{ingressClassAnnotation: "other"}, "other.example.org", "fixture03"),
 	)
-	got, err := listIngress(kubeClient)
+	got, err := ingressClient.listIngress(kubeClient)
 	if err != nil {
 		t.Errorf("unexpected error from listIngresses: %v", err)
 	} else {
@@ -52,8 +53,9 @@ func TestListIngressFailureScenarios(t *testing.T) {
 			defer testServer.Close()
 			cfg := &Config{BaseURL: testServer.URL}
 			kubeClient, _ := newSimpleClient(cfg, false)
+			ingressClient := &ingressClient{apiVersion: IngressAPIVersionNetworking}
 
-			_, err := listIngress(kubeClient)
+			_, err := ingressClient.listIngress(kubeClient)
 			if err == nil {
 				t.Error("expected an error but list ingress call succeeded")
 			}
@@ -68,7 +70,7 @@ func TestUpdateIngressLoaBalancer(t *testing.T) {
 		"application/strategic-merge-patch+json": true,
 	}
 	testServer := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
-		if req.URL.Path != fmt.Sprintf(ingressPatchStatusResource, "foo", "bar") {
+		if req.URL.Path != fmt.Sprintf(ingressPatchStatusResource, IngressAPIVersionNetworking, "foo", "bar") {
 			t.Error("unexpected URL path sent by the client", req.URL.Path)
 		}
 		if req.Method != "PATCH" {
@@ -92,6 +94,7 @@ func TestUpdateIngressLoaBalancer(t *testing.T) {
 	defer testServer.Close()
 	cfg := &Config{BaseURL: testServer.URL}
 	kubeClient, _ := newSimpleClient(cfg, false)
+	ingressClient := &ingressClient{apiVersion: IngressAPIVersionNetworking}
 	ing := &ingress{
 		Metadata: kubeItemMetadata{
 			Namespace: "foo",
@@ -99,7 +102,7 @@ func TestUpdateIngressLoaBalancer(t *testing.T) {
 		},
 	}
 
-	if err := updateIngressLoadBalancer(kubeClient, ing, "example.org"); err != nil {
+	if err := ingressClient.updateIngressLoadBalancer(kubeClient, ing, "example.org"); err != nil {
 		t.Error("unexpected result from update call:", err)
 	}
 }
@@ -111,6 +114,7 @@ func TestUpdateIngressFailureScenarios(t *testing.T) {
 	defer testServer.Close()
 	cfg := &Config{BaseURL: testServer.URL}
 	kubeClient, _ := newSimpleClient(cfg, false)
+	ingressClient := &ingressClient{apiVersion: IngressAPIVersionNetworking}
 	for _, test := range []struct {
 		ing *ingress
 	}{
@@ -119,7 +123,7 @@ func TestUpdateIngressFailureScenarios(t *testing.T) {
 	} {
 		arn := getAnnotationsString(test.ing.Metadata.Annotations, ingressCertificateARNAnnotation, "<missing>")
 		t.Run(fmt.Sprintf("%v/%v", test.ing.Status.LoadBalancer.Ingress[0].Hostname, arn), func(t *testing.T) {
-			err := updateIngressLoadBalancer(kubeClient, test.ing, "example.com")
+			err := ingressClient.updateIngressLoadBalancer(kubeClient, test.ing, "example.com")
 			if err == nil {
 				t.Error("expected an error but update ingress call succeeded")
 			}
@@ -147,10 +151,10 @@ func TestAnnotationsFallback(t *testing.T) {
 
 func newList(ingresses ...*ingress) *ingressList {
 	ret := ingressList{
-		APIVersion: "extensions/v1beta1",
+		APIVersion: IngressAPIVersionNetworking,
 		Kind:       "IngressList",
 		Metadata: ingressListMetadata{
-			SelfLink:        "/apis/extensions/v1beta1/ingresses",
+			SelfLink:        fmt.Sprintf("/apis/%s/ingresses", IngressAPIVersionNetworking),
 			ResourceVersion: "42",
 		},
 		Items: ingresses,
@@ -165,7 +169,7 @@ func newIngress(name string, annotations map[string]string, hostname string, arn
 			Namespace:         "default",
 			Annotations:       annotations,
 			ResourceVersion:   "42",
-			SelfLink:          "/apis/extensions/v1beta1/namespaces/default/ingresses/" + name,
+			SelfLink:          fmt.Sprintf("/apis/%s/namespaces/default/ingresses/", IngressAPIVersionNetworking) + name,
 			Generation:        1,
 			UID:               name,
 			CreationTimestamp: time.Date(2016, 11, 29, 14, 53, 42, 0, time.UTC),
