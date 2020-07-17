@@ -524,7 +524,7 @@ func (a *Adapter) CreateStack(certificateARNs []string, scheme, securityGroup, o
 	return createStack(a.cloudformation, spec)
 }
 
-func (a *Adapter) UpdateStack(stackName string, certificateARNs map[string]time.Time, scheme, sslPolicy, ipAddressType, wafWebACLID string, cwAlarms CloudWatchAlarmList, loadBalancerType string, http2 bool) (string, error) {
+func (a *Adapter) UpdateStack(stackName string, certificateARNs map[string]time.Time, scheme, owner, sslPolicy, ipAddressType, wafWebACLID string, cwAlarms CloudWatchAlarmList, loadBalancerType string, http2 bool) (string, error) {
 	if _, ok := SSLPolicies[sslPolicy]; !ok {
 		return "", fmt.Errorf("invalid SSLPolicy '%s' defined", sslPolicy)
 	}
@@ -532,6 +532,7 @@ func (a *Adapter) UpdateStack(stackName string, certificateARNs map[string]time.
 	spec := &stackSpec{
 		name:            stackName,
 		scheme:          scheme,
+		ownerIngress:    owner,
 		certificateARNs: certificateARNs,
 		securityGroupID: a.SecurityGroupID(),
 		subnets:         a.FindLBSubnets(scheme),
