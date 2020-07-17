@@ -209,8 +209,8 @@ During startup phase EC2 filters are constructed as follows:
 For example:
 
 * `tag-key=test` will filter instances that have a tag named `test`, ignoring the value.
-* `tag:foo=bar' will filter instances that have a tag named `foo` with the value `bar`
-* `tag:abc=def,ghi' will filter instances that have a tag named `abc` with the value `def` OR `ghi`
+* `tag:foo=bar'` will filter instances that have a tag named `foo` with the value `bar`
+* `tag:abc=def,gh` will filter instances that have a tag named `abc` with the value `def` OR `ghi`
 * Default filter `tag:kubernetes.io/cluster/<cluster-id>=owned tag-key=k8s.io/role/node` filters instances
   that has tag `kubernetes.io/cluster/<cluster-id>` with value `owned` and have tag named `tag-key=k8s.io/role/node`.
 
