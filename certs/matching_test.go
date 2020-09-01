@@ -33,11 +33,9 @@ func createSelfsignedCert(t *testing.T, arn, domainName string, notBefore, notAf
 
 	caCert := x509.Certificate{
 		SerialNumber: big.NewInt(123),
-		Subject: pkix.Name{
-			CommonName: domainName,
-		},
-		NotBefore: notBefore,
-		NotAfter:  notAfter,
+		DNSNames:     []string{domainName},
+		NotBefore:    notBefore,
+		NotAfter:     notAfter,
 
 		KeyUsage:              x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature | x509.KeyUsageCertSign,
 		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
@@ -54,7 +52,7 @@ func createSelfsignedCert(t *testing.T, arn, domainName string, notBefore, notAf
 	return NewCertificate(arn, reparsed, nil)
 }
 
-func createDummyCertDetail(t *testing.T, arn, domainName string, altNames []string, notBefore, notAfter time.Time) *CertificateSummary {
+func createDummyCertDetail(t *testing.T, arn string, altNames []string, notBefore, notAfter time.Time) *CertificateSummary {
 	ca.Do(func() {
 		caKey, err := rsa.GenerateKey(rand.Reader, 2048)
 		if err != nil {
@@ -127,12 +125,9 @@ func createDummyCertDetail(t *testing.T, arn, domainName string, altNames []stri
 	}
 	cert := x509.Certificate{
 		SerialNumber: big.NewInt(3),
-		Subject: pkix.Name{
-			CommonName: domainName,
-		},
-		DNSNames:  altNames,
-		NotBefore: notBefore,
-		NotAfter:  notAfter,
+		DNSNames:     altNames,
+		NotBefore:    notBefore,
+		NotAfter:     notAfter,
 
 		KeyUsage:              x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature,
 		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
@@ -177,45 +172,43 @@ func TestFindBestMatchingCertificate(t *testing.T) {
 	dummyArn := "DUMMY"
 
 	// simple cert
-	validCert := createDummyCertDetail(t, dummyArn, validHostname, []string{}, before, after)
-	validWildcardCert := createDummyCertDetail(t, dummyArn, wildcardDomain, []string{}, before, after)
-	invalidDomainCert := createDummyCertDetail(t, dummyArn, invalidDomain, []string{}, before, after)
-	invalidWildcardCert := createDummyCertDetail(t, dummyArn, invalidWildcardDomain, []string{}, before, after)
+	validCert := createDummyCertDetail(t, dummyArn, []string{validHostname}, before, after)
+	validWildcardCert := createDummyCertDetail(t, dummyArn, []string{wildcardDomain}, before, after)
+	invalidDomainCert := createDummyCertDetail(t, dummyArn, []string{invalidDomain}, before, after)
+	invalidWildcardCert := createDummyCertDetail(t, dummyArn, []string{invalidWildcardDomain}, before, after)
 
 	// unverifiable cert
 	wrongCACert := createSelfsignedCert(t, dummyArn, validHostname, before, after)
 
 	// AlternateName certs
-	saSingleValidCert := createDummyCertDetail(t, dummyArn, "", []string{validHostname}, before, after)
-	saCnWrongValidCert := createDummyCertDetail(t, dummyArn, invalidHostname, []string{validHostname}, before, after)
-	saValidCert := createDummyCertDetail(t, dummyArn, "", []string{validHostname, invalidDomain, invalidHostname, invalidWildcardDomain}, before, after)
-	saValidWildcardCert := createDummyCertDetail(t, dummyArn, "", []string{invalidDomain, invalidHostname, invalidWildcardDomain, wildcardDomain}, before, after)
-	saMultipleValidCert := createDummyCertDetail(t, dummyArn, "", []string{wildcardDomain, validHostname, invalidDomain, invalidHostname, invalidWildcardDomain}, before, after)
+	saValidCert := createDummyCertDetail(t, dummyArn, []string{validHostname, invalidDomain, invalidHostname, invalidWildcardDomain}, before, after)
+	saValidWildcardCert := createDummyCertDetail(t, dummyArn, []string{invalidDomain, invalidHostname, invalidWildcardDomain, wildcardDomain}, before, after)
+	saMultipleValidCert := createDummyCertDetail(t, dummyArn, []string{wildcardDomain, validHostname, invalidDomain, invalidHostname, invalidWildcardDomain}, before, after)
 
 	// simple invalid time cases
-	invalidTimeCert1 := createDummyCertDetail(t, dummyArn, domain, []string{}, after, before)
-	invalidTimeCert2 := createDummyCertDetail(t, dummyArn, domain, []string{}, after, after)
-	invalidTimeCert3 := createDummyCertDetail(t, dummyArn, domain, []string{}, before, before)
+	invalidTimeCert1 := createDummyCertDetail(t, dummyArn, []string{domain}, after, before)
+	invalidTimeCert2 := createDummyCertDetail(t, dummyArn, []string{domain}, after, after)
+	invalidTimeCert3 := createDummyCertDetail(t, dummyArn, []string{domain}, before, before)
 
 	// tricky times with multiple valid certs
-	validCertForOneDay := createDummyCertDetail(t, dummyArn, validHostname, []string{}, before, now.Add(time.Hour*24))
-	validCertForSixDays := createDummyCertDetail(t, dummyArn, validHostname, []string{}, before, now.Add(time.Hour*24*6))
-	validCertForTenDays := createDummyCertDetail(t, dummyArn, validHostname, []string{}, before, now.Add(time.Hour*24*6))
-	validCertForOneYear := createDummyCertDetail(t, dummyArn, validHostname, []string{}, before, now.Add(time.Hour*24*365))
-	validCertSinceOneDay := createDummyCertDetail(t, dummyArn, validHostname, []string{}, now.Add(-time.Hour*24), after)
-	validCertSinceSixDays := createDummyCertDetail(t, dummyArn, validHostname, []string{}, now.Add(-time.Hour*24*6), after)
-	validCertSinceOneYear := createDummyCertDetail(t, dummyArn, validHostname, []string{}, now.Add(-time.Hour*24*365), after)
-	validCertForOneYearSinceOneDay := createDummyCertDetail(t, dummyArn, validHostname, []string{}, now.Add(-time.Hour*24), now.Add(time.Hour*24*365))
-	validCertForOneYearSinceSixDays := createDummyCertDetail(t, dummyArn, validHostname, []string{}, now.Add(-time.Hour*24*6), now.Add(time.Hour*24*365))
-	validCertForOneYearSinceOneYear := createDummyCertDetail(t, dummyArn, validHostname, []string{}, now.Add(-time.Hour*24*365), now.Add(time.Hour*24*365))
+	validCertForOneDay := createDummyCertDetail(t, dummyArn, []string{validHostname}, before, now.Add(time.Hour*24))
+	validCertForSixDays := createDummyCertDetail(t, dummyArn, []string{validHostname}, before, now.Add(time.Hour*24*6))
+	validCertForTenDays := createDummyCertDetail(t, dummyArn, []string{validHostname}, before, now.Add(time.Hour*24*6))
+	validCertForOneYear := createDummyCertDetail(t, dummyArn, []string{validHostname}, before, now.Add(time.Hour*24*365))
+	validCertSinceOneDay := createDummyCertDetail(t, dummyArn, []string{validHostname}, now.Add(-time.Hour*24), after)
+	validCertSinceSixDays := createDummyCertDetail(t, dummyArn, []string{validHostname}, now.Add(-time.Hour*24*6), after)
+	validCertSinceOneYear := createDummyCertDetail(t, dummyArn, []string{validHostname}, now.Add(-time.Hour*24*365), after)
+	validCertForOneYearSinceOneDay := createDummyCertDetail(t, dummyArn, []string{validHostname}, now.Add(-time.Hour*24), now.Add(time.Hour*24*365))
+	validCertForOneYearSinceSixDays := createDummyCertDetail(t, dummyArn, []string{validHostname}, now.Add(-time.Hour*24*6), now.Add(time.Hour*24*365))
+	validCertForOneYearSinceOneYear := createDummyCertDetail(t, dummyArn, []string{validHostname}, now.Add(-time.Hour*24*365), now.Add(time.Hour*24*365))
 
-	validCertFor6dUntill1y := createDummyCertDetail(t, dummyArn, validHostname, []string{}, now.Add(-time.Hour*24*6), now.Add(time.Hour*24*365))
-	validCertFor6dUntill6d := createDummyCertDetail(t, dummyArn, validHostname, []string{}, now.Add(-time.Hour*24*6), now.Add(time.Hour*24*6))
-	validCertFor6dUntill10d := createDummyCertDetail(t, dummyArn, validHostname, []string{}, now.Add(-time.Hour*24*6), now.Add(time.Hour*24*10))
-	validCertFor1dUntill6d := createDummyCertDetail(t, dummyArn, validHostname, []string{}, now.Add(-time.Hour*24*1), now.Add(time.Hour*24*6))
-	validCertFor1dUntill7d1sLess := createDummyCertDetail(t, dummyArn, validHostname, []string{}, now.Add(-time.Hour*24*1), now.Add(time.Hour*24*7-time.Second*1))
-	validCertFor1dUntill7d1s := createDummyCertDetail(t, dummyArn, validHostname, []string{}, now.Add(-time.Hour*24*1), now.Add(time.Hour*24*7+time.Second*1))
-	validCertFor1dUntill10d := createDummyCertDetail(t, dummyArn, validHostname, []string{}, now.Add(-time.Hour*24*1), now.Add(time.Hour*24*10))
+	validCertFor6dUntill1y := createDummyCertDetail(t, dummyArn, []string{validHostname}, now.Add(-time.Hour*24*6), now.Add(time.Hour*24*365))
+	validCertFor6dUntill6d := createDummyCertDetail(t, dummyArn, []string{validHostname}, now.Add(-time.Hour*24*6), now.Add(time.Hour*24*6))
+	validCertFor6dUntill10d := createDummyCertDetail(t, dummyArn, []string{validHostname}, now.Add(-time.Hour*24*6), now.Add(time.Hour*24*10))
+	validCertFor1dUntill6d := createDummyCertDetail(t, dummyArn, []string{validHostname}, now.Add(-time.Hour*24*1), now.Add(time.Hour*24*6))
+	validCertFor1dUntill7d1sLess := createDummyCertDetail(t, dummyArn, []string{validHostname}, now.Add(-time.Hour*24*1), now.Add(time.Hour*24*7-time.Second*1))
+	validCertFor1dUntill7d1s := createDummyCertDetail(t, dummyArn, []string{validHostname}, now.Add(-time.Hour*24*1), now.Add(time.Hour*24*7+time.Second*1))
+	validCertFor1dUntill10d := createDummyCertDetail(t, dummyArn, []string{validHostname}, now.Add(-time.Hour*24*1), now.Add(time.Hour*24*10))
 
 	for _, ti := range []struct {
 		msg       string
@@ -284,18 +277,6 @@ func TestFindBestMatchingCertificate(t *testing.T) {
 			cert:      []*CertificateSummary{invalidWildcardCert, invalidDomainCert},
 			expect:    nil,
 			condition: certInvalidMatchFunction,
-		}, {
-			msg:       "Not found best match of AlternateName cert",
-			hostname:  validHostname,
-			cert:      []*CertificateSummary{saSingleValidCert},
-			expect:    saSingleValidCert,
-			condition: certValidMatchFunction,
-		}, {
-			msg:       "Not found best match of AlternateName cert with wrong Cn",
-			hostname:  validHostname,
-			cert:      []*CertificateSummary{saCnWrongValidCert},
-			expect:    saCnWrongValidCert,
-			condition: certValidMatchFunction,
 		}, {
 			msg:       "Not found best match of AlternateName cert with one valid and multiple invalid names",
 			hostname:  validHostname,
