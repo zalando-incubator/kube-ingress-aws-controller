@@ -145,6 +145,7 @@ type stackSpec struct {
 	nlbCrossZone                 bool
 	nlbHTTPEnabled               bool
 	http2                        bool
+	tags                         map[string]string
 }
 
 type healthCheck struct {
@@ -158,6 +159,13 @@ func createStack(svc cloudformationiface.CloudFormationAPI, spec *stackSpec) (st
 	if err != nil {
 		return "", err
 	}
+
+	stackTags := map[string]string{
+		kubernetesCreatorTag:                spec.controllerID,
+		clusterIDTagPrefix + spec.clusterID: resourceLifecycleOwned,
+	}
+
+	tags := mergeTags(spec.tags, stackTags)
 
 	params := &cloudformation.CreateStackInput{
 		StackName: aws.String(spec.name),
@@ -173,10 +181,7 @@ func createStack(svc cloudformationiface.CloudFormationAPI, spec *stackSpec) (st
 			cfParam(parameterLoadBalancerTypeParameter, spec.loadbalancerType),
 			cfParam(parameterHTTP2Parameter, fmt.Sprintf("%t", spec.http2)),
 		},
-		Tags: []*cloudformation.Tag{
-			cfTag(kubernetesCreatorTag, spec.controllerID),
-			cfTag(clusterIDTagPrefix+spec.clusterID, resourceLifecycleOwned),
-		},
+		Tags:                        tagMapToCloudformationTags(tags),
 		TemplateBody:                aws.String(template),
 		TimeoutInMinutes:            aws.Int64(int64(spec.timeoutInMinutes)),
 		EnableTerminationProtection: aws.Bool(spec.stackTerminationProtection),
@@ -223,6 +228,13 @@ func updateStack(svc cloudformationiface.CloudFormationAPI, spec *stackSpec) (st
 		return "", err
 	}
 
+	stackTags := map[string]string{
+		kubernetesCreatorTag:                spec.controllerID,
+		clusterIDTagPrefix + spec.clusterID: resourceLifecycleOwned,
+	}
+
+	tags := mergeTags(spec.tags, stackTags)
+
 	params := &cloudformation.UpdateStackInput{
 		StackName: aws.String(spec.name),
 		Parameters: []*cloudformation.Parameter{
@@ -236,10 +248,7 @@ func updateStack(svc cloudformationiface.CloudFormationAPI, spec *stackSpec) (st
 			cfParam(parameterLoadBalancerTypeParameter, spec.loadbalancerType),
 			cfParam(parameterHTTP2Parameter, fmt.Sprintf("%t", spec.http2)),
 		},
-		Tags: []*cloudformation.Tag{
-			cfTag(kubernetesCreatorTag, spec.controllerID),
-			cfTag(clusterIDTagPrefix+spec.clusterID, resourceLifecycleOwned),
-		},
+		Tags:         tagMapToCloudformationTags(tags),
 		TemplateBody: aws.String(template),
 	}
 
@@ -288,6 +297,28 @@ func updateStack(svc cloudformationiface.CloudFormationAPI, spec *stackSpec) (st
 	}
 
 	return aws.StringValue(resp.StackId), nil
+}
+
+func mergeTags(tags ...map[string]string) map[string]string {
+	mergedTags := make(map[string]string)
+	for _, tagMap := range tags {
+		for k, v := range tagMap {
+			mergedTags[k] = v
+		}
+	}
+	return mergedTags
+}
+
+func tagMapToCloudformationTags(tags map[string]string) []*cloudformation.Tag {
+	cfTags := make([]*cloudformation.Tag, 0, len(tags))
+	for k, v := range tags {
+		tag := &cloudformation.Tag{
+			Key:   aws.String(k),
+			Value: aws.String(v),
+		}
+		cfTags = append(cfTags, tag)
+	}
+	return cfTags
 }
 
 func cfParam(key, value string) *cloudformation.Parameter {

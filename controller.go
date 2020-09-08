@@ -47,6 +47,7 @@ var (
 	disableInstrumentedHttpClient bool
 	certTTL                       time.Duration
 	stackTerminationProtection    bool
+	additionalStackTags           = make(map[string]string)
 	idleConnectionTimeout         time.Duration
 	ingressClassFilters           string
 	controllerID                  string
@@ -89,6 +90,8 @@ func loadSettings() error {
 		Default(defaultInstrumentedHttpClient).BoolVar(&disableInstrumentedHttpClient)
 	kingpin.Flag("stack-termination-protection", "enables stack termination protection for the stacks managed by the controller.").
 		Default("false").BoolVar(&stackTerminationProtection)
+	kingpin.Flag("additional-stack-tags", "set additional custom tags on the Cloudformation Stacks managed by the controller.").
+		StringMapVar(&additionalStackTags)
 	kingpin.Flag("cert-ttl-timeout", "sets the timeout of how long a certificate is kept on an old ALB to be decommissioned.").
 		Default(defaultCertTTL).DurationVar(&certTTL)
 	kingpin.Flag("health-check-path", "sets the health check path for the created target groups").
@@ -231,7 +234,8 @@ func main() {
 		WithHTTPRedirectToHTTPS(httpRedirectToHTTPS).
 		WithNLBCrossZone(nlbCrossZone).
 		WithNLBHTTPEnabled(nlbHTTPEnabled).
-		WithCustomFilter(customFilter)
+		WithCustomFilter(customFilter).
+		WithStackTags(additionalStackTags)
 
 	log.Debug("certs.NewCachingProvider")
 	certificatesProvider, err := certs.NewCachingProvider(

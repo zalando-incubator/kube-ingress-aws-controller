@@ -50,6 +50,7 @@ type Adapter struct {
 	singleInstances            map[string]*instanceDetails
 	obsoleteInstances          []string
 	stackTerminationProtection bool
+	stackTags                  map[string]string
 	controllerID               string
 	sslPolicy                  string
 	ipAddressType              string
@@ -280,6 +281,13 @@ func (a *Adapter) WithSslPolicy(policy string) *Adapter {
 // the stack termination protection value.
 func (a *Adapter) WithStackTerminationProtection(terminationProtection bool) *Adapter {
 	a.stackTerminationProtection = terminationProtection
+	return a
+}
+
+// WithStackTags returns the receiver adapter after setting the stackTags
+// value.
+func (a *Adapter) WithStackTags(tags map[string]string) *Adapter {
+	a.stackTags = tags
 	return a
 }
 
@@ -519,6 +527,7 @@ func (a *Adapter) CreateStack(certificateARNs []string, scheme, securityGroup, o
 		nlbCrossZone:                 a.nlbCrossZone,
 		nlbHTTPEnabled:               a.nlbHTTPEnabled,
 		http2:                        http2,
+		tags:                         a.stackTags,
 	}
 
 	return createStack(a.cloudformation, spec)
@@ -559,6 +568,7 @@ func (a *Adapter) UpdateStack(stackName string, certificateARNs map[string]time.
 		nlbCrossZone:                 a.nlbCrossZone,
 		nlbHTTPEnabled:               a.nlbHTTPEnabled,
 		http2:                        http2,
+		tags:                         a.stackTags,
 	}
 
 	return updateStack(a.cloudformation, spec)
