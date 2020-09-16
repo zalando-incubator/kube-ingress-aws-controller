@@ -44,6 +44,7 @@ type Adapter struct {
 	targetPort                 uint
 	creationTimeout            time.Duration
 	idleConnectionTimeout      time.Duration
+	deregistrationDelayTimeout time.Duration
 	TargetedAutoScalingGroups  map[string]*autoScalingGroupDetails
 	OwnedAutoScalingGroups     map[string]*autoScalingGroupDetails
 	ec2Details                 map[string]*instanceDetails
@@ -80,6 +81,7 @@ const (
 	DefaultCertificateUpdateInterval = 30 * time.Minute
 	DefaultCreationTimeout           = 5 * time.Minute
 	DefaultIdleConnectionTimeout     = 1 * time.Minute
+	DefaultDeregistrationTimeout     = 5 * time.Minute
 	DefaultControllerID              = "kube-ingress-aws-controller"
 	// DefaultMaxCertsPerALB defines the maximum number of certificates per
 	// ALB. AWS limit is 25 but one space is needed to work around
@@ -259,6 +261,17 @@ func (a *Adapter) WithCreationTimeout(interval time.Duration) *Adapter {
 func (a *Adapter) WithIdleConnectionTimeout(interval time.Duration) *Adapter {
 	if 1*time.Second <= interval && interval <= 4000*time.Second {
 		a.idleConnectionTimeout = interval
+	}
+	return a
+}
+
+// WithDeregistrationDelayTimeout returns the receiver adapter after
+// changing the deregistration delay timeout for the managed target
+// groups.
+// https://docs.aws.amazon.com/elasticloadbalancing/latest/network/load-balancer-target-groups.html#deregistration-delay
+func (a *Adapter) WithDeregistrationDelayTimeout(interval time.Duration) *Adapter {
+	if 1*time.Second <= interval && interval <= 3600*time.Second {
+		a.deregistrationDelayTimeout = interval
 	}
 	return a
 }
@@ -511,23 +524,24 @@ func (a *Adapter) CreateStack(certificateARNs []string, scheme, securityGroup, o
 			port:     a.healthCheckPort,
 			interval: a.healthCheckInterval,
 		},
-		targetPort:                   a.targetPort,
-		timeoutInMinutes:             uint(a.creationTimeout.Minutes()),
-		stackTerminationProtection:   a.stackTerminationProtection,
-		idleConnectionTimeoutSeconds: uint(a.idleConnectionTimeout.Seconds()),
-		controllerID:                 a.controllerID,
-		sslPolicy:                    sslPolicy,
-		ipAddressType:                ipAddressType,
-		loadbalancerType:             loadBalancerType,
-		albLogsS3Bucket:              a.albLogsS3Bucket,
-		albLogsS3Prefix:              a.albLogsS3Prefix,
-		wafWebAclId:                  wafWebACLID,
-		cwAlarms:                     cwAlarms,
-		httpRedirectToHTTPS:          a.httpRedirectToHTTPS,
-		nlbCrossZone:                 a.nlbCrossZone,
-		nlbHTTPEnabled:               a.nlbHTTPEnabled,
-		http2:                        http2,
-		tags:                         a.stackTags,
+		targetPort:                        a.targetPort,
+		timeoutInMinutes:                  uint(a.creationTimeout.Minutes()),
+		stackTerminationProtection:        a.stackTerminationProtection,
+		idleConnectionTimeoutSeconds:      uint(a.idleConnectionTimeout.Seconds()),
+		deregistrationDelayTimeoutSeconds: uint(a.deregistrationDelayTimeout.Seconds()),
+		controllerID:                      a.controllerID,
+		sslPolicy:                         sslPolicy,
+		ipAddressType:                     ipAddressType,
+		loadbalancerType:                  loadBalancerType,
+		albLogsS3Bucket:                   a.albLogsS3Bucket,
+		albLogsS3Prefix:                   a.albLogsS3Prefix,
+		wafWebAclId:                       wafWebACLID,
+		cwAlarms:                          cwAlarms,
+		httpRedirectToHTTPS:               a.httpRedirectToHTTPS,
+		nlbCrossZone:                      a.nlbCrossZone,
+		nlbHTTPEnabled:                    a.nlbHTTPEnabled,
+		http2:                             http2,
+		tags:                              a.stackTags,
 	}
 
 	return createStack(a.cloudformation, spec)
@@ -552,23 +566,24 @@ func (a *Adapter) UpdateStack(stackName string, certificateARNs map[string]time.
 			port:     a.healthCheckPort,
 			interval: a.healthCheckInterval,
 		},
-		targetPort:                   a.targetPort,
-		timeoutInMinutes:             uint(a.creationTimeout.Minutes()),
-		stackTerminationProtection:   a.stackTerminationProtection,
-		idleConnectionTimeoutSeconds: uint(a.idleConnectionTimeout.Seconds()),
-		controllerID:                 a.controllerID,
-		sslPolicy:                    sslPolicy,
-		ipAddressType:                ipAddressType,
-		loadbalancerType:             loadBalancerType,
-		albLogsS3Bucket:              a.albLogsS3Bucket,
-		albLogsS3Prefix:              a.albLogsS3Prefix,
-		wafWebAclId:                  wafWebACLID,
-		cwAlarms:                     cwAlarms,
-		httpRedirectToHTTPS:          a.httpRedirectToHTTPS,
-		nlbCrossZone:                 a.nlbCrossZone,
-		nlbHTTPEnabled:               a.nlbHTTPEnabled,
-		http2:                        http2,
-		tags:                         a.stackTags,
+		targetPort:                        a.targetPort,
+		timeoutInMinutes:                  uint(a.creationTimeout.Minutes()),
+		stackTerminationProtection:        a.stackTerminationProtection,
+		idleConnectionTimeoutSeconds:      uint(a.idleConnectionTimeout.Seconds()),
+		deregistrationDelayTimeoutSeconds: uint(a.deregistrationDelayTimeout.Seconds()),
+		controllerID:                      a.controllerID,
+		sslPolicy:                         sslPolicy,
+		ipAddressType:                     ipAddressType,
+		loadbalancerType:                  loadBalancerType,
+		albLogsS3Bucket:                   a.albLogsS3Bucket,
+		albLogsS3Prefix:                   a.albLogsS3Prefix,
+		wafWebAclId:                       wafWebACLID,
+		cwAlarms:                          cwAlarms,
+		httpRedirectToHTTPS:               a.httpRedirectToHTTPS,
+		nlbCrossZone:                      a.nlbCrossZone,
+		nlbHTTPEnabled:                    a.nlbHTTPEnabled,
+		http2:                             http2,
+		tags:                              a.stackTags,
 	}
 
 	return updateStack(a.cloudformation, spec)

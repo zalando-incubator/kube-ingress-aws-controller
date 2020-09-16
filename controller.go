@@ -18,7 +18,7 @@ import (
 	"github.com/zalando-incubator/kube-ingress-aws-controller/aws"
 	"github.com/zalando-incubator/kube-ingress-aws-controller/certs"
 	"github.com/zalando-incubator/kube-ingress-aws-controller/kubernetes"
-	"gopkg.in/alecthomas/kingpin.v2"
+	kingpin "gopkg.in/alecthomas/kingpin.v2"
 )
 
 const (
@@ -49,6 +49,7 @@ var (
 	stackTerminationProtection    bool
 	additionalStackTags           = make(map[string]string)
 	idleConnectionTimeout         time.Duration
+	deregistrationDelayTimeout    time.Duration
 	ingressClassFilters           string
 	controllerID                  string
 	clusterLocalDomain            string
@@ -104,6 +105,8 @@ func loadSettings() error {
 		Default(aws.DefaultHealthCheckInterval.String()).DurationVar(&healthCheckInterval)
 	kingpin.Flag("idle-connection-timeout", "sets the idle connection timeout of all ALBs. The flag accepts a value acceptable to time.ParseDuration and are between 1s and 4000s.").
 		Default(aws.DefaultIdleConnectionTimeout.String()).DurationVar(&idleConnectionTimeout)
+	kingpin.Flag("deregistration-delay-timeout", "sets the deregistration delay timeout of all target groups.  The flag accepts a value acceptable to time.ParseDuration that is between 1s and 3600s.").
+		Default(aws.DefaultDeregistrationTimeout.String()).DurationVar(&deregistrationDelayTimeout)
 	kingpin.Flag("metrics-address", "defines where to serve metrics").Default(":7979").StringVar(&metricsAddress)
 	kingpin.Flag("ingress-class-filter", "optional comma-seperated list of kubernetes.io/ingress.class annotation values to filter behaviour on.").
 		StringVar(&ingressClassFilters)
@@ -226,6 +229,7 @@ func main() {
 		WithCreationTimeout(creationTimeout).
 		WithStackTerminationProtection(stackTerminationProtection).
 		WithIdleConnectionTimeout(idleConnectionTimeout).
+		WithDeregistrationDelayTimeout(deregistrationDelayTimeout).
 		WithControllerID(controllerID).
 		WithSslPolicy(sslPolicy).
 		WithIpAddressType(ipAddressType).
