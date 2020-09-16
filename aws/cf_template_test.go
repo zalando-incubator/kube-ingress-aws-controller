@@ -192,6 +192,23 @@ func TestGenerateTemplate(t *testing.T) {
 				require.NotNil(t, props.WebACLID)
 			},
 		},
+		{
+			name: "deregistration timeout is set correctly",
+			spec: &stackSpec{
+				deregistrationDelayTimeoutSeconds: 1234,
+			},
+			validate: func(t *testing.T, template *cloudformation.Template) {
+				require.NotNil(t, template.Resources["TG"])
+				props := template.Resources["TG"].Properties.(*cloudformation.ElasticLoadBalancingV2TargetGroup)
+				expected := cloudformation.ElasticLoadBalancingV2TargetGroupTargetGroupAttributeList{
+					{
+						Key:   cloudformation.String("deregistration_delay.timeout_seconds"),
+						Value: cloudformation.String("1234"),
+					},
+				}
+				require.Equal(t, &expected, props.TargetGroupAttributes)
+			},
+		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			generated, err := generateTemplate(test.spec)

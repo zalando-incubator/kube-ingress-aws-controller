@@ -265,7 +265,16 @@ func generateTemplate(spec *stackSpec) (string, error) {
 	}
 
 	template.AddResource("LB", lb)
+
+	targetGroupAttributes := cloudformation.ElasticLoadBalancingV2TargetGroupTargetGroupAttributeList{
+		{
+			Key:   cloudformation.String("deregistration_delay.timeout_seconds"),
+			Value: cloudformation.String(fmt.Sprintf("%d", spec.deregistrationDelayTimeoutSeconds)),
+		},
+	}
 	template.AddResource("TG", &cloudformation.ElasticLoadBalancingV2TargetGroup{
+		TargetGroupAttributes: &targetGroupAttributes,
+
 		HealthCheckIntervalSeconds: cloudformation.Ref(parameterTargetGroupHealthCheckIntervalParameter).Integer(),
 		HealthCheckPath:            cloudformation.Ref(parameterTargetGroupHealthCheckPathParameter).String(),
 		HealthCheckPort:            cloudformation.Ref(parameterTargetGroupHealthCheckPortParameter).String(),

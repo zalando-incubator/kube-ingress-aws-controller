@@ -119,33 +119,34 @@ const (
 )
 
 type stackSpec struct {
-	name                         string
-	scheme                       string
-	ownerIngress                 string
-	subnets                      []string
-	certificateARNs              map[string]time.Time
-	securityGroupID              string
-	clusterID                    string
-	vpcID                        string
-	healthCheck                  *healthCheck
-	targetPort                   uint
-	timeoutInMinutes             uint
-	customTemplate               string
-	stackTerminationProtection   bool
-	idleConnectionTimeoutSeconds uint
-	controllerID                 string
-	sslPolicy                    string
-	ipAddressType                string
-	loadbalancerType             string
-	albLogsS3Bucket              string
-	albLogsS3Prefix              string
-	wafWebAclId                  string
-	cwAlarms                     CloudWatchAlarmList
-	httpRedirectToHTTPS          bool
-	nlbCrossZone                 bool
-	nlbHTTPEnabled               bool
-	http2                        bool
-	tags                         map[string]string
+	name                              string
+	scheme                            string
+	ownerIngress                      string
+	subnets                           []string
+	certificateARNs                   map[string]time.Time
+	securityGroupID                   string
+	clusterID                         string
+	vpcID                             string
+	healthCheck                       *healthCheck
+	targetPort                        uint
+	timeoutInMinutes                  uint
+	customTemplate                    string
+	stackTerminationProtection        bool
+	idleConnectionTimeoutSeconds      uint
+	deregistrationDelayTimeoutSeconds uint
+	controllerID                      string
+	sslPolicy                         string
+	ipAddressType                     string
+	loadbalancerType                  string
+	albLogsS3Bucket                   string
+	albLogsS3Prefix                   string
+	wafWebAclId                       string
+	cwAlarms                          CloudWatchAlarmList
+	httpRedirectToHTTPS               bool
+	nlbCrossZone                      bool
+	nlbHTTPEnabled                    bool
+	http2                             bool
+	tags                              map[string]string
 }
 
 type healthCheck struct {
