@@ -69,6 +69,8 @@ type manifest struct {
 	subnets       []*subnetDetails
 	filters       []*ec2.Filter
 	asgFilters    map[string][]string
+	clusterID     string
+	vpcID         string
 }
 
 type configProviderFunc func() client.ConfigProvider
@@ -174,7 +176,7 @@ func newConfigProvider(debug, disableInstrumentedHttpClient bool) client.ConfigP
 // Before returning there is a discovery process for VPC and EC2 details. It tries to find the Auto Scaling Group and
 // Security Group that should be used for newly created Load Balancers. If any of those critical steps fail
 // an appropriate error is returned.
-func NewAdapter(newControllerID string, debug, disableInstrumentedHttpClient bool) (adapter *Adapter, err error) {
+func NewAdapter(clusterID, newControllerID, vpcID string, debug, disableInstrumentedHttpClient bool) (adapter *Adapter, err error) {
 	p := newConfigProvider(debug, disableInstrumentedHttpClient)
 	adapter = &Adapter{
 		ec2:                 ec2.New(p),
@@ -202,7 +204,7 @@ func NewAdapter(newControllerID string, debug, disableInstrumentedHttpClient boo
 		customFilter:        DefaultCustomFilter,
 	}
 
-	adapter.manifest, err = buildManifest(adapter)
+	adapter.manifest, err = buildManifest(adapter, clusterID, vpcID)
 	if err != nil {
 		return nil, err
 	}
@@ -356,17 +358,20 @@ func (a *Adapter) WithCustomFilter(customFilter string) *Adapter {
 // ClusterID returns the ClusterID tag that all resources from the same Kubernetes cluster share.
 // It's taken from the current ec2 instance.
 func (a *Adapter) ClusterID() string {
-	return a.manifest.instance.clusterID()
+	return a.manifest.clusterID
 }
 
 // VpcID returns the VPC ID the current node belongs to.
 func (a *Adapter) VpcID() string {
-	return a.manifest.instance.vpcID
+	return a.manifest.vpcID
 }
 
 // InstanceID returns the instance ID the current node is running on.
 func (a *Adapter) InstanceID() string {
-	return a.manifest.instance.id
+	if a.manifest != nil && a.manifest.instance != nil {
+		return a.manifest.instance.id
+	}
+	return "<none>"
 }
 
 // S3Bucket returns the S3 Bucket to be logged to
@@ -609,22 +614,25 @@ func (a *Adapter) DeleteStack(stack *Stack) error {
 	return deleteStack(a.cloudformation, stack.Name)
 }
 
-func buildManifest(awsAdapter *Adapter) (*manifest, error) {
+func buildManifest(awsAdapter *Adapter, clusterID, vpcID string) (*manifest, error) {
 	var err error
+	var instanceDetails *instanceDetails
 
-	log.Debug("aws.ec2metadata.GetMetadata")
-	myID, err := awsAdapter.ec2metadata.GetMetadata("instance-id")
-	if err != nil {
-		return nil, err
+	if clusterID == "" || vpcID == "" {
+		log.Debug("aws.ec2metadata.GetMetadata")
+		myID, err := awsAdapter.ec2metadata.GetMetadata("instance-id")
+		if err != nil {
+			return nil, err
+		}
+
+		log.Debug("aws.getInstanceDetails")
+		instanceDetails, err = getInstanceDetails(awsAdapter.ec2, myID)
+		if err != nil {
+			return nil, err
+		}
+		clusterID = instanceDetails.clusterID()
+		vpcID = instanceDetails.vpcID
 	}
-
-	log.Debug("aws.getInstanceDetails")
-	instanceDetails, err := getInstanceDetails(awsAdapter.ec2, myID)
-	if err != nil {
-		return nil, err
-	}
-
-	clusterID := instanceDetails.clusterID()
 
 	log.Debug("aws.findSecurityGroupWithClusterID")
 	securityGroupDetails, err := findSecurityGroupWithClusterID(awsAdapter.ec2, clusterID, awsAdapter.controllerID)
@@ -633,7 +641,7 @@ func buildManifest(awsAdapter *Adapter) (*manifest, error) {
 	}
 
 	log.Debug("aws.getSubnets")
-	subnets, err := getSubnets(awsAdapter.ec2, instanceDetails.vpcID, clusterID)
+	subnets, err := getSubnets(awsAdapter.ec2, vpcID, clusterID)
 	if err != nil {
 		return nil, err
 	}
@@ -647,6 +655,8 @@ func buildManifest(awsAdapter *Adapter) (*manifest, error) {
 		subnets:       subnets,
 		filters:       awsAdapter.parseFilters(clusterID),
 		asgFilters:    awsAdapter.parseAutoscaleFilterTags(clusterID),
+		clusterID:     clusterID,
+		vpcID:         vpcID,
 	}, nil
 }
 

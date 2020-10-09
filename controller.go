@@ -52,6 +52,8 @@ var (
 	deregistrationDelayTimeout    time.Duration
 	ingressClassFilters           string
 	controllerID                  string
+	clusterID                     string
+	vpcID                         string
 	clusterLocalDomain            string
 	maxCertsPerALB                int
 	sslPolicy                     string
@@ -112,6 +114,10 @@ func loadSettings() error {
 		StringVar(&ingressClassFilters)
 	kingpin.Flag("controller-id", "controller ID used to differentiate resources from multiple aws ingress controller instances").
 		Default(aws.DefaultControllerID).StringVar(&controllerID)
+	kingpin.Flag("cluster-id", "ID of the Kubernetes cluster used to lookup cluster related resources tagged with `kubernetes.io/cluster/<cluster-id>` tags. Auto discovered from the EC2 instance where the controller is running if not specified.").
+		StringVar(&clusterID)
+	kingpin.Flag("vpc-id", "VPC ID for where the cluster is running. Used to lookup relevant subnets. Auto discovered from the EC2 instance where the controller is running if not specified.").
+		StringVar(&vpcID)
 	kingpin.Flag("cluster-local-domain", "Cluster local domain is used to detect hostnames, that won't trigger a creation of an AWS load balancer, empty string will not change the default behavior. In Kubernetes you might want to pass cluster.local").
 		Default("").StringVar(&clusterLocalDomain)
 	kingpin.Flag("max-certs-alb", fmt.Sprintf("sets the maximum number of certificates to be attached to an ALB. Cannot be higher than %d", aws.DefaultMaxCertsPerALB)).
@@ -211,7 +217,7 @@ func main() {
 	}
 
 	log.Debug("aws.NewAdapter")
-	awsAdapter, err = aws.NewAdapter(controllerID, debugFlag, disableInstrumentedHttpClient)
+	awsAdapter, err = aws.NewAdapter(clusterID, controllerID, vpcID, debugFlag, disableInstrumentedHttpClient)
 	if err != nil {
 		log.Fatal(err)
 	}
