@@ -3,7 +3,7 @@ module github.com/zalando-incubator/kube-ingress-aws-controller
 go 1.13
 
 require (
-	github.com/aws/aws-sdk-go v1.35.19
+	github.com/aws/aws-sdk-go v1.36.19
 	github.com/ghodss/yaml v1.0.0
 	github.com/go-playground/locales v0.12.1 // indirect
 	github.com/go-playground/universal-translator v0.16.0 // indirect
