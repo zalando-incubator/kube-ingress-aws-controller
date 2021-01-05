@@ -228,8 +228,14 @@ func TestAttach(t *testing.T) {
 				detachLoadBalancerTargetGroups: R(nil, nil),
 			},
 			elbv2Response: elbv2MockOutputs{
-				describeTargetGroups: R(nil, nil),
-				describeTags:         R(nil, errDummy),
+				describeTargetGroups: R(&elbv2.DescribeTargetGroupsOutput{
+					TargetGroups: []*elbv2.TargetGroup{
+						{
+							TargetGroupArn: aws.String("foo"),
+						},
+					},
+				}, nil),
+				describeTags: R(nil, errDummy),
 			},
 			wantError: true,
 		},

@@ -179,19 +179,10 @@ func updateTargetGroupsForAutoScalingGroup(svc autoscalingiface.AutoScalingAPI, 
 		return err
 	}
 
-	detachARNs := make([]string, 0, len(targetGroupARNs))
 	if len(resp.LoadBalancerTargetGroups) > 0 {
-		arns := make([]*string, 0, len(resp.LoadBalancerTargetGroups))
-		for _, tg := range resp.LoadBalancerTargetGroups {
-			arns = append(arns, tg.LoadBalancerTargetGroupARN)
-		}
-
-		descs, err := describeTagsChunked(elbv2svc, arns)
-		if err != nil {
-			return err
-		}
-
-		// find obsolete target groups which should be detached
+		// find non-existing target groups which should be detached
+		detachARNs := make([]string, 0, len(targetGroupARNs))
+		validARNs := make([]string, 0, len(targetGroupARNs))
 		for _, tg := range resp.LoadBalancerTargetGroups {
 			tgARN := aws.StringValue(tg.LoadBalancerTargetGroupARN)
 
@@ -200,7 +191,16 @@ func updateTargetGroupsForAutoScalingGroup(svc autoscalingiface.AutoScalingAPI, 
 				detachARNs = append(detachARNs, tgARN)
 				continue
 			}
+			validARNs = append(validARNs, tgARN)
+		}
 
+		descs, err := describeTagsChunked(elbv2svc, validARNs)
+		if err != nil {
+			return err
+		}
+
+		// find obsolete target groups which should be detached
+		for _, tgARN := range validARNs {
 			// only consider detaching TGs which are owned by the
 			// controller
 			if !tgHasTags(descs, tgARN, ownerTags) {
@@ -209,6 +209,13 @@ func updateTargetGroupsForAutoScalingGroup(svc autoscalingiface.AutoScalingAPI, 
 
 			if !inStrSlice(tgARN, targetGroupARNs) {
 				detachARNs = append(detachARNs, tgARN)
+			}
+		}
+
+		if len(detachARNs) > 0 {
+			err = detachTargetGroupsFromAutoScalingGroup(svc, detachARNs, autoScalingGroupName)
+			if err != nil {
+				return err
 			}
 		}
 	}
@@ -237,17 +244,10 @@ func updateTargetGroupsForAutoScalingGroup(svc autoscalingiface.AutoScalingAPI, 
 		}
 	}
 
-	if len(detachARNs) > 0 {
-		err = detachTargetGroupsFromAutoScalingGroup(svc, detachARNs, autoScalingGroupName)
-		if err != nil {
-			return err
-		}
-	}
-
 	return nil
 }
 
-func describeTagsChunked(svc elbv2iface.ELBV2API, arns []*string) ([]*elbv2.TagDescription, error) {
+func describeTagsChunked(svc elbv2iface.ELBV2API, arns []string) ([]*elbv2.TagDescription, error) {
 	descs := make([]*elbv2.TagDescription, 0, len(arns))
 	chunkSize := 20
 
@@ -261,7 +261,7 @@ func describeTagsChunked(svc elbv2iface.ELBV2API, arns []*string) ([]*elbv2.TagD
 		arnsChunked := arns[i:end]
 		if len(arnsChunked) > 0 {
 			tgParams := &elbv2.DescribeTagsInput{
-				ResourceArns: arnsChunked,
+				ResourceArns: aws.StringSlice(arnsChunked),
 			}
 
 			tgResp, err := svc.DescribeTags(tgParams)

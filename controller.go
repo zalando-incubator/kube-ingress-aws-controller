@@ -303,7 +303,7 @@ func main() {
 	log.Infof("Default LoadBalancer type: %s", loadBalancerType)
 
 	ctx, cancel := context.WithCancel(context.Background())
-	go handleTerminationSignals(cancel, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
+	go handleTerminationSignals(cancel, syscall.SIGTERM, syscall.SIGQUIT)
 	go serveMetrics(metricsAddress)
 	startPolling(
 		ctx,
