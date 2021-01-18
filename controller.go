@@ -41,6 +41,7 @@ var (
 	healthCheckPath               string
 	healthCheckPort               uint
 	healthCheckInterval           time.Duration
+	healthCheckTimeout            time.Duration
 	targetPort                    uint
 	metricsAddress                string
 	disableSNISupport             bool
@@ -105,6 +106,8 @@ func loadSettings() error {
 		Default(strconv.FormatUint(aws.DefaultTargetPort, 10)).UintVar(&targetPort)
 	kingpin.Flag("health-check-interval", "sets the health check interval for the created target groups. The flag accepts a value acceptable to time.ParseDuration").
 		Default(aws.DefaultHealthCheckInterval.String()).DurationVar(&healthCheckInterval)
+	kingpin.Flag("health-check-timeout", "sets the health check timeout for the created target groups. The flag accepts a value acceptable to time.ParseDuration").
+		Default(aws.DefaultHealthCheckTimeout.String()).DurationVar(&healthCheckTimeout)
 	kingpin.Flag("idle-connection-timeout", "sets the idle connection timeout of all ALBs. The flag accepts a value acceptable to time.ParseDuration and are between 1s and 4000s.").
 		Default(aws.DefaultIdleConnectionTimeout.String()).DurationVar(&idleConnectionTimeout)
 	kingpin.Flag("deregistration-delay-timeout", "sets the deregistration delay timeout of all target groups.  The flag accepts a value acceptable to time.ParseDuration that is between 1s and 3600s.").
@@ -231,6 +234,7 @@ func main() {
 		WithHealthCheckPath(healthCheckPath).
 		WithHealthCheckPort(healthCheckPort).
 		WithHealthCheckInterval(healthCheckInterval).
+		WithHealthCheckTimeout(healthCheckTimeout).
 		WithTargetPort(targetPort).
 		WithCreationTimeout(creationTimeout).
 		WithStackTerminationProtection(stackTerminationProtection).
