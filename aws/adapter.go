@@ -41,6 +41,7 @@ type Adapter struct {
 	healthCheckPath            string
 	healthCheckPort            uint
 	healthCheckInterval        time.Duration
+	healthCheckTimeout         time.Duration
 	targetPort                 uint
 	creationTimeout            time.Duration
 	idleConnectionTimeout      time.Duration
@@ -80,6 +81,7 @@ const (
 	DefaultHealthCheckPort           = 9999
 	DefaultTargetPort                = 9999
 	DefaultHealthCheckInterval       = 10 * time.Second
+	DefaultHealthCheckTimeout        = 5 * time.Second
 	DefaultCertificateUpdateInterval = 30 * time.Minute
 	DefaultCreationTimeout           = 5 * time.Minute
 	DefaultIdleConnectionTimeout     = 1 * time.Minute
@@ -190,6 +192,7 @@ func NewAdapter(clusterID, newControllerID, vpcID string, debug, disableInstrume
 		healthCheckPort:     DefaultHealthCheckPort,
 		targetPort:          DefaultTargetPort,
 		healthCheckInterval: DefaultHealthCheckInterval,
+		healthCheckTimeout:  DefaultHealthCheckTimeout,
 		creationTimeout:     DefaultCreationTimeout,
 		ec2Details:          make(map[string]*instanceDetails),
 		singleInstances:     make(map[string]*instanceDetails),
@@ -245,6 +248,13 @@ func (a *Adapter) WithTargetPort(port uint) *Adapter {
 // the resources created by the adapter
 func (a *Adapter) WithHealthCheckInterval(interval time.Duration) *Adapter {
 	a.healthCheckInterval = interval
+	return a
+}
+
+// WithHealthCheckTimeout returns the receiver adapter after changing the health check timeout that will be used by
+// the resources created by the adapter
+func (a *Adapter) WithHealthCheckTimeout(timeout time.Duration) *Adapter {
+	a.healthCheckTimeout = timeout
 	return a
 }
 
@@ -528,6 +538,7 @@ func (a *Adapter) CreateStack(certificateARNs []string, scheme, securityGroup, o
 			path:     a.healthCheckPath,
 			port:     a.healthCheckPort,
 			interval: a.healthCheckInterval,
+			timeout:  a.healthCheckTimeout,
 		},
 		targetPort:                        a.targetPort,
 		timeoutInMinutes:                  uint(a.creationTimeout.Minutes()),
@@ -570,6 +581,7 @@ func (a *Adapter) UpdateStack(stackName string, certificateARNs map[string]time.
 			path:     a.healthCheckPath,
 			port:     a.healthCheckPort,
 			interval: a.healthCheckInterval,
+			timeout:  a.healthCheckTimeout,
 		},
 		targetPort:                        a.targetPort,
 		timeoutInMinutes:                  uint(a.creationTimeout.Minutes()),

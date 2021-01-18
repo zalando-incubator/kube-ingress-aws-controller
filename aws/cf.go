@@ -108,6 +108,7 @@ const (
 	parameterTargetGroupHealthCheckPathParameter     = "TargetGroupHealthCheckPathParameter"
 	parameterTargetGroupHealthCheckPortParameter     = "TargetGroupHealthCheckPortParameter"
 	parameterTargetGroupHealthCheckIntervalParameter = "TargetGroupHealthCheckIntervalParameter"
+	parameterTargetGroupHealthCheckTimeoutParameter  = "TargetGroupHealthCheckTimeoutParameter"
 	parameterTargetTargetPortParameter               = "TargetGroupTargetPortParameter"
 	parameterTargetGroupVPCIDParameter               = "TargetGroupVPCIDParameter"
 	parameterListenerCertificatesParameter           = "ListenerCertificatesParameter"
@@ -153,6 +154,7 @@ type healthCheck struct {
 	path     string
 	port     uint
 	interval time.Duration
+	timeout  time.Duration
 }
 
 func createStack(svc cloudformationiface.CloudFormationAPI, spec *stackSpec) (string, error) {
@@ -204,6 +206,7 @@ func createStack(svc cloudformationiface.CloudFormationAPI, spec *stackSpec) (st
 			cfParam(parameterTargetGroupHealthCheckPathParameter, spec.healthCheck.path),
 			cfParam(parameterTargetGroupHealthCheckPortParameter, fmt.Sprintf("%d", spec.healthCheck.port)),
 			cfParam(parameterTargetGroupHealthCheckIntervalParameter, fmt.Sprintf("%.0f", spec.healthCheck.interval.Seconds())),
+			cfParam(parameterTargetGroupHealthCheckTimeoutParameter, fmt.Sprintf("%.0f", spec.healthCheck.timeout.Seconds())),
 		)
 	}
 
@@ -269,6 +272,7 @@ func updateStack(svc cloudformationiface.CloudFormationAPI, spec *stackSpec) (st
 			cfParam(parameterTargetGroupHealthCheckPathParameter, spec.healthCheck.path),
 			cfParam(parameterTargetGroupHealthCheckPortParameter, fmt.Sprintf("%d", spec.healthCheck.port)),
 			cfParam(parameterTargetGroupHealthCheckIntervalParameter, fmt.Sprintf("%.0f", spec.healthCheck.interval.Seconds())),
+			cfParam(parameterTargetGroupHealthCheckTimeoutParameter, fmt.Sprintf("%.0f", spec.healthCheck.timeout.Seconds())),
 		)
 	}
 

@@ -59,6 +59,11 @@ func generateTemplate(spec *stackSpec) (string, error) {
 			Description: "The healthcheck interval",
 			Default:     "10",
 		},
+		parameterTargetGroupHealthCheckTimeoutParameter: &cloudformation.Parameter{
+			Type:        "Number",
+			Description: "The healthcheck timeout",
+			Default:     "5",
+		},
 		parameterTargetGroupVPCIDParameter: &cloudformation.Parameter{
 			Type:        "AWS::EC2::VPC::Id",
 			Description: "The VPCID for the TargetGroup",
@@ -276,6 +281,7 @@ func generateTemplate(spec *stackSpec) (string, error) {
 		TargetGroupAttributes: &targetGroupAttributes,
 
 		HealthCheckIntervalSeconds: cloudformation.Ref(parameterTargetGroupHealthCheckIntervalParameter).Integer(),
+		HealthCheckTimeoutSeconds:  cloudformation.Ref(parameterTargetGroupHealthCheckTimeoutParameter).Integer(),
 		HealthCheckPath:            cloudformation.Ref(parameterTargetGroupHealthCheckPathParameter).String(),
 		HealthCheckPort:            cloudformation.Ref(parameterTargetGroupHealthCheckPortParameter).String(),
 		HealthCheckProtocol:        cloudformation.String("HTTP"),

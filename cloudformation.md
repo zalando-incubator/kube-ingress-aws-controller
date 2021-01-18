@@ -39,6 +39,7 @@ behavior and set of resources created. Each one of the following parameters shou
 | TargetGroupHealthCheckPathParameter     	| The health check path for the TargetGroup                  	| No       	| /kube-system/healthz 	|
 | TargetGroupHealthCheckPortParameter     	| The health check port for the TargetGroup                  	| No       	| 9999                 	|
 | TargetGroupHealthCheckIntervalParameter 	| The health check polling interval for the TargetGroup      	| No       	| 10 secs              	|
+| TargetGroupHealthCheckTimeoutParameter 	| The health check polling timeout for the TargetGroup      	| No       	| 5 secs              	|
 | ListenerCertificateParameter            	| The HTTPS Listener certificate ARN (IAM/ACM)               	| No       	| No HTTPS Listener    	|
 
 ### Outputs
