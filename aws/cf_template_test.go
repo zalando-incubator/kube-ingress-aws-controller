@@ -209,6 +209,30 @@ func TestGenerateTemplate(t *testing.T) {
 				require.Equal(t, &expected, props.TargetGroupAttributes)
 			},
 		},
+		{
+			name: "Does not set healthcheck timeout on NLBs",
+			spec: &stackSpec{
+				loadbalancerType: LoadBalancerTypeNetwork,
+			},
+			validate: func(t *testing.T, template *cloudformation.Template) {
+				require.NotNil(t, template.Resources, "TG")
+				tg, ok := template.Resources["TG"].Properties.(*cloudformation.ElasticLoadBalancingV2TargetGroup)
+				require.True(t, ok, "couldn't convert resource to ElasticLoadBalancingV2TargetGroup")
+				require.Nil(t, tg.HealthCheckTimeoutSeconds)
+			},
+		},
+		{
+			name: "Set healthcheck timeout when not NLB",
+			spec: &stackSpec{
+				loadbalancerType: LoadBalancerTypeApplication,
+			},
+			validate: func(t *testing.T, template *cloudformation.Template) {
+				require.NotNil(t, template.Resources, "TG")
+				tg, ok := template.Resources["TG"].Properties.(*cloudformation.ElasticLoadBalancingV2TargetGroup)
+				require.True(t, ok, "couldn't convert resource to ElasticLoadBalancingV2TargetGroup")
+				require.NotNil(t, tg.HealthCheckTimeoutSeconds)
+			},
+		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			generated, err := generateTemplate(test.spec)

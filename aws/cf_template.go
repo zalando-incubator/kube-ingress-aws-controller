@@ -277,18 +277,23 @@ func generateTemplate(spec *stackSpec) (string, error) {
 			Value: cloudformation.String(fmt.Sprintf("%d", spec.deregistrationDelayTimeoutSeconds)),
 		},
 	}
-	template.AddResource("TG", &cloudformation.ElasticLoadBalancingV2TargetGroup{
+	targetGroup := &cloudformation.ElasticLoadBalancingV2TargetGroup{
 		TargetGroupAttributes: &targetGroupAttributes,
 
 		HealthCheckIntervalSeconds: cloudformation.Ref(parameterTargetGroupHealthCheckIntervalParameter).Integer(),
-		HealthCheckTimeoutSeconds:  cloudformation.Ref(parameterTargetGroupHealthCheckTimeoutParameter).Integer(),
 		HealthCheckPath:            cloudformation.Ref(parameterTargetGroupHealthCheckPathParameter).String(),
 		HealthCheckPort:            cloudformation.Ref(parameterTargetGroupHealthCheckPortParameter).String(),
 		HealthCheckProtocol:        cloudformation.String("HTTP"),
 		Port:                       cloudformation.Ref(parameterTargetTargetPortParameter).Integer(),
 		Protocol:                   cloudformation.String(protocol),
 		VPCID:                      cloudformation.Ref(parameterTargetGroupVPCIDParameter).String(),
-	})
+	}
+
+	// custom target group healthcheck only supported when the target group protocol is != TCP
+	if protocol != "TCP" {
+		targetGroup.HealthCheckTimeoutSeconds = cloudformation.Ref(parameterTargetGroupHealthCheckTimeoutParameter).Integer()
+	}
+	template.AddResource("TG", targetGroup)
 
 	if spec.loadbalancerType == LoadBalancerTypeApplication && spec.wafWebAclId != "" {
 		if strings.HasPrefix(spec.wafWebAclId, "arn:aws:wafv2:") {
