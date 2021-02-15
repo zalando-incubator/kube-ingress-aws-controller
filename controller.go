@@ -27,7 +27,6 @@ const (
 	defaultHTTPRedirectToHTTPS    = "false"
 	defaultCertTTL                = "1h"
 	customTagFilterEnvVarName     = "CUSTOM_FILTERS"
-	defaultInternalDomains        = "*.ingress.cluster.local"
 )
 
 var (
@@ -80,6 +79,7 @@ var (
 	denyInternalRespBody          string
 	denyInternalRespContentType   string
 	denyInternalRespStatusCode    int
+	defaultInternalDomains        = fmt.Sprintf("*%s", kubernetes.DefaultClusterLocalDomain)
 )
 
 func loadSettings() error {

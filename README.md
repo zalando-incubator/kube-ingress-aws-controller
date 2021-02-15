@@ -23,6 +23,7 @@ This information is used to manage AWS resources for each ingress objects of the
 - Support for both [Application Load Balancers][alb] and [Network Load Balancers][nlb].
 - Support for internet-facing and internal load balancers
 - Support for ignoring cluster-internal ingress, that only have `--cluster-local-domain=cluster.local` domains.
+- Support for denying traffic for internal domains.
 - Support for multiple Auto Scaling Groups
 - Support for instances that are not part of Auto Scaling Group
 - Support for SSLPolicy, set default and per ingress
@@ -357,7 +358,49 @@ spec:
 ```
 
 If you pass `--cluster-local-domain=".cluster.local"`, you can change
-what domain is considered cluster internal.
+what domain is considered cluster internal. If you're using the [deny
+internal traffic](#deny-traffic-for-internal-domains) feature, you might
+want to sync this configuration with the `--internal-domains` one.
+
+#### Deny traffic for internal domains
+
+Since `>=v0.11.18` the controller supports the flag
+`--deny-internal-domains`. It's a boolean config item that when enabled
+configures the ALBs' cloudformation templates with a
+[`AWS::ElasticLoadBalancingV2::ListenerRule`][ListenerRule] resource.
+This rule will be configured with the [condition][HostHeaderConfig]
+values from the `--internal-domains` flag and the
+[action `fixedresponseconfig`][FixedResponse] with the respective response
+`--deny-internal-domains-response` flags. This feature is not enabled by
+default. The following are the default values to its config flags:
+
+- `internal-domains`: `*.cluster.local`
+- `deny-internal-domains`: `false`
+- `deny-internal-domains-response`: `Unauthorized`
+- `deny-internal-domains-response-content-type`: `text/plain`
+- `deny-internal-domains-response-status-code`: `401`
+
+Note that `--internal-domains` differs from `--cluster-local-domain`,
+which is used exclusively to [avoid load balancers creation for the
+cluster internal
+domain](#omit-to-create-a-load-balancer-for-cluster-internal-domains).
+The `--internal-domains` flag can be set multiple times and accept AWS'
+wildcard characters. Check the AWS' docs on the [Host Header
+config][HostHeaderConfig] for more details.
+
+This feature is not supported by NLBs.
+
+Example:
+
+Running the controller with `--deny-internal-domains=true` and
+`--internal-domains=*.cluster.local` will generate a rule in the ALB
+that matches any request to domains ending in `.cluster.local` and answer
+the request with an [HTTP 401 Unauthorized][401].
+
+[ListenerRule]: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-elasticloadbalancingv2-listenerrule.html
+[HostHeaderConfig]: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-elasticloadbalancingv2-listenerrule-hostheaderconfig.html
+[FixedResponse]: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-elasticloadbalancingv2-listenerrule-action.html#cfn-elasticloadbalancingv2-listenerrule-action-fixedresponseconfig
+[401]: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/401
 
 #### Create Load Balancer with SSL Policy
 
