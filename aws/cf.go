@@ -147,6 +147,9 @@ type stackSpec struct {
 	nlbCrossZone                      bool
 	nlbHTTPEnabled                    bool
 	http2                             bool
+	denyInternalDomains               bool
+	denyInternalDomainsResponse       denyResp
+	internalDomains                   []string
 	tags                              map[string]string
 }
 
@@ -155,6 +158,12 @@ type healthCheck struct {
 	port     uint
 	interval time.Duration
 	timeout  time.Duration
+}
+
+type denyResp struct {
+	statusCode  int
+	contentType string
+	body        string
 }
 
 func createStack(svc cloudformationiface.CloudFormationAPI, spec *stackSpec) (string, error) {

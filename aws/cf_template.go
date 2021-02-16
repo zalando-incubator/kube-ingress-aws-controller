@@ -11,6 +11,21 @@ import (
 	cloudformation "github.com/mweagle/go-cloudformation"
 )
 
+const (
+	// https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-elasticloadbalancingv2-listenerrule-rulecondition.html#cfn-elasticloadbalancingv2-listenerrule-rulecondition-field
+	listenerRuleConditionHostField = "host-header"
+
+	// https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-elasticloadbalancingv2-listenerrule-action.html#cfn-elasticloadbalancingv2-listenerrule-action-type
+	listenerRuleActionTypeFixedRes = "fixed-response"
+
+	// internalTrafficDenyRulePriority defines the [priority][0] for the
+	// rule that denies requests directed to internal domains on the HTTP
+	// and HTTPS listener.
+	//
+	// [0]: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-elasticloadbalancingv2-listenerrule.html#cfn-elasticloadbalancingv2-listenerrule-priority
+	internalTrafficDenyRulePriority int64 = 1
+)
+
 func hashARNs(certARNs []string) []byte {
 	hash := sha256.New()
 
@@ -124,7 +139,8 @@ func generateTemplate(spec *stackSpec) (string, error) {
 			Protocol:        cloudformation.String("HTTP"),
 		})
 	} else if spec.loadbalancerType == LoadBalancerTypeApplication || spec.nlbHTTPEnabled {
-		template.AddResource("HTTPListener", &cloudformation.ElasticLoadBalancingV2Listener{
+		listenerName := "HTTPListener"
+		template.AddResource(listenerName, &cloudformation.ElasticLoadBalancingV2Listener{
 			DefaultActions: &cloudformation.ElasticLoadBalancingV2ListenerActionList{
 				{
 					Type:           cloudformation.String("forward"),
@@ -135,6 +151,17 @@ func generateTemplate(spec *stackSpec) (string, error) {
 			Port:            cloudformation.Integer(80),
 			Protocol:        cloudformation.String(protocol),
 		})
+		if spec.denyInternalDomains {
+			template.AddResource(
+				"HTTPRuleBlockInternalTraffic",
+				generateDenyInternalTrafficRule(
+					listenerName,
+					internalTrafficDenyRulePriority,
+					spec.internalDomains,
+					spec.denyInternalDomainsResponse,
+				),
+			)
+		}
 	}
 
 	if len(spec.certificateARNs) > 0 {
@@ -148,7 +175,8 @@ func generateTemplate(spec *stackSpec) (string, error) {
 		})
 
 		// Add an HTTPS Listener resource with the first certificate as the default one
-		template.AddResource("HTTPSListener", &cloudformation.ElasticLoadBalancingV2Listener{
+		listenerName := "HTTPSListener"
+		template.AddResource(listenerName, &cloudformation.ElasticLoadBalancingV2Listener{
 			DefaultActions: &cloudformation.ElasticLoadBalancingV2ListenerActionList{
 				{
 					Type:           cloudformation.String("forward"),
@@ -165,6 +193,17 @@ func generateTemplate(spec *stackSpec) (string, error) {
 			Protocol:        cloudformation.String(tlsProtocol),
 			SslPolicy:       cloudformation.Ref(parameterListenerSslPolicyParameter).String(),
 		})
+		if spec.denyInternalDomains {
+			template.AddResource(
+				"HTTPSRuleBlockInternalTraffic",
+				generateDenyInternalTrafficRule(
+					listenerName,
+					internalTrafficDenyRulePriority,
+					spec.internalDomains,
+					spec.denyInternalDomainsResponse,
+				),
+			)
+		}
 
 		// Add a ListenerCertificate resource with all of the certificates, including the default one
 		certificateList := make(cloudformation.ElasticLoadBalancingV2ListenerCertificateCertificateList, 0, len(certificateARNs))
@@ -179,8 +218,9 @@ func generateTemplate(spec *stackSpec) (string, error) {
 		resourceName := fmt.Sprintf("HTTPSListenerCertificate%x", hashARNs(certificateARNs))
 		template.AddResource(resourceName, &cloudformation.ElasticLoadBalancingV2ListenerCertificate{
 			Certificates: &certificateList,
-			ListenerArn:  cloudformation.Ref("HTTPSListener").String(),
+			ListenerArn:  cloudformation.Ref(listenerName).String(),
 		})
+
 	}
 
 	// Build up the LoadBalancerAttributes list, as there is no way to make attributes conditional in the template
@@ -350,4 +390,32 @@ func generateTemplate(spec *stackSpec) (string, error) {
 	}
 
 	return string(stackTemplate), nil
+}
+
+func generateDenyInternalTrafficRule(listenerName string, rulePriority int64, internalDomains []string, resp denyResp) cloudformation.ElasticLoadBalancingV2ListenerRule {
+	values := cloudformation.StringList()
+	for _, domain := range internalDomains {
+		values.Literal = append(values.Literal, cloudformation.String(domain))
+	}
+
+	return cloudformation.ElasticLoadBalancingV2ListenerRule{
+		Conditions: &cloudformation.ElasticLoadBalancingV2ListenerRuleRuleConditionList{
+			cloudformation.ElasticLoadBalancingV2ListenerRuleRuleCondition{
+				Field:  cloudformation.String(listenerRuleConditionHostField),
+				Values: values,
+			},
+		},
+		Actions: &cloudformation.ElasticLoadBalancingV2ListenerRuleActionList{
+			cloudformation.ElasticLoadBalancingV2ListenerRuleAction{
+				Type: cloudformation.String(listenerRuleActionTypeFixedRes),
+				FixedResponseConfig: &cloudformation.ElasticLoadBalancingV2ListenerRuleFixedResponseConfig{
+					ContentType: cloudformation.String(resp.contentType),
+					MessageBody: cloudformation.String(resp.body),
+					StatusCode:  cloudformation.String(fmt.Sprintf("%d", resp.statusCode)),
+				},
+			},
+		},
+		Priority:    cloudformation.Integer(rulePriority),
+		ListenerArn: cloudformation.Ref(listenerName).String(),
+	}
 }

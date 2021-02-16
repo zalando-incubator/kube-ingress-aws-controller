@@ -74,6 +74,12 @@ var (
 	nlbCrossZone                  bool
 	nlbHTTPEnabled                bool
 	ingressAPIVersion             string
+	internalDomains               []string
+	denyInternalDomains           bool
+	denyInternalRespBody          string
+	denyInternalRespContentType   string
+	denyInternalRespStatusCode    int
+	defaultInternalDomains        = fmt.Sprintf("*%s", kubernetes.DefaultClusterLocalDomain)
 )
 
 func loadSettings() error {
@@ -148,6 +154,16 @@ func loadSettings() error {
 		Default("false").BoolVar(&nlbHTTPEnabled)
 	kingpin.Flag("ingress-api-version", "APIversion used for listing/updating ingresses.").
 		Default(kubernetes.IngressAPIVersionNetworking).EnumVar(&ingressAPIVersion, kubernetes.IngressAPIVersionNetworking, kubernetes.IngressAPIVersionExtensions)
+	kingpin.Flag("deny-internal-domains", "Sets a rule on ALB's Listeners that denies requests with the Host header as a internal domain. Domains can be set with the -internal-domains flag.").
+		Default("false").BoolVar(&denyInternalDomains)
+	kingpin.Flag("internal-domains", "Define the internal domains to be blocked when -deny-internal-domains is set to true. Set it multiple times for multiple domains. The maximum size of each name is 128 characters. The following wildcard characters are supported: * (matches 0 or more characters) and ? (matches exactly 1 character).").
+		Default(defaultInternalDomains).StringsVar(&internalDomains)
+	kingpin.Flag("deny-internal-domains-response", "Defines the response body for a request identified as to an internal domain when -deny-internal-domains is set.").
+		Default("Unauthorized").StringVar(&denyInternalRespBody)
+	kingpin.Flag("deny-internal-domains-response-content-type", "Defines the response conten-type for a request identified as to an internal domain when -deny-internal-domains is set.").
+		Default("text/plain").StringVar(&denyInternalRespContentType)
+	kingpin.Flag("deny-internal-domains-response-status-code", "Defines the response status code for a request identified as to an internal domain when -deny-internal-domains is set.").
+		Default("401").IntVar(&denyInternalRespStatusCode)
 	kingpin.Parse()
 
 	blacklistCertArnMap = make(map[string]bool)
@@ -249,7 +265,12 @@ func main() {
 		WithNLBCrossZone(nlbCrossZone).
 		WithNLBHTTPEnabled(nlbHTTPEnabled).
 		WithCustomFilter(customFilter).
-		WithStackTags(additionalStackTags)
+		WithStackTags(additionalStackTags).
+		WithInternalDomains(internalDomains).
+		WithDenyInternalDomains(denyInternalDomains).
+		WithInternalDomainsDenyResponse(denyInternalRespBody).
+		WithInternalDomainsDenyResponseStatusCode(denyInternalRespStatusCode).
+		WithInternalDomainsDenyResponseContenType(denyInternalRespContentType)
 
 	log.Debug("certs.NewCachingProvider")
 	certificatesProvider, err := certs.NewCachingProvider(

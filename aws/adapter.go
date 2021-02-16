@@ -37,31 +37,36 @@ type Adapter struct {
 	iam            iamiface.IAMAPI
 	cloudformation cloudformationiface.CloudFormationAPI
 
-	manifest                   *manifest
-	healthCheckPath            string
-	healthCheckPort            uint
-	healthCheckInterval        time.Duration
-	healthCheckTimeout         time.Duration
-	targetPort                 uint
-	creationTimeout            time.Duration
-	idleConnectionTimeout      time.Duration
-	deregistrationDelayTimeout time.Duration
-	TargetedAutoScalingGroups  map[string]*autoScalingGroupDetails
-	OwnedAutoScalingGroups     map[string]*autoScalingGroupDetails
-	ec2Details                 map[string]*instanceDetails
-	singleInstances            map[string]*instanceDetails
-	obsoleteInstances          []string
-	stackTerminationProtection bool
-	stackTags                  map[string]string
-	controllerID               string
-	sslPolicy                  string
-	ipAddressType              string
-	albLogsS3Bucket            string
-	albLogsS3Prefix            string
-	httpRedirectToHTTPS        bool
-	nlbCrossZone               bool
-	nlbHTTPEnabled             bool
-	customFilter               string
+	manifest                    *manifest
+	healthCheckPath             string
+	healthCheckPort             uint
+	healthCheckInterval         time.Duration
+	healthCheckTimeout          time.Duration
+	targetPort                  uint
+	creationTimeout             time.Duration
+	idleConnectionTimeout       time.Duration
+	deregistrationDelayTimeout  time.Duration
+	TargetedAutoScalingGroups   map[string]*autoScalingGroupDetails
+	OwnedAutoScalingGroups      map[string]*autoScalingGroupDetails
+	ec2Details                  map[string]*instanceDetails
+	singleInstances             map[string]*instanceDetails
+	obsoleteInstances           []string
+	stackTerminationProtection  bool
+	stackTags                   map[string]string
+	controllerID                string
+	sslPolicy                   string
+	ipAddressType               string
+	albLogsS3Bucket             string
+	albLogsS3Prefix             string
+	httpRedirectToHTTPS         bool
+	nlbCrossZone                bool
+	nlbHTTPEnabled              bool
+	customFilter                string
+	internalDomains             []string
+	denyInternalDomains         bool
+	denyInternalRespBody        string
+	denyInternalRespContentType string
+	denyInternalRespStatusCode  int
 }
 
 type manifest struct {
@@ -365,6 +370,48 @@ func (a *Adapter) WithCustomFilter(customFilter string) *Adapter {
 	return a
 }
 
+// WithInternalDomains returns the receiver adapter after changing the
+// internal domains that will be used by the resources created by the
+// adapter.
+func (a *Adapter) WithInternalDomains(domains []string) *Adapter {
+	a.internalDomains = domains
+	return a
+}
+
+// WithDenyInternalDomains returns the receiver adapter after setting
+// the denyInternalDomains config.
+func (a *Adapter) WithDenyInternalDomains(deny bool) *Adapter {
+	a.denyInternalDomains = deny
+	return a
+}
+
+// WithInternalDomainsDenyResponse returns the receiver adapter after
+// changing the Body of the response that will be returned by the
+// resources created by the adapter when denyInternalDomains is set to
+// true.
+func (a *Adapter) WithInternalDomainsDenyResponse(body string) *Adapter {
+	a.denyInternalRespBody = body
+	return a
+}
+
+// WithInternalDomainsDenyResponseStatusCode returns the receiver
+// adapter after changing the status code of the response that will be
+// returned by the resources created by the adapter when
+// denyInternalDomains is set to true.
+func (a *Adapter) WithInternalDomainsDenyResponseStatusCode(code int) *Adapter {
+	a.denyInternalRespStatusCode = code
+	return a
+}
+
+// WithInternalDomainsDenyResponseContenType returns the receiver
+// adapter after changing the content-type of the response that will be
+// returned by the resources created by the adapter when
+// denyInternalDomains is set to true.
+func (a *Adapter) WithInternalDomainsDenyResponseContenType(contentType string) *Adapter {
+	a.denyInternalRespContentType = contentType
+	return a
+}
+
 // ClusterID returns the ClusterID tag that all resources from the same Kubernetes cluster share.
 // It's taken from the current ec2 instance.
 func (a *Adapter) ClusterID() string {
@@ -558,6 +605,13 @@ func (a *Adapter) CreateStack(certificateARNs []string, scheme, securityGroup, o
 		nlbHTTPEnabled:                    a.nlbHTTPEnabled,
 		http2:                             http2,
 		tags:                              a.stackTags,
+		internalDomains:                   a.internalDomains,
+		denyInternalDomains:               a.denyInternalDomains,
+		denyInternalDomainsResponse: denyResp{
+			body:        a.denyInternalRespBody,
+			statusCode:  a.denyInternalRespStatusCode,
+			contentType: a.denyInternalRespContentType,
+		},
 	}
 
 	return createStack(a.cloudformation, spec)
@@ -601,6 +655,13 @@ func (a *Adapter) UpdateStack(stackName string, certificateARNs map[string]time.
 		nlbHTTPEnabled:                    a.nlbHTTPEnabled,
 		http2:                             http2,
 		tags:                              a.stackTags,
+		internalDomains:                   a.internalDomains,
+		denyInternalDomains:               a.denyInternalDomains,
+		denyInternalDomainsResponse: denyResp{
+			body:        a.denyInternalRespBody,
+			statusCode:  a.denyInternalRespStatusCode,
+			contentType: a.denyInternalRespContentType,
+		},
 	}
 
 	return updateStack(a.cloudformation, spec)

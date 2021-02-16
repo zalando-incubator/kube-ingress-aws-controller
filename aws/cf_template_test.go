@@ -2,7 +2,10 @@ package aws
 
 import (
 	"encoding/json"
+	"fmt"
+	"sort"
 	"testing"
+	"time"
 
 	cloudformation "github.com/mweagle/go-cloudformation"
 	"github.com/stretchr/testify/assert"
@@ -10,6 +13,42 @@ import (
 )
 
 func TestGenerateTemplate(t *testing.T) {
+	internalDomains := []string{"*.ingress.cluster.local", "*.internal.domain.local"}
+	denyResp := denyResp{
+		statusCode:  404,
+		contentType: "text/plain",
+		body:        "Not Found",
+	}
+
+	validateDenyRule := func(t *testing.T, resource *cloudformation.Resource) {
+		rules, ok := resource.Properties.(*cloudformation.ElasticLoadBalancingV2ListenerRule)
+		require.True(t, ok, "couldn't convert resource to ElasticLoadBalancingV2ListenerRule")
+
+		conditions := *rules.Conditions
+		require.Equal(t, len(conditions), 1)
+		condition := conditions[0]
+
+		actions := *rules.Actions
+		require.Equal(t, len(actions), 1)
+		action := actions[0]
+
+		require.Equal(t, internalTrafficDenyRulePriority, rules.Priority.Literal)
+
+		require.Equal(t, listenerRuleConditionHostField, condition.Field.Literal)
+		var conditionValues []string
+		for _, v := range condition.Values.Literal {
+			conditionValues = append(conditionValues, v.Literal)
+		}
+		require.Equal(t, len(internalDomains), len(conditionValues))
+		sort.Strings(conditionValues)
+		require.Equal(t, internalDomains, conditionValues)
+
+		require.Equal(t, listenerRuleActionTypeFixedRes, action.Type.Literal)
+		require.Equal(t, denyResp.contentType, action.FixedResponseConfig.ContentType.Literal)
+		require.Equal(t, denyResp.body, action.FixedResponseConfig.MessageBody.Literal)
+		require.Equal(t, fmt.Sprintf("%d", denyResp.statusCode), action.FixedResponseConfig.StatusCode.Literal)
+	}
+
 	for _, test := range []struct {
 		name     string
 		spec     *stackSpec
@@ -231,6 +270,75 @@ func TestGenerateTemplate(t *testing.T) {
 				tg, ok := template.Resources["TG"].Properties.(*cloudformation.ElasticLoadBalancingV2TargetGroup)
 				require.True(t, ok, "couldn't convert resource to ElasticLoadBalancingV2TargetGroup")
 				require.NotNil(t, tg.HealthCheckTimeoutSeconds)
+			},
+		},
+		{
+			name: "deny internal traffic for HTTPS correctly",
+			spec: &stackSpec{
+				loadbalancerType:    LoadBalancerTypeApplication,
+				certificateARNs:     map[string]time.Time{"domain.company.com": time.Now()},
+				httpRedirectToHTTPS: true,
+
+				denyInternalDomains:         true,
+				internalDomains:             internalDomains,
+				denyInternalDomainsResponse: denyResp,
+			},
+			validate: func(t *testing.T, template *cloudformation.Template) {
+				require.NotNil(t, template.Resources["HTTPSRuleBlockInternalTraffic"])
+				resource := template.Resources["HTTPSRuleBlockInternalTraffic"]
+				validateDenyRule(t, resource)
+				require.NotContains(t, template.Resources, "HTTPRuleBlockInternalTraffic")
+			},
+		},
+		{
+			name: "deny internal traffic for HTTP correctly",
+			spec: &stackSpec{
+				loadbalancerType: LoadBalancerTypeApplication,
+
+				denyInternalDomains:         true,
+				internalDomains:             internalDomains,
+				denyInternalDomainsResponse: denyResp,
+			},
+			validate: func(t *testing.T, template *cloudformation.Template) {
+				require.NotNil(t, template.Resources["HTTPRuleBlockInternalTraffic"])
+				resource := template.Resources["HTTPRuleBlockInternalTraffic"]
+				validateDenyRule(t, resource)
+				require.NotContains(t, template.Resources, "HTTPSRuleBlockInternalTraffic")
+			},
+		},
+		{
+			name: "deny internal traffic for HTTP/HTTPS correctly",
+			spec: &stackSpec{
+				loadbalancerType:    LoadBalancerTypeApplication,
+				certificateARNs:     map[string]time.Time{"domain.company.com": time.Now()},
+				httpRedirectToHTTPS: false,
+
+				denyInternalDomains:         true,
+				internalDomains:             internalDomains,
+				denyInternalDomainsResponse: denyResp,
+			},
+			validate: func(t *testing.T, template *cloudformation.Template) {
+				require.NotNil(t, template.Resources["HTTPRuleBlockInternalTraffic"])
+				resource := template.Resources["HTTPRuleBlockInternalTraffic"]
+				validateDenyRule(t, resource)
+
+				require.NotNil(t, template.Resources["HTTPSRuleBlockInternalTraffic"])
+				resource = template.Resources["HTTPSRuleBlockInternalTraffic"]
+				validateDenyRule(t, resource)
+			},
+		},
+		{
+			name: "Does not deny internal traffic if not required",
+			spec: &stackSpec{
+				loadbalancerType:    LoadBalancerTypeApplication,
+				certificateARNs:     map[string]time.Time{"domain.company.com": time.Now()},
+				httpRedirectToHTTPS: false,
+
+				denyInternalDomains: false,
+			},
+			validate: func(t *testing.T, template *cloudformation.Template) {
+				require.NotContains(t, template.Resources, "HTTPSRuleBlockInternalTraffic")
+				require.NotContains(t, template.Resources, "HTTPRuleBlockInternalTraffic")
 			},
 		},
 	} {
