@@ -341,6 +341,20 @@ func TestGenerateTemplate(t *testing.T) {
 				require.NotContains(t, template.Resources, "HTTPRuleBlockInternalTraffic")
 			},
 		},
+		{
+			name: "Does not create deny internal traffic rule on NLBs",
+			spec: &stackSpec{
+				loadbalancerType: LoadBalancerTypeNetwork,
+				certificateARNs:  map[string]time.Time{"domain.company.com": time.Now()},
+				nlbHTTPEnabled:   true,
+
+				denyInternalDomains: true,
+			},
+			validate: func(t *testing.T, template *cloudformation.Template) {
+				require.NotContains(t, template.Resources, "HTTPSRuleBlockInternalTraffic")
+				require.NotContains(t, template.Resources, "HTTPRuleBlockInternalTraffic")
+			},
+		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			generated, err := generateTemplate(test.spec)
