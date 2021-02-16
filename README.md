@@ -375,7 +375,8 @@ values from the `--internal-domains` flag and the
 default. The following are the default values to its config flags:
 
 - `internal-domains`: `*.cluster.local`
-- `deny-internal-domains`: `false`
+- `deny-internal-domains`: `false` (same as explicitly passing
+  `--no-deny-internal-domains`)
 - `deny-internal-domains-response`: `Unauthorized`
 - `deny-internal-domains-response-content-type`: `text/plain`
 - `deny-internal-domains-response-status-code`: `401`
@@ -392,7 +393,7 @@ This feature is not supported by NLBs.
 
 Example:
 
-Running the controller with `--deny-internal-domains=true` and
+Running the controller with `--deny-internal-domains` and
 `--internal-domains=*.cluster.local` will generate a rule in the ALB
 that matches any request to domains ending in `.cluster.local` and answer
 the request with an [HTTP 401 Unauthorized][401].
