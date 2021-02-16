@@ -151,7 +151,8 @@ func generateTemplate(spec *stackSpec) (string, error) {
 			Port:            cloudformation.Integer(80),
 			Protocol:        cloudformation.String(protocol),
 		})
-		if spec.denyInternalDomains {
+		// Just ALBs support Rules
+		if spec.denyInternalDomains && spec.loadbalancerType == LoadBalancerTypeApplication {
 			template.AddResource(
 				"HTTPRuleBlockInternalTraffic",
 				generateDenyInternalTrafficRule(
@@ -193,7 +194,8 @@ func generateTemplate(spec *stackSpec) (string, error) {
 			Protocol:        cloudformation.String(tlsProtocol),
 			SslPolicy:       cloudformation.Ref(parameterListenerSslPolicyParameter).String(),
 		})
-		if spec.denyInternalDomains {
+		// Just ALBs support Rules
+		if spec.denyInternalDomains && spec.loadbalancerType == LoadBalancerTypeApplication {
 			template.AddResource(
 				"HTTPSRuleBlockInternalTraffic",
 				generateDenyInternalTrafficRule(
