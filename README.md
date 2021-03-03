@@ -510,6 +510,8 @@ spec:
 When the controller detects that a managed load balancer for the current cluster doesn't have a matching ingress
 resource anymore, it deletes all the previously created resources.
 
+Deletion may take up to about 30 minutes. This ensures proper draining of connections on the lodadbalancers and allows for DNS TTLs to expire.
+
 ## Building
 
 This project provides a [`Makefile`](https://github.com/zalando-incubator/kube-ingress-aws-controller/blob/master/Makefile)
