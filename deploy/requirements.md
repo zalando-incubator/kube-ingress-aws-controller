@@ -172,6 +172,11 @@ Please also note that the worker nodes will need the right permission to describ
         "Effect": "Allow"
     },
     {
+        "Action": "elasticloadbalancing:ModifyTargetGroupAttributes",
+        "Resource": "*",
+        "Effect": "Allow"
+    },
+    {
         "Action": "elasticloadbalancing:RemoveListenerCertificates",
         "Resource": "*",
         "Effect": "Allow"
