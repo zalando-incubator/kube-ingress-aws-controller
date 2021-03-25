@@ -565,6 +565,9 @@ listening on that port.
 If you want to change the default ports, you can control it using the
 `-target-port` and `-health-check-port` flags.
 
+If you want to use an HTTPS enabled target port, use the `-target-https` flag.
+This will only affect ALBs, NLBs ignore this flag.
+
 ## HTTP to HTTPS Redirection
 
 By default, the controller will expose both HTTP and HTTPS ports on the load balancer, and forward both listeners to the target port. Setting the flag `-redirect-http-to-https` will instead configure the HTTP listener to emit a 301 redirect for any request received, with the destination location being the same URL but with the HTTPS scheme vs. HTTP. The specifics are described in the [relevant aws documentation](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-elasticloadbalancingv2-listener-redirectconfig.html).

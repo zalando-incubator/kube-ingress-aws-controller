@@ -355,6 +355,50 @@ func TestGenerateTemplate(t *testing.T) {
 				require.NotContains(t, template.Resources, "HTTPRuleBlockInternalTraffic")
 			},
 		},
+		{
+			name: "Uses HTTPS targets when asked to",
+			spec: &stackSpec{
+				loadbalancerType: LoadBalancerTypeApplication,
+				certificateARNs:  map[string]time.Time{"domain.company.com": time.Now()},
+				targetHTTPS:      true,
+			},
+			validate: func(t *testing.T, template *cloudformation.Template) {
+				tg, ok := template.Resources["TG"].Properties.(*cloudformation.ElasticLoadBalancingV2TargetGroup)
+				require.True(t, ok, "couldn't convert resource to ElasticLoadBalancingV2TargetGroup")
+				require.Equal(t, cloudformation.String("HTTPS"), tg.Protocol)
+			},
+		},
+		{
+			name: "NLBs should always use the TCP protocol for listeners and TGs",
+			spec: &stackSpec{
+				loadbalancerType: LoadBalancerTypeNetwork,
+				certificateARNs:  map[string]time.Time{"domain.company.com": time.Now()},
+				nlbHTTPEnabled:   true,
+			},
+			validate: func(t *testing.T, template *cloudformation.Template) {
+				tg, ok := template.Resources["TG"].Properties.(*cloudformation.ElasticLoadBalancingV2TargetGroup)
+				require.True(t, ok, "couldn't convert resource to ElasticLoadBalancingV2TargetGroup")
+				listener := template.Resources["HTTPListener"].Properties.(*cloudformation.ElasticLoadBalancingV2Listener)
+				require.Equal(t, cloudformation.String("TCP"), listener.Protocol)
+				require.Equal(t, cloudformation.String("TCP"), tg.Protocol)
+			},
+		},
+		{
+			name: "NLBs should always use the TCP protocol for listeners and TGs - targetHTTPS should not impact it",
+			spec: &stackSpec{
+				loadbalancerType: LoadBalancerTypeNetwork,
+				certificateARNs:  map[string]time.Time{"domain.company.com": time.Now()},
+				nlbHTTPEnabled:   true,
+				targetHTTPS:      true,
+			},
+			validate: func(t *testing.T, template *cloudformation.Template) {
+				tg, ok := template.Resources["TG"].Properties.(*cloudformation.ElasticLoadBalancingV2TargetGroup)
+				require.True(t, ok, "couldn't convert resource to ElasticLoadBalancingV2TargetGroup")
+				listener := template.Resources["HTTPListener"].Properties.(*cloudformation.ElasticLoadBalancingV2Listener)
+				require.Equal(t, cloudformation.String("TCP"), listener.Protocol)
+				require.Equal(t, cloudformation.String("TCP"), tg.Protocol)
+			},
+		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			generated, err := generateTemplate(test.spec)

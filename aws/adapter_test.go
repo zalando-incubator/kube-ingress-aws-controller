@@ -910,3 +910,20 @@ func TestNonTargetedASGs(t *testing.T) {
 		})
 	}
 }
+
+func TestWithTargetPort(t *testing.T) {
+	t.Run("WithTargetPort sets the targetPort property", func(t *testing.T) {
+		a := Adapter{}
+		port := uint(9977)
+		b := a.WithTargetPort(port)
+		require.Equal(t, port, b.targetPort)
+	})
+}
+
+func TestWithTargetHTTPS(t *testing.T) {
+	t.Run("WithTargetHTTPS sets the targetHTTPS property", func(t *testing.T) {
+		a := Adapter{}
+		b := a.WithTargetHTTPS(true)
+		require.Equal(t, true, b.targetHTTPS)
+	})
+}

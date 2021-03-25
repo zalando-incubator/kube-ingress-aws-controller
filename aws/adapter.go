@@ -43,6 +43,7 @@ type Adapter struct {
 	healthCheckInterval         time.Duration
 	healthCheckTimeout          time.Duration
 	targetPort                  uint
+	targetHTTPS                 bool
 	creationTimeout             time.Duration
 	idleConnectionTimeout       time.Duration
 	deregistrationDelayTimeout  time.Duration
@@ -246,6 +247,12 @@ func (a *Adapter) WithHealthCheckPort(port uint) *Adapter {
 // the resources created by the adapter
 func (a *Adapter) WithTargetPort(port uint) *Adapter {
 	a.targetPort = port
+	return a
+}
+
+// WithTargetHTTPS returns the receiver adapter after specifying the target port will use HTTPS
+func (a *Adapter) WithTargetHTTPS(https bool) *Adapter {
+	a.targetHTTPS = https
 	return a
 }
 
@@ -638,6 +645,7 @@ func (a *Adapter) UpdateStack(stackName string, certificateARNs map[string]time.
 			timeout:  a.healthCheckTimeout,
 		},
 		targetPort:                        a.targetPort,
+		targetHTTPS:                       a.targetHTTPS,
 		timeoutInMinutes:                  uint(a.creationTimeout.Minutes()),
 		stackTerminationProtection:        a.stackTerminationProtection,
 		idleConnectionTimeoutSeconds:      uint(a.idleConnectionTimeout.Seconds()),
