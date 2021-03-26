@@ -43,6 +43,7 @@ var (
 	healthCheckInterval           time.Duration
 	healthCheckTimeout            time.Duration
 	targetPort                    uint
+	targetHTTPS                   bool
 	metricsAddress                string
 	disableSNISupport             bool
 	disableInstrumentedHttpClient bool
@@ -110,6 +111,8 @@ func loadSettings() error {
 		Default(strconv.FormatUint(aws.DefaultHealthCheckPort, 10)).UintVar(&healthCheckPort)
 	kingpin.Flag("target-port", "sets the target port for the created target groups").
 		Default(strconv.FormatUint(aws.DefaultTargetPort, 10)).UintVar(&targetPort)
+	kingpin.Flag("target-https", "sets the target protocol to https").
+		Default("false").BoolVar(&targetHTTPS)
 	kingpin.Flag("health-check-interval", "sets the health check interval for the created target groups. The flag accepts a value acceptable to time.ParseDuration").
 		Default(aws.DefaultHealthCheckInterval.String()).DurationVar(&healthCheckInterval)
 	kingpin.Flag("health-check-timeout", "sets the health check timeout for the created target groups. The flag accepts a value acceptable to time.ParseDuration").
@@ -252,6 +255,7 @@ func main() {
 		WithHealthCheckInterval(healthCheckInterval).
 		WithHealthCheckTimeout(healthCheckTimeout).
 		WithTargetPort(targetPort).
+		WithTargetHTTPS(targetHTTPS).
 		WithCreationTimeout(creationTimeout).
 		WithStackTerminationProtection(stackTerminationProtection).
 		WithIdleConnectionTimeout(idleConnectionTimeout).

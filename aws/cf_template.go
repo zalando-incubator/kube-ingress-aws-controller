@@ -24,6 +24,9 @@ const (
 	//
 	// [0]: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-elasticloadbalancingv2-listenerrule.html#cfn-elasticloadbalancingv2-listenerrule-priority
 	internalTrafficDenyRulePriority int64 = 1
+
+	httpProtocol  = "HTTP"
+	httpsProtocol = "HTTPS"
 )
 
 func hashARNs(certARNs []string) []byte {
@@ -112,11 +115,13 @@ func generateTemplate(spec *stackSpec) (string, error) {
 		}
 	}
 
-	protocol := "HTTP"
-	tlsProtocol := "HTTPS"
+	protocol := httpProtocol
+	tlsProtocol := httpsProtocol
 	if spec.loadbalancerType == LoadBalancerTypeNetwork {
 		protocol = "TCP"
 		tlsProtocol = "TLS"
+	} else if spec.targetHTTPS {
+		protocol = httpsProtocol
 	}
 
 	if spec.loadbalancerType == LoadBalancerTypeApplication && spec.httpRedirectToHTTPS {
@@ -125,7 +130,7 @@ func generateTemplate(spec *stackSpec) (string, error) {
 				{
 					Type: cloudformation.String("redirect"),
 					RedirectConfig: &cloudformation.ElasticLoadBalancingV2ListenerRedirectConfig{
-						Protocol:   cloudformation.String("HTTPS"),
+						Protocol:   cloudformation.String(httpsProtocol),
 						Port:       cloudformation.String("443"),
 						Host:       cloudformation.String("#{host}"),
 						Path:       cloudformation.String("/#{path}"),
@@ -136,7 +141,7 @@ func generateTemplate(spec *stackSpec) (string, error) {
 			},
 			LoadBalancerArn: cloudformation.Ref("LB").String(),
 			Port:            cloudformation.Integer(80),
-			Protocol:        cloudformation.String("HTTP"),
+			Protocol:        cloudformation.String(httpProtocol),
 		})
 	} else if spec.loadbalancerType == LoadBalancerTypeApplication || spec.nlbHTTPEnabled {
 		listenerName := "HTTPListener"
@@ -325,7 +330,7 @@ func generateTemplate(spec *stackSpec) (string, error) {
 		HealthCheckIntervalSeconds: cloudformation.Ref(parameterTargetGroupHealthCheckIntervalParameter).Integer(),
 		HealthCheckPath:            cloudformation.Ref(parameterTargetGroupHealthCheckPathParameter).String(),
 		HealthCheckPort:            cloudformation.Ref(parameterTargetGroupHealthCheckPortParameter).String(),
-		HealthCheckProtocol:        cloudformation.String("HTTP"),
+		HealthCheckProtocol:        cloudformation.String(protocol),
 		Port:                       cloudformation.Ref(parameterTargetTargetPortParameter).Integer(),
 		Protocol:                   cloudformation.String(protocol),
 		VPCID:                      cloudformation.Ref(parameterTargetGroupVPCIDParameter).String(),

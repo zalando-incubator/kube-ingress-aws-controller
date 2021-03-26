@@ -130,6 +130,7 @@ type stackSpec struct {
 	vpcID                             string
 	healthCheck                       *healthCheck
 	targetPort                        uint
+	targetHTTPS                       bool
 	timeoutInMinutes                  uint
 	customTemplate                    string
 	stackTerminationProtection        bool
