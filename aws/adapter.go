@@ -595,6 +595,7 @@ func (a *Adapter) CreateStack(certificateARNs []string, scheme, securityGroup, o
 			timeout:  a.healthCheckTimeout,
 		},
 		targetPort:                        a.targetPort,
+		targetHTTPS:                       a.targetHTTPS,
 		timeoutInMinutes:                  uint(a.creationTimeout.Minutes()),
 		stackTerminationProtection:        a.stackTerminationProtection,
 		idleConnectionTimeoutSeconds:      uint(a.idleConnectionTimeout.Seconds()),
