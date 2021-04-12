@@ -117,11 +117,13 @@ func generateTemplate(spec *stackSpec) (string, error) {
 
 	protocol := httpProtocol
 	tlsProtocol := httpsProtocol
+	healthCheckProtocol := httpProtocol
 	if spec.loadbalancerType == LoadBalancerTypeNetwork {
 		protocol = "TCP"
 		tlsProtocol = "TLS"
 	} else if spec.targetHTTPS {
 		protocol = httpsProtocol
+		healthCheckProtocol = httpsProtocol
 	}
 
 	if spec.loadbalancerType == LoadBalancerTypeApplication && spec.httpRedirectToHTTPS {
@@ -324,13 +326,14 @@ func generateTemplate(spec *stackSpec) (string, error) {
 			Value: cloudformation.String(fmt.Sprintf("%d", spec.deregistrationDelayTimeoutSeconds)),
 		},
 	}
+
 	targetGroup := &cloudformation.ElasticLoadBalancingV2TargetGroup{
 		TargetGroupAttributes: &targetGroupAttributes,
 
 		HealthCheckIntervalSeconds: cloudformation.Ref(parameterTargetGroupHealthCheckIntervalParameter).Integer(),
 		HealthCheckPath:            cloudformation.Ref(parameterTargetGroupHealthCheckPathParameter).String(),
 		HealthCheckPort:            cloudformation.Ref(parameterTargetGroupHealthCheckPortParameter).String(),
-		HealthCheckProtocol:        cloudformation.String(protocol),
+		HealthCheckProtocol:        cloudformation.String(healthCheckProtocol),
 		Port:                       cloudformation.Ref(parameterTargetTargetPortParameter).Integer(),
 		Protocol:                   cloudformation.String(protocol),
 		VPCID:                      cloudformation.Ref(parameterTargetGroupVPCIDParameter).String(),
