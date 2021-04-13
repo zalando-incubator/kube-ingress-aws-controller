@@ -366,6 +366,7 @@ func TestGenerateTemplate(t *testing.T) {
 				tg, ok := template.Resources["TG"].Properties.(*cloudformation.ElasticLoadBalancingV2TargetGroup)
 				require.True(t, ok, "couldn't convert resource to ElasticLoadBalancingV2TargetGroup")
 				require.Equal(t, cloudformation.String("HTTPS"), tg.Protocol)
+				require.Equal(t, cloudformation.String("HTTPS"), tg.HealthCheckProtocol)
 			},
 		},
 		{
@@ -381,6 +382,7 @@ func TestGenerateTemplate(t *testing.T) {
 				listener := template.Resources["HTTPListener"].Properties.(*cloudformation.ElasticLoadBalancingV2Listener)
 				require.Equal(t, cloudformation.String("TCP"), listener.Protocol)
 				require.Equal(t, cloudformation.String("TCP"), tg.Protocol)
+				require.Equal(t, cloudformation.String("HTTP"), tg.HealthCheckProtocol)
 			},
 		},
 		{
@@ -397,6 +399,7 @@ func TestGenerateTemplate(t *testing.T) {
 				listener := template.Resources["HTTPListener"].Properties.(*cloudformation.ElasticLoadBalancingV2Listener)
 				require.Equal(t, cloudformation.String("TCP"), listener.Protocol)
 				require.Equal(t, cloudformation.String("TCP"), tg.Protocol)
+				require.Equal(t, cloudformation.String("HTTP"), tg.HealthCheckProtocol)
 			},
 		},
 	} {
