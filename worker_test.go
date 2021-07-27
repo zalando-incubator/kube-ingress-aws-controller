@@ -279,7 +279,7 @@ func TestCertificateExists(tt *testing.T) {
 				certs.NewCertificate(
 					existingCertificateARN,
 					&x509.Certificate{},
-					[]*x509.Certificate{&x509.Certificate{}},
+					[]*x509.Certificate{{}},
 				),
 			},
 			exists: true,
@@ -290,14 +290,14 @@ func TestCertificateExists(tt *testing.T) {
 				certs.NewCertificate(
 					nonExistingCertificateARN,
 					&x509.Certificate{},
-					[]*x509.Certificate{&x509.Certificate{}},
+					[]*x509.Certificate{{}},
 				),
 			},
 			exists: false,
 		},
 	} {
 		tt.Run(test.name, func(t *testing.T) {
-			certs := &Certificates{certificateSummaries: test.certificateSummaries}
+			certs := NewCertificates(test.certificateSummaries)
 
 			assert.Equal(t, test.exists, certs.CertificateExists(existingCertificateARN))
 		})
@@ -310,23 +310,82 @@ func TestGetAllLoadBalancers(tt *testing.T) {
 	for _, test := range []struct {
 		name          string
 		stacks        []*aws.Stack
+		certs         []*certs.CertificateSummary
 		loadBalancers []*loadBalancer
 	}{
 		{
 			name: "one stack",
 			stacks: []*aws.Stack{
-				&aws.Stack{
+				{
 					Scheme:        "foo",
 					SecurityGroup: "sg-123456",
 				},
 			},
+			certs: []*certs.CertificateSummary{},
 			loadBalancers: []*loadBalancer{
-				&loadBalancer{
+				{
+					existingStackCertificateARNs: map[string]time.Time{},
+					securityGroup:                "sg-123456",
+					scheme:                       "foo",
+					shared:                       true,
+					ingresses:                    map[string][]*kubernetes.Ingress{},
+					certTTL:                      certTTL,
+				},
+			},
+		},
+		{
+			name: "one stack with certificates",
+			stacks: []*aws.Stack{
+				{
+					Scheme:        "foo",
+					SecurityGroup: "sg-123456",
+					CertificateARNs: map[string]time.Time{
+						"cert-arn": {},
+					},
+				},
+			},
+			certs: []*certs.CertificateSummary{
+				certs.NewCertificate(
+					"cert-arn",
+					&x509.Certificate{},
+					[]*x509.Certificate{{}},
+				),
+			},
+			loadBalancers: []*loadBalancer{
+				{
+					existingStackCertificateARNs: map[string]time.Time{
+						"cert-arn": {},
+					},
 					securityGroup: "sg-123456",
 					scheme:        "foo",
 					shared:        true,
-					ingresses:     map[string][]*kubernetes.Ingress{},
-					certTTL:       certTTL,
+					ingresses: map[string][]*kubernetes.Ingress{
+						"cert-arn": {},
+					},
+					certTTL: certTTL,
+				},
+			},
+		},
+		{
+			name: "non existing certificate is not added to LB",
+			stacks: []*aws.Stack{
+				{
+					Scheme:        "foo",
+					SecurityGroup: "sg-123456",
+					CertificateARNs: map[string]time.Time{
+						"cert-arn": {},
+					},
+				},
+			},
+			certs: []*certs.CertificateSummary{},
+			loadBalancers: []*loadBalancer{
+				{
+					existingStackCertificateARNs: map[string]time.Time{},
+					securityGroup:                "sg-123456",
+					scheme:                       "foo",
+					shared:                       true,
+					ingresses:                    map[string][]*kubernetes.Ingress{},
+					certTTL:                      certTTL,
 				},
 			},
 		},
@@ -336,7 +395,7 @@ func TestGetAllLoadBalancers(tt *testing.T) {
 				loadBalancer.stack = test.stacks[i]
 			}
 
-			assert.Equal(t, test.loadBalancers, getAllLoadBalancers(certTTL, test.stacks))
+			assert.Equal(t, test.loadBalancers, getAllLoadBalancers(NewCertificates(test.certs), certTTL, test.stacks))
 		})
 	}
 }

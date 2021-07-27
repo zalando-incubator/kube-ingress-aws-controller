@@ -22,19 +22,20 @@ import (
 )
 
 type loadBalancer struct {
-	ingresses        map[string][]*kubernetes.Ingress
-	scheme           string
-	stack            *aws.Stack
-	shared           bool
-	http2            bool
-	clusterLocal     bool
-	securityGroup    string
-	sslPolicy        string
-	ipAddressType    string
-	wafWebACLID      string
-	certTTL          time.Duration
-	cwAlarms         aws.CloudWatchAlarmList
-	loadBalancerType string
+	ingresses                    map[string][]*kubernetes.Ingress
+	scheme                       string
+	stack                        *aws.Stack
+	existingStackCertificateARNs map[string]time.Time
+	shared                       bool
+	http2                        bool
+	clusterLocal                 bool
+	securityGroup                string
+	sslPolicy                    string
+	ipAddressType                string
+	wafWebACLID                  string
+	certTTL                      time.Duration
+	cwAlarms                     aws.CloudWatchAlarmList
+	loadBalancerType             string
 }
 
 const (
@@ -146,7 +147,7 @@ func (l *loadBalancer) CertificateARNs() map[string]time.Time {
 		}
 	}
 
-	for arn, ttl := range l.stack.CertificateARNs {
+	for arn, ttl := range l.existingStackCertificateARNs {
 		if _, ok := certificates[arn]; !ok {
 			if ttl.IsZero() {
 				certificates[arn] = time.Now().UTC().Add(l.certTTL)
@@ -186,7 +187,20 @@ type CertificatesFinder interface {
 
 // Certificates represents a generic list of certificates
 type Certificates struct {
+	certARNSet           map[string]struct{}
 	certificateSummaries []*certs.CertificateSummary
+}
+
+func NewCertificates(certs []*certs.CertificateSummary) *Certificates {
+	certARNSet := make(map[string]struct{}, len(certs))
+	for _, cert := range certs {
+		certARNSet[cert.ID()] = struct{}{}
+	}
+
+	return &Certificates{
+		certARNSet:           certARNSet,
+		certificateSummaries: certs,
+	}
 }
 
 // CertificateSummaries returns summaries of all certificates
@@ -196,12 +210,8 @@ func (c *Certificates) CertificateSummaries() []*certs.CertificateSummary {
 
 // CertificateExists checks if certificate with given ARN/ID is present in the collection
 func (c *Certificates) CertificateExists(arn string) bool {
-	for _, cert := range c.certificateSummaries {
-		if arn == cert.ID() {
-			return true
-		}
-	}
-	return false
+	_, ok := c.certARNSet[arn]
+	return ok
 }
 
 // FindMatchingCertificateIDs get IDs of all certificates matching to given hostnames
@@ -292,7 +302,7 @@ func doWork(
 	log.Infof("Found %d certificate(s)", len(certificateSummaries))
 	log.Infof("Found %d cloudwatch alarm configuration(s)", len(cwAlarms))
 
-	certs := &Certificates{certificateSummaries: certificateSummaries}
+	certs := NewCertificates(certificateSummaries)
 	model := buildManagedModel(certs, certsPerALB, certTTL, ingresses, stacks, cwAlarms, globalWAFACL)
 	log.Debugf("Have %d model(s)", len(model))
 	for _, loadBalancer := range model {
@@ -322,27 +332,33 @@ func sortStacks(stacks []*aws.Stack) {
 	})
 }
 
-func getAllLoadBalancers(certTTL time.Duration, stacks []*aws.Stack) []*loadBalancer {
+func getAllLoadBalancers(certs CertificatesFinder, certTTL time.Duration, stacks []*aws.Stack) []*loadBalancer {
 	loadBalancers := make([]*loadBalancer, 0, len(stacks))
 
 	for _, stack := range stacks {
 		lb := &loadBalancer{
-			stack:            stack,
-			ingresses:        make(map[string][]*kubernetes.Ingress),
-			scheme:           stack.Scheme,
-			shared:           stack.OwnerIngress == "",
-			securityGroup:    stack.SecurityGroup,
-			sslPolicy:        stack.SSLPolicy,
-			ipAddressType:    stack.IpAddressType,
-			loadBalancerType: stack.LoadBalancerType,
-			http2:            stack.HTTP2,
-			wafWebACLID:      stack.WAFWebACLID,
-			certTTL:          certTTL,
+			stack:                        stack,
+			existingStackCertificateARNs: make(map[string]time.Time, len(stack.CertificateARNs)),
+			ingresses:                    make(map[string][]*kubernetes.Ingress),
+			scheme:                       stack.Scheme,
+			shared:                       stack.OwnerIngress == "",
+			securityGroup:                stack.SecurityGroup,
+			sslPolicy:                    stack.SSLPolicy,
+			ipAddressType:                stack.IpAddressType,
+			loadBalancerType:             stack.LoadBalancerType,
+			http2:                        stack.HTTP2,
+			wafWebACLID:                  stack.WAFWebACLID,
+			certTTL:                      certTTL,
 		}
-		// initialize ingresses map with existing certificates from the
-		// stack.
-		for cert := range stack.CertificateARNs {
-			lb.ingresses[cert] = make([]*kubernetes.Ingress, 0)
+		// initialize ingresses map with existing certificates from the stack.
+		// Also filter the stack certificates so we have a set of
+		// certificates which are still availale, compared to what was
+		// latest stored on the stack.
+		for cert, expiry := range stack.CertificateARNs {
+			if certs.CertificateExists(cert) {
+				lb.existingStackCertificateARNs[cert] = expiry
+				lb.ingresses[cert] = make([]*kubernetes.Ingress, 0)
+			}
 		}
 		loadBalancers = append(loadBalancers, lb)
 	}
@@ -471,7 +487,7 @@ func buildManagedModel(
 ) []*loadBalancer {
 	sortStacks(stacks)
 	attachGlobalWAFACL(ingresses, globalWAFACL)
-	model := getAllLoadBalancers(certTTL, stacks)
+	model := getAllLoadBalancers(certs, certTTL, stacks)
 	model = matchIngressesToLoadBalancers(model, certs, certsPerALB, ingresses)
 	attachCloudWatchAlarms(model, cwAlarms)
 
