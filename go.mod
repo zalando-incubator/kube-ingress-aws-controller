@@ -8,7 +8,7 @@ require (
 	github.com/ghodss/yaml v1.0.0
 	github.com/go-playground/universal-translator v0.17.0 // indirect
 	github.com/golang/protobuf v1.5.2 // indirect
-	github.com/google/uuid v1.2.0
+	github.com/google/uuid v1.3.0
 	github.com/leodido/go-urn v1.2.1 // indirect
 	github.com/linki/instrumented_http v0.3.0
 	github.com/mweagle/go-cloudformation v0.0.0-20210117063902-00aa242fdc67
