@@ -638,3 +638,43 @@ func TestShouldDelete(t *testing.T) {
 	}
 
 }
+
+func TestLbType(t *testing.T) {
+	for _, tt := range []struct {
+		name string
+		args stackSpec
+		want string
+	}{
+		{
+			name: "alb should be alb on mostly empty stack",
+			args: stackSpec{name: "existing-stack-id", loadbalancerType: LoadBalancerTypeApplication},
+			want: LoadBalancerTypeApplication,
+		},
+		{
+			name: "nlb should be nlb on mostly empty stack",
+			args: stackSpec{name: "existing-stack-id", loadbalancerType: LoadBalancerTypeNetwork},
+			want: LoadBalancerTypeNetwork,
+		},
+		{
+			name: "nlb should switch to alb in case stack use alb feature SG",
+			args: stackSpec{name: "existing-stack-id", loadbalancerType: LoadBalancerTypeNetwork, securityGroupID: "foo"},
+			want: LoadBalancerTypeApplication,
+		},
+		{
+			name: "nlb should switch to alb in case stack use alb feature WAF",
+			args: stackSpec{name: "existing-stack-id", loadbalancerType: LoadBalancerTypeNetwork, wafWebAclId: "foo"},
+			want: LoadBalancerTypeApplication,
+		},
+		{
+			name: "nlb should switch to alb in case stack use alb feature H2",
+			args: stackSpec{name: "existing-stack-id", loadbalancerType: LoadBalancerTypeNetwork, http2: true},
+			want: LoadBalancerTypeApplication,
+		}} {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := lbType(&tt.args); got != tt.want {
+				t.Errorf("Failed to get lb type: Want %s, got %s", tt.want, got)
+			}
+		})
+	}
+
+}

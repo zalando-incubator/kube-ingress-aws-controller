@@ -191,7 +191,7 @@ func createStack(svc cloudformationiface.CloudFormationAPI, spec *stackSpec) (st
 			cfParam(parameterTargetTargetPortParameter, fmt.Sprintf("%d", spec.targetPort)),
 			cfParam(parameterListenerSslPolicyParameter, spec.sslPolicy),
 			cfParam(parameterIpAddressTypeParameter, spec.ipAddressType),
-			cfParam(parameterLoadBalancerTypeParameter, spec.loadbalancerType),
+			cfParam(parameterLoadBalancerTypeParameter, lbType(spec)),
 			cfParam(parameterHTTP2Parameter, fmt.Sprintf("%t", spec.http2)),
 		},
 		Tags:                        tagMapToCloudformationTags(tags),
@@ -259,7 +259,7 @@ func updateStack(svc cloudformationiface.CloudFormationAPI, spec *stackSpec) (st
 			cfParam(parameterTargetTargetPortParameter, fmt.Sprintf("%d", spec.targetPort)),
 			cfParam(parameterListenerSslPolicyParameter, spec.sslPolicy),
 			cfParam(parameterIpAddressTypeParameter, spec.ipAddressType),
-			cfParam(parameterLoadBalancerTypeParameter, spec.loadbalancerType),
+			cfParam(parameterLoadBalancerTypeParameter, lbType(spec)),
 			cfParam(parameterHTTP2Parameter, fmt.Sprintf("%t", spec.http2)),
 		},
 		Tags:         tagMapToCloudformationTags(tags),
@@ -312,6 +312,14 @@ func updateStack(svc cloudformationiface.CloudFormationAPI, spec *stackSpec) (st
 	}
 
 	return aws.StringValue(resp.StackId), nil
+}
+
+func lbType(spec *stackSpec) string {
+	// SG, WAG and H2 are not supported by NLBs, SG could change in the future
+	if spec.securityGroupID != "" || spec.wafWebAclId != "" || spec.http2 {
+		return LoadBalancerTypeApplication
+	}
+	return spec.loadbalancerType
 }
 
 func mergeTags(tags ...map[string]string) map[string]string {
