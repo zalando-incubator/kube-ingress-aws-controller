@@ -150,13 +150,10 @@ func (a *Adapter) newIngressFromKube(kubeIngress *ingress) *Ingress {
 		}
 	}
 
-	ingress := a.parseAnnotations(kubeIngress.Metadata.Annotations)
+	ingress := a.newIngressFromMetadata(ingressTypeIngress, kubeIngress.Metadata)
 
-	ingress.Namespace = kubeIngress.Metadata.Namespace
-	ingress.Name = kubeIngress.Metadata.Name
 	ingress.Hostname = host
 	ingress.Hostnames = hostnames
-	ingress.resourceType = ingressTypeIngress
 	ingress.ClusterLocal = len(hostnames) < 1
 
 	return ingress
@@ -178,21 +175,18 @@ func (a *Adapter) newIngressFromRouteGroup(rg *routegroup) *Ingress {
 		}
 	}
 
-	ingress := a.parseAnnotations(rg.Metadata.Annotations)
+	ingress := a.newIngressFromMetadata(ingressTypeRouteGroup, rg.Metadata)
 
-	ingress.Namespace = rg.Metadata.Namespace
-	ingress.Name = rg.Metadata.Name
 	ingress.Hostname = host
 	ingress.Hostnames = hostnames
-	ingress.resourceType = ingressTypeRouteGroup
 	ingress.ClusterLocal = len(hostnames) < 1
 
 	return ingress
 }
 
-// parseAnnotations parses the ingress configuration from the annotations of an
-// Ingress or RouteGroup resource.
-func (a *Adapter) parseAnnotations(annotations map[string]string) *Ingress {
+func (a *Adapter) newIngressFromMetadata(typ ingressType, metadata kubeItemMetadata) *Ingress {
+	annotations := metadata.Annotations
+
 	var scheme string
 	// Set schema to default if annotation value is not valid
 	switch getAnnotationsString(annotations, ingressSchemeAnnotation, "") {
@@ -217,7 +211,29 @@ func (a *Adapter) parseAnnotations(annotations map[string]string) *Ingress {
 		sslPolicy = a.ingressDefaultSSLPolicy
 	}
 
-	loadBalancerType := getAnnotationsString(annotations, ingressLoadBalancerTypeAnnotation, a.ingressDefaultLoadBalancerType)
+	loadBalancerType, hasLB := annotations[ingressLoadBalancerTypeAnnotation]
+	if !hasLB {
+		loadBalancerType = a.ingressDefaultLoadBalancerType
+	}
+
+	securityGroup, hasSG := annotations[ingressSecurityGroupAnnotation]
+	if !hasSG {
+		securityGroup = a.ingressDefaultSecurityGroup
+	}
+
+	wafWebAclId, hasWAF := annotations[ingressWAFWebACLIDAnnotation]
+
+	if (loadBalancerType == loadBalancerTypeNLB) && (hasSG || hasWAF) {
+		log := log.WithFields(log.Fields{"type": typ, "ns": metadata.Namespace, "name": metadata.Name})
+
+		if hasLB {
+			log.Info("Security Group or WAF are not supported by NLB (configured by annotation)")
+		} else {
+			log.Debug("Security Group or WAF are not supported by NLB (default), falling back to ALB")
+			loadBalancerType = loadBalancerTypeALB
+		}
+	}
+
 	if _, ok := loadBalancerTypesIngressToAWS[loadBalancerType]; !ok {
 		loadBalancerType = a.ingressDefaultLoadBalancerType
 	}
@@ -236,14 +252,17 @@ func (a *Adapter) parseAnnotations(annotations map[string]string) *Ingress {
 	}
 
 	return &Ingress{
+		resourceType:     typ,
+		Namespace:        metadata.Namespace,
+		Name:             metadata.Name,
 		CertificateARN:   getAnnotationsString(annotations, ingressCertificateARNAnnotation, ""),
 		Scheme:           scheme,
 		Shared:           shared,
-		SecurityGroup:    getAnnotationsString(annotations, ingressSecurityGroupAnnotation, a.ingressDefaultSecurityGroup),
+		SecurityGroup:    securityGroup,
 		SSLPolicy:        sslPolicy,
 		IPAddressType:    ipAddressType,
 		LoadBalancerType: loadBalancerType,
-		WAFWebACLID:      getAnnotationsString(annotations, ingressWAFWebACLIDAnnotation, ""),
+		WAFWebACLID:      wafWebAclId,
 		HTTP2:            http2,
 	}
 }

@@ -23,18 +23,19 @@ var (
 	testIPAddressTypeDualStack      = aws.IPAddressTypeDualstack
 	testIPAddressTypeDefault        = aws.IPAddressTypeIPV4
 	testLoadBalancerTypeIngress     = loadBalancerTypeALB
-	testLoadBalancerTypeAWS         = aws.LoadBalancerTypeApplication
 	testWAFWebACLID                 = "zbr-1234"
 )
 
 func TestNewIngressFromKube(tt *testing.T) {
 	for _, tc := range []struct {
-		msg         string
-		ingress     *Ingress
-		kubeIngress *ingress
+		msg                     string
+		defaultLoadBalancerType string
+		ingress                 *Ingress
+		kubeIngress             *ingress
 	}{
 		{
-			msg: "test parsing a simple ingress object",
+			msg:                     "test parsing a simple ingress object",
+			defaultLoadBalancerType: aws.LoadBalancerTypeApplication,
 			ingress: &Ingress{
 				Namespace:        "default",
 				Name:             "foo",
@@ -47,7 +48,7 @@ func TestNewIngressFromKube(tt *testing.T) {
 				SecurityGroup:    testSecurityGroup,
 				SSLPolicy:        testSSLPolicy,
 				IPAddressType:    testIPAddressTypeDefault,
-				LoadBalancerType: testLoadBalancerTypeAWS,
+				LoadBalancerType: aws.LoadBalancerTypeApplication,
 				resourceType:     ingressTypeIngress,
 				WAFWebACLID:      testWAFWebACLID,
 			},
@@ -85,7 +86,8 @@ func TestNewIngressFromKube(tt *testing.T) {
 			},
 		},
 		{
-			msg: "test parsing an ingress object with cluster.local domain",
+			msg:                     "test parsing an ingress object with cluster.local domain",
+			defaultLoadBalancerType: aws.LoadBalancerTypeApplication,
 			ingress: &Ingress{
 				Namespace:        "default",
 				Name:             "foo",
@@ -98,7 +100,7 @@ func TestNewIngressFromKube(tt *testing.T) {
 				SecurityGroup:    testSecurityGroup,
 				SSLPolicy:        testSSLPolicy,
 				IPAddressType:    testIPAddressTypeDefault,
-				LoadBalancerType: testLoadBalancerTypeAWS,
+				LoadBalancerType: aws.LoadBalancerTypeApplication,
 				resourceType:     ingressTypeIngress,
 				WAFWebACLID:      testWAFWebACLID,
 			},
@@ -136,7 +138,8 @@ func TestNewIngressFromKube(tt *testing.T) {
 			},
 		},
 		{
-			msg: "test parsing an ingress object with shared=false,h2-enabled=false annotations",
+			msg:                     "test parsing an ingress object with shared=false,h2-enabled=false annotations",
+			defaultLoadBalancerType: aws.LoadBalancerTypeApplication,
 			ingress: &Ingress{
 				Namespace:        "default",
 				Name:             "foo",
@@ -149,7 +152,7 @@ func TestNewIngressFromKube(tt *testing.T) {
 				SecurityGroup:    testSecurityGroup,
 				SSLPolicy:        testSSLPolicy,
 				IPAddressType:    testIPAddressTypeDefault,
-				LoadBalancerType: testLoadBalancerTypeAWS,
+				LoadBalancerType: aws.LoadBalancerTypeApplication,
 				resourceType:     ingressTypeIngress,
 				WAFWebACLID:      testWAFWebACLID,
 			},
@@ -180,7 +183,8 @@ func TestNewIngressFromKube(tt *testing.T) {
 			},
 		},
 		{
-			msg: "test parsing an ingress object with dualstack annotation",
+			msg:                     "test parsing an ingress object with dualstack annotation",
+			defaultLoadBalancerType: aws.LoadBalancerTypeApplication,
 			ingress: &Ingress{
 				Namespace:        "default",
 				Name:             "foo",
@@ -193,7 +197,7 @@ func TestNewIngressFromKube(tt *testing.T) {
 				SecurityGroup:    testSecurityGroup,
 				SSLPolicy:        testSSLPolicy,
 				IPAddressType:    testIPAddressTypeDualStack,
-				LoadBalancerType: testLoadBalancerTypeAWS,
+				LoadBalancerType: aws.LoadBalancerTypeApplication,
 				resourceType:     ingressTypeIngress,
 				WAFWebACLID:      testWAFWebACLID,
 			},
@@ -223,9 +227,180 @@ func TestNewIngressFromKube(tt *testing.T) {
 				},
 			},
 		},
+		{
+			msg:                     "test default NLB without annotations",
+			defaultLoadBalancerType: aws.LoadBalancerTypeNetwork,
+			ingress: &Ingress{
+				resourceType:     ingressTypeIngress,
+				Namespace:        "default",
+				Name:             "foo",
+				Hostname:         "bar",
+				Scheme:           "internet-facing",
+				Shared:           true,
+				HTTP2:            true,
+				ClusterLocal:     true,
+				SSLPolicy:        testSSLPolicy,
+				IPAddressType:    aws.IPAddressTypeIPV4,
+				LoadBalancerType: aws.LoadBalancerTypeNetwork,
+				SecurityGroup:    testIngressDefaultSecurityGroup,
+			},
+			kubeIngress: &ingress{
+				Metadata: kubeItemMetadata{
+					Namespace: "default",
+					Name:      "foo",
+				},
+				Status: ingressStatus{
+					LoadBalancer: ingressLoadBalancerStatus{
+						Ingress: []ingressLoadBalancer{
+							{Hostname: "bar"},
+						},
+					},
+				},
+			},
+		},
+		{
+			msg:                     "test default NLB with security group fallbacks to ALB",
+			defaultLoadBalancerType: aws.LoadBalancerTypeNetwork,
+			ingress: &Ingress{
+				resourceType:     ingressTypeIngress,
+				Namespace:        "default",
+				Name:             "foo",
+				Hostname:         "bar",
+				Scheme:           "internet-facing",
+				Shared:           true,
+				HTTP2:            true,
+				ClusterLocal:     true,
+				SSLPolicy:        testSSLPolicy,
+				IPAddressType:    aws.IPAddressTypeIPV4,
+				LoadBalancerType: aws.LoadBalancerTypeApplication,
+				SecurityGroup:    "sg-custom",
+			},
+			kubeIngress: &ingress{
+				Metadata: kubeItemMetadata{
+					Namespace: "default",
+					Name:      "foo",
+					Annotations: map[string]string{
+						ingressSecurityGroupAnnotation: "sg-custom",
+					},
+				},
+				Status: ingressStatus{
+					LoadBalancer: ingressLoadBalancerStatus{
+						Ingress: []ingressLoadBalancer{
+							{Hostname: "bar"},
+						},
+					},
+				},
+			},
+		},
+		{
+			msg:                     "test default NLB with WAF fallbacks to ALB",
+			defaultLoadBalancerType: aws.LoadBalancerTypeNetwork,
+			ingress: &Ingress{
+				resourceType:     ingressTypeIngress,
+				Namespace:        "default",
+				Name:             "foo",
+				Hostname:         "bar",
+				Scheme:           "internet-facing",
+				Shared:           true,
+				HTTP2:            true,
+				ClusterLocal:     true,
+				SSLPolicy:        testSSLPolicy,
+				IPAddressType:    aws.IPAddressTypeIPV4,
+				LoadBalancerType: aws.LoadBalancerTypeApplication,
+				SecurityGroup:    testIngressDefaultSecurityGroup,
+				WAFWebACLID:      "waf-custom",
+			},
+			kubeIngress: &ingress{
+				Metadata: kubeItemMetadata{
+					Namespace: "default",
+					Name:      "foo",
+					Annotations: map[string]string{
+						ingressWAFWebACLIDAnnotation: "waf-custom",
+					},
+				},
+				Status: ingressStatus{
+					LoadBalancer: ingressLoadBalancerStatus{
+						Ingress: []ingressLoadBalancer{
+							{Hostname: "bar"},
+						},
+					},
+				},
+			},
+		},
+		{
+			msg:                     "test explicitly configured NLB with security group does not fallback to ALB",
+			defaultLoadBalancerType: aws.LoadBalancerTypeApplication,
+			ingress: &Ingress{
+				resourceType:     ingressTypeIngress,
+				Namespace:        "default",
+				Name:             "foo",
+				Hostname:         "bar",
+				Scheme:           "internet-facing",
+				Shared:           true,
+				HTTP2:            true,
+				ClusterLocal:     true,
+				SSLPolicy:        testSSLPolicy,
+				IPAddressType:    aws.IPAddressTypeIPV4,
+				LoadBalancerType: aws.LoadBalancerTypeNetwork,
+				SecurityGroup:    "sg-custom",
+			},
+			kubeIngress: &ingress{
+				Metadata: kubeItemMetadata{
+					Namespace: "default",
+					Name:      "foo",
+					Annotations: map[string]string{
+						ingressLoadBalancerTypeAnnotation: loadBalancerTypeNLB,
+						ingressSecurityGroupAnnotation:    "sg-custom",
+					},
+				},
+				Status: ingressStatus{
+					LoadBalancer: ingressLoadBalancerStatus{
+						Ingress: []ingressLoadBalancer{
+							{Hostname: "bar"},
+						},
+					},
+				},
+			},
+		},
+		{
+			msg:                     "test explicitly configured NLB with WAF does not fallback to ALB",
+			defaultLoadBalancerType: aws.LoadBalancerTypeApplication,
+			ingress: &Ingress{
+				resourceType:     ingressTypeIngress,
+				Namespace:        "default",
+				Name:             "foo",
+				Hostname:         "bar",
+				Scheme:           "internet-facing",
+				Shared:           true,
+				HTTP2:            true,
+				ClusterLocal:     true,
+				SSLPolicy:        testSSLPolicy,
+				IPAddressType:    aws.IPAddressTypeIPV4,
+				LoadBalancerType: aws.LoadBalancerTypeNetwork,
+				SecurityGroup:    testIngressDefaultSecurityGroup,
+				WAFWebACLID:      "waf-custom",
+			},
+			kubeIngress: &ingress{
+				Metadata: kubeItemMetadata{
+					Namespace: "default",
+					Name:      "foo",
+					Annotations: map[string]string{
+						ingressLoadBalancerTypeAnnotation: loadBalancerTypeNLB,
+						ingressWAFWebACLIDAnnotation:      "waf-custom",
+					},
+				},
+				Status: ingressStatus{
+					LoadBalancer: ingressLoadBalancerStatus{
+						Ingress: []ingressLoadBalancer{
+							{Hostname: "bar"},
+						},
+					},
+				},
+			},
+		},
 	} {
 		tt.Run(tc.msg, func(t *testing.T) {
-			a, err := NewAdapter(testConfig, IngressAPIVersionNetworking, testIngressFilter, testIngressDefaultSecurityGroup, testSSLPolicy, testLoadBalancerTypeAWS, DefaultClusterLocalDomain, false)
+			a, err := NewAdapter(testConfig, IngressAPIVersionNetworking, testIngressFilter, testIngressDefaultSecurityGroup, testSSLPolicy, tc.defaultLoadBalancerType, DefaultClusterLocalDomain, false)
 			if err != nil {
 				t.Fatalf("cannot create kubernetes adapter: %v", err)
 			}
@@ -294,7 +469,7 @@ func (c *mockClient) patch(res string, payload []byte) (io.ReadCloser, error) {
 }
 
 func TestListIngress(t *testing.T) {
-	a, _ := NewAdapter(testConfig, IngressAPIVersionNetworking, testIngressFilter, testIngressDefaultSecurityGroup, testSSLPolicy, testLoadBalancerTypeAWS, DefaultClusterLocalDomain, false)
+	a, _ := NewAdapter(testConfig, IngressAPIVersionNetworking, testIngressFilter, testIngressDefaultSecurityGroup, testSSLPolicy, aws.LoadBalancerTypeApplication, DefaultClusterLocalDomain, false)
 	client := &mockClient{}
 	a.kubeClient = client
 	ingresses, err := a.ListIngress()
@@ -312,7 +487,7 @@ func TestListIngress(t *testing.T) {
 }
 
 func TestAdapterUpdateIngressLoadBalancer(t *testing.T) {
-	a, _ := NewAdapter(testConfig, IngressAPIVersionNetworking, testIngressFilter, testSecurityGroup, testSSLPolicy, testLoadBalancerTypeAWS, DefaultClusterLocalDomain, false)
+	a, _ := NewAdapter(testConfig, IngressAPIVersionNetworking, testIngressFilter, testSecurityGroup, testSSLPolicy, aws.LoadBalancerTypeApplication, DefaultClusterLocalDomain, false)
 	client := &mockClient{}
 	a.kubeClient = client
 	ing := &Ingress{
@@ -341,7 +516,7 @@ func TestAdapterUpdateIngressLoadBalancer(t *testing.T) {
 }
 
 func TestUpdateRouteGroupLoadBalancer(t *testing.T) {
-	a, _ := NewAdapter(testConfig, IngressAPIVersionNetworking, testIngressFilter, testSecurityGroup, testSSLPolicy, testLoadBalancerTypeAWS, DefaultClusterLocalDomain, false)
+	a, _ := NewAdapter(testConfig, IngressAPIVersionNetworking, testIngressFilter, testSecurityGroup, testSSLPolicy, aws.LoadBalancerTypeApplication, DefaultClusterLocalDomain, false)
 	client := &mockClient{}
 	a.kubeClient = client
 	ing := &Ingress{
@@ -380,7 +555,7 @@ func TestBrokenConfig(t *testing.T) {
 		{"broken-cert", &Config{BaseURL: "dontcare", TLSClientConfig: TLSClientConfig{CAFile: "testdata/broken.pem"}}},
 	} {
 		t.Run(fmt.Sprintf("%v", test.cfg), func(t *testing.T) {
-			_, err := NewAdapter(test.cfg, IngressAPIVersionNetworking, testIngressFilter, testSecurityGroup, testSSLPolicy, testLoadBalancerTypeAWS, DefaultClusterLocalDomain, false)
+			_, err := NewAdapter(test.cfg, IngressAPIVersionNetworking, testIngressFilter, testSecurityGroup, testSSLPolicy, aws.LoadBalancerTypeApplication, DefaultClusterLocalDomain, false)
 			if err == nil {
 				t.Error("expected an error")
 			}
@@ -389,7 +564,7 @@ func TestBrokenConfig(t *testing.T) {
 }
 
 func TestAdapter_GetConfigMap(t *testing.T) {
-	a, _ := NewAdapter(testConfig, IngressAPIVersionNetworking, testIngressFilter, testIngressDefaultSecurityGroup, testSSLPolicy, testLoadBalancerTypeAWS, DefaultClusterLocalDomain, false)
+	a, _ := NewAdapter(testConfig, IngressAPIVersionNetworking, testIngressFilter, testIngressDefaultSecurityGroup, testSSLPolicy, aws.LoadBalancerTypeApplication, DefaultClusterLocalDomain, false)
 	client := &mockClient{}
 	a.kubeClient = client
 
@@ -481,7 +656,7 @@ func TestListIngressFilterClass(t *testing.T) {
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
-			a, _ := NewAdapter(testConfig, IngressAPIVersionNetworking, test.ingressClassFilters, testIngressDefaultSecurityGroup, testSSLPolicy, testLoadBalancerTypeAWS, DefaultClusterLocalDomain, false)
+			a, _ := NewAdapter(testConfig, IngressAPIVersionNetworking, test.ingressClassFilters, testIngressDefaultSecurityGroup, testSSLPolicy, aws.LoadBalancerTypeApplication, DefaultClusterLocalDomain, false)
 			client := &mockClient{}
 			a.kubeClient = client
 			ingresses, err := a.ListResources()

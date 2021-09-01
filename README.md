@@ -139,7 +139,13 @@ the individual Load Balancer types.
 | [Dualstack support][dualstack] | :heavy_check_mark: `--ip-addr-type=dualstack` | :heavy_multiplication_x: |
 | [Idle Timeout][idle_timeout] | :heavy_check_mark: `--idle-connection-timeout` | :heavy_multiplication_x: |
 | Custom Security Group | :heavy_check_mark: | :heavy_multiplication_x: |
+| Web Application Firewall (WAF) | :heavy_check_mark: | :heavy_multiplication_x: |
 | HTTP/2 Support | :white_check_mark: | (not relevant) |
+
+To facilitate default load balancer type switch from Application to Network when the default load balancer type is Network
+(`--load-balancer-type="network"`) and Custom Security Group (`zalando.org/aws-load-balancer-security-group`) or
+Web Application Firewall (`zalando.org/aws-waf-web-acl-id`) annotation is present the controller configures Application Load Balancer
+unless `zalando.org/aws-load-balancer-type` annotation explicitly selects Network Load Balancer.
 
 [cross_zone]: https://docs.aws.amazon.com/elasticloadbalancing/latest/network/network-load-balancers.html#availability-zones
 [dualstack]: https://docs.aws.amazon.com/elasticloadbalancing/latest/application/application-load-balancers.html#ip-address-type
