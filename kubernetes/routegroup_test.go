@@ -61,7 +61,7 @@ func TestListRoutegroupFailureScenarios(t *testing.T) {
 	}
 }
 
-func TestUpdateRoutegroupLoaBalancer(t *testing.T) {
+func TestUpdateRoutegroupLoadBalancer(t *testing.T) {
 	expectedContentType := map[string]bool{
 		"application/json-patch+json":            true,
 		"application/merge-patch+json":           true,
@@ -92,14 +92,8 @@ func TestUpdateRoutegroupLoaBalancer(t *testing.T) {
 	defer testServer.Close()
 	cfg := &Config{BaseURL: testServer.URL}
 	kubeClient, _ := newSimpleClient(cfg, false)
-	ing := &routegroup{
-		Metadata: kubeItemMetadata{
-			Namespace: "foo",
-			Name:      "bar",
-		},
-	}
 
-	if err := updateRoutegroupLoadBalancer(kubeClient, ing, "example.org"); err != nil {
+	if err := updateRoutegroupLoadBalancer(kubeClient, "foo", "bar", "example.org"); err != nil {
 		t.Error("unexpected result from update call:", err)
 	}
 }
@@ -114,12 +108,11 @@ func TestUpdateRoutegroupFailureScenarios(t *testing.T) {
 	for _, test := range []struct {
 		rg *routegroup
 	}{
-		{newRoutegroup("foo", nil, "example.com", "")},
 		{newRoutegroup("foo", nil, "example.org", "")},
 	} {
 		arn := getAnnotationsString(test.rg.Metadata.Annotations, ingressCertificateARNAnnotation, "<missing>")
 		t.Run(fmt.Sprintf("%v/%v", test.rg.Status.LoadBalancer.Routegroup[0].Hostname, arn), func(t *testing.T) {
-			err := updateRoutegroupLoadBalancer(kubeClient, test.rg, "example.com")
+			err := updateRoutegroupLoadBalancer(kubeClient, test.rg.Metadata.Namespace, test.rg.Metadata.Name, "example.com")
 			if err == nil {
 				t.Error("expected an error but update routegroup call succeeded")
 			}

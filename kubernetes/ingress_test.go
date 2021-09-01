@@ -63,7 +63,7 @@ func TestListIngressFailureScenarios(t *testing.T) {
 	}
 }
 
-func TestUpdateIngressLoaBalancer(t *testing.T) {
+func TestUpdateIngressLoadBalancer(t *testing.T) {
 	expectedContentType := map[string]bool{
 		"application/json-patch+json":            true,
 		"application/merge-patch+json":           true,
@@ -95,14 +95,8 @@ func TestUpdateIngressLoaBalancer(t *testing.T) {
 	cfg := &Config{BaseURL: testServer.URL}
 	kubeClient, _ := newSimpleClient(cfg, false)
 	ingressClient := &ingressClient{apiVersion: IngressAPIVersionNetworking}
-	ing := &ingress{
-		Metadata: kubeItemMetadata{
-			Namespace: "foo",
-			Name:      "bar",
-		},
-	}
 
-	if err := ingressClient.updateIngressLoadBalancer(kubeClient, ing, "example.org"); err != nil {
+	if err := ingressClient.updateIngressLoadBalancer(kubeClient, "foo", "bar", "example.org"); err != nil {
 		t.Error("unexpected result from update call:", err)
 	}
 }
@@ -118,12 +112,11 @@ func TestUpdateIngressFailureScenarios(t *testing.T) {
 	for _, test := range []struct {
 		ing *ingress
 	}{
-		{newIngress("foo", nil, "example.com", "")},
 		{newIngress("foo", nil, "example.org", "")},
 	} {
 		arn := getAnnotationsString(test.ing.Metadata.Annotations, ingressCertificateARNAnnotation, "<missing>")
 		t.Run(fmt.Sprintf("%v/%v", test.ing.Status.LoadBalancer.Ingress[0].Hostname, arn), func(t *testing.T) {
-			err := ingressClient.updateIngressLoadBalancer(kubeClient, test.ing, "example.com")
+			err := ingressClient.updateIngressLoadBalancer(kubeClient, test.ing.Metadata.Namespace, test.ing.Metadata.Name, "example.com")
 			if err == nil {
 				t.Error("expected an error but update ingress call succeeded")
 			}
