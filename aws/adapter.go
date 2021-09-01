@@ -622,6 +622,8 @@ func (a *Adapter) CreateStack(certificateARNs []string, scheme, securityGroup, o
 		},
 	}
 
+	spec.loadbalancerType = lbType(spec)
+
 	return createStack(a.cloudformation, spec)
 }
 
@@ -672,6 +674,8 @@ func (a *Adapter) UpdateStack(stackName string, certificateARNs map[string]time.
 			contentType: a.denyInternalRespContentType,
 		},
 	}
+
+	spec.loadbalancerType = lbType(spec)
 
 	return updateStack(a.cloudformation, spec)
 }
