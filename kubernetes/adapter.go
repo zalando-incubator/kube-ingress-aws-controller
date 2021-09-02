@@ -191,7 +191,7 @@ func (a *Adapter) newIngressFromRouteGroup(rg *routegroup) *Ingress {
 }
 
 // parseAnnotations parses the ingress configuration from the annotations of an
-// Ingress or ReouteGroup resource.
+// Ingress or RouteGroup resource.
 func (a *Adapter) parseAnnotations(annotations map[string]string) *Ingress {
 	var scheme string
 	// Set schema to default if annotation value is not valid
@@ -245,60 +245,6 @@ func (a *Adapter) parseAnnotations(annotations map[string]string) *Ingress {
 		LoadBalancerType: loadBalancerType,
 		WAFWebACLID:      getAnnotationsString(annotations, ingressWAFWebACLIDAnnotation, ""),
 		HTTP2:            http2,
-	}
-}
-
-func newMetadataForKube(i *Ingress) kubeItemMetadata {
-	shared := "true"
-	if !i.Shared {
-		shared = "false"
-	}
-
-	http2 := "true"
-	if !i.HTTP2 {
-		http2 = "false"
-	}
-
-	return kubeItemMetadata{
-		Namespace: i.Namespace,
-		Name:      i.Name,
-		Annotations: map[string]string{
-			ingressCertificateARNAnnotation:   i.CertificateARN,
-			ingressSchemeAnnotation:           i.Scheme,
-			ingressSharedAnnotation:           shared,
-			ingressHTTP2Annotation:            http2,
-			ingressSecurityGroupAnnotation:    i.SecurityGroup,
-			ingressSSLPolicyAnnotation:        i.SSLPolicy,
-			ingressALBIPAddressType:           i.IPAddressType,
-			ingressWAFWebACLIDAnnotation:      i.WAFWebACLID,
-			ingressLoadBalancerTypeAnnotation: loadBalancerTypesAWSToIngress[i.LoadBalancerType],
-		},
-	}
-}
-
-func newIngressForKube(i *Ingress) *ingress {
-	return &ingress{
-		Metadata: newMetadataForKube(i),
-		Status: ingressStatus{
-			LoadBalancer: ingressLoadBalancerStatus{
-				Ingress: []ingressLoadBalancer{
-					{Hostname: i.Hostname},
-				},
-			},
-		},
-	}
-}
-
-func newRouteGroupForKube(i *Ingress) *routegroup {
-	return &routegroup{
-		Metadata: newMetadataForKube(i),
-		Status: routegroupStatus{
-			LoadBalancer: routegroupLoadBalancerStatus{
-				Routegroup: []routegroupLoadBalancer{
-					{Hostname: i.Hostname},
-				},
-			},
-		},
 	}
 }
 
@@ -398,11 +344,15 @@ func (a *Adapter) UpdateIngressLoadBalancer(ingress *Ingress, loadBalancerDNSNam
 		loadBalancerDNSName = ""
 	}
 
+	if ingress.Hostname == loadBalancerDNSName {
+		return ErrUpdateNotNeeded
+	}
+
 	switch ingress.resourceType {
 	case ingressTypeRouteGroup:
-		return updateRoutegroupLoadBalancer(a.kubeClient, newRouteGroupForKube(ingress), loadBalancerDNSName)
+		return updateRoutegroupLoadBalancer(a.kubeClient, ingress.Namespace, ingress.Name, loadBalancerDNSName)
 	case ingressTypeIngress:
-		return a.ingressClient.updateIngressLoadBalancer(a.kubeClient, newIngressForKube(ingress), loadBalancerDNSName)
+		return a.ingressClient.updateIngressLoadBalancer(a.kubeClient, ingress.Namespace, ingress.Name, loadBalancerDNSName)
 	}
 	return fmt.Errorf("Unknown resourceType '%s', failed to update Kubernetes resource", ingress.resourceType)
 }

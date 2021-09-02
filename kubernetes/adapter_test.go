@@ -27,7 +27,7 @@ var (
 	testWAFWebACLID                 = "zbr-1234"
 )
 
-func TestMappingRoundtrip(tt *testing.T) {
+func TestNewIngressFromKube(tt *testing.T) {
 	for _, tc := range []struct {
 		msg         string
 		ingress     *Ingress
@@ -233,11 +233,6 @@ func TestMappingRoundtrip(tt *testing.T) {
 			got := a.newIngressFromKube(tc.kubeIngress)
 			assert.Equal(t, tc.ingress, got, "mapping from kubernetes ingress to adapter failed")
 			assert.Equal(t, got.String(), fmt.Sprintf("%s/%s", tc.ingress.Namespace, tc.ingress.Name), "wrong value from String()")
-
-			tc.kubeIngress.Status.LoadBalancer.Ingress = tc.kubeIngress.Status.LoadBalancer.Ingress[1:]
-			gotKube := newIngressForKube(got)
-			assert.Equal(t, tc.kubeIngress.Metadata, gotKube.Metadata, "mapping from adapter to kubernetes ingress failed")
-			assert.Equal(t, tc.kubeIngress.Status, gotKube.Status, "mapping from adapter to kubernetes ingress failed")
 		})
 	}
 }
@@ -316,7 +311,7 @@ func TestListIngress(t *testing.T) {
 	}
 }
 
-func TestUpdateIngressLoadBalancer(t *testing.T) {
+func TestAdapterUpdateIngressLoadBalancer(t *testing.T) {
 	a, _ := NewAdapter(testConfig, IngressAPIVersionNetworking, testIngressFilter, testSecurityGroup, testSSLPolicy, testLoadBalancerTypeAWS, DefaultClusterLocalDomain, false)
 	client := &mockClient{}
 	a.kubeClient = client
@@ -326,6 +321,9 @@ func TestUpdateIngressLoadBalancer(t *testing.T) {
 		Hostname:       "bar",
 		CertificateARN: "zbr",
 		resourceType:   ingressTypeIngress,
+	}
+	if err := a.UpdateIngressLoadBalancer(ing, "bar"); err != ErrUpdateNotNeeded {
+		t.Error("expected ErrUpdateNotNeeded")
 	}
 	if err := a.UpdateIngressLoadBalancer(ing, "xpto"); err != nil {
 		t.Error(err)
@@ -352,6 +350,9 @@ func TestUpdateRouteGroupLoadBalancer(t *testing.T) {
 		Hostname:       "bar",
 		CertificateARN: "zbr",
 		resourceType:   ingressTypeRouteGroup,
+	}
+	if err := a.UpdateIngressLoadBalancer(ing, "bar"); err != ErrUpdateNotNeeded {
+		t.Error("expected ErrUpdateNotNeeded")
 	}
 	if err := a.UpdateIngressLoadBalancer(ing, "xpto"); err != nil {
 		t.Error(err)

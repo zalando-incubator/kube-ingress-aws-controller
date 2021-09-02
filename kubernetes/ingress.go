@@ -112,14 +112,7 @@ type patchIngressStatus struct {
 	Status ingressStatus `json:"status"`
 }
 
-func (ic *ingressClient) updateIngressLoadBalancer(c client, i *ingress, newHostName string) error {
-	ns, name := i.Metadata.Namespace, i.Metadata.Name
-	for _, ingressLb := range i.Status.LoadBalancer.Ingress {
-		if ingressLb.Hostname == newHostName {
-			return ErrUpdateNotNeeded
-		}
-	}
-
+func (ic *ingressClient) updateIngressLoadBalancer(c client, ns, name, newHostName string) error {
 	patchStatus := patchIngressStatus{
 		Status: ingressStatus{
 			LoadBalancer: ingressLoadBalancerStatus{

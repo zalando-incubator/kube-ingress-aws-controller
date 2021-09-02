@@ -71,14 +71,7 @@ type patchRoutegroupStatus struct {
 	Status routegroupStatus `json:"status"`
 }
 
-func updateRoutegroupLoadBalancer(c client, rg *routegroup, newHostName string) error {
-	ns, name := rg.Metadata.Namespace, rg.Metadata.Name
-	for _, routegroupLb := range rg.Status.LoadBalancer.Routegroup {
-		if routegroupLb.Hostname == newHostName {
-			return ErrUpdateNotNeeded
-		}
-	}
-
+func updateRoutegroupLoadBalancer(c client, ns, name, newHostName string) error {
 	patchStatus := patchRoutegroupStatus{
 		Status: routegroupStatus{
 			LoadBalancer: routegroupLoadBalancerStatus{
