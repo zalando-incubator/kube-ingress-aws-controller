@@ -9,6 +9,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/autoscaling/autoscalingiface"
 	"github.com/aws/aws-sdk-go/service/elbv2"
 	"github.com/aws/aws-sdk-go/service/elbv2/elbv2iface"
+	log "github.com/sirupsen/logrus"
 )
 
 type autoScalingGroupDetails struct {
@@ -213,6 +214,7 @@ func updateTargetGroupsForAutoScalingGroup(svc autoscalingiface.AutoScalingAPI, 
 		}
 
 		if len(detachARNs) > 0 {
+			log.Infof("Detach TGs from ASG(%s) %d", autoScalingGroupName, len(detachARNs))
 			err = detachTargetGroupsFromAutoScalingGroup(svc, detachARNs, autoScalingGroupName)
 			if err != nil {
 				return err
