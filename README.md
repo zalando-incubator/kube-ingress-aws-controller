@@ -34,6 +34,10 @@ This information is used to manage AWS resources for each ingress objects of the
 
 ## Upgrade
 
+### <v0.12.0 to >=0.12.0
+
+Version `v0.12.0` changes Network Load Balancer type handling if Application Load Balancer type feature is requested. See [Load Balancers types](#load-balancers-types) notes for details.
+
 ### <v0.11.0 to >=0.11.0
 
 Version `v0.11.0` changes the default `apiVersion` used for fetching/updating
@@ -139,7 +143,13 @@ the individual Load Balancer types.
 | [Dualstack support][dualstack] | :heavy_check_mark: `--ip-addr-type=dualstack` | :heavy_multiplication_x: |
 | [Idle Timeout][idle_timeout] | :heavy_check_mark: `--idle-connection-timeout` | :heavy_multiplication_x: |
 | Custom Security Group | :heavy_check_mark: | :heavy_multiplication_x: |
+| Web Application Firewall (WAF) | :heavy_check_mark: | :heavy_multiplication_x: |
 | HTTP/2 Support | :white_check_mark: | (not relevant) |
+
+To facilitate default load balancer type switch from Application to Network when the default load balancer type is Network
+(`--load-balancer-type="network"`) and Custom Security Group (`zalando.org/aws-load-balancer-security-group`) or
+Web Application Firewall (`zalando.org/aws-waf-web-acl-id`) annotation is present the controller configures Application Load Balancer.
+If `zalando.org/aws-load-balancer-type: nlb` annotation is also present then controller ignores the configuration and logs an error.
 
 [cross_zone]: https://docs.aws.amazon.com/elasticloadbalancing/latest/network/network-load-balancers.html#availability-zones
 [dualstack]: https://docs.aws.amazon.com/elasticloadbalancing/latest/application/application-load-balancers.html#ip-address-type
