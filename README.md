@@ -144,8 +144,8 @@ the individual Load Balancer types.
 
 To facilitate default load balancer type switch from Application to Network when the default load balancer type is Network
 (`--load-balancer-type="network"`) and Custom Security Group (`zalando.org/aws-load-balancer-security-group`) or
-Web Application Firewall (`zalando.org/aws-waf-web-acl-id`) annotation is present the controller configures Application Load Balancer
-unless `zalando.org/aws-load-balancer-type` annotation explicitly selects Network Load Balancer.
+Web Application Firewall (`zalando.org/aws-waf-web-acl-id`) annotation is present the controller configures Application Load Balancer.
+If `zalando.org/aws-load-balancer-type: nlb` annotation is also present then controller ignores the configuration and logs an error.
 
 [cross_zone]: https://docs.aws.amazon.com/elasticloadbalancing/latest/network/network-load-balancers.html#availability-zones
 [dualstack]: https://docs.aws.amazon.com/elasticloadbalancing/latest/application/application-load-balancers.html#ip-address-type

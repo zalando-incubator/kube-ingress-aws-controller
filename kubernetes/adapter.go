@@ -134,7 +134,7 @@ func NewAdapter(config *Config, ingressAPIVersion string, ingressClassFilters []
 	}, nil
 }
 
-func (a *Adapter) newIngressFromKube(kubeIngress *ingress) *Ingress {
+func (a *Adapter) newIngressFromKube(kubeIngress *ingress) (*Ingress, error) {
 	var host string
 	var hostnames []string
 	for _, ingressLoadBalancer := range kubeIngress.Status.LoadBalancer.Ingress {
@@ -150,16 +150,10 @@ func (a *Adapter) newIngressFromKube(kubeIngress *ingress) *Ingress {
 		}
 	}
 
-	ingress := a.newIngressFromMetadata(ingressTypeIngress, kubeIngress.Metadata)
-
-	ingress.Hostname = host
-	ingress.Hostnames = hostnames
-	ingress.ClusterLocal = len(hostnames) < 1
-
-	return ingress
+	return a.newIngress(ingressTypeIngress, kubeIngress.Metadata, host, hostnames)
 }
 
-func (a *Adapter) newIngressFromRouteGroup(rg *routegroup) *Ingress {
+func (a *Adapter) newIngressFromRouteGroup(rg *routegroup) (*Ingress, error) {
 	var host string
 	var hostnames []string
 	for _, lb := range rg.Status.LoadBalancer.Routegroup {
@@ -175,16 +169,10 @@ func (a *Adapter) newIngressFromRouteGroup(rg *routegroup) *Ingress {
 		}
 	}
 
-	ingress := a.newIngressFromMetadata(ingressTypeRouteGroup, rg.Metadata)
-
-	ingress.Hostname = host
-	ingress.Hostnames = hostnames
-	ingress.ClusterLocal = len(hostnames) < 1
-
-	return ingress
+	return a.newIngress(ingressTypeRouteGroup, rg.Metadata, host, hostnames)
 }
 
-func (a *Adapter) newIngressFromMetadata(typ ingressType, metadata kubeItemMetadata) *Ingress {
+func (a *Adapter) newIngress(typ ingressType, metadata kubeItemMetadata, host string, hostnames []string) (*Ingress, error) {
 	annotations := metadata.Annotations
 
 	var scheme string
@@ -224,14 +212,11 @@ func (a *Adapter) newIngressFromMetadata(typ ingressType, metadata kubeItemMetad
 	wafWebAclId, hasWAF := annotations[ingressWAFWebACLIDAnnotation]
 
 	if (loadBalancerType == loadBalancerTypeNLB) && (hasSG || hasWAF) {
-		log := log.WithFields(log.Fields{"type": typ, "ns": metadata.Namespace, "name": metadata.Name})
-
 		if hasLB {
-			log.Info("Security Group or WAF are not supported by NLB (configured by annotation)")
-		} else {
-			log.Debug("Security Group or WAF are not supported by NLB (default), falling back to ALB")
-			loadBalancerType = loadBalancerTypeALB
+			return nil, errors.New("security group or WAF are not supported by NLB (configured by annotation)")
 		}
+		// Security Group or WAF are not supported by NLB (default), falling back to ALB
+		loadBalancerType = loadBalancerTypeALB
 	}
 
 	if _, ok := loadBalancerTypesIngressToAWS[loadBalancerType]; !ok {
@@ -255,6 +240,9 @@ func (a *Adapter) newIngressFromMetadata(typ ingressType, metadata kubeItemMetad
 		resourceType:     typ,
 		Namespace:        metadata.Namespace,
 		Name:             metadata.Name,
+		Hostname:         host,
+		Hostnames:        hostnames,
+		ClusterLocal:     len(hostnames) < 1,
 		CertificateARN:   getAnnotationsString(annotations, ingressCertificateARNAnnotation, ""),
 		Scheme:           scheme,
 		Shared:           shared,
@@ -264,7 +252,7 @@ func (a *Adapter) newIngressFromMetadata(typ ingressType, metadata kubeItemMetad
 		LoadBalancerType: loadBalancerType,
 		WAFWebACLID:      wafWebAclId,
 		HTTP2:            http2,
-	}
+	}, nil
 }
 
 // Get ingress class filters that are used to filter ingresses acted upon.
@@ -307,18 +295,19 @@ func (a *Adapter) ListIngress() ([]*Ingress, error) {
 		return nil, err
 	}
 	var ret []*Ingress
-	if len(a.ingressFilters) > 0 {
-		for _, ingress := range il.Items {
-			ingressClass := getAnnotationsString(ingress.Metadata.Annotations, ingressClassAnnotation, "")
-			for _, v := range a.ingressFilters {
-				if v == ingressClass {
-					ret = append(ret, a.newIngressFromKube(ingress))
-				}
-			}
+	for _, ingress := range il.Items {
+		if !a.supportedIngressClass(ingress.Metadata) {
+			continue
 		}
-	} else {
-		for _, ingress := range il.Items {
-			ret = append(ret, a.newIngressFromKube(ingress))
+		ing, err := a.newIngressFromKube(ingress)
+		if err == nil {
+			ret = append(ret, ing)
+		} else {
+			log.WithFields(log.Fields{
+				"type": ingressTypeIngress.String(),
+				"ns":   ingress.Metadata.Namespace,
+				"name": ingress.Metadata.Name,
+			}).Errorf("%v", err)
 		}
 	}
 	return ret, nil
@@ -335,21 +324,35 @@ func (a *Adapter) ListRoutegroups() ([]*Ingress, error) {
 	}
 
 	var ret []*Ingress
-	if len(a.ingressFilters) > 0 {
-		for _, rg := range rgs.Items {
-			ingressClass := getAnnotationsString(rg.Metadata.Annotations, ingressClassAnnotation, "")
-			for _, v := range a.ingressFilters {
-				if v == ingressClass {
-					ret = append(ret, a.newIngressFromRouteGroup(rg))
-				}
-			}
+	for _, rg := range rgs.Items {
+		if !a.supportedIngressClass(rg.Metadata) {
+			continue
 		}
-	} else {
-		for _, rg := range rgs.Items {
-			ret = append(ret, a.newIngressFromRouteGroup(rg))
+		ing, err := a.newIngressFromRouteGroup(rg)
+		if err == nil {
+			ret = append(ret, ing)
+		} else {
+			log.WithFields(log.Fields{
+				"type": ingressTypeRouteGroup.String(),
+				"ns":   rg.Metadata.Namespace,
+				"name": rg.Metadata.Name,
+			}).Errorf("%v", err)
 		}
 	}
 	return ret, nil
+}
+
+func (a *Adapter) supportedIngressClass(metadata kubeItemMetadata) bool {
+	if len(a.ingressFilters) == 0 {
+		return true
+	}
+	ingressClass := getAnnotationsString(metadata.Annotations, ingressClassAnnotation, "")
+	for _, v := range a.ingressFilters {
+		if v == ingressClass {
+			return true
+		}
+	}
+	return false
 }
 
 // UpdateIngressLoadBalancer can be used to update the loadBalancer object of an ingress resource. It will update

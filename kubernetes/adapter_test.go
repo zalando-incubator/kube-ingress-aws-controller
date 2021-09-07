@@ -31,6 +31,7 @@ func TestNewIngressFromKube(tt *testing.T) {
 		msg                     string
 		defaultLoadBalancerType string
 		ingress                 *Ingress
+		ingressError            bool
 		kubeIngress             *ingress
 	}{
 		{
@@ -328,22 +329,9 @@ func TestNewIngressFromKube(tt *testing.T) {
 			},
 		},
 		{
-			msg:                     "test explicitly configured NLB with security group does not fallback to ALB",
+			msg:                     "test explicitly configured NLB with security group raises error",
 			defaultLoadBalancerType: aws.LoadBalancerTypeApplication,
-			ingress: &Ingress{
-				resourceType:     ingressTypeIngress,
-				Namespace:        "default",
-				Name:             "foo",
-				Hostname:         "bar",
-				Scheme:           "internet-facing",
-				Shared:           true,
-				HTTP2:            true,
-				ClusterLocal:     true,
-				SSLPolicy:        testSSLPolicy,
-				IPAddressType:    aws.IPAddressTypeIPV4,
-				LoadBalancerType: aws.LoadBalancerTypeNetwork,
-				SecurityGroup:    "sg-custom",
-			},
+			ingressError:            true,
 			kubeIngress: &ingress{
 				Metadata: kubeItemMetadata{
 					Namespace: "default",
@@ -363,23 +351,9 @@ func TestNewIngressFromKube(tt *testing.T) {
 			},
 		},
 		{
-			msg:                     "test explicitly configured NLB with WAF does not fallback to ALB",
+			msg:                     "test explicitly configured NLB with WAF raises error",
 			defaultLoadBalancerType: aws.LoadBalancerTypeApplication,
-			ingress: &Ingress{
-				resourceType:     ingressTypeIngress,
-				Namespace:        "default",
-				Name:             "foo",
-				Hostname:         "bar",
-				Scheme:           "internet-facing",
-				Shared:           true,
-				HTTP2:            true,
-				ClusterLocal:     true,
-				SSLPolicy:        testSSLPolicy,
-				IPAddressType:    aws.IPAddressTypeIPV4,
-				LoadBalancerType: aws.LoadBalancerTypeNetwork,
-				SecurityGroup:    testIngressDefaultSecurityGroup,
-				WAFWebACLID:      "waf-custom",
-			},
+			ingressError:            true,
 			kubeIngress: &ingress{
 				Metadata: kubeItemMetadata{
 					Namespace: "default",
@@ -405,9 +379,15 @@ func TestNewIngressFromKube(tt *testing.T) {
 				t.Fatalf("cannot create kubernetes adapter: %v", err)
 			}
 
-			got := a.newIngressFromKube(tc.kubeIngress)
-			assert.Equal(t, tc.ingress, got, "mapping from kubernetes ingress to adapter failed")
-			assert.Equal(t, got.String(), fmt.Sprintf("%s/%s", tc.ingress.Namespace, tc.ingress.Name), "wrong value from String()")
+			got, err := a.newIngressFromKube(tc.kubeIngress)
+			if tc.ingressError {
+				assert.NotNil(t, err)
+				assert.Nil(t, got)
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, tc.ingress, got, "mapping from kubernetes ingress to adapter failed")
+				assert.Equal(t, got.String(), fmt.Sprintf("%s/%s", tc.ingress.Namespace, tc.ingress.Name), "wrong value from String()")
+			}
 		})
 	}
 }
