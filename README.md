@@ -34,6 +34,10 @@ This information is used to manage AWS resources for each ingress objects of the
 
 ## Upgrade
 
+### <v0.12.0 to >=0.12.0
+
+Version `v0.12.0` changes Network Load Balancer type handling if Application Load Balancer type feature is requested. See [Load Balancers types](#load-balancers-types) notes for details.
+
 ### <v0.11.0 to >=0.11.0
 
 Version `v0.11.0` changes the default `apiVersion` used for fetching/updating
