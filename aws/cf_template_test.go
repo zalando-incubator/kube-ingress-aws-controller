@@ -136,13 +136,110 @@ func TestGenerateTemplate(t *testing.T) {
 			},
 		},
 		{
+			name: "ALB should only have HTTP listener when no certificate is present",
+			spec: &stackSpec{
+				loadbalancerType: LoadBalancerTypeApplication,
+			},
+			validate: func(t *testing.T, template *cloudformation.Template) {
+				requireTargetGroups(t, template, "TG")
+				requireListeners(t, template, "HTTPListener")
+
+				tg := template.Resources["TG"].Properties.(*cloudformation.ElasticLoadBalancingV2TargetGroup)
+
+				require.Contains(t, template.Parameters, parameterTargetGroupTargetPortParameter)
+				require.Equal(t, cloudformation.Ref(parameterTargetGroupTargetPortParameter).Integer(), tg.Port)
+				require.Equal(t, cloudformation.String("HTTP"), tg.Protocol)
+				require.Equal(t, cloudformation.String("HTTP"), tg.HealthCheckProtocol)
+
+				validateTargetGroupListener(t, template, "TG", "HTTPListener", 80, "HTTP")
+				validateTargetGroupOutput(t, template, "TG", "TargetGroupARN")
+			},
+		},
+		{
+			name: "ALB should have two listeners when certificate is present",
+			spec: &stackSpec{
+				loadbalancerType: LoadBalancerTypeApplication,
+				certificateARNs:  map[string]time.Time{"domain.company.com": time.Now()},
+			},
+			validate: func(t *testing.T, template *cloudformation.Template) {
+				requireTargetGroups(t, template, "TG")
+				requireListeners(t, template, "HTTPListener", "HTTPSListener")
+
+				tg := template.Resources["TG"].Properties.(*cloudformation.ElasticLoadBalancingV2TargetGroup)
+
+				require.Contains(t, template.Parameters, parameterTargetGroupTargetPortParameter)
+				require.Equal(t, cloudformation.Ref(parameterTargetGroupTargetPortParameter).Integer(), tg.Port)
+				require.Equal(t, cloudformation.String("HTTP"), tg.Protocol)
+				require.Equal(t, cloudformation.String("HTTP"), tg.HealthCheckProtocol)
+
+				validateTargetGroupListener(t, template, "TG", "HTTPListener", 80, "HTTP")
+				validateTargetGroupListener(t, template, "TG", "HTTPSListener", 443, "HTTPS")
+				validateTargetGroupOutput(t, template, "TG", "TargetGroupARN")
+			},
+		},
+		{
+			name: "ALB should use separate Target Group for HTTP when HTTP target port is configured",
+			spec: &stackSpec{
+				loadbalancerType:  LoadBalancerTypeApplication,
+				certificateARNs:   map[string]time.Time{"domain.company.com": time.Now()},
+				albHTTPTargetPort: 8888,
+			},
+			validate: func(t *testing.T, template *cloudformation.Template) {
+				requireTargetGroups(t, template, "TGHTTP", "TG")
+				requireListeners(t, template, "HTTPListener", "HTTPSListener")
+
+				tgHTTP := template.Resources["TGHTTP"].Properties.(*cloudformation.ElasticLoadBalancingV2TargetGroup)
+				require.Contains(t, template.Parameters, parameterTargetGroupHTTPTargetPortParameter)
+				require.Equal(t, cloudformation.Ref(parameterTargetGroupHTTPTargetPortParameter).Integer(), tgHTTP.Port)
+				require.Equal(t, cloudformation.String("HTTP"), tgHTTP.Protocol)
+				require.Equal(t, cloudformation.String("HTTP"), tgHTTP.HealthCheckProtocol)
+
+				validateTargetGroupListener(t, template, "TGHTTP", "HTTPListener", 80, "HTTP")
+				validateTargetGroupOutput(t, template, "TGHTTP", "HTTPTargetGroupARN")
+
+				tg := template.Resources["TG"].Properties.(*cloudformation.ElasticLoadBalancingV2TargetGroup)
+				require.Contains(t, template.Parameters, parameterTargetGroupTargetPortParameter)
+				require.Equal(t, cloudformation.Ref(parameterTargetGroupTargetPortParameter).Integer(), tg.Port)
+				require.Equal(t, cloudformation.String("HTTP"), tg.Protocol)
+				require.Equal(t, cloudformation.String("HTTP"), tg.HealthCheckProtocol)
+
+				validateTargetGroupListener(t, template, "TG", "HTTPSListener", 443, "HTTPS")
+				validateTargetGroupOutput(t, template, "TG", "TargetGroupARN")
+			},
+		},
+		{
+			name: "ALB should use one Target Group when HTTP target port equals target port",
+			spec: &stackSpec{
+				loadbalancerType:  LoadBalancerTypeApplication,
+				certificateARNs:   map[string]time.Time{"domain.company.com": time.Now()},
+				targetPort:        9999,
+				albHTTPTargetPort: 9999,
+			},
+			validate: func(t *testing.T, template *cloudformation.Template) {
+				requireTargetGroups(t, template, "TG")
+				requireListeners(t, template, "HTTPListener", "HTTPSListener")
+
+				tg := template.Resources["TG"].Properties.(*cloudformation.ElasticLoadBalancingV2TargetGroup)
+				require.NotContains(t, template.Parameters, parameterTargetGroupHTTPTargetPortParameter)
+				require.Contains(t, template.Parameters, parameterTargetGroupTargetPortParameter)
+				require.Equal(t, cloudformation.Ref(parameterTargetGroupTargetPortParameter).Integer(), tg.Port)
+				require.Equal(t, cloudformation.String("HTTP"), tg.Protocol)
+				require.Equal(t, cloudformation.String("HTTP"), tg.HealthCheckProtocol)
+
+				validateTargetGroupListener(t, template, "TG", "HTTPListener", 80, "HTTP")
+				validateTargetGroupListener(t, template, "TG", "HTTPSListener", 443, "HTTPS")
+				validateTargetGroupOutput(t, template, "TG", "TargetGroupARN")
+			},
+		},
+		{
 			name: "http -> https redirect should be enabled for Application load balancers",
 			spec: &stackSpec{
 				loadbalancerType:    LoadBalancerTypeApplication,
 				httpRedirectToHTTPS: true,
 			},
 			validate: func(t *testing.T, template *cloudformation.Template) {
-				require.NotNil(t, template.Resources["HTTPListener"])
+				requireTargetGroups(t, template, "TG")
+				requireListeners(t, template, "HTTPListener")
 				listener := template.Resources["HTTPListener"].Properties.(*cloudformation.ElasticLoadBalancingV2Listener)
 				require.Len(t, *listener.DefaultActions, 1)
 				redirectConfig := []cloudformation.ElasticLoadBalancingV2ListenerAction(*listener.DefaultActions)[0].RedirectConfig
@@ -159,7 +256,8 @@ func TestGenerateTemplate(t *testing.T) {
 				nlbHTTPEnabled:      true,
 			},
 			validate: func(t *testing.T, template *cloudformation.Template) {
-				require.NotNil(t, template.Resources["HTTPListener"])
+				requireTargetGroups(t, template, "TG")
+				requireListeners(t, template, "HTTPListener")
 				listener := template.Resources["HTTPListener"].Properties.(*cloudformation.ElasticLoadBalancingV2Listener)
 				require.Len(t, *listener.DefaultActions, 1)
 				redirectConfig := []cloudformation.ElasticLoadBalancingV2ListenerAction(*listener.DefaultActions)[0].RedirectConfig
@@ -184,10 +282,12 @@ func TestGenerateTemplate(t *testing.T) {
 			name: "nlb HTTP listener should not be enabled when nlbHTTPEnabled is set to false",
 			spec: &stackSpec{
 				loadbalancerType: LoadBalancerTypeNetwork,
+				certificateARNs:  map[string]time.Time{"domain.company.com": time.Now()},
 				nlbHTTPEnabled:   false,
 			},
 			validate: func(t *testing.T, template *cloudformation.Template) {
-				require.NotContains(t, template.Resources, "HTTPListener")
+				requireTargetGroups(t, template, "TG")
+				requireListeners(t, template, "HTTPSListener")
 			},
 		},
 		{
@@ -363,13 +463,15 @@ func TestGenerateTemplate(t *testing.T) {
 				targetHTTPS:      true,
 			},
 			validate: func(t *testing.T, template *cloudformation.Template) {
-				tg, ok := template.Resources["TG"].Properties.(*cloudformation.ElasticLoadBalancingV2TargetGroup)
-				require.True(t, ok, "couldn't convert resource to ElasticLoadBalancingV2TargetGroup")
+				requireTargetGroups(t, template, "TG")
+				requireListeners(t, template, "HTTPListener", "HTTPSListener")
+
+				tg := template.Resources["TG"].Properties.(*cloudformation.ElasticLoadBalancingV2TargetGroup)
 				require.Equal(t, cloudformation.String("HTTPS"), tg.Protocol)
 				require.Equal(t, cloudformation.String("HTTPS"), tg.HealthCheckProtocol)
 
-				listener := template.Resources["HTTPListener"].Properties.(*cloudformation.ElasticLoadBalancingV2Listener)
-				require.Equal(t, cloudformation.String("HTTP"), listener.Protocol)
+				validateTargetGroupListener(t, template, "TG", "HTTPListener", 80, "HTTP")
+				validateTargetGroupListener(t, template, "TG", "HTTPSListener", 443, "HTTPS")
 			},
 		},
 		{
@@ -380,12 +482,15 @@ func TestGenerateTemplate(t *testing.T) {
 				nlbHTTPEnabled:   true,
 			},
 			validate: func(t *testing.T, template *cloudformation.Template) {
-				tg, ok := template.Resources["TG"].Properties.(*cloudformation.ElasticLoadBalancingV2TargetGroup)
-				require.True(t, ok, "couldn't convert resource to ElasticLoadBalancingV2TargetGroup")
-				listener := template.Resources["HTTPListener"].Properties.(*cloudformation.ElasticLoadBalancingV2Listener)
-				require.Equal(t, cloudformation.String("TCP"), listener.Protocol)
+				requireTargetGroups(t, template, "TG")
+				requireListeners(t, template, "HTTPListener", "HTTPSListener")
+
+				tg := template.Resources["TG"].Properties.(*cloudformation.ElasticLoadBalancingV2TargetGroup)
 				require.Equal(t, cloudformation.String("TCP"), tg.Protocol)
 				require.Equal(t, cloudformation.String("HTTP"), tg.HealthCheckProtocol)
+
+				validateTargetGroupListener(t, template, "TG", "HTTPListener", 80, "TCP")
+				validateTargetGroupListener(t, template, "TG", "HTTPSListener", 443, "TLS")
 			},
 		},
 		{
@@ -397,12 +502,94 @@ func TestGenerateTemplate(t *testing.T) {
 				targetHTTPS:      true,
 			},
 			validate: func(t *testing.T, template *cloudformation.Template) {
-				tg, ok := template.Resources["TG"].Properties.(*cloudformation.ElasticLoadBalancingV2TargetGroup)
-				require.True(t, ok, "couldn't convert resource to ElasticLoadBalancingV2TargetGroup")
-				listener := template.Resources["HTTPListener"].Properties.(*cloudformation.ElasticLoadBalancingV2Listener)
-				require.Equal(t, cloudformation.String("TCP"), listener.Protocol)
+				requireTargetGroups(t, template, "TG")
+				requireListeners(t, template, "HTTPListener", "HTTPSListener")
+
+				tg := template.Resources["TG"].Properties.(*cloudformation.ElasticLoadBalancingV2TargetGroup)
 				require.Equal(t, cloudformation.String("TCP"), tg.Protocol)
 				require.Equal(t, cloudformation.String("HTTP"), tg.HealthCheckProtocol)
+
+				validateTargetGroupListener(t, template, "TG", "HTTPListener", 80, "TCP")
+				validateTargetGroupListener(t, template, "TG", "HTTPSListener", 443, "TLS")
+			},
+		},
+		{
+			name: "NLB should use separate Target Group for HTTP when HTTP target port is configured",
+			spec: &stackSpec{
+				loadbalancerType:  LoadBalancerTypeNetwork,
+				certificateARNs:   map[string]time.Time{"domain.company.com": time.Now()},
+				nlbHTTPEnabled:    true,
+				nlbHTTPTargetPort: 8888,
+			},
+			validate: func(t *testing.T, template *cloudformation.Template) {
+				requireTargetGroups(t, template, "TGHTTP", "TG")
+				requireListeners(t, template, "HTTPListener", "HTTPSListener")
+
+				tgHTTP := template.Resources["TGHTTP"].Properties.(*cloudformation.ElasticLoadBalancingV2TargetGroup)
+				require.Contains(t, template.Parameters, parameterTargetGroupHTTPTargetPortParameter)
+				require.Equal(t, cloudformation.Ref(parameterTargetGroupHTTPTargetPortParameter).Integer(), tgHTTP.Port)
+				require.Equal(t, cloudformation.String("TCP"), tgHTTP.Protocol)
+				require.Equal(t, cloudformation.String("HTTP"), tgHTTP.HealthCheckProtocol)
+
+				validateTargetGroupListener(t, template, "TGHTTP", "HTTPListener", 80, "TCP")
+				validateTargetGroupOutput(t, template, "TGHTTP", "HTTPTargetGroupARN")
+
+				tg := template.Resources["TG"].Properties.(*cloudformation.ElasticLoadBalancingV2TargetGroup)
+				require.Contains(t, template.Parameters, parameterTargetGroupTargetPortParameter)
+				require.Equal(t, cloudformation.Ref(parameterTargetGroupTargetPortParameter).Integer(), tg.Port)
+				require.Equal(t, cloudformation.String("TCP"), tg.Protocol)
+				require.Equal(t, cloudformation.String("HTTP"), tg.HealthCheckProtocol)
+
+				validateTargetGroupListener(t, template, "TG", "HTTPSListener", 443, "TLS")
+				validateTargetGroupOutput(t, template, "TG", "TargetGroupARN")
+			},
+		},
+		{
+			name: "NLB should use one Target Group when HTTP target port equals target port",
+			spec: &stackSpec{
+				loadbalancerType:  LoadBalancerTypeNetwork,
+				certificateARNs:   map[string]time.Time{"domain.company.com": time.Now()},
+				nlbHTTPEnabled:    true,
+				targetPort:        9999,
+				nlbHTTPTargetPort: 9999,
+			},
+			validate: func(t *testing.T, template *cloudformation.Template) {
+				requireTargetGroups(t, template, "TG")
+				requireListeners(t, template, "HTTPListener", "HTTPSListener")
+
+				tg := template.Resources["TG"].Properties.(*cloudformation.ElasticLoadBalancingV2TargetGroup)
+				require.NotContains(t, template.Parameters, parameterTargetGroupHTTPTargetPortParameter)
+				require.Contains(t, template.Parameters, parameterTargetGroupTargetPortParameter)
+				require.Equal(t, cloudformation.Ref(parameterTargetGroupTargetPortParameter).Integer(), tg.Port)
+				require.Equal(t, cloudformation.String("TCP"), tg.Protocol)
+				require.Equal(t, cloudformation.String("HTTP"), tg.HealthCheckProtocol)
+
+				validateTargetGroupListener(t, template, "TG", "HTTPListener", 80, "TCP")
+				validateTargetGroupListener(t, template, "TG", "HTTPSListener", 443, "TLS")
+				validateTargetGroupOutput(t, template, "TG", "TargetGroupARN")
+			},
+		},
+		{
+			name: "NLB HTTP target port is ignored when HTTP is disabled",
+			spec: &stackSpec{
+				loadbalancerType:  LoadBalancerTypeNetwork,
+				certificateARNs:   map[string]time.Time{"domain.company.com": time.Now()},
+				nlbHTTPEnabled:    false,
+				nlbHTTPTargetPort: 8888,
+			},
+			validate: func(t *testing.T, template *cloudformation.Template) {
+				requireTargetGroups(t, template, "TG")
+				requireListeners(t, template, "HTTPSListener")
+
+				tg := template.Resources["TG"].Properties.(*cloudformation.ElasticLoadBalancingV2TargetGroup)
+				require.NotContains(t, template.Parameters, parameterTargetGroupHTTPTargetPortParameter)
+				require.Contains(t, template.Parameters, parameterTargetGroupTargetPortParameter)
+				require.Equal(t, cloudformation.Ref(parameterTargetGroupTargetPortParameter).Integer(), tg.Port)
+				require.Equal(t, cloudformation.String("TCP"), tg.Protocol)
+				require.Equal(t, cloudformation.String("HTTP"), tg.HealthCheckProtocol)
+
+				validateTargetGroupListener(t, template, "TG", "HTTPSListener", 443, "TLS")
+				validateTargetGroupOutput(t, template, "TG", "TargetGroupARN")
 			},
 		},
 	} {
@@ -420,4 +607,46 @@ func TestGenerateTemplate(t *testing.T) {
 			test.validate(t, template)
 		})
 	}
+}
+
+func validateTargetGroupListener(t *testing.T, template *cloudformation.Template, targetGroup string, name string, port int64, protocol string) {
+	resource, ok := template.Resources[name]
+	require.True(t, ok, "Resource %s expected", name)
+
+	listener, ok := resource.Properties.(*cloudformation.ElasticLoadBalancingV2Listener)
+	require.True(t, ok, "Wrong type")
+	require.Equal(t, cloudformation.String("forward"), (*listener.DefaultActions)[0].Type)
+	require.Equal(t, cloudformation.Ref(targetGroup).String(), (*listener.DefaultActions)[0].TargetGroupArn)
+	require.Equal(t, cloudformation.Integer(port), listener.Port)
+	require.Equal(t, cloudformation.String(protocol), listener.Protocol)
+}
+
+func validateTargetGroupOutput(t *testing.T, template *cloudformation.Template, targetGroup, name string) {
+	output, ok := template.Outputs[name]
+	require.True(t, ok, "Resource %s expected", name)
+	require.Equal(t, map[string]interface{}{"Ref": targetGroup}, output.Value)
+}
+
+func requireTargetGroups(t *testing.T, template *cloudformation.Template, expected ...string) {
+	requireResources(t, template, expected, func(v interface{}) bool {
+		_, ok := v.(*cloudformation.ElasticLoadBalancingV2TargetGroup)
+		return ok
+	})
+}
+
+func requireListeners(t *testing.T, template *cloudformation.Template, expected ...string) {
+	requireResources(t, template, expected, func(v interface{}) bool {
+		_, ok := v.(*cloudformation.ElasticLoadBalancingV2Listener)
+		return ok
+	})
+}
+
+func requireResources(t *testing.T, template *cloudformation.Template, expected []string, matches func(interface{}) bool) {
+	var names []string
+	for name, resource := range template.Resources {
+		if matches(resource.Properties) {
+			names = append(names, name)
+		}
+	}
+	require.ElementsMatch(t, expected, names)
 }

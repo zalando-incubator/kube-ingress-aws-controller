@@ -30,7 +30,7 @@ type Stack struct {
 	HTTP2             bool
 	OwnerIngress      string
 	CWAlarmConfigHash string
-	TargetGroupARN    string
+	TargetGroupARNs   []string
 	WAFWebACLID       string
 	CertificateARNs   map[string]time.Time
 	tags              map[string]string
@@ -83,8 +83,14 @@ func (o stackOutput) dnsName() string {
 	return o[outputLoadBalancerDNSName]
 }
 
-func (o stackOutput) targetGroupARN() string {
-	return o[outputTargetGroupARN]
+func (o stackOutput) targetGroupARNs() (arns []string) {
+	if arn, ok := o[outputTargetGroupARN]; ok {
+		arns = append(arns, arn)
+	}
+	if arn, ok := o[outputHTTPTargetGroupARN]; ok {
+		arns = append(arns, arn)
+	}
+	return
 }
 
 // convertStackParameters converts a list of cloudformation stack parameters to
@@ -101,6 +107,7 @@ const (
 	// The following constants should be part of the Output section of the CloudFormation template
 	outputLoadBalancerDNSName = "LoadBalancerDNSName"
 	outputTargetGroupARN      = "TargetGroupARN"
+	outputHTTPTargetGroupARN  = "HTTPTargetGroupARN"
 
 	parameterLoadBalancerSchemeParameter             = "LoadBalancerSchemeParameter"
 	parameterLoadBalancerSecurityGroupParameter      = "LoadBalancerSecurityGroupParameter"
@@ -109,7 +116,8 @@ const (
 	parameterTargetGroupHealthCheckPortParameter     = "TargetGroupHealthCheckPortParameter"
 	parameterTargetGroupHealthCheckIntervalParameter = "TargetGroupHealthCheckIntervalParameter"
 	parameterTargetGroupHealthCheckTimeoutParameter  = "TargetGroupHealthCheckTimeoutParameter"
-	parameterTargetTargetPortParameter               = "TargetGroupTargetPortParameter"
+	parameterTargetGroupTargetPortParameter          = "TargetGroupTargetPortParameter"
+	parameterTargetGroupHTTPTargetPortParameter      = "TargetGroupHTTPTargetPortParameter"
 	parameterTargetGroupVPCIDParameter               = "TargetGroupVPCIDParameter"
 	parameterListenerCertificatesParameter           = "ListenerCertificatesParameter"
 	parameterListenerSslPolicyParameter              = "ListenerSslPolicyParameter"
@@ -130,6 +138,8 @@ type stackSpec struct {
 	vpcID                             string
 	healthCheck                       *healthCheck
 	targetPort                        uint
+	albHTTPTargetPort                 uint
+	nlbHTTPTargetPort                 uint
 	targetHTTPS                       bool
 	timeoutInMinutes                  uint
 	customTemplate                    string
@@ -167,6 +177,15 @@ type denyResp struct {
 	body        string
 }
 
+func (spec *stackSpec) httpTargetPort() uint {
+	if spec.loadbalancerType == LoadBalancerTypeApplication && spec.albHTTPTargetPort != 0 {
+		return spec.albHTTPTargetPort
+	} else if spec.loadbalancerType == LoadBalancerTypeNetwork && spec.nlbHTTPEnabled && spec.nlbHTTPTargetPort != 0 {
+		return spec.nlbHTTPTargetPort
+	}
+	return spec.targetPort
+}
+
 func createStack(svc cloudformationiface.CloudFormationAPI, spec *stackSpec) (string, error) {
 	template, err := generateTemplate(spec)
 	if err != nil {
@@ -188,7 +207,7 @@ func createStack(svc cloudformationiface.CloudFormationAPI, spec *stackSpec) (st
 			cfParam(parameterLoadBalancerSecurityGroupParameter, spec.securityGroupID),
 			cfParam(parameterLoadBalancerSubnetsParameter, strings.Join(spec.subnets, ",")),
 			cfParam(parameterTargetGroupVPCIDParameter, spec.vpcID),
-			cfParam(parameterTargetTargetPortParameter, fmt.Sprintf("%d", spec.targetPort)),
+			cfParam(parameterTargetGroupTargetPortParameter, fmt.Sprintf("%d", spec.targetPort)),
 			cfParam(parameterListenerSslPolicyParameter, spec.sslPolicy),
 			cfParam(parameterIpAddressTypeParameter, spec.ipAddressType),
 			cfParam(parameterLoadBalancerTypeParameter, spec.loadbalancerType),
@@ -204,6 +223,13 @@ func createStack(svc cloudformationiface.CloudFormationAPI, spec *stackSpec) (st
 		params.Parameters = append(
 			params.Parameters,
 			cfParam(parameterLoadBalancerWAFWebACLIDParameter, spec.wafWebAclId),
+		)
+	}
+
+	if port := spec.httpTargetPort(); port != spec.targetPort {
+		params.Parameters = append(
+			params.Parameters,
+			cfParam(parameterTargetGroupHTTPTargetPortParameter, fmt.Sprintf("%d", port)),
 		)
 	}
 
@@ -256,7 +282,7 @@ func updateStack(svc cloudformationiface.CloudFormationAPI, spec *stackSpec) (st
 			cfParam(parameterLoadBalancerSecurityGroupParameter, spec.securityGroupID),
 			cfParam(parameterLoadBalancerSubnetsParameter, strings.Join(spec.subnets, ",")),
 			cfParam(parameterTargetGroupVPCIDParameter, spec.vpcID),
-			cfParam(parameterTargetTargetPortParameter, fmt.Sprintf("%d", spec.targetPort)),
+			cfParam(parameterTargetGroupTargetPortParameter, fmt.Sprintf("%d", spec.targetPort)),
 			cfParam(parameterListenerSslPolicyParameter, spec.sslPolicy),
 			cfParam(parameterIpAddressTypeParameter, spec.ipAddressType),
 			cfParam(parameterLoadBalancerTypeParameter, spec.loadbalancerType),
@@ -270,6 +296,13 @@ func updateStack(svc cloudformationiface.CloudFormationAPI, spec *stackSpec) (st
 		params.Parameters = append(
 			params.Parameters,
 			cfParam(parameterLoadBalancerWAFWebACLIDParameter, spec.wafWebAclId),
+		)
+	}
+
+	if port := spec.httpTargetPort(); port != spec.targetPort {
+		params.Parameters = append(
+			params.Parameters,
+			cfParam(parameterTargetGroupHTTPTargetPortParameter, fmt.Sprintf("%d", port)),
 		)
 	}
 
@@ -434,7 +467,7 @@ func mapToManagedStack(stack *cloudformation.Stack) *Stack {
 	return &Stack{
 		Name:              aws.StringValue(stack.StackName),
 		DNSName:           outputs.dnsName(),
-		TargetGroupARN:    outputs.targetGroupARN(),
+		TargetGroupARNs:   outputs.targetGroupARNs(),
 		Scheme:            parameters[parameterLoadBalancerSchemeParameter],
 		SecurityGroup:     parameters[parameterLoadBalancerSecurityGroupParameter],
 		SSLPolicy:         parameters[parameterListenerSslPolicyParameter],

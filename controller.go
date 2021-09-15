@@ -43,6 +43,8 @@ var (
 	healthCheckInterval           time.Duration
 	healthCheckTimeout            time.Duration
 	targetPort                    uint
+	albHTTPTargetPort             uint
+	nlbHTTPTargetPort             uint
 	targetHTTPS                   bool
 	metricsAddress                string
 	disableSNISupport             bool
@@ -111,6 +113,10 @@ func loadSettings() error {
 		Default(strconv.FormatUint(aws.DefaultHealthCheckPort, 10)).UintVar(&healthCheckPort)
 	kingpin.Flag("target-port", "sets the target port for the created target groups").
 		Default(strconv.FormatUint(aws.DefaultTargetPort, 10)).UintVar(&targetPort)
+	kingpin.Flag("alb-http-target-port", "Sets the target port for ALB HTTP listener different from --target-port.").
+		UintVar(&albHTTPTargetPort)
+	kingpin.Flag("nlb-http-target-port", "Sets the target port for NLB HTTP listener different from --target-port. Requires --nlb-http-enabled.").
+		UintVar(&nlbHTTPTargetPort)
 	kingpin.Flag("target-https", "sets the target protocol to https").
 		Default("false").BoolVar(&targetHTTPS)
 	kingpin.Flag("health-check-interval", "sets the health check interval for the created target groups. The flag accepts a value acceptable to time.ParseDuration").
@@ -186,6 +192,18 @@ func loadSettings() error {
 		return fmt.Errorf("invalid target port: %d. please use a valid TCP port", targetPort)
 	}
 
+	if albHTTPTargetPort > 65535 { // default 0
+		return fmt.Errorf("invalid ALB HTTP target port: %d. please use a valid TCP port", albHTTPTargetPort)
+	}
+
+	if nlbHTTPTargetPort > 65535 { // default 0
+		return fmt.Errorf("invalid NLB HTTP target port: %d. please use a valid TCP port", nlbHTTPTargetPort)
+	}
+
+	if nlbHTTPTargetPort > 0 && !nlbHTTPEnabled {
+		return fmt.Errorf("NLB HTTP is not enabled")
+	}
+
 	if maxCertsPerALB > aws.DefaultMaxCertsPerALB {
 		return fmt.Errorf("invalid max number of certificates per ALB: %d. AWS does not allow more than %d", maxCertsPerALB, aws.DefaultMaxCertsPerALB)
 	}
@@ -255,6 +273,8 @@ func main() {
 		WithHealthCheckInterval(healthCheckInterval).
 		WithHealthCheckTimeout(healthCheckTimeout).
 		WithTargetPort(targetPort).
+		WithALBHTTPTargetPort(albHTTPTargetPort).
+		WithNLBHTTPTargetPort(nlbHTTPTargetPort).
 		WithTargetHTTPS(targetHTTPS).
 		WithCreationTimeout(creationTimeout).
 		WithStackTerminationProtection(stackTerminationProtection).

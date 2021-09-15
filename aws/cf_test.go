@@ -58,6 +58,33 @@ func TestCreatingStack(t *testing.T) {
 			"fake-stack-id",
 			false,
 		},
+		{
+			"stack with ALB http port",
+			stackSpec{
+				name:              "foo",
+				securityGroupID:   "bar",
+				vpcID:             "baz",
+				loadbalancerType:  LoadBalancerTypeApplication,
+				nlbHTTPTargetPort: 7777,
+			},
+			cfMockOutputs{createStack: R(mockCSOutput("fake-stack-id"), nil)},
+			"fake-stack-id",
+			false,
+		},
+		{
+			"stack with NLB http port",
+			stackSpec{
+				name:              "foo",
+				securityGroupID:   "bar",
+				vpcID:             "baz",
+				loadbalancerType:  LoadBalancerTypeNetwork,
+				nlbHTTPEnabled:    true,
+				nlbHTTPTargetPort: 8888,
+			},
+			cfMockOutputs{createStack: R(mockCSOutput("fake-stack-id"), nil)},
+			"fake-stack-id",
+			false,
+		},
 	} {
 		t.Run(ti.name, func(t *testing.T) {
 			c := &mockCloudFormationClient{outputs: ti.givenOutputs}
@@ -119,6 +146,33 @@ func TestUpdatingStack(t *testing.T) {
 				securityGroupID: "bar",
 				vpcID:           "baz",
 				wafWebAclId:     "foo-bar-baz",
+			},
+			cfMockOutputs{updateStack: R(mockUSOutput("fake-stack-id"), nil)},
+			"fake-stack-id",
+			false,
+		},
+		{
+			"stack with ALB http port",
+			stackSpec{
+				name:              "foo",
+				securityGroupID:   "bar",
+				vpcID:             "baz",
+				loadbalancerType:  LoadBalancerTypeApplication,
+				albHTTPTargetPort: 7777,
+			},
+			cfMockOutputs{updateStack: R(mockUSOutput("fake-stack-id"), nil)},
+			"fake-stack-id",
+			false,
+		},
+		{
+			"stack with NLB http port",
+			stackSpec{
+				name:              "foo",
+				securityGroupID:   "bar",
+				vpcID:             "baz",
+				loadbalancerType:  LoadBalancerTypeNetwork,
+				nlbHTTPEnabled:    true,
+				nlbHTTPTargetPort: 8888,
 			},
 			cfMockOutputs{updateStack: R(mockUSOutput("fake-stack-id"), nil)},
 			"fake-stack-id",
@@ -333,6 +387,20 @@ func TestFindManagedStacks(t *testing.T) {
 							},
 						},
 						{
+							StackName:   aws.String("managed-stack-http-arn"),
+							StackStatus: aws.String(cloudformation.StackStatusCreateComplete),
+							Tags: []*cloudformation.Tag{
+								cfTag(kubernetesCreatorTag, DefaultControllerID),
+								cfTag(clusterIDTagPrefix+"test-cluster", resourceLifecycleOwned),
+								cfTag(certificateARNTagPrefix+"cert-arn", time.Time{}.Format(time.RFC3339)),
+							},
+							Outputs: []*cloudformation.Output{
+								{OutputKey: aws.String(outputLoadBalancerDNSName), OutputValue: aws.String("example.com")},
+								{OutputKey: aws.String(outputTargetGroupARN), OutputValue: aws.String("tg-arn")},
+								{OutputKey: aws.String(outputHTTPTargetGroupARN), OutputValue: aws.String("http-tg-arn")},
+							},
+						},
+						{
 							StackName:   aws.String("managed-stack-not-ready"),
 							StackStatus: aws.String(cloudformation.StackStatusUpdateInProgress),
 							Tags: []*cloudformation.Tag{
@@ -369,7 +437,7 @@ func TestFindManagedStacks(t *testing.T) {
 					CertificateARNs: map[string]time.Time{
 						"cert-arn": time.Time{},
 					},
-					TargetGroupARN: "tg-arn",
+					TargetGroupARNs: []string{"tg-arn"},
 					tags: map[string]string{
 						kubernetesCreatorTag:                 DefaultControllerID,
 						clusterIDTagPrefix + "test-cluster":  resourceLifecycleOwned,
@@ -384,7 +452,22 @@ func TestFindManagedStacks(t *testing.T) {
 					CertificateARNs: map[string]time.Time{
 						"cert-arn": time.Time{},
 					},
-					TargetGroupARN: "tg-arn",
+					TargetGroupARNs: []string{"tg-arn"},
+					tags: map[string]string{
+						kubernetesCreatorTag:                 DefaultControllerID,
+						clusterIDTagPrefix + "test-cluster":  resourceLifecycleOwned,
+						certificateARNTagPrefix + "cert-arn": time.Time{}.Format(time.RFC3339),
+					},
+					status: cloudformation.StackStatusCreateComplete,
+					HTTP2:  true,
+				},
+				{
+					Name:    "managed-stack-http-arn",
+					DNSName: "example.com",
+					CertificateARNs: map[string]time.Time{
+						"cert-arn": time.Time{},
+					},
+					TargetGroupARNs: []string{"tg-arn", "http-tg-arn"},
 					tags: map[string]string{
 						kubernetesCreatorTag:                 DefaultControllerID,
 						clusterIDTagPrefix + "test-cluster":  resourceLifecycleOwned,
@@ -443,7 +526,7 @@ func TestFindManagedStacks(t *testing.T) {
 				{
 					Name:            "managed-stack-not-ready",
 					DNSName:         "example-notready.com",
-					TargetGroupARN:  "tg-arn",
+					TargetGroupARNs: []string{"tg-arn"},
 					CertificateARNs: map[string]time.Time{},
 					tags: map[string]string{
 						kubernetesCreatorTag:                DefaultControllerID,
@@ -455,7 +538,7 @@ func TestFindManagedStacks(t *testing.T) {
 				{
 					Name:            "managed-stack",
 					DNSName:         "example.com",
-					TargetGroupARN:  "tg-arn",
+					TargetGroupARNs: []string{"tg-arn"},
 					CertificateARNs: map[string]time.Time{},
 					tags: map[string]string{
 						kubernetesCreatorTag:                DefaultControllerID,
@@ -536,7 +619,47 @@ func TestGetStack(t *testing.T) {
 				CertificateARNs: map[string]time.Time{
 					"cert-arn": time.Time{},
 				},
-				TargetGroupARN: "tg-arn",
+				TargetGroupARNs: []string{"tg-arn"},
+				tags: map[string]string{
+					kubernetesCreatorTag:                 DefaultControllerID,
+					clusterIDTagPrefix + "test-cluster":  resourceLifecycleOwned,
+					certificateARNTagPrefix + "cert-arn": time.Time{}.Format(time.RFC3339),
+				},
+				status: cloudformation.StackStatusCreateComplete,
+				HTTP2:  true,
+			},
+			wantErr: false,
+		},
+		{
+			name: "successful-call-http-arn",
+			given: cfMockOutputs{
+				describeStackPages: R(nil, nil),
+				describeStacks: R(&cloudformation.DescribeStacksOutput{
+					Stacks: []*cloudformation.Stack{
+						{
+							StackName:   aws.String("managed-stack"),
+							StackStatus: aws.String(cloudformation.StackStatusCreateComplete),
+							Tags: []*cloudformation.Tag{
+								cfTag(kubernetesCreatorTag, DefaultControllerID),
+								cfTag(clusterIDTagPrefix+"test-cluster", resourceLifecycleOwned),
+								cfTag(certificateARNTagPrefix+"cert-arn", time.Time{}.Format(time.RFC3339)),
+							},
+							Outputs: []*cloudformation.Output{
+								{OutputKey: aws.String(outputLoadBalancerDNSName), OutputValue: aws.String("example.com")},
+								{OutputKey: aws.String(outputTargetGroupARN), OutputValue: aws.String("tg-arn")},
+								{OutputKey: aws.String(outputHTTPTargetGroupARN), OutputValue: aws.String("tg-http-arn")},
+							},
+						},
+					},
+				}, nil),
+			},
+			want: &Stack{
+				Name:    "managed-stack",
+				DNSName: "example.com",
+				CertificateARNs: map[string]time.Time{
+					"cert-arn": time.Time{},
+				},
+				TargetGroupARNs: []string{"tg-arn", "tg-http-arn"},
 				tags: map[string]string{
 					kubernetesCreatorTag:                 DefaultControllerID,
 					clusterIDTagPrefix + "test-cluster":  resourceLifecycleOwned,
