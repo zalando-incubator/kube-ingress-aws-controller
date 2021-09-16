@@ -180,9 +180,9 @@ func TestGenerateTemplate(t *testing.T) {
 		{
 			name: "ALB should use separate Target Group for HTTP when HTTP target port is configured",
 			spec: &stackSpec{
-				loadbalancerType:  LoadBalancerTypeApplication,
-				certificateARNs:   map[string]time.Time{"domain.company.com": time.Now()},
-				albHTTPTargetPort: 8888,
+				loadbalancerType: LoadBalancerTypeApplication,
+				certificateARNs:  map[string]time.Time{"domain.company.com": time.Now()},
+				httpTargetPort:   8888,
 			},
 			validate: func(t *testing.T, template *cloudformation.Template) {
 				requireTargetGroups(t, template, "TGHTTP", "TG")
@@ -210,10 +210,10 @@ func TestGenerateTemplate(t *testing.T) {
 		{
 			name: "ALB should use one Target Group when HTTP target port equals target port",
 			spec: &stackSpec{
-				loadbalancerType:  LoadBalancerTypeApplication,
-				certificateARNs:   map[string]time.Time{"domain.company.com": time.Now()},
-				targetPort:        9999,
-				albHTTPTargetPort: 9999,
+				loadbalancerType: LoadBalancerTypeApplication,
+				certificateARNs:  map[string]time.Time{"domain.company.com": time.Now()},
+				targetPort:       9999,
+				httpTargetPort:   9999,
 			},
 			validate: func(t *testing.T, template *cloudformation.Template) {
 				requireTargetGroups(t, template, "TG")
@@ -253,7 +253,6 @@ func TestGenerateTemplate(t *testing.T) {
 			spec: &stackSpec{
 				loadbalancerType:    LoadBalancerTypeNetwork,
 				httpRedirectToHTTPS: true,
-				nlbHTTPEnabled:      true,
 			},
 			validate: func(t *testing.T, template *cloudformation.Template) {
 				requireTargetGroups(t, template, "TG")
@@ -279,11 +278,11 @@ func TestGenerateTemplate(t *testing.T) {
 			},
 		},
 		{
-			name: "nlb HTTP listener should not be enabled when nlbHTTPEnabled is set to false",
+			name: "nlb HTTP listener should not be enabled when HTTP is disabled",
 			spec: &stackSpec{
 				loadbalancerType: LoadBalancerTypeNetwork,
 				certificateARNs:  map[string]time.Time{"domain.company.com": time.Now()},
-				nlbHTTPEnabled:   false,
+				httpDisabled:     true,
 			},
 			validate: func(t *testing.T, template *cloudformation.Template) {
 				requireTargetGroups(t, template, "TG")
@@ -444,10 +443,8 @@ func TestGenerateTemplate(t *testing.T) {
 		{
 			name: "Does not create deny internal traffic rule on NLBs",
 			spec: &stackSpec{
-				loadbalancerType: LoadBalancerTypeNetwork,
-				certificateARNs:  map[string]time.Time{"domain.company.com": time.Now()},
-				nlbHTTPEnabled:   true,
-
+				loadbalancerType:    LoadBalancerTypeNetwork,
+				certificateARNs:     map[string]time.Time{"domain.company.com": time.Now()},
 				denyInternalDomains: true,
 			},
 			validate: func(t *testing.T, template *cloudformation.Template) {
@@ -479,7 +476,6 @@ func TestGenerateTemplate(t *testing.T) {
 			spec: &stackSpec{
 				loadbalancerType: LoadBalancerTypeNetwork,
 				certificateARNs:  map[string]time.Time{"domain.company.com": time.Now()},
-				nlbHTTPEnabled:   true,
 			},
 			validate: func(t *testing.T, template *cloudformation.Template) {
 				requireTargetGroups(t, template, "TG")
@@ -498,7 +494,6 @@ func TestGenerateTemplate(t *testing.T) {
 			spec: &stackSpec{
 				loadbalancerType: LoadBalancerTypeNetwork,
 				certificateARNs:  map[string]time.Time{"domain.company.com": time.Now()},
-				nlbHTTPEnabled:   true,
 				targetHTTPS:      true,
 			},
 			validate: func(t *testing.T, template *cloudformation.Template) {
@@ -516,10 +511,9 @@ func TestGenerateTemplate(t *testing.T) {
 		{
 			name: "NLB should use separate Target Group for HTTP when HTTP target port is configured",
 			spec: &stackSpec{
-				loadbalancerType:  LoadBalancerTypeNetwork,
-				certificateARNs:   map[string]time.Time{"domain.company.com": time.Now()},
-				nlbHTTPEnabled:    true,
-				nlbHTTPTargetPort: 8888,
+				loadbalancerType: LoadBalancerTypeNetwork,
+				certificateARNs:  map[string]time.Time{"domain.company.com": time.Now()},
+				httpTargetPort:   8888,
 			},
 			validate: func(t *testing.T, template *cloudformation.Template) {
 				requireTargetGroups(t, template, "TGHTTP", "TG")
@@ -547,11 +541,10 @@ func TestGenerateTemplate(t *testing.T) {
 		{
 			name: "NLB should use one Target Group when HTTP target port equals target port",
 			spec: &stackSpec{
-				loadbalancerType:  LoadBalancerTypeNetwork,
-				certificateARNs:   map[string]time.Time{"domain.company.com": time.Now()},
-				nlbHTTPEnabled:    true,
-				targetPort:        9999,
-				nlbHTTPTargetPort: 9999,
+				loadbalancerType: LoadBalancerTypeNetwork,
+				certificateARNs:  map[string]time.Time{"domain.company.com": time.Now()},
+				targetPort:       9999,
+				httpTargetPort:   9999,
 			},
 			validate: func(t *testing.T, template *cloudformation.Template) {
 				requireTargetGroups(t, template, "TG")
@@ -572,10 +565,10 @@ func TestGenerateTemplate(t *testing.T) {
 		{
 			name: "NLB HTTP target port is ignored when HTTP is disabled",
 			spec: &stackSpec{
-				loadbalancerType:  LoadBalancerTypeNetwork,
-				certificateARNs:   map[string]time.Time{"domain.company.com": time.Now()},
-				nlbHTTPEnabled:    false,
-				nlbHTTPTargetPort: 8888,
+				loadbalancerType: LoadBalancerTypeNetwork,
+				certificateARNs:  map[string]time.Time{"domain.company.com": time.Now()},
+				httpDisabled:     true,
+				httpTargetPort:   8888,
 			},
 			validate: func(t *testing.T, template *cloudformation.Template) {
 				requireTargetGroups(t, template, "TG")

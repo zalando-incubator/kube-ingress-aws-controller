@@ -127,43 +127,68 @@ func generateTemplate(spec *stackSpec) (string, error) {
 
 	template.AddResource(httpsTargetGroupName, newTargetGroup(spec, parameterTargetGroupTargetPortParameter))
 
-	// Use the same target group for HTTP Listener or create another one if needed
-	httpTargetGroupName := httpsTargetGroupName
-	if port := spec.httpTargetPort(); port != spec.targetPort {
-		httpTargetGroupName = "TGHTTP"
-		template.Parameters[parameterTargetGroupHTTPTargetPortParameter] = &cloudformation.Parameter{
-			Type:        "Number",
-			Description: "The HTTP target port",
+	if !spec.httpDisabled {
+		// Use the same target group for HTTP Listener or create another one if needed
+		httpTargetGroupName := httpsTargetGroupName
+		if spec.httpTargetPort != spec.targetPort {
+			httpTargetGroupName = "TGHTTP"
+			template.Parameters[parameterTargetGroupHTTPTargetPortParameter] = &cloudformation.Parameter{
+				Type:        "Number",
+				Description: "The HTTP target port",
+			}
+			template.Outputs[outputHTTPTargetGroupARN] = &cloudformation.Output{
+				Description: "The ARN of the HTTP TargetGroup",
+				Value:       cloudformation.Ref(httpTargetGroupName).String(),
+			}
+			template.AddResource(httpTargetGroupName, newTargetGroup(spec, parameterTargetGroupHTTPTargetPortParameter))
 		}
-		template.Outputs[outputHTTPTargetGroupARN] = &cloudformation.Output{
-			Description: "The ARN of the HTTP TargetGroup",
-			Value:       cloudformation.Ref(httpTargetGroupName).String(),
-		}
-		template.AddResource(httpTargetGroupName, newTargetGroup(spec, parameterTargetGroupHTTPTargetPortParameter))
-	}
 
-	// Add an HTTP Listener resource
-	if spec.loadbalancerType == LoadBalancerTypeApplication {
-		if spec.httpRedirectToHTTPS {
-			template.AddResource("HTTPListener", &cloudformation.ElasticLoadBalancingV2Listener{
-				DefaultActions: &cloudformation.ElasticLoadBalancingV2ListenerActionList{
-					{
-						Type: cloudformation.String("redirect"),
-						RedirectConfig: &cloudformation.ElasticLoadBalancingV2ListenerRedirectConfig{
-							Protocol:   cloudformation.String("HTTPS"),
-							Port:       cloudformation.String("443"),
-							Host:       cloudformation.String("#{host}"),
-							Path:       cloudformation.String("/#{path}"),
-							Query:      cloudformation.String("#{query}"),
-							StatusCode: cloudformation.String("HTTP_301"),
+		// Add an HTTP Listener resource
+		if spec.loadbalancerType == LoadBalancerTypeApplication {
+			if spec.httpRedirectToHTTPS {
+				template.AddResource("HTTPListener", &cloudformation.ElasticLoadBalancingV2Listener{
+					DefaultActions: &cloudformation.ElasticLoadBalancingV2ListenerActionList{
+						{
+							Type: cloudformation.String("redirect"),
+							RedirectConfig: &cloudformation.ElasticLoadBalancingV2ListenerRedirectConfig{
+								Protocol:   cloudformation.String("HTTPS"),
+								Port:       cloudformation.String("443"),
+								Host:       cloudformation.String("#{host}"),
+								Path:       cloudformation.String("/#{path}"),
+								Query:      cloudformation.String("#{query}"),
+								StatusCode: cloudformation.String("HTTP_301"),
+							},
 						},
 					},
-				},
-				LoadBalancerArn: cloudformation.Ref("LB").String(),
-				Port:            cloudformation.Integer(80),
-				Protocol:        cloudformation.String("HTTP"),
-			})
-		} else {
+					LoadBalancerArn: cloudformation.Ref("LB").String(),
+					Port:            cloudformation.Integer(80),
+					Protocol:        cloudformation.String("HTTP"),
+				})
+			} else {
+				template.AddResource("HTTPListener", &cloudformation.ElasticLoadBalancingV2Listener{
+					DefaultActions: &cloudformation.ElasticLoadBalancingV2ListenerActionList{
+						{
+							Type:           cloudformation.String("forward"),
+							TargetGroupArn: cloudformation.Ref(httpTargetGroupName).String(),
+						},
+					},
+					LoadBalancerArn: cloudformation.Ref("LB").String(),
+					Port:            cloudformation.Integer(80),
+					Protocol:        cloudformation.String("HTTP"),
+				})
+				if spec.denyInternalDomains {
+					template.AddResource(
+						"HTTPRuleBlockInternalTraffic",
+						generateDenyInternalTrafficRule(
+							"HTTPListener",
+							internalTrafficDenyRulePriority,
+							spec.internalDomains,
+							spec.denyInternalDomainsResponse,
+						),
+					)
+				}
+			}
+		} else if spec.loadbalancerType == LoadBalancerTypeNetwork {
 			template.AddResource("HTTPListener", &cloudformation.ElasticLoadBalancingV2Listener{
 				DefaultActions: &cloudformation.ElasticLoadBalancingV2ListenerActionList{
 					{
@@ -173,32 +198,9 @@ func generateTemplate(spec *stackSpec) (string, error) {
 				},
 				LoadBalancerArn: cloudformation.Ref("LB").String(),
 				Port:            cloudformation.Integer(80),
-				Protocol:        cloudformation.String("HTTP"),
+				Protocol:        cloudformation.String("TCP"),
 			})
-			if spec.denyInternalDomains {
-				template.AddResource(
-					"HTTPRuleBlockInternalTraffic",
-					generateDenyInternalTrafficRule(
-						"HTTPListener",
-						internalTrafficDenyRulePriority,
-						spec.internalDomains,
-						spec.denyInternalDomainsResponse,
-					),
-				)
-			}
 		}
-	} else if spec.loadbalancerType == LoadBalancerTypeNetwork && spec.nlbHTTPEnabled {
-		template.AddResource("HTTPListener", &cloudformation.ElasticLoadBalancingV2Listener{
-			DefaultActions: &cloudformation.ElasticLoadBalancingV2ListenerActionList{
-				{
-					Type:           cloudformation.String("forward"),
-					TargetGroupArn: cloudformation.Ref(httpTargetGroupName).String(),
-				},
-			},
-			LoadBalancerArn: cloudformation.Ref("LB").String(),
-			Port:            cloudformation.Integer(80),
-			Protocol:        cloudformation.String("TCP"),
-		})
 	}
 
 	if len(spec.certificateARNs) > 0 {

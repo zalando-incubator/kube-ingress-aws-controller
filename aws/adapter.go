@@ -609,9 +609,9 @@ func (a *Adapter) CreateStack(certificateARNs []string, scheme, securityGroup, o
 			timeout:  a.healthCheckTimeout,
 		},
 		targetPort:                        a.targetPort,
-		albHTTPTargetPort:                 a.albHTTPTargetPort,
-		nlbHTTPTargetPort:                 a.nlbHTTPTargetPort,
 		targetHTTPS:                       a.targetHTTPS,
+		httpDisabled:                      a.httpDisabled(loadBalancerType),
+		httpTargetPort:                    a.httpTargetPort(loadBalancerType),
 		timeoutInMinutes:                  uint(a.creationTimeout.Minutes()),
 		stackTerminationProtection:        a.stackTerminationProtection,
 		idleConnectionTimeoutSeconds:      uint(a.idleConnectionTimeout.Seconds()),
@@ -626,7 +626,6 @@ func (a *Adapter) CreateStack(certificateARNs []string, scheme, securityGroup, o
 		cwAlarms:                          cwAlarms,
 		httpRedirectToHTTPS:               a.httpRedirectToHTTPS,
 		nlbCrossZone:                      a.nlbCrossZone,
-		nlbHTTPEnabled:                    a.nlbHTTPEnabled,
 		http2:                             http2,
 		tags:                              a.stackTags,
 		internalDomains:                   a.internalDomains,
@@ -662,9 +661,9 @@ func (a *Adapter) UpdateStack(stackName string, certificateARNs map[string]time.
 			timeout:  a.healthCheckTimeout,
 		},
 		targetPort:                        a.targetPort,
-		albHTTPTargetPort:                 a.albHTTPTargetPort,
-		nlbHTTPTargetPort:                 a.nlbHTTPTargetPort,
 		targetHTTPS:                       a.targetHTTPS,
+		httpDisabled:                      a.httpDisabled(loadBalancerType),
+		httpTargetPort:                    a.httpTargetPort(loadBalancerType),
 		timeoutInMinutes:                  uint(a.creationTimeout.Minutes()),
 		stackTerminationProtection:        a.stackTerminationProtection,
 		idleConnectionTimeoutSeconds:      uint(a.idleConnectionTimeout.Seconds()),
@@ -679,7 +678,6 @@ func (a *Adapter) UpdateStack(stackName string, certificateARNs map[string]time.
 		cwAlarms:                          cwAlarms,
 		httpRedirectToHTTPS:               a.httpRedirectToHTTPS,
 		nlbCrossZone:                      a.nlbCrossZone,
-		nlbHTTPEnabled:                    a.nlbHTTPEnabled,
 		http2:                             http2,
 		tags:                              a.stackTags,
 		internalDomains:                   a.internalDomains,
@@ -692,6 +690,22 @@ func (a *Adapter) UpdateStack(stackName string, certificateARNs map[string]time.
 	}
 
 	return updateStack(a.cloudformation, spec)
+}
+
+func (a *Adapter) httpTargetPort(loadBalancerType string) uint {
+	if loadBalancerType == LoadBalancerTypeApplication && a.albHTTPTargetPort != 0 {
+		return a.albHTTPTargetPort
+	} else if loadBalancerType == LoadBalancerTypeNetwork && a.nlbHTTPTargetPort != 0 {
+		return a.nlbHTTPTargetPort
+	}
+	return a.targetPort
+}
+
+func (a *Adapter) httpDisabled(loadBalancerType string) bool {
+	if loadBalancerType == LoadBalancerTypeNetwork {
+		return !a.nlbHTTPEnabled
+	}
+	return false
 }
 
 func (a *Adapter) stackName() string {

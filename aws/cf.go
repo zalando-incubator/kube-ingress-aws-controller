@@ -138,9 +138,9 @@ type stackSpec struct {
 	vpcID                             string
 	healthCheck                       *healthCheck
 	targetPort                        uint
-	albHTTPTargetPort                 uint
-	nlbHTTPTargetPort                 uint
 	targetHTTPS                       bool
+	httpDisabled                      bool
+	httpTargetPort                    uint
 	timeoutInMinutes                  uint
 	customTemplate                    string
 	stackTerminationProtection        bool
@@ -156,7 +156,6 @@ type stackSpec struct {
 	cwAlarms                          CloudWatchAlarmList
 	httpRedirectToHTTPS               bool
 	nlbCrossZone                      bool
-	nlbHTTPEnabled                    bool
 	http2                             bool
 	denyInternalDomains               bool
 	denyInternalDomainsResponse       denyResp
@@ -175,15 +174,6 @@ type denyResp struct {
 	statusCode  int
 	contentType string
 	body        string
-}
-
-func (spec *stackSpec) httpTargetPort() uint {
-	if spec.loadbalancerType == LoadBalancerTypeApplication && spec.albHTTPTargetPort != 0 {
-		return spec.albHTTPTargetPort
-	} else if spec.loadbalancerType == LoadBalancerTypeNetwork && spec.nlbHTTPEnabled && spec.nlbHTTPTargetPort != 0 {
-		return spec.nlbHTTPTargetPort
-	}
-	return spec.targetPort
 }
 
 func createStack(svc cloudformationiface.CloudFormationAPI, spec *stackSpec) (string, error) {
@@ -226,10 +216,10 @@ func createStack(svc cloudformationiface.CloudFormationAPI, spec *stackSpec) (st
 		)
 	}
 
-	if port := spec.httpTargetPort(); port != spec.targetPort {
+	if !spec.httpDisabled && spec.httpTargetPort != spec.targetPort {
 		params.Parameters = append(
 			params.Parameters,
-			cfParam(parameterTargetGroupHTTPTargetPortParameter, fmt.Sprintf("%d", port)),
+			cfParam(parameterTargetGroupHTTPTargetPortParameter, fmt.Sprintf("%d", spec.httpTargetPort)),
 		)
 	}
 
@@ -299,10 +289,10 @@ func updateStack(svc cloudformationiface.CloudFormationAPI, spec *stackSpec) (st
 		)
 	}
 
-	if port := spec.httpTargetPort(); port != spec.targetPort {
+	if !spec.httpDisabled && spec.httpTargetPort != spec.targetPort {
 		params.Parameters = append(
 			params.Parameters,
-			cfParam(parameterTargetGroupHTTPTargetPortParameter, fmt.Sprintf("%d", port)),
+			cfParam(parameterTargetGroupHTTPTargetPortParameter, fmt.Sprintf("%d", spec.httpTargetPort)),
 		)
 	}
 
