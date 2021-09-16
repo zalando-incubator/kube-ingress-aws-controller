@@ -24,9 +24,6 @@ const (
 	//
 	// [0]: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-elasticloadbalancingv2-listenerrule.html#cfn-elasticloadbalancingv2-listenerrule-priority
 	internalTrafficDenyRulePriority int64 = 1
-
-	httpProtocol  = "HTTP"
-	httpsProtocol = "HTTPS"
 )
 
 func hashARNs(certARNs []string) []byte {
@@ -115,39 +112,53 @@ func generateTemplate(spec *stackSpec) (string, error) {
 		}
 	}
 
-	protocol := httpProtocol
-	tlsProtocol := httpsProtocol
-	healthCheckProtocol := httpProtocol
-	if spec.loadbalancerType == LoadBalancerTypeNetwork {
-		protocol = "TCP"
-		tlsProtocol = "TLS"
-	} else if spec.targetHTTPS {
-		protocol = httpsProtocol
-		healthCheckProtocol = httpsProtocol
-	}
-
-	if spec.loadbalancerType == LoadBalancerTypeApplication && spec.httpRedirectToHTTPS {
-		template.AddResource("HTTPListener", &cloudformation.ElasticLoadBalancingV2Listener{
-			DefaultActions: &cloudformation.ElasticLoadBalancingV2ListenerActionList{
-				{
-					Type: cloudformation.String("redirect"),
-					RedirectConfig: &cloudformation.ElasticLoadBalancingV2ListenerRedirectConfig{
-						Protocol:   cloudformation.String(httpsProtocol),
-						Port:       cloudformation.String("443"),
-						Host:       cloudformation.String("#{host}"),
-						Path:       cloudformation.String("/#{path}"),
-						Query:      cloudformation.String("#{query}"),
-						StatusCode: cloudformation.String("HTTP_301"),
+	// Add an HTTP Listener resource
+	if spec.loadbalancerType == LoadBalancerTypeApplication {
+		if spec.httpRedirectToHTTPS {
+			template.AddResource("HTTPListener", &cloudformation.ElasticLoadBalancingV2Listener{
+				DefaultActions: &cloudformation.ElasticLoadBalancingV2ListenerActionList{
+					{
+						Type: cloudformation.String("redirect"),
+						RedirectConfig: &cloudformation.ElasticLoadBalancingV2ListenerRedirectConfig{
+							Protocol:   cloudformation.String("HTTPS"),
+							Port:       cloudformation.String("443"),
+							Host:       cloudformation.String("#{host}"),
+							Path:       cloudformation.String("/#{path}"),
+							Query:      cloudformation.String("#{query}"),
+							StatusCode: cloudformation.String("HTTP_301"),
+						},
 					},
 				},
-			},
-			LoadBalancerArn: cloudformation.Ref("LB").String(),
-			Port:            cloudformation.Integer(80),
-			Protocol:        cloudformation.String(httpProtocol),
-		})
-	} else if spec.loadbalancerType == LoadBalancerTypeApplication || spec.nlbHTTPEnabled {
-		listenerName := "HTTPListener"
-		template.AddResource(listenerName, &cloudformation.ElasticLoadBalancingV2Listener{
+				LoadBalancerArn: cloudformation.Ref("LB").String(),
+				Port:            cloudformation.Integer(80),
+				Protocol:        cloudformation.String("HTTP"),
+			})
+		} else {
+			template.AddResource("HTTPListener", &cloudformation.ElasticLoadBalancingV2Listener{
+				DefaultActions: &cloudformation.ElasticLoadBalancingV2ListenerActionList{
+					{
+						Type:           cloudformation.String("forward"),
+						TargetGroupArn: cloudformation.Ref("TG").String(),
+					},
+				},
+				LoadBalancerArn: cloudformation.Ref("LB").String(),
+				Port:            cloudformation.Integer(80),
+				Protocol:        cloudformation.String("HTTP"),
+			})
+			if spec.denyInternalDomains {
+				template.AddResource(
+					"HTTPRuleBlockInternalTraffic",
+					generateDenyInternalTrafficRule(
+						"HTTPListener",
+						internalTrafficDenyRulePriority,
+						spec.internalDomains,
+						spec.denyInternalDomainsResponse,
+					),
+				)
+			}
+		}
+	} else if spec.loadbalancerType == LoadBalancerTypeNetwork && spec.nlbHTTPEnabled {
+		template.AddResource("HTTPListener", &cloudformation.ElasticLoadBalancingV2Listener{
 			DefaultActions: &cloudformation.ElasticLoadBalancingV2ListenerActionList{
 				{
 					Type:           cloudformation.String("forward"),
@@ -156,20 +167,8 @@ func generateTemplate(spec *stackSpec) (string, error) {
 			},
 			LoadBalancerArn: cloudformation.Ref("LB").String(),
 			Port:            cloudformation.Integer(80),
-			Protocol:        cloudformation.String(protocol),
+			Protocol:        cloudformation.String("TCP"),
 		})
-		// Just ALBs support Rules
-		if spec.denyInternalDomains && spec.loadbalancerType == LoadBalancerTypeApplication {
-			template.AddResource(
-				"HTTPRuleBlockInternalTraffic",
-				generateDenyInternalTrafficRule(
-					listenerName,
-					internalTrafficDenyRulePriority,
-					spec.internalDomains,
-					spec.denyInternalDomainsResponse,
-				),
-			)
-		}
 	}
 
 	if len(spec.certificateARNs) > 0 {
@@ -183,35 +182,53 @@ func generateTemplate(spec *stackSpec) (string, error) {
 		})
 
 		// Add an HTTPS Listener resource with the first certificate as the default one
-		listenerName := "HTTPSListener"
-		template.AddResource(listenerName, &cloudformation.ElasticLoadBalancingV2Listener{
-			DefaultActions: &cloudformation.ElasticLoadBalancingV2ListenerActionList{
-				{
-					Type:           cloudformation.String("forward"),
-					TargetGroupArn: cloudformation.Ref("TG").String(),
+		if spec.loadbalancerType == LoadBalancerTypeApplication {
+			template.AddResource("HTTPSListener", &cloudformation.ElasticLoadBalancingV2Listener{
+				DefaultActions: &cloudformation.ElasticLoadBalancingV2ListenerActionList{
+					{
+						Type:           cloudformation.String("forward"),
+						TargetGroupArn: cloudformation.Ref("TG").String(),
+					},
 				},
-			},
-			Certificates: &cloudformation.ElasticLoadBalancingV2ListenerCertificatePropertyList{
-				{
-					CertificateArn: cloudformation.String(certificateARNs[0]),
+				Certificates: &cloudformation.ElasticLoadBalancingV2ListenerCertificatePropertyList{
+					{
+						CertificateArn: cloudformation.String(certificateARNs[0]),
+					},
 				},
-			},
-			LoadBalancerArn: cloudformation.Ref("LB").String(),
-			Port:            cloudformation.Integer(443),
-			Protocol:        cloudformation.String(tlsProtocol),
-			SslPolicy:       cloudformation.Ref(parameterListenerSslPolicyParameter).String(),
-		})
-		// Just ALBs support Rules
-		if spec.denyInternalDomains && spec.loadbalancerType == LoadBalancerTypeApplication {
-			template.AddResource(
-				"HTTPSRuleBlockInternalTraffic",
-				generateDenyInternalTrafficRule(
-					listenerName,
-					internalTrafficDenyRulePriority,
-					spec.internalDomains,
-					spec.denyInternalDomainsResponse,
-				),
-			)
+				LoadBalancerArn: cloudformation.Ref("LB").String(),
+				Port:            cloudformation.Integer(443),
+				Protocol:        cloudformation.String("HTTPS"),
+				SslPolicy:       cloudformation.Ref(parameterListenerSslPolicyParameter).String(),
+			})
+			if spec.denyInternalDomains {
+				template.AddResource(
+					"HTTPSRuleBlockInternalTraffic",
+					generateDenyInternalTrafficRule(
+						"HTTPSListener",
+						internalTrafficDenyRulePriority,
+						spec.internalDomains,
+						spec.denyInternalDomainsResponse,
+					),
+				)
+			}
+		} else if spec.loadbalancerType == LoadBalancerTypeNetwork {
+			template.AddResource("HTTPSListener", &cloudformation.ElasticLoadBalancingV2Listener{
+				DefaultActions: &cloudformation.ElasticLoadBalancingV2ListenerActionList{
+					{
+						Type:           cloudformation.String("forward"),
+						TargetGroupArn: cloudformation.Ref("TG").String(),
+					},
+				},
+				Certificates: &cloudformation.ElasticLoadBalancingV2ListenerCertificatePropertyList{
+					{
+						CertificateArn: cloudformation.String(certificateARNs[0]),
+					},
+				},
+				LoadBalancerArn: cloudformation.Ref("LB").String(),
+				Port:            cloudformation.Integer(443),
+				Protocol:        cloudformation.String("TLS"),
+				SslPolicy:       cloudformation.Ref(parameterListenerSslPolicyParameter).String(),
+			})
 		}
 
 		// Add a ListenerCertificate resource with all of the certificates, including the default one
@@ -227,7 +244,7 @@ func generateTemplate(spec *stackSpec) (string, error) {
 		resourceName := fmt.Sprintf("HTTPSListenerCertificate%x", hashARNs(certificateARNs))
 		template.AddResource(resourceName, &cloudformation.ElasticLoadBalancingV2ListenerCertificate{
 			Certificates: &certificateList,
-			ListenerArn:  cloudformation.Ref(listenerName).String(),
+			ListenerArn:  cloudformation.Ref("HTTPSListener").String(),
 		})
 
 	}
@@ -325,6 +342,16 @@ func generateTemplate(spec *stackSpec) (string, error) {
 			Key:   cloudformation.String("deregistration_delay.timeout_seconds"),
 			Value: cloudformation.String(fmt.Sprintf("%d", spec.deregistrationDelayTimeoutSeconds)),
 		},
+	}
+
+	protocol := "HTTP"
+	healthCheckProtocol := "HTTP"
+	if spec.loadbalancerType == LoadBalancerTypeNetwork {
+		protocol = "TCP"
+		healthCheckProtocol = "HTTP"
+	} else if spec.targetHTTPS {
+		protocol = "HTTPS"
+		healthCheckProtocol = "HTTPS"
 	}
 
 	targetGroup := &cloudformation.ElasticLoadBalancingV2TargetGroup{
