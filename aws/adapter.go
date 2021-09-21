@@ -43,6 +43,8 @@ type Adapter struct {
 	healthCheckInterval         time.Duration
 	healthCheckTimeout          time.Duration
 	targetPort                  uint
+	albHTTPTargetPort           uint
+	nlbHTTPTargetPort           uint
 	targetHTTPS                 bool
 	creationTimeout             time.Duration
 	idleConnectionTimeout       time.Duration
@@ -247,6 +249,18 @@ func (a *Adapter) WithHealthCheckPort(port uint) *Adapter {
 // the resources created by the adapter
 func (a *Adapter) WithTargetPort(port uint) *Adapter {
 	a.targetPort = port
+	return a
+}
+
+// WithALBHTTPTargetPort configures the ALB HTTP target port
+func (a *Adapter) WithALBHTTPTargetPort(port uint) *Adapter {
+	a.albHTTPTargetPort = port
+	return a
+}
+
+// WithNLBHTTPTargetPort configures the NLB HTTP target port
+func (a *Adapter) WithNLBHTTPTargetPort(port uint) *Adapter {
+	a.nlbHTTPTargetPort = port
 	return a
 }
 
@@ -511,8 +525,8 @@ func (a *Adapter) FindManagedStacks() ([]*Stack, error) {
 func (a *Adapter) UpdateTargetGroupsAndAutoScalingGroups(stacks []*Stack) {
 	targetGroupARNs := make([]string, 0, len(stacks))
 	for _, stack := range stacks {
-		if stack.TargetGroupARN != "" {
-			targetGroupARNs = append(targetGroupARNs, stack.TargetGroupARN)
+		if len(stack.TargetGroupARNs) > 0 {
+			targetGroupARNs = append(targetGroupARNs, stack.TargetGroupARNs...)
 		}
 	}
 
@@ -596,6 +610,8 @@ func (a *Adapter) CreateStack(certificateARNs []string, scheme, securityGroup, o
 		},
 		targetPort:                        a.targetPort,
 		targetHTTPS:                       a.targetHTTPS,
+		httpDisabled:                      a.httpDisabled(loadBalancerType),
+		httpTargetPort:                    a.httpTargetPort(loadBalancerType),
 		timeoutInMinutes:                  uint(a.creationTimeout.Minutes()),
 		stackTerminationProtection:        a.stackTerminationProtection,
 		idleConnectionTimeoutSeconds:      uint(a.idleConnectionTimeout.Seconds()),
@@ -610,7 +626,6 @@ func (a *Adapter) CreateStack(certificateARNs []string, scheme, securityGroup, o
 		cwAlarms:                          cwAlarms,
 		httpRedirectToHTTPS:               a.httpRedirectToHTTPS,
 		nlbCrossZone:                      a.nlbCrossZone,
-		nlbHTTPEnabled:                    a.nlbHTTPEnabled,
 		http2:                             http2,
 		tags:                              a.stackTags,
 		internalDomains:                   a.internalDomains,
@@ -647,6 +662,8 @@ func (a *Adapter) UpdateStack(stackName string, certificateARNs map[string]time.
 		},
 		targetPort:                        a.targetPort,
 		targetHTTPS:                       a.targetHTTPS,
+		httpDisabled:                      a.httpDisabled(loadBalancerType),
+		httpTargetPort:                    a.httpTargetPort(loadBalancerType),
 		timeoutInMinutes:                  uint(a.creationTimeout.Minutes()),
 		stackTerminationProtection:        a.stackTerminationProtection,
 		idleConnectionTimeoutSeconds:      uint(a.idleConnectionTimeout.Seconds()),
@@ -661,7 +678,6 @@ func (a *Adapter) UpdateStack(stackName string, certificateARNs map[string]time.
 		cwAlarms:                          cwAlarms,
 		httpRedirectToHTTPS:               a.httpRedirectToHTTPS,
 		nlbCrossZone:                      a.nlbCrossZone,
-		nlbHTTPEnabled:                    a.nlbHTTPEnabled,
 		http2:                             http2,
 		tags:                              a.stackTags,
 		internalDomains:                   a.internalDomains,
@@ -676,6 +692,22 @@ func (a *Adapter) UpdateStack(stackName string, certificateARNs map[string]time.
 	return updateStack(a.cloudformation, spec)
 }
 
+func (a *Adapter) httpTargetPort(loadBalancerType string) uint {
+	if loadBalancerType == LoadBalancerTypeApplication && a.albHTTPTargetPort != 0 {
+		return a.albHTTPTargetPort
+	} else if loadBalancerType == LoadBalancerTypeNetwork && a.nlbHTTPTargetPort != 0 {
+		return a.nlbHTTPTargetPort
+	}
+	return a.targetPort
+}
+
+func (a *Adapter) httpDisabled(loadBalancerType string) bool {
+	if loadBalancerType == LoadBalancerTypeNetwork {
+		return !a.nlbHTTPEnabled
+	}
+	return false
+}
+
 func (a *Adapter) stackName() string {
 	return normalizeStackName(a.ClusterID())
 }
@@ -688,7 +720,7 @@ func (a *Adapter) GetStack(stackID string) (*Stack, error) {
 // DeleteStack deletes the CloudFormation stack with the given name
 func (a *Adapter) DeleteStack(stack *Stack) error {
 	for _, asg := range a.TargetedAutoScalingGroups {
-		if err := detachTargetGroupsFromAutoScalingGroup(a.autoscaling, []string{stack.TargetGroupARN}, asg.name); err != nil {
+		if err := detachTargetGroupsFromAutoScalingGroup(a.autoscaling, stack.TargetGroupARNs, asg.name); err != nil {
 			return fmt.Errorf("DeleteStack failed to detach: %v", err)
 		}
 	}
