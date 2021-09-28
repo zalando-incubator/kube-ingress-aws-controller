@@ -577,7 +577,7 @@ func updateIngress(kubeAdapter *kubernetes.Adapter, lb *loadBalancer) {
 func deleteStack(awsAdapter *aws.Adapter, lb *loadBalancer) {
 	stackName := lb.stack.Name
 	if err := awsAdapter.DeleteStack(lb.stack); err != nil {
-		log.Errorf("deleteStack failed to delete stack %q: %v", stackName, err)
+		log.Errorf("failed to delete stack %q: %v", stackName, err)
 	} else {
 		log.Infof("deleted orphaned stack %q", stackName)
 	}

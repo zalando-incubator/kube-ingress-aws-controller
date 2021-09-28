@@ -8,6 +8,8 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/autoscaling"
 	"github.com/aws/aws-sdk-go/service/elbv2"
+
+	"github.com/stretchr/testify/assert"
 )
 
 type asgtags map[string]string
@@ -183,22 +185,26 @@ func TestGetAutoScalingGroupsByName(t *testing.T) {
 
 func TestAttach(t *testing.T) {
 	for _, test := range []struct {
-		name          string
-		responses     autoscalingMockOutputs
-		elbv2Response elbv2MockOutputs
-		ownerTags     map[string]string
-		wantError     bool
+		name               string
+		targetGroups       []string
+		autoscalingOutputs autoscalingMockOutputs
+		autoscalingInputs  autoscalingMockInputs
+		elbv2Response      elbv2MockOutputs
+		ownerTags          map[string]string
+		wantError          bool
 	}{
 		{
-			name: "describe-lb-target-groups-failed",
-			responses: autoscalingMockOutputs{
+			name:         "describe-lb-target-groups-failed",
+			targetGroups: []string{"foo"},
+			autoscalingOutputs: autoscalingMockOutputs{
 				describeLoadBalancerTargetGroups: R(nil, errDummy),
 			},
 			wantError: true,
 		},
 		{
-			name: "describe-all-target-groups-failed",
-			responses: autoscalingMockOutputs{
+			name:         "describe-all-target-groups-failed",
+			targetGroups: []string{"foo"},
+			autoscalingOutputs: autoscalingMockOutputs{
 				attachLoadBalancerTargetGroups: R(nil, nil),
 				describeLoadBalancerTargetGroups: R(&autoscaling.DescribeLoadBalancerTargetGroupsOutput{
 					LoadBalancerTargetGroups: []*autoscaling.LoadBalancerTargetGroupState{
@@ -215,8 +221,9 @@ func TestAttach(t *testing.T) {
 			wantError: true,
 		},
 		{
-			name: "describe-tags-failed",
-			responses: autoscalingMockOutputs{
+			name:         "describe-tags-failed",
+			targetGroups: []string{"foo"},
+			autoscalingOutputs: autoscalingMockOutputs{
 				attachLoadBalancerTargetGroups: R(nil, nil),
 				describeLoadBalancerTargetGroups: R(&autoscaling.DescribeLoadBalancerTargetGroupsOutput{
 					LoadBalancerTargetGroups: []*autoscaling.LoadBalancerTargetGroupState{
@@ -240,8 +247,9 @@ func TestAttach(t *testing.T) {
 			wantError: true,
 		},
 		{
-			name: "success-attach",
-			responses: autoscalingMockOutputs{
+			name:         "success-attach",
+			targetGroups: []string{"foo"},
+			autoscalingOutputs: autoscalingMockOutputs{
 				attachLoadBalancerTargetGroups: R(nil, nil),
 				describeLoadBalancerTargetGroups: R(&autoscaling.DescribeLoadBalancerTargetGroupsOutput{
 					LoadBalancerTargetGroups: []*autoscaling.LoadBalancerTargetGroupState{
@@ -276,8 +284,9 @@ func TestAttach(t *testing.T) {
 			wantError: false,
 		},
 		{
-			name: "failed-attach",
-			responses: autoscalingMockOutputs{
+			name:         "failed-attach",
+			targetGroups: []string{"foo"},
+			autoscalingOutputs: autoscalingMockOutputs{
 				attachLoadBalancerTargetGroups: R(nil, errDummy),
 				describeLoadBalancerTargetGroups: R(&autoscaling.DescribeLoadBalancerTargetGroupsOutput{
 					LoadBalancerTargetGroups: []*autoscaling.LoadBalancerTargetGroupState{
@@ -313,8 +322,9 @@ func TestAttach(t *testing.T) {
 			wantError: true,
 		},
 		{
-			name: "detach-obsolete",
-			responses: autoscalingMockOutputs{
+			name:         "detach-obsolete",
+			targetGroups: []string{"foo"},
+			autoscalingOutputs: autoscalingMockOutputs{
 				attachLoadBalancerTargetGroups: R(nil, nil),
 				describeLoadBalancerTargetGroups: R(&autoscaling.DescribeLoadBalancerTargetGroupsOutput{
 					LoadBalancerTargetGroups: []*autoscaling.LoadBalancerTargetGroupState{
@@ -383,8 +393,9 @@ func TestAttach(t *testing.T) {
 			wantError: false,
 		},
 		{
-			name: "failed-detach",
-			responses: autoscalingMockOutputs{
+			name:         "failed-detach",
+			targetGroups: []string{"foo"},
+			autoscalingOutputs: autoscalingMockOutputs{
 				attachLoadBalancerTargetGroups: R(nil, nil),
 				describeLoadBalancerTargetGroups: R(&autoscaling.DescribeLoadBalancerTargetGroupsOutput{
 					LoadBalancerTargetGroups: []*autoscaling.LoadBalancerTargetGroupState{
@@ -435,11 +446,59 @@ func TestAttach(t *testing.T) {
 			ownerTags: map[string]string{"owner": "true"},
 			wantError: true,
 		},
+		{
+			name:         "attach ignores nonexistent target groups",
+			targetGroups: []string{"foo", "void", "bar", "blank"},
+			autoscalingOutputs: autoscalingMockOutputs{
+				attachLoadBalancerTargetGroups: R(nil, nil),
+				describeLoadBalancerTargetGroups: R(&autoscaling.DescribeLoadBalancerTargetGroupsOutput{
+					LoadBalancerTargetGroups: []*autoscaling.LoadBalancerTargetGroupState{
+						{
+							LoadBalancerTargetGroupARN: aws.String("foo"),
+						},
+						{
+							LoadBalancerTargetGroupARN: aws.String("bar"),
+						},
+					},
+				}, nil)},
+			elbv2Response: elbv2MockOutputs{
+				describeTargetGroups: R(&elbv2.DescribeTargetGroupsOutput{
+					TargetGroups: []*elbv2.TargetGroup{
+						{
+							TargetGroupArn: aws.String("foo"),
+						},
+						{
+							TargetGroupArn: aws.String("bar"),
+						},
+					},
+				}, nil),
+				describeTags: R(&elbv2.DescribeTagsOutput{
+					TagDescriptions: []*elbv2.TagDescription{
+						{
+							ResourceArn: aws.String("foo"),
+							Tags:        []*elbv2.Tag{{Key: aws.String("owner"), Value: aws.String("true")}},
+						},
+						{
+							ResourceArn: aws.String("bar"),
+							Tags:        []*elbv2.Tag{{Key: aws.String("owner"), Value: aws.String("true")}},
+						},
+					},
+				}, nil),
+			},
+			autoscalingInputs: autoscalingMockInputs{
+				attachLoadBalancerTargetGroups: func(t *testing.T, input *autoscaling.AttachLoadBalancerTargetGroupsInput) {
+					assert.Equal(t, aws.String("asg-name"), input.AutoScalingGroupName)
+					assert.Equal(t, aws.StringSlice([]string{"foo", "bar"}), input.TargetGroupARNs)
+				},
+			},
+			ownerTags: map[string]string{"owner": "true"},
+			wantError: false,
+		},
 	} {
-		t.Run(fmt.Sprintf("%v", test.name), func(t *testing.T) {
-			mockSvc := &mockAutoScalingClient{outputs: test.responses}
+		t.Run(test.name, func(t *testing.T) {
+			mockSvc := &mockAutoScalingClient{outputs: test.autoscalingOutputs, inputs: test.autoscalingInputs, t: t}
 			mockElbv2Svc := &mockElbv2Client{outputs: test.elbv2Response}
-			err := updateTargetGroupsForAutoScalingGroup(mockSvc, mockElbv2Svc, []string{"foo"}, "bar", test.ownerTags)
+			err := updateTargetGroupsForAutoScalingGroup(mockSvc, mockElbv2Svc, test.targetGroups, "asg-name", test.ownerTags)
 			if test.wantError {
 				if err == nil {
 					t.Error("wanted an error but call seemed to have succeeded")
@@ -451,7 +510,6 @@ func TestAttach(t *testing.T) {
 			}
 		})
 	}
-
 }
 
 func TestDetach(t *testing.T) {
@@ -523,6 +581,16 @@ func TestTestFilterTags(t *testing.T) {
 			},
 			true,
 		},
+		{
+			"test value mismatch",
+			"mycluster",
+			"tag:kubernetes.io/cluster/mycluster=owned tag:custom.com/ingress=owned",
+			map[string]string{
+				"kubernetes.io/cluster/mycluster": "owned",
+				"custom.com/ingress":              "whatever",
+			},
+			false,
+		},
 	} {
 		t.Run(fmt.Sprintf("%v", test.name), func(t *testing.T) {
 			a := &Adapter{customFilter: test.customFilter}
@@ -532,6 +600,77 @@ func TestTestFilterTags(t *testing.T) {
 			if !reflect.DeepEqual(test.want, got) {
 				t.Errorf("unexpected result. wanted %+v, got %+v", test.want, got)
 			}
+		})
+	}
+}
+
+type testChunkProcessor struct {
+	failOn int
+	chunks [][]string
+}
+
+func (p *testChunkProcessor) process(chunk []string) error {
+	if p.failOn-1 == len(p.chunks) {
+		return fmt.Errorf("failing on %d chunk", p.failOn)
+	}
+	p.chunks = append(p.chunks, chunk)
+	return nil
+}
+
+func TestProcessChunked(t *testing.T) {
+	const chunkSize = 5
+
+	for _, ti := range []struct {
+		name   string
+		input  []string
+		failOn int
+		expect [][]string
+		err    bool
+	}{
+		{
+			name:   "empty",
+			input:  nil,
+			expect: nil,
+		},
+		{
+			name:   "less than chunk size",
+			input:  []string{"1", "2", "3", "4"},
+			expect: [][]string{[]string{"1", "2", "3", "4"}},
+		},
+		{
+			name:   "equal to chunk size",
+			input:  []string{"1", "2", "3", "4", "5"},
+			expect: [][]string{[]string{"1", "2", "3", "4", "5"}},
+		},
+		{
+			name:   "greater than chunk size",
+			input:  []string{"1", "2", "3", "4", "5", "6"},
+			expect: [][]string{[]string{"1", "2", "3", "4", "5"}, []string{"6"}},
+		},
+		{
+			name:   "fail on first chunk",
+			input:  []string{"1", "2", "3", "4", "5", "6"},
+			failOn: 1,
+			expect: nil,
+			err:    true,
+		},
+		{
+			name:   "fail on second chunk",
+			input:  []string{"1", "2", "3", "4", "5", "6"},
+			failOn: 2,
+			expect: [][]string{[]string{"1", "2", "3", "4", "5"}},
+			err:    true,
+		},
+	} {
+		t.Run(ti.name, func(t *testing.T) {
+			cp := testChunkProcessor{failOn: ti.failOn}
+			err := processChunked(ti.input, chunkSize, cp.process)
+			if ti.err {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+			assert.Equal(t, ti.expect, cp.chunks)
 		})
 	}
 }

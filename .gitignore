@@ -34,3 +34,5 @@ Dockerfile.upstream
 /.GOPATH
 /bin
 profile.cov
+
+.idea/

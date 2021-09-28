@@ -9,6 +9,8 @@ import (
 	"github.com/aws/aws-sdk-go/service/autoscaling/autoscalingiface"
 	"github.com/aws/aws-sdk-go/service/elbv2"
 	"github.com/aws/aws-sdk-go/service/elbv2/elbv2iface"
+
+	log "github.com/sirupsen/logrus"
 )
 
 type autoScalingGroupDetails struct {
@@ -165,36 +167,27 @@ func updateTargetGroupsForAutoScalingGroup(svc autoscalingiface.AutoScalingAPI, 
 		return err
 	}
 
-	// get all target groups to ensure we are only working with target
-	// groups that still exists.
-	tgParams := &elbv2.DescribeTargetGroupsInput{}
-	allTGs := make(map[string]struct{}, len(resp.LoadBalancerTargetGroups))
-	err = elbv2svc.DescribeTargetGroupsPagesWithContext(context.TODO(), tgParams, func(resp *elbv2.DescribeTargetGroupsOutput, lastPage bool) bool {
-		for _, tg := range resp.TargetGroups {
-			allTGs[aws.StringValue(tg.TargetGroupArn)] = struct{}{}
-		}
-		return true
-	})
+	allTGs, err := describeTargetGroups(elbv2svc)
 	if err != nil {
 		return err
 	}
 
 	if len(resp.LoadBalancerTargetGroups) > 0 {
 		// find non-existing target groups which should be detached
-		detachARNs := make([]string, 0, len(targetGroupARNs))
-		validARNs := make([]string, 0, len(targetGroupARNs))
+		detachARNs := make([]string, 0, len(resp.LoadBalancerTargetGroups))
+		validARNs := make([]string, 0, len(resp.LoadBalancerTargetGroups))
 		for _, tg := range resp.LoadBalancerTargetGroups {
 			tgARN := aws.StringValue(tg.LoadBalancerTargetGroupARN)
 
 			// check that TG exists at all, otherwise detach it
 			if _, ok := allTGs[tgARN]; !ok {
 				detachARNs = append(detachARNs, tgARN)
-				continue
+			} else {
+				validARNs = append(validARNs, tgARN)
 			}
-			validARNs = append(validARNs, tgARN)
 		}
 
-		descs, err := describeTagsChunked(elbv2svc, validARNs)
+		descs, err := describeTags(elbv2svc, validARNs)
 		if err != nil {
 			return err
 		}
@@ -213,67 +206,58 @@ func updateTargetGroupsForAutoScalingGroup(svc autoscalingiface.AutoScalingAPI, 
 		}
 
 		if len(detachARNs) > 0 {
-			err = detachTargetGroupsFromAutoScalingGroup(svc, detachARNs, autoScalingGroupName)
+			err := detachTargetGroupsFromAutoScalingGroup(svc, detachARNs, autoScalingGroupName)
 			if err != nil {
 				return err
 			}
 		}
 	}
 
-	// limit target group updates to 10 at a time since this is the limit
-	// in AWS API.
-	chunkSize := 10
-
-	for i := 0; i < len(targetGroupARNs); i += chunkSize {
-		end := i + chunkSize
-
-		if end > len(targetGroupARNs) {
-			end = len(targetGroupARNs)
+	attachARNs := make([]string, 0, len(targetGroupARNs))
+	for _, tgARN := range targetGroupARNs {
+		if _, ok := allTGs[tgARN]; ok {
+			attachARNs = append(attachARNs, tgARN)
+		} else {
+			// TODO: it is better to validate stack's target groups earlier to identify owning stack
+			log.Errorf("target group %q does not exist, will not attach", tgARN)
 		}
+	}
 
-		groups := targetGroupARNs[i:end]
-		if len(groups) > 0 {
-			attachParams := &autoscaling.AttachLoadBalancerTargetGroupsInput{
-				AutoScalingGroupName: aws.String(autoScalingGroupName),
-				TargetGroupARNs:      aws.StringSlice(groups),
-			}
-			_, err = svc.AttachLoadBalancerTargetGroups(attachParams)
-			if err != nil {
-				return err
-			}
+	if len(attachARNs) > 0 {
+		err := attachTargetGroupsToAutoScalingGroup(svc, attachARNs, autoScalingGroupName)
+		if err != nil {
+			return err
 		}
 	}
 
 	return nil
 }
 
-func describeTagsChunked(svc elbv2iface.ELBV2API, arns []string) ([]*elbv2.TagDescription, error) {
+func describeTags(svc elbv2iface.ELBV2API, arns []string) ([]*elbv2.TagDescription, error) {
 	descs := make([]*elbv2.TagDescription, 0, len(arns))
-	chunkSize := 20
-
-	for i := 0; i < len(arns); i += chunkSize {
-		end := i + chunkSize
-
-		if end > len(arns) {
-			end = len(arns)
-		}
-
-		arnsChunked := arns[i:end]
-		if len(arnsChunked) > 0 {
-			tgParams := &elbv2.DescribeTagsInput{
-				ResourceArns: aws.StringSlice(arnsChunked),
-			}
-
-			tgResp, err := svc.DescribeTags(tgParams)
-			if err != nil {
-				return nil, err
-			}
-
+	// You can specify up to 20 resources in a single call,
+	// see https://docs.aws.amazon.com/sdk-for-go/api/service/elbv2/#DescribeTagsInput
+	err := processChunked(arns, 20, func(chunk []string) error {
+		tgResp, err := svc.DescribeTags(&elbv2.DescribeTagsInput{
+			ResourceArns: aws.StringSlice(chunk),
+		})
+		if err == nil {
 			descs = append(descs, tgResp.TagDescriptions...)
 		}
-	}
+		return err
+	})
+	return descs, err
+}
 
-	return descs, nil
+func describeTargetGroups(elbv2svc elbv2iface.ELBV2API) (map[string]struct{}, error) {
+	targetGroups := make(map[string]struct{})
+	err := elbv2svc.DescribeTargetGroupsPagesWithContext(context.TODO(), &elbv2.DescribeTargetGroupsInput{}, func(resp *elbv2.DescribeTargetGroupsOutput, lastPage bool) bool {
+		for _, tg := range resp.TargetGroups {
+			targetGroups[aws.StringValue(tg.TargetGroupArn)] = struct{}{}
+		}
+		return true
+	})
+	return targetGroups, err
 }
 
 // tgHasTags returns true if the specified resource has the expected tags.
@@ -322,31 +306,47 @@ func hasTagsASG(tags []*autoscaling.TagDescription, expectedTags map[string]stri
 	return true
 }
 
-func detachTargetGroupsFromAutoScalingGroup(svc autoscalingiface.AutoScalingAPI, targetGroupARNs []string, autoScalingGroupName string) error {
-	// limit target group updates to 10 at a time since this is the limit
-	// in AWS API.
-	chunkSize := 10
+func attachTargetGroupsToAutoScalingGroup(svc autoscalingiface.AutoScalingAPI, targetGroupARNs []string, autoScalingGroupName string) error {
+	// You can specify up to 10 target groups,
+	// see https://docs.aws.amazon.com/sdk-for-go/api/service/autoscaling/#AttachLoadBalancerTargetGroupsInput
+	return processChunked(targetGroupARNs, 10, func(chunk []string) error {
+		_, err := svc.AttachLoadBalancerTargetGroups(&autoscaling.AttachLoadBalancerTargetGroupsInput{
+			AutoScalingGroupName: aws.String(autoScalingGroupName),
+			TargetGroupARNs:      aws.StringSlice(chunk),
+		})
+		return err
+	})
+}
 
-	for i := 0; i < len(targetGroupARNs); i += chunkSize {
+func detachTargetGroupsFromAutoScalingGroup(svc autoscalingiface.AutoScalingAPI, targetGroupARNs []string, autoScalingGroupName string) error {
+	// You can specify up to 10 target groups,
+	// see https://docs.aws.amazon.com/sdk-for-go/api/service/autoscaling/#DetachLoadBalancerTargetGroupsInput
+	return processChunked(targetGroupARNs, 10, func(chunk []string) error {
+		_, err := svc.DetachLoadBalancerTargetGroups(&autoscaling.DetachLoadBalancerTargetGroupsInput{
+			AutoScalingGroupName: aws.String(autoScalingGroupName),
+			TargetGroupARNs:      aws.StringSlice(chunk),
+		})
+		return err
+	})
+}
+
+// Processes slice in chunks
+// Stops and returns on the first error encountered
+func processChunked(slice []string, chunkSize int, process func(chunk []string) error) error {
+	for i := 0; i < len(slice); i += chunkSize {
 		end := i + chunkSize
 
-		if end > len(targetGroupARNs) {
-			end = len(targetGroupARNs)
+		if end > len(slice) {
+			end = len(slice)
 		}
 
-		targetGroupARNsChunked := targetGroupARNs[i:end]
-		if len(targetGroupARNsChunked) > 0 {
-			params := &autoscaling.DetachLoadBalancerTargetGroupsInput{
-				AutoScalingGroupName: aws.String(autoScalingGroupName),
-				TargetGroupARNs:      aws.StringSlice(targetGroupARNsChunked),
-			}
-			_, err := svc.DetachLoadBalancerTargetGroups(params)
-			if err != nil {
+		chunk := slice[i:end]
+		if len(chunk) > 0 {
+			if err := process(chunk); err != nil {
 				return err
 			}
 		}
 	}
-
 	return nil
 }
 
