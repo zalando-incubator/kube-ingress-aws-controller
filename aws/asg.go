@@ -219,7 +219,7 @@ func updateTargetGroupsForAutoScalingGroup(svc autoscalingiface.AutoScalingAPI, 
 			attachARNs = append(attachARNs, tgARN)
 		} else {
 			// TODO: it is better to validate stack's target groups earlier to identify owning stack
-			log.Errorf("target group %q does not exist, will not attach", tgARN)
+			log.Errorf("Target group %q does not exist, will not attach", tgARN)
 		}
 	}
 

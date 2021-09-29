@@ -260,7 +260,7 @@ func doWork(
 ) error {
 	defer func() error {
 		if r := recover(); r != nil {
-			log.Errorln("shit has hit the fan:", errors.Wrap(r.(error), "panic caused by"))
+			log.Errorln("Shit has hit the fan:", errors.Wrap(r.(error), "panic caused by"))
 			debug.PrintStack()
 			return r.(error)
 		}
@@ -500,7 +500,7 @@ func createStack(awsAdapter *aws.Adapter, lb *loadBalancer) {
 		certificates = append(certificates, cert)
 	}
 
-	log.Infof("creating stack for certificates %q / ingress %q", certificates, lb.ingresses)
+	log.Infof("Creating stack for certificates %q / ingress %q", certificates, lb.ingresses)
 
 	stackId, err := awsAdapter.CreateStack(certificates, lb.scheme, lb.securityGroup, lb.Owner(), lb.sslPolicy, lb.ipAddressType, lb.wafWebACLID, lb.cwAlarms, lb.loadBalancerType, lb.http2)
 	if err != nil {
@@ -510,24 +510,24 @@ func createStack(awsAdapter *aws.Adapter, lb *loadBalancer) {
 				return
 			}
 		}
-		log.Errorf("createStack(%q) failed: %v", certificates, err)
+		log.Errorf("CreateStack(%q) failed: %v", certificates, err)
 	} else {
-		log.Infof("stack %q for certificates %q created", stackId, certificates)
+		log.Infof("Stack %q for certificates %q created", stackId, certificates)
 	}
 }
 
 func updateStack(awsAdapter *aws.Adapter, lb *loadBalancer) {
 	certificates := lb.CertificateARNs()
 
-	log.Infof("updating %q stack for %d certificates / %d ingresses", lb.scheme, len(certificates), len(lb.ingresses))
+	log.Infof("Updating %q stack for %d certificates / %d ingresses", lb.scheme, len(certificates), len(lb.ingresses))
 
 	stackId, err := awsAdapter.UpdateStack(lb.stack.Name, certificates, lb.scheme, lb.securityGroup, lb.Owner(), lb.sslPolicy, lb.ipAddressType, lb.wafWebACLID, lb.cwAlarms, lb.loadBalancerType, lb.http2)
 	if isNoUpdatesToBePerformedError(err) {
-		log.Debugf("stack(%q) is already up to date", certificates)
+		log.Debugf("Stack(%q) is already up to date", certificates)
 	} else if err != nil {
-		log.Errorf("updateStack(%q) failed: %v", certificates, err)
+		log.Errorf("UpdateStack(%q) failed: %v", certificates, err)
 	} else {
-		log.Infof("stack %q for certificate %q updated", stackId, certificates)
+		log.Infof("Stack %q for certificate %q updated", stackId, certificates)
 	}
 }
 
@@ -568,7 +568,7 @@ func updateIngress(kubeAdapter *kubernetes.Adapter, lb *loadBalancer) {
 					log.Errorf("Failed to update ingress: %v", err)
 				}
 			} else {
-				log.Infof("updated ingress %v with DNS name %q", ing, dnsName)
+				log.Infof("Updated ingress %v with DNS name %q", ing, dnsName)
 			}
 		}
 	}
@@ -577,9 +577,9 @@ func updateIngress(kubeAdapter *kubernetes.Adapter, lb *loadBalancer) {
 func deleteStack(awsAdapter *aws.Adapter, lb *loadBalancer) {
 	stackName := lb.stack.Name
 	if err := awsAdapter.DeleteStack(lb.stack); err != nil {
-		log.Errorf("failed to delete stack %q: %v", stackName, err)
+		log.Errorf("Failed to delete stack %q: %v", stackName, err)
 	} else {
-		log.Infof("deleted orphaned stack %q", stackName)
+		log.Infof("Deleted orphaned stack %q", stackName)
 	}
 }
 
@@ -620,7 +620,7 @@ func getCloudWatchAlarmsFromConfigMap(configMap *kubernetes.ConfigMap) aws.Cloud
 
 		list, err := aws.NewCloudWatchAlarmListFromYAML(data)
 		if err != nil {
-			log.Warnf("ignoring cloudwatch alarm configuration from config map key %q due to error: %v", key, err)
+			log.Warnf("Ignoring cloudwatch alarm configuration from config map key %q due to error: %v", key, err)
 			continue
 		}
 

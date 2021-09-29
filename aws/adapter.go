@@ -543,7 +543,7 @@ func (a *Adapter) UpdateTargetGroupsAndAutoScalingGroups(stacks []*Stack) {
 	for _, asg := range a.TargetedAutoScalingGroups {
 		// This call is idempotent and safe to execute every time
 		if err := updateTargetGroupsForAutoScalingGroup(a.autoscaling, a.elbv2, targetGroupARNs, asg.name, ownerTags); err != nil {
-			log.Errorf("failed to update target groups for autoscaling group %q: %v", asg.name, err)
+			log.Errorf("Failed to update target groups for autoscaling group %q: %v", asg.name, err)
 		}
 	}
 
@@ -552,7 +552,7 @@ func (a *Adapter) UpdateTargetGroupsAndAutoScalingGroups(stacks []*Stack) {
 	for _, asg := range nonTargetedASGs {
 		// This call is idempotent and safe to execute every time
 		if err := updateTargetGroupsForAutoScalingGroup(a.autoscaling, a.elbv2, nil, asg.name, ownerTags); err != nil {
-			log.Errorf("failed to update target groups for non-targeted autoscaling group %q: %v", asg.name, err)
+			log.Errorf("Failed to update target groups for non-targeted autoscaling group %q: %v", asg.name, err)
 		}
 	}
 
@@ -560,13 +560,13 @@ func (a *Adapter) UpdateTargetGroupsAndAutoScalingGroups(stacks []*Stack) {
 	if len(runningSingleInstances) != 0 {
 		// This call is idempotent too
 		if err := registerTargetsOnTargetGroups(a.elbv2, targetGroupARNs, runningSingleInstances); err != nil {
-			log.Errorf("failed to register instances %q in target groups: %v", runningSingleInstances, err)
+			log.Errorf("Failed to register instances %q in target groups: %v", runningSingleInstances, err)
 		}
 	}
 	if len(a.obsoleteInstances) != 0 {
 		// Deregister instances from target groups and clean up list of obsolete instances
 		if err := deregisterTargetsOnTargetGroups(a.elbv2, targetGroupARNs, a.obsoleteInstances); err != nil {
-			log.Errorf("failed to deregister instances %q in target groups: %v", a.obsoleteInstances, err)
+			log.Errorf("Failed to deregister instances %q in target groups: %v", a.obsoleteInstances, err)
 		} else {
 			a.obsoleteInstances = make([]string, 0)
 		}
@@ -898,7 +898,7 @@ func (a *Adapter) parseFilters(clusterId string) []*ec2.Filter {
 		for i, term := range terms {
 			parts := strings.Split(term, "=")
 			if len(parts) != 2 {
-				log.Errorf("failed parsing %s, falling back to default", a.customFilter)
+				log.Errorf("Failed parsing %s, falling back to default", a.customFilter)
 				return generateDefaultFilters(clusterId)
 			}
 			filters[i] = &ec2.Filter{
@@ -935,7 +935,7 @@ func (a *Adapter) parseAutoscaleFilterTags(clusterId string) map[string][]string
 		for _, term := range terms {
 			parts := strings.Split(term, "=")
 			if len(parts) != 2 {
-				log.Errorf("failed parsing %s, falling back to default", a.customFilter)
+				log.Errorf("Failed parsing %s, falling back to default", a.customFilter)
 				return generateDefaultAutoscaleFilterTags(clusterId)
 			}
 			if parts[0] == "tag-key" {
