@@ -1,10 +1,16 @@
 package aws
 
 import (
+	"testing"
+
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/autoscaling"
 	"github.com/aws/aws-sdk-go/service/autoscaling/autoscalingiface"
 )
+
+type autoscalingMockInputs struct {
+	attachLoadBalancerTargetGroups func(*testing.T, *autoscaling.AttachLoadBalancerTargetGroupsInput)
+}
 
 type autoscalingMockOutputs struct {
 	describeAutoScalingGroups        *apiResponse
@@ -16,6 +22,8 @@ type autoscalingMockOutputs struct {
 type mockAutoScalingClient struct {
 	autoscalingiface.AutoScalingAPI
 	outputs autoscalingMockOutputs
+	inputs  autoscalingMockInputs
+	t       *testing.T
 }
 
 func (m *mockAutoScalingClient) DescribeAutoScalingGroups(*autoscaling.DescribeAutoScalingGroupsInput) (*autoscaling.DescribeAutoScalingGroupsOutput, error) {
@@ -39,7 +47,10 @@ func (m *mockAutoScalingClient) DescribeLoadBalancerTargetGroups(*autoscaling.De
 	return nil, m.outputs.describeLoadBalancerTargetGroups.err
 }
 
-func (m *mockAutoScalingClient) AttachLoadBalancerTargetGroups(*autoscaling.AttachLoadBalancerTargetGroupsInput) (*autoscaling.AttachLoadBalancerTargetGroupsOutput, error) {
+func (m *mockAutoScalingClient) AttachLoadBalancerTargetGroups(input *autoscaling.AttachLoadBalancerTargetGroupsInput) (*autoscaling.AttachLoadBalancerTargetGroupsOutput, error) {
+	if m.inputs.attachLoadBalancerTargetGroups != nil {
+		m.inputs.attachLoadBalancerTargetGroups(m.t, input)
+	}
 	return nil, m.outputs.attachLoadBalancerTargetGroups.err
 }
 

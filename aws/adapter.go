@@ -543,7 +543,7 @@ func (a *Adapter) UpdateTargetGroupsAndAutoScalingGroups(stacks []*Stack) {
 	for _, asg := range a.TargetedAutoScalingGroups {
 		// This call is idempotent and safe to execute every time
 		if err := updateTargetGroupsForAutoScalingGroup(a.autoscaling, a.elbv2, targetGroupARNs, asg.name, ownerTags); err != nil {
-			log.Errorf("UpdateTargetGroupsAndAutoScalingGroups() failed to attach target groups to ASG '%s': %v", asg.name, err)
+			log.Errorf("Failed to update target groups for autoscaling group %q: %v", asg.name, err)
 		}
 	}
 
@@ -552,7 +552,7 @@ func (a *Adapter) UpdateTargetGroupsAndAutoScalingGroups(stacks []*Stack) {
 	for _, asg := range nonTargetedASGs {
 		// This call is idempotent and safe to execute every time
 		if err := updateTargetGroupsForAutoScalingGroup(a.autoscaling, a.elbv2, nil, asg.name, ownerTags); err != nil {
-			log.Errorf("UpdateTargetGroupsAndAutoScalingGroups() failed to attach target groups to ASG '%s': %v", asg.name, err)
+			log.Errorf("Failed to update target groups for non-targeted autoscaling group %q: %v", asg.name, err)
 		}
 	}
 
@@ -560,13 +560,13 @@ func (a *Adapter) UpdateTargetGroupsAndAutoScalingGroups(stacks []*Stack) {
 	if len(runningSingleInstances) != 0 {
 		// This call is idempotent too
 		if err := registerTargetsOnTargetGroups(a.elbv2, targetGroupARNs, runningSingleInstances); err != nil {
-			log.Errorf("UpdateTargetGroupsAndAutoScalingGroups() failed to register instances %q in target groups: %v", runningSingleInstances, err)
+			log.Errorf("Failed to register instances %q in target groups: %v", runningSingleInstances, err)
 		}
 	}
 	if len(a.obsoleteInstances) != 0 {
 		// Deregister instances from target groups and clean up list of obsolete instances
 		if err := deregisterTargetsOnTargetGroups(a.elbv2, targetGroupARNs, a.obsoleteInstances); err != nil {
-			log.Errorf("UpdateTargetGroupsAndAutoScalingGroups() failed to deregister instances %q in target groups: %v", a.obsoleteInstances, err)
+			log.Errorf("Failed to deregister instances %q in target groups: %v", a.obsoleteInstances, err)
 		} else {
 			a.obsoleteInstances = make([]string, 0)
 		}
@@ -721,10 +721,9 @@ func (a *Adapter) GetStack(stackID string) (*Stack, error) {
 func (a *Adapter) DeleteStack(stack *Stack) error {
 	for _, asg := range a.TargetedAutoScalingGroups {
 		if err := detachTargetGroupsFromAutoScalingGroup(a.autoscaling, stack.TargetGroupARNs, asg.name); err != nil {
-			return fmt.Errorf("DeleteStack failed to detach: %v", err)
+			return fmt.Errorf("failed to detach target groups from autoscaling group %q: %w", asg.name, err)
 		}
 	}
-
 	return deleteStack(a.cloudformation, stack.Name)
 }
 
@@ -899,7 +898,7 @@ func (a *Adapter) parseFilters(clusterId string) []*ec2.Filter {
 		for i, term := range terms {
 			parts := strings.Split(term, "=")
 			if len(parts) != 2 {
-				log.Errorf("failed parsing %s, falling back to default", a.customFilter)
+				log.Errorf("Failed parsing %s, falling back to default", a.customFilter)
 				return generateDefaultFilters(clusterId)
 			}
 			filters[i] = &ec2.Filter{
@@ -936,7 +935,7 @@ func (a *Adapter) parseAutoscaleFilterTags(clusterId string) map[string][]string
 		for _, term := range terms {
 			parts := strings.Split(term, "=")
 			if len(parts) != 2 {
-				log.Errorf("failed parsing %s, falling back to default", a.customFilter)
+				log.Errorf("Failed parsing %s, falling back to default", a.customFilter)
 				return generateDefaultAutoscaleFilterTags(clusterId)
 			}
 			if parts[0] == "tag-key" {
