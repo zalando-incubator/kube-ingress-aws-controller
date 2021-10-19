@@ -183,7 +183,7 @@ func newIngress(name string, annotations map[string]string, ingressClassName str
 		}
 	}
 	if ingressClassName != "" {
-		ret.Spec.IngressClassName = &ingressClassName
+		ret.Spec.IngressClassName = ingressClassName
 	}
 	return &ret
 }
