@@ -577,6 +577,7 @@ func TestListIngressFilterClass(t *testing.T) {
 				"fixture01",
 				"fixture02",
 				"fixture03",
+				"fixture04",
 				"fixture-rg01",
 				"fixture-rg02",
 				"fixture-rg03",
@@ -588,6 +589,7 @@ func TestListIngressFilterClass(t *testing.T) {
 				"fixture01",
 				"fixture02",
 				"fixture03",
+				"fixture04",
 				"fixture-rg01",
 				"fixture-rg02",
 				"fixture-rg03",
@@ -632,6 +634,20 @@ func TestListIngressFilterClass(t *testing.T) {
 				"fixture03",
 				"fixture-rg01",
 				"fixture-rg03",
+			},
+		},
+		"multipleIngressClassMixedAnnotationAndSpec": {
+			ingressClassFilters: []string{"other", "another"},
+			expectedIngressNames: []string{
+				"fixture03",
+				"fixture-rg03",
+				"fixture04",
+			},
+		},
+		"multipleIngressClassOnlySpec": {
+			ingressClassFilters: []string{"another"},
+			expectedIngressNames: []string{
+				"fixture04",
 			},
 		},
 	} {

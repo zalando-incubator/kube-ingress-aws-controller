@@ -39,7 +39,8 @@ type kubeItemMetadata struct {
 }
 
 type ingressSpec struct {
-	Rules []ingressItemRule `json:"rules"`
+	Rules            []ingressItemRule `json:"rules"`
+	IngressClassName *string           `json:"ingressClassName"`
 }
 
 type ingressItemRule struct {
@@ -79,6 +80,13 @@ const (
 func getAnnotationsString(annotations map[string]string, key string, defaultValue string) string {
 	if val, ok := annotations[key]; ok {
 		return val
+	}
+	return defaultValue
+}
+
+func getIngressClassName(spec ingressSpec, defaultValue string) string {
+	if spec.IngressClassName != nil {
+		return *spec.IngressClassName
 	}
 	return defaultValue
 }

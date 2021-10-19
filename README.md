@@ -566,6 +566,9 @@ If you don't pass an ID, the default `kube-ingress-aws-controller` will be used.
 Usually you would want to combine this flag with `ingress-class-filter` so different types of ingresses are associated with the different controllers.
 To make `kube-ingress-aws-controller` manage both specific ingress class and an empty one (or ingresses without ingress class annotation) add an empty class to the list. For example to manage ingress class `foo` and ingresses without class set parameter like this `--ingress-class-filter=foo,` (notice the comma in the end).
 
+Ingress classes defined in the spec of ingresses at `spec.ingressClassName` ([Kubernetes Documentation](https://kubernetes.io/docs/reference/kubernetes-api/service-resources/ingress-v1/#IngressSpec)) will take priority over the annotation, if both are supplied.
+In order to match the default (empty) ingress group, both must be empty."
+
 ## Target and Health Check Ports
 
 By default the port 9999 is used as both health check and target port. This
