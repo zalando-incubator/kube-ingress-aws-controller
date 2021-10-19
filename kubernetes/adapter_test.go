@@ -578,6 +578,7 @@ func TestListIngressFilterClass(t *testing.T) {
 				"fixture02",
 				"fixture03",
 				"fixture04",
+				"fixture05",
 				"fixture-rg01",
 				"fixture-rg02",
 				"fixture-rg03",
@@ -590,6 +591,7 @@ func TestListIngressFilterClass(t *testing.T) {
 				"fixture02",
 				"fixture03",
 				"fixture04",
+				"fixture05",
 				"fixture-rg01",
 				"fixture-rg02",
 				"fixture-rg03",
@@ -649,6 +651,10 @@ func TestListIngressFilterClass(t *testing.T) {
 			expectedIngressNames: []string{
 				"fixture04",
 			},
+		},
+		"multipleIngressIgnoreAnnotationIfClassIsSet": {
+			ingressClassFilters:  []string{"yet-another-ignored"},
+			expectedIngressNames: []string{},
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
