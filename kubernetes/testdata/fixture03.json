@@ -1,0 +1,104 @@
+{
+  "apiVersion": "v1",
+  "items": [
+    {
+      "apiVersion": "networking.k8s.io/v1",
+      "kind": "Ingress",
+      "metadata": {
+        "creationTimestamp": "2021-10-19T09:11:25Z",
+        "generation": 2,
+        "name": "appname-ingress",
+        "namespace": "default",
+        "resourceVersion": "214550",
+        "uid": "f86c7f69-c271-4f0d-a0a8-344f4419e7e9"
+      },
+      "spec": {
+        "rules": [
+          {
+            "host": "v7.appname.org",
+            "http": {
+              "paths": [
+                {
+                  "backend": {
+                    "service": {
+                      "name": "appname-web",
+                      "port": {
+                        "number": 80
+                      }
+                    }
+                  },
+                  "path": "/",
+                  "pathType": "Prefix"
+                },
+                {
+                  "backend": {
+                    "service": {
+                      "name": "appname-api",
+                      "port": {
+                        "number": 80
+                      }
+                    }
+                  },
+                  "path": "/api",
+                  "pathType": "Prefix"
+                }
+              ]
+            }
+          },
+          {
+            "host": "api.v7.appname.org",
+            "http": {
+              "paths": [
+                {
+                  "backend": {
+                    "service": {
+                      "name": "appname-api",
+                      "port": {
+                        "number": 80
+                      }
+                    }
+                  },
+                  "path": "/",
+                  "pathType": "Prefix"
+                }
+              ]
+            }
+          },
+          {
+            "host": "v7.backend.appname.org",
+            "http": {
+              "paths": [
+                {
+                  "backend": {
+                    "service": {
+                      "name": "appname-web",
+                      "port": {
+                        "number": 80
+                      }
+                    }
+                  },
+                  "path": "/",
+                  "pathType": "Prefix"
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "status": {
+        "loadBalancer": {
+          "ingress": [
+            {
+              "hostname": "kube-ing-lb-redacted-1111111111.eu-west-1.elb.amazonaws.com"
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "kind": "List",
+  "metadata": {
+    "resourceVersion": "",
+    "selfLink": ""
+  }
+}
