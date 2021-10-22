@@ -1,0 +1,79 @@
+{
+  "items": [
+    {
+      "apiVersion": "networking.k8s.io/v1",
+      "kind": "Ingress",
+      "metadata": {
+        "name": "fixture01",
+        "namespace": "default",
+        "selfLink": "/apis/networking.k8s.io/v1/namespaces/default/ingresses/fixture01",
+        "uid": "fixture01",
+        "resourceVersion": "42",
+        "generation": 1,
+        "creationTimestamp": "2016-11-29T14:53:42Z",
+        "annotations": {
+          "zalando.org/aws-load-balancer-ssl-cert": "fixture01"
+        }
+      },
+      "status": {
+        "loadBalancer": {
+          "ingress": [
+            {
+              "hostname": "example.org"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "metadata": {
+        "name": "fixture02",
+        "namespace": "default",
+        "selfLink": "/apis/networking.k8s.io/v1/namespaces/default/ingresses/fixture02",
+        "uid": "fixture02",
+        "resourceVersion": "42",
+        "generation": 1,
+        "creationTimestamp": "2016-11-29T14:53:42Z",
+        "annotations": {
+          "zalando.org/aws-load-balancer-ssl-cert": "fixture02",
+          "kubernetes.io/ingress.class": "skipper"
+        }
+      },
+      "status": {
+        "loadBalancer": {
+          "ingress": [
+            {"hostname": "skipper.example.org"}
+          ]
+        }
+      }
+    },
+    {
+      "metadata": {
+        "name": "fixture03",
+        "namespace": "default",
+        "selfLink": "/apis/networking.k8s.io/v1/namespaces/default/ingresses/fixture03",
+        "uid": "fixture03",
+        "resourceVersion": "42",
+        "generation": 1,
+        "creationTimestamp": "2016-11-29T14:53:42Z",
+        "annotations": {
+          "zalando.org/aws-load-balancer-ssl-cert": "fixture03",
+          "kubernetes.io/ingress.class": "other"
+        }
+      },
+      "status": {
+        "loadBalancer": {
+          "ingress": [
+            {"hostname": "other.example.org"}
+          ]
+        }
+      }
+    }
+  ],
+  "kind": "IngressList",
+  "apiVersion": "networking.k8s.io/v1",
+  "metadata": {
+    "selfLink": "/apis/networking.k8s.io/v1/ingresses",
+    "resourceVersion": "42"
+  }
+}
