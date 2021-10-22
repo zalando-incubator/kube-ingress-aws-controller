@@ -25,11 +25,11 @@ func TestListIngresses(t *testing.T) {
 	kubeClient, _ := newSimpleClient(&Config{BaseURL: testServer.URL}, false)
 	ingressClient := &ingressClient{apiVersion: IngressAPIVersionNetworking}
 	want := newList(IngressAPIVersionNetworking,
-		newIngress("fixture01", nil, "","example.org", "fixture01",IngressAPIVersionNetworking),
-		newIngress("fixture02", map[string]string{ingressClassAnnotation: "skipper"},"", "skipper.example.org", "fixture02",IngressAPIVersionNetworking),
-		newIngress("fixture03", map[string]string{ingressClassAnnotation: "other"},"", "other.example.org", "fixture03",IngressAPIVersionNetworking),
-		newIngress("fixture04", nil, "another", "another.example.org", "fixture04",IngressAPIVersionNetworking),
-		newIngress("fixture05", map[string]string{ingressClassAnnotation: "yet-another-ignored"}, "yet-another", "yet-another.example.org", "fixture05",IngressAPIVersionNetworking),
+		newIngress("fixture01", nil, "", "example.org", "fixture01", IngressAPIVersionNetworking),
+		newIngress("fixture02", map[string]string{ingressClassAnnotation: "skipper"}, "", "skipper.example.org", "fixture02", IngressAPIVersionNetworking),
+		newIngress("fixture03", map[string]string{ingressClassAnnotation: "other"}, "", "other.example.org", "fixture03", IngressAPIVersionNetworking),
+		newIngress("fixture04", nil, "another", "another.example.org", "fixture04", IngressAPIVersionNetworking),
+		newIngress("fixture05", map[string]string{ingressClassAnnotation: "yet-another-ignored"}, "yet-another", "yet-another.example.org", "fixture05", IngressAPIVersionNetworking),
 	)
 	got, err := ingressClient.listIngress(kubeClient)
 	if err != nil {
@@ -53,9 +53,10 @@ func TestListIngressesV1(t *testing.T) {
 	kubeClient, _ := newSimpleClient(&Config{BaseURL: testServer.URL}, false)
 	ingressClient := &ingressClient{apiVersion: IngressAPIVersionNetworkingV1}
 	want := newList(IngressAPIVersionNetworkingV1,
-		newIngress("fixture01", nil,"", "example.org", "fixture01", IngressAPIVersionNetworkingV1),
-		newIngress("fixture02", map[string]string{ingressClassAnnotation: "skipper"},"", "skipper.example.org", "fixture02", IngressAPIVersionNetworkingV1),
-		newIngress("fixture03", map[string]string{ingressClassAnnotation: "other"},"", "other.example.org", "fixture03", IngressAPIVersionNetworkingV1),
+		newIngress("fixture01", nil, "", "example.org", "fixture01", IngressAPIVersionNetworkingV1),
+		newIngress("fixture02", map[string]string{ingressClassAnnotation: "skipper"}, "", "skipper.example.org", "fixture02", IngressAPIVersionNetworkingV1),
+		newIngress("fixture03", map[string]string{ingressClassAnnotation: "other"}, "", "other.example.org", "fixture03", IngressAPIVersionNetworkingV1),
+		newIngress("fixture04", nil, "another", "another.example.org", "fixture04", IngressAPIVersionNetworkingV1),
 	)
 	got, err := ingressClient.listIngress(kubeClient)
 	if err != nil {
