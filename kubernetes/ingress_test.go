@@ -25,9 +25,11 @@ func TestListIngresses(t *testing.T) {
 	kubeClient, _ := newSimpleClient(&Config{BaseURL: testServer.URL}, false)
 	ingressClient := &ingressClient{apiVersion: IngressAPIVersionNetworking}
 	want := newList(IngressAPIVersionNetworking,
-		newIngress("fixture01", nil, "example.org", "fixture01", IngressAPIVersionNetworking),
-		newIngress("fixture02", map[string]string{ingressClassAnnotation: "skipper"}, "skipper.example.org", "fixture02", IngressAPIVersionNetworking),
-		newIngress("fixture03", map[string]string{ingressClassAnnotation: "other"}, "other.example.org", "fixture03", IngressAPIVersionNetworking),
+		newIngress("fixture01", nil, "", "example.org", "fixture01", IngressAPIVersionNetworking),
+		newIngress("fixture02", map[string]string{ingressClassAnnotation: "skipper"}, "", "skipper.example.org", "fixture02", IngressAPIVersionNetworking),
+		newIngress("fixture03", map[string]string{ingressClassAnnotation: "other"}, "", "other.example.org", "fixture03", IngressAPIVersionNetworking),
+		newIngress("fixture04", nil, "another", "another.example.org", "fixture04", IngressAPIVersionNetworking),
+		newIngress("fixture05", map[string]string{ingressClassAnnotation: "yet-another-ignored"}, "yet-another", "yet-another.example.org", "fixture05", IngressAPIVersionNetworking),
 	)
 	got, err := ingressClient.listIngress(kubeClient)
 	if err != nil {
@@ -35,6 +37,7 @@ func TestListIngresses(t *testing.T) {
 	} else {
 		if !reflect.DeepEqual(got, want) {
 			t.Errorf("unexpected result from listIngresses. wanted %v, got %v", want, got)
+			t.Errorf("%v", cmp.Diff(want, got))
 		}
 	}
 }
@@ -50,9 +53,10 @@ func TestListIngressesV1(t *testing.T) {
 	kubeClient, _ := newSimpleClient(&Config{BaseURL: testServer.URL}, false)
 	ingressClient := &ingressClient{apiVersion: IngressAPIVersionNetworkingV1}
 	want := newList(IngressAPIVersionNetworkingV1,
-		newIngress("fixture01", nil, "example.org", "fixture01", IngressAPIVersionNetworkingV1),
-		newIngress("fixture02", map[string]string{ingressClassAnnotation: "skipper"}, "skipper.example.org", "fixture02", IngressAPIVersionNetworkingV1),
-		newIngress("fixture03", map[string]string{ingressClassAnnotation: "other"}, "other.example.org", "fixture03", IngressAPIVersionNetworkingV1),
+		newIngress("fixture01", nil, "", "example.org", "fixture01", IngressAPIVersionNetworkingV1),
+		newIngress("fixture02", map[string]string{ingressClassAnnotation: "skipper"}, "", "skipper.example.org", "fixture02", IngressAPIVersionNetworkingV1),
+		newIngress("fixture03", map[string]string{ingressClassAnnotation: "other"}, "", "other.example.org", "fixture03", IngressAPIVersionNetworkingV1),
+		newIngress("fixture04", nil, "another", "another.example.org", "fixture04", IngressAPIVersionNetworkingV1),
 	)
 	got, err := ingressClient.listIngress(kubeClient)
 	if err != nil {
@@ -140,7 +144,7 @@ func TestUpdateIngressFailureScenarios(t *testing.T) {
 	for _, test := range []struct {
 		ing *ingress
 	}{
-		{newIngress("foo", nil, "example.org", "", IngressAPIVersionNetworking)},
+		{newIngress("foo", nil, "", "example.org", "", IngressAPIVersionNetworking)},
 	} {
 		arn := getAnnotationsString(test.ing.Metadata.Annotations, ingressCertificateARNAnnotation, "<missing>")
 		t.Run(fmt.Sprintf("%v/%v", test.ing.Status.LoadBalancer.Ingress[0].Hostname, arn), func(t *testing.T) {
@@ -183,7 +187,7 @@ func newList(version string, ingresses ...*ingress) *ingressList {
 	return &ret
 }
 
-func newIngress(name string, annotations map[string]string, hostname, arn, apiVersion string) *ingress {
+func newIngress(name string, annotations map[string]string, ingressClassName string, hostname, arn, apiVersion string) *ingress {
 	ret := ingress{
 		Metadata: kubeItemMetadata{
 			Name:              name,
@@ -207,6 +211,9 @@ func newIngress(name string, annotations map[string]string, hostname, arn, apiVe
 		ret.Status.LoadBalancer = ingressLoadBalancerStatus{
 			Ingress: []ingressLoadBalancer{{Hostname: hostname}},
 		}
+	}
+	if ingressClassName != "" {
+		ret.Spec.IngressClassName = ingressClassName
 	}
 	return &ret
 }

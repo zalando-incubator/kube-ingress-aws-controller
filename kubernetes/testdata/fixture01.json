@@ -70,6 +70,55 @@
           ]
         }
       }
+    },
+    {
+      "metadata": {
+        "name": "fixture04",
+        "namespace": "default",
+        "selfLink": "/apis/networking.k8s.io/v1beta1/namespaces/default/ingresses/fixture04",
+        "uid": "fixture04",
+        "resourceVersion": "42",
+        "generation": 1,
+        "creationTimestamp": "2016-11-29T14:53:42Z",
+        "annotations": {
+          "zalando.org/aws-load-balancer-ssl-cert": "fixture04"
+        }
+      },
+      "spec": {
+        "ingressClassName": "another"
+      },
+      "status": {
+        "loadBalancer": {
+          "ingress": [
+            {"hostname": "another.example.org"}
+          ]
+        }
+      }
+    },
+    {
+      "metadata": {
+        "name": "fixture05",
+        "namespace": "default",
+        "selfLink": "/apis/networking.k8s.io/v1beta1/namespaces/default/ingresses/fixture05",
+        "uid": "fixture05",
+        "resourceVersion": "42",
+        "generation": 1,
+        "creationTimestamp": "2016-11-29T14:53:42Z",
+        "annotations": {
+          "kubernetes.io/ingress.class": "yet-another-ignored",
+          "zalando.org/aws-load-balancer-ssl-cert": "fixture05"
+        }
+      },
+      "spec": {
+        "ingressClassName": "yet-another"
+      },
+      "status": {
+        "loadBalancer": {
+          "ingress": [
+            {"hostname": "yet-another.example.org"}
+          ]
+        }
+      }
     }
   ]
 }

@@ -296,7 +296,7 @@ func (a *Adapter) ListIngress() ([]*Ingress, error) {
 	}
 	var ret []*Ingress
 	for _, ingress := range il.Items {
-		if !a.supportedIngressClass(ingress.Metadata) {
+		if !a.supportedIngress(ingress) {
 			continue
 		}
 		ing, err := a.newIngressFromKube(ingress)
@@ -325,7 +325,7 @@ func (a *Adapter) ListRoutegroups() ([]*Ingress, error) {
 
 	var ret []*Ingress
 	for _, rg := range rgs.Items {
-		if !a.supportedIngressClass(rg.Metadata) {
+		if !a.supportedRoutegroup(rg.Metadata) {
 			continue
 		}
 		ing, err := a.newIngressFromRouteGroup(rg)
@@ -342,11 +342,28 @@ func (a *Adapter) ListRoutegroups() ([]*Ingress, error) {
 	return ret, nil
 }
 
-func (a *Adapter) supportedIngressClass(metadata kubeItemMetadata) bool {
+func (a *Adapter) supportedRoutegroup(metadata kubeItemMetadata) bool {
 	if len(a.ingressFilters) == 0 {
 		return true
 	}
 	ingressClass := getAnnotationsString(metadata.Annotations, ingressClassAnnotation, "")
+	return a.supportedIngressClass(ingressClass)
+}
+
+func (a *Adapter) supportedIngress(ingress *ingress) bool {
+	if len(a.ingressFilters) == 0 {
+		return true
+	}
+	ingressClass := getIngressClassName(ingress.Spec, "")
+	// fallback to deprecated annotation
+	// https://kubernetes.io/docs/concepts/services-networking/ingress/#deprecated-annotation
+	if ingressClass == "" {
+		ingressClass = getAnnotationsString(ingress.Metadata.Annotations, ingressClassAnnotation, "")
+	}
+	return a.supportedIngressClass(ingressClass)
+}
+
+func (a *Adapter) supportedIngressClass(ingressClass string) bool {
 	for _, v := range a.ingressFilters {
 		if v == ingressClass {
 			return true
