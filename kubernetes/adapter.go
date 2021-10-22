@@ -347,7 +347,7 @@ func (a *Adapter) supportedRoutegroup(metadata kubeItemMetadata) bool {
 		return true
 	}
 	ingressClass := getAnnotationsString(metadata.Annotations, ingressClassAnnotation, "")
-	return a.checkFilterSupport(ingressClass)
+	return a.supportedIngressClass(ingressClass)
 }
 
 func (a *Adapter) supportedIngress(ingress *ingress) bool {
@@ -360,10 +360,10 @@ func (a *Adapter) supportedIngress(ingress *ingress) bool {
 	if ingressClass == "" {
 		ingressClass = getAnnotationsString(ingress.Metadata.Annotations, ingressClassAnnotation, "")
 	}
-	return a.checkFilterSupport(ingressClass)
+	return a.supportedIngressClass(ingressClass)
 }
 
-func (a *Adapter) checkFilterSupport(ingressClass string) bool {
+func (a *Adapter) supportedIngressClass(ingressClass string) bool {
 	for _, v := range a.ingressFilters {
 		if v == ingressClass {
 			return true
