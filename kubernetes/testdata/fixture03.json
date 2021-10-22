@@ -1,104 +1,79 @@
 {
-  "apiVersion": "v1",
   "items": [
     {
       "apiVersion": "networking.k8s.io/v1",
       "kind": "Ingress",
       "metadata": {
-        "creationTimestamp": "2021-10-19T09:11:25Z",
-        "generation": 2,
-        "name": "appname-ingress",
+        "name": "fixture01",
         "namespace": "default",
-        "resourceVersion": "214550",
-        "uid": "f86c7f69-c271-4f0d-a0a8-344f4419e7e9"
-      },
-      "spec": {
-        "rules": [
-          {
-            "host": "v7.appname.org",
-            "http": {
-              "paths": [
-                {
-                  "backend": {
-                    "service": {
-                      "name": "appname-web",
-                      "port": {
-                        "number": 80
-                      }
-                    }
-                  },
-                  "path": "/",
-                  "pathType": "Prefix"
-                },
-                {
-                  "backend": {
-                    "service": {
-                      "name": "appname-api",
-                      "port": {
-                        "number": 80
-                      }
-                    }
-                  },
-                  "path": "/api",
-                  "pathType": "Prefix"
-                }
-              ]
-            }
-          },
-          {
-            "host": "api.v7.appname.org",
-            "http": {
-              "paths": [
-                {
-                  "backend": {
-                    "service": {
-                      "name": "appname-api",
-                      "port": {
-                        "number": 80
-                      }
-                    }
-                  },
-                  "path": "/",
-                  "pathType": "Prefix"
-                }
-              ]
-            }
-          },
-          {
-            "host": "v7.backend.appname.org",
-            "http": {
-              "paths": [
-                {
-                  "backend": {
-                    "service": {
-                      "name": "appname-web",
-                      "port": {
-                        "number": 80
-                      }
-                    }
-                  },
-                  "path": "/",
-                  "pathType": "Prefix"
-                }
-              ]
-            }
-          }
-        ]
+        "selfLink": "/apis/networking.k8s.io/v1/namespaces/default/ingresses/fixture01",
+        "uid": "fixture01",
+        "resourceVersion": "42",
+        "generation": 1,
+        "creationTimestamp": "2016-11-29T14:53:42Z",
+        "annotations": {
+          "zalando.org/aws-load-balancer-ssl-cert": "fixture01"
+        }
       },
       "status": {
         "loadBalancer": {
           "ingress": [
             {
-              "hostname": "kube-ing-lb-redacted-1111111111.eu-west-1.elb.amazonaws.com"
+              "hostname": "example.org"
             }
+          ]
+        }
+      }
+    },
+    {
+      "metadata": {
+        "name": "fixture02",
+        "namespace": "default",
+        "selfLink": "/apis/networking.k8s.io/v1/namespaces/default/ingresses/fixture02",
+        "uid": "fixture02",
+        "resourceVersion": "42",
+        "generation": 1,
+        "creationTimestamp": "2016-11-29T14:53:42Z",
+        "annotations": {
+          "zalando.org/aws-load-balancer-ssl-cert": "fixture02",
+          "kubernetes.io/ingress.class": "skipper"
+        }
+      },
+      "status": {
+        "loadBalancer": {
+          "ingress": [
+            {"hostname": "skipper.example.org"}
+          ]
+        }
+      }
+    },
+    {
+      "metadata": {
+        "name": "fixture03",
+        "namespace": "default",
+        "selfLink": "/apis/networking.k8s.io/v1/namespaces/default/ingresses/fixture03",
+        "uid": "fixture03",
+        "resourceVersion": "42",
+        "generation": 1,
+        "creationTimestamp": "2016-11-29T14:53:42Z",
+        "annotations": {
+          "zalando.org/aws-load-balancer-ssl-cert": "fixture03",
+          "kubernetes.io/ingress.class": "other"
+        }
+      },
+      "status": {
+        "loadBalancer": {
+          "ingress": [
+            {"hostname": "other.example.org"}
           ]
         }
       }
     }
   ],
-  "kind": "List",
+  "kind": "IngressList",
+  "apiVersion": "networking.k8s.io/v1",
   "metadata": {
-    "resourceVersion": "",
-    "selfLink": ""
+    "selfLink": "/apis/networking.k8s.io/v1/ingresses",
+    "resourceVersion": "42"
   }
 }
