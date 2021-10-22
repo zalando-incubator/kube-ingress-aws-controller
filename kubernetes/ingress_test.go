@@ -10,6 +10,8 @@ import (
 	"reflect"
 	"testing"
 	"time"
+
+	"github.com/google/go-cmp/cmp"
 )
 
 func TestListIngresses(t *testing.T) {
@@ -22,10 +24,10 @@ func TestListIngresses(t *testing.T) {
 	defer testServer.Close()
 	kubeClient, _ := newSimpleClient(&Config{BaseURL: testServer.URL}, false)
 	ingressClient := &ingressClient{apiVersion: IngressAPIVersionNetworking}
-	want := newList(
-		newIngress("fixture01", nil, "example.org", "fixture01"),
-		newIngress("fixture02", map[string]string{ingressClassAnnotation: "skipper"}, "skipper.example.org", "fixture02"),
-		newIngress("fixture03", map[string]string{ingressClassAnnotation: "other"}, "other.example.org", "fixture03"),
+	want := newList(IngressAPIVersionNetworking,
+		newIngress("fixture01", nil, "example.org", "fixture01", IngressAPIVersionNetworking),
+		newIngress("fixture02", map[string]string{ingressClassAnnotation: "skipper"}, "skipper.example.org", "fixture02", IngressAPIVersionNetworking),
+		newIngress("fixture03", map[string]string{ingressClassAnnotation: "other"}, "other.example.org", "fixture03", IngressAPIVersionNetworking),
 	)
 	got, err := ingressClient.listIngress(kubeClient)
 	if err != nil {
@@ -33,6 +35,32 @@ func TestListIngresses(t *testing.T) {
 	} else {
 		if !reflect.DeepEqual(got, want) {
 			t.Errorf("unexpected result from listIngresses. wanted %v, got %v", want, got)
+		}
+	}
+}
+
+func TestListIngressesV1(t *testing.T) {
+	testServer := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+		f, _ := os.Open("testdata/fixture03.json")
+		defer f.Close()
+		rw.WriteHeader(http.StatusOK)
+		io.Copy(rw, f)
+	}))
+	defer testServer.Close()
+	kubeClient, _ := newSimpleClient(&Config{BaseURL: testServer.URL}, false)
+	ingressClient := &ingressClient{apiVersion: IngressAPIVersionNetworkingV1}
+	want := newList(IngressAPIVersionNetworkingV1,
+		newIngress("fixture01", nil, "example.org", "fixture01", IngressAPIVersionNetworkingV1),
+		newIngress("fixture02", map[string]string{ingressClassAnnotation: "skipper"}, "skipper.example.org", "fixture02", IngressAPIVersionNetworkingV1),
+		newIngress("fixture03", map[string]string{ingressClassAnnotation: "other"}, "other.example.org", "fixture03", IngressAPIVersionNetworkingV1),
+	)
+	got, err := ingressClient.listIngress(kubeClient)
+	if err != nil {
+		t.Errorf("unexpected error from listIngresses: %v", err)
+	} else {
+		if !reflect.DeepEqual(got, want) {
+			t.Errorf("unexpected result from listIngresses. wanted %v, got %v", want, got)
+			t.Errorf("%v", cmp.Diff(want, got))
 		}
 	}
 }
@@ -112,7 +140,7 @@ func TestUpdateIngressFailureScenarios(t *testing.T) {
 	for _, test := range []struct {
 		ing *ingress
 	}{
-		{newIngress("foo", nil, "example.org", "")},
+		{newIngress("foo", nil, "example.org", "", IngressAPIVersionNetworking)},
 	} {
 		arn := getAnnotationsString(test.ing.Metadata.Annotations, ingressCertificateARNAnnotation, "<missing>")
 		t.Run(fmt.Sprintf("%v/%v", test.ing.Status.LoadBalancer.Ingress[0].Hostname, arn), func(t *testing.T) {
@@ -142,12 +170,12 @@ func TestAnnotationsFallback(t *testing.T) {
 	}
 }
 
-func newList(ingresses ...*ingress) *ingressList {
+func newList(version string, ingresses ...*ingress) *ingressList {
 	ret := ingressList{
-		APIVersion: IngressAPIVersionNetworking,
+		APIVersion: version,
 		Kind:       "IngressList",
 		Metadata: ingressListMetadata{
-			SelfLink:        fmt.Sprintf("/apis/%s/ingresses", IngressAPIVersionNetworking),
+			SelfLink:        fmt.Sprintf("/apis/%s/ingresses", version),
 			ResourceVersion: "42",
 		},
 		Items: ingresses,
@@ -155,14 +183,14 @@ func newList(ingresses ...*ingress) *ingressList {
 	return &ret
 }
 
-func newIngress(name string, annotations map[string]string, hostname string, arn string) *ingress {
+func newIngress(name string, annotations map[string]string, hostname, arn, apiVersion string) *ingress {
 	ret := ingress{
 		Metadata: kubeItemMetadata{
 			Name:              name,
 			Namespace:         "default",
 			Annotations:       annotations,
 			ResourceVersion:   "42",
-			SelfLink:          fmt.Sprintf("/apis/%s/namespaces/default/ingresses/", IngressAPIVersionNetworking) + name,
+			SelfLink:          fmt.Sprintf("/apis/%s/namespaces/default/ingresses/", apiVersion) + name,
 			Generation:        1,
 			UID:               name,
 			CreationTimestamp: time.Date(2016, 11, 29, 14, 53, 42, 0, time.UTC),
