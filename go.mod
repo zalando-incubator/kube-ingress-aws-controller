@@ -12,7 +12,6 @@ require (
 	github.com/leodido/go-urn v1.2.1 // indirect
 	github.com/linki/instrumented_http v0.3.0
 	github.com/mweagle/go-cloudformation v0.0.0-20210117063902-00aa242fdc67
-	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.11.0
 	github.com/sirupsen/logrus v1.8.1
 	github.com/stretchr/testify v1.7.0

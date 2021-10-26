@@ -25,6 +25,7 @@ import (
 	"github.com/linki/instrumented_http"
 	log "github.com/sirupsen/logrus"
 	"github.com/zalando-incubator/kube-ingress-aws-controller/certs"
+	"github.com/zalando-incubator/kube-ingress-aws-controller/problem"
 )
 
 // An Adapter can be used to orchestrate and obtain information from Amazon Web Services.
@@ -524,7 +525,7 @@ func (a *Adapter) FindManagedStacks() ([]*Stack, error) {
 // UpdateTargetGroupsAndAutoScalingGroups updates Auto Scaling Groups
 // config to have relevant Target Groups and registers/deregisters single
 // instances (that do not belong to ASG) in relevant Target Groups.
-func (a *Adapter) UpdateTargetGroupsAndAutoScalingGroups(stacks []*Stack) {
+func (a *Adapter) UpdateTargetGroupsAndAutoScalingGroups(stacks []*Stack, problems *problem.List) {
 	targetGroupARNs := make([]string, 0, len(stacks))
 	for _, stack := range stacks {
 		if len(stack.TargetGroupARNs) > 0 {
@@ -545,7 +546,7 @@ func (a *Adapter) UpdateTargetGroupsAndAutoScalingGroups(stacks []*Stack) {
 	for _, asg := range a.TargetedAutoScalingGroups {
 		// This call is idempotent and safe to execute every time
 		if err := updateTargetGroupsForAutoScalingGroup(a.autoscaling, a.elbv2, targetGroupARNs, asg.name, ownerTags); err != nil {
-			log.Errorf("Failed to update target groups for autoscaling group %q: %v", asg.name, err)
+			problems.Add("failed to update target groups for autoscaling group %q: %w", asg.name, err)
 		}
 	}
 
@@ -554,7 +555,7 @@ func (a *Adapter) UpdateTargetGroupsAndAutoScalingGroups(stacks []*Stack) {
 	for _, asg := range nonTargetedASGs {
 		// This call is idempotent and safe to execute every time
 		if err := updateTargetGroupsForAutoScalingGroup(a.autoscaling, a.elbv2, nil, asg.name, ownerTags); err != nil {
-			log.Errorf("Failed to update target groups for non-targeted autoscaling group %q: %v", asg.name, err)
+			problems.Add("failed to update target groups for non-targeted autoscaling group %q: %w", asg.name, err)
 		}
 	}
 
@@ -562,13 +563,13 @@ func (a *Adapter) UpdateTargetGroupsAndAutoScalingGroups(stacks []*Stack) {
 	if len(runningSingleInstances) != 0 {
 		// This call is idempotent too
 		if err := registerTargetsOnTargetGroups(a.elbv2, targetGroupARNs, runningSingleInstances); err != nil {
-			log.Errorf("Failed to register instances %q in target groups: %v", runningSingleInstances, err)
+			problems.Add("failed to register instances %q in target groups: %w", runningSingleInstances, err)
 		}
 	}
 	if len(a.obsoleteInstances) != 0 {
 		// Deregister instances from target groups and clean up list of obsolete instances
 		if err := deregisterTargetsOnTargetGroups(a.elbv2, targetGroupARNs, a.obsoleteInstances); err != nil {
-			log.Errorf("Failed to deregister instances %q in target groups: %v", a.obsoleteInstances, err)
+			problems.Add("failed to deregister instances %q in target groups: %w", a.obsoleteInstances, err)
 		} else {
 			a.obsoleteInstances = make([]string, 0)
 		}

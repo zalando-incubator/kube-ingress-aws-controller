@@ -14,11 +14,11 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/service/cloudformation"
-	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 	"github.com/zalando-incubator/kube-ingress-aws-controller/aws"
 	"github.com/zalando-incubator/kube-ingress-aws-controller/certs"
 	"github.com/zalando-incubator/kube-ingress-aws-controller/kubernetes"
+	"github.com/zalando-incubator/kube-ingress-aws-controller/problem"
 )
 
 type loadBalancer struct {
@@ -236,8 +236,12 @@ func startPolling(
 	globalWAFACL string,
 ) {
 	for {
-		if err := doWork(certsProvider, certsPerALB, certTTL, awsAdapter, kubeAdapter, globalWAFACL); err != nil {
-			log.Error(err)
+		if errs := doWork(certsProvider, certsPerALB, certTTL, awsAdapter, kubeAdapter, globalWAFACL).Errors(); len(errs) > 0 {
+			for err := range errs {
+				log.Error(err)
+			}
+		} else {
+			metrics.lastSyncTimestamp.SetToCurrentTime()
 		}
 		firstRun = false
 
@@ -257,44 +261,42 @@ func doWork(
 	awsAdapter *aws.Adapter,
 	kubeAdapter *kubernetes.Adapter,
 	globalWAFACL string,
-) error {
-	defer func() error {
+) (problems *problem.List) {
+	problems = new(problem.List)
+
+	defer func() {
 		if r := recover(); r != nil {
-			log.Errorln("Shit has hit the fan:", errors.Wrap(r.(error), "panic caused by"))
 			debug.PrintStack()
-			return r.(error)
+			problems.Add("panic caused by: %w", r)
 		}
-		return nil
 	}()
 
 	ingresses, err := kubeAdapter.ListResources()
 	if err != nil {
-		return fmt.Errorf("doWork failed to list ingress resources: %v", err)
+		return problems.Add("failed to list ingress resources: %w", err)
 	}
-	log.Infof("Found %d ingress(es)", len(ingresses))
 
 	stacks, err := awsAdapter.FindManagedStacks()
 	if err != nil {
-		return fmt.Errorf("doWork failed to list managed stacks: %v", err)
+		return problems.Add("failed to list managed stacks: %w", err)
 	}
-	log.Infof("Found %d stack(s)", len(stacks))
 
 	err = awsAdapter.UpdateAutoScalingGroupsAndInstances()
 	if err != nil {
-		return fmt.Errorf("doWork failed to get instances from EC2: %v", err)
+		return problems.Add("failed to get instances from EC2: %w", err)
 	}
 
 	certificateSummaries, err := certsProvider.GetCertificates()
 	if err != nil {
-		return fmt.Errorf("doWork failed to get certificates: %v", err)
+		return problems.Add("failed to get certificates: %w", err)
 	}
 
 	cwAlarms, err := getCloudWatchAlarms(kubeAdapter, cwAlarmConfigMapLocation)
 	if err != nil {
-		return fmt.Errorf("doWork failed to retrieve cloudwatch alarm configuration: %v", err)
+		return problems.Add("failed to retrieve cloudwatch alarm configuration: %w", err)
 	}
 
-	awsAdapter.UpdateTargetGroupsAndAutoScalingGroups(stacks)
+	// TODO: remove after transition to the metrics
 	log.Infof("Found %d owned auto scaling group(s)", len(awsAdapter.OwnedAutoScalingGroups))
 	log.Infof("Found %d targeted auto scaling group(s)", len(awsAdapter.TargetedAutoScalingGroups))
 	log.Infof("Found %d single instance(s)", len(awsAdapter.SingleInstances()))
@@ -302,25 +304,35 @@ func doWork(
 	log.Infof("Found %d certificate(s)", len(certificateSummaries))
 	log.Infof("Found %d cloudwatch alarm configuration(s)", len(cwAlarms))
 
+	metrics.ingressesTotal.Set(float64(len(ingresses)))
+	metrics.stacksTotal.Set(float64(len(stacks)))
+	metrics.ownedAutoscalingGroupsTotal.Set(float64(len(awsAdapter.OwnedAutoScalingGroups)))
+	metrics.targetedAutoscalingGroupsTotal.Set(float64(len(awsAdapter.TargetedAutoScalingGroups)))
+	metrics.instancesTotal.Set(float64(awsAdapter.CachedInstances()))
+	metrics.standaloneInstancesTotal.Set(float64(len(awsAdapter.SingleInstances())))
+	metrics.certificatesTotal.Set(float64(len(certificateSummaries)))
+	metrics.cloudWatchAlarmsTotal.Set(float64(len(cwAlarms)))
+
+	awsAdapter.UpdateTargetGroupsAndAutoScalingGroups(stacks, problems)
+
 	certs := NewCertificates(certificateSummaries)
 	model := buildManagedModel(certs, certsPerALB, certTTL, ingresses, stacks, cwAlarms, globalWAFACL)
 	log.Debugf("Have %d model(s)", len(model))
 	for _, loadBalancer := range model {
 		switch loadBalancer.Status() {
 		case delete:
-			deleteStack(awsAdapter, loadBalancer)
+			deleteStack(awsAdapter, loadBalancer, problems)
 		case missing:
-			createStack(awsAdapter, loadBalancer)
-			updateIngress(kubeAdapter, loadBalancer)
+			createStack(awsAdapter, loadBalancer, problems)
+			updateIngress(kubeAdapter, loadBalancer, problems)
 		case ready:
-			updateIngress(kubeAdapter, loadBalancer)
+			updateIngress(kubeAdapter, loadBalancer, problems)
 		case update:
-			updateStack(awsAdapter, loadBalancer)
-			updateIngress(kubeAdapter, loadBalancer)
+			updateStack(awsAdapter, loadBalancer, problems)
+			updateIngress(kubeAdapter, loadBalancer, problems)
 		}
 	}
-
-	return nil
+	return
 }
 
 func sortStacks(stacks []*aws.Stack) {
@@ -494,7 +506,7 @@ func buildManagedModel(
 	return model
 }
 
-func createStack(awsAdapter *aws.Adapter, lb *loadBalancer) {
+func createStack(awsAdapter *aws.Adapter, lb *loadBalancer, problems *problem.List) {
 	certificates := make([]string, 0, len(lb.ingresses))
 	for cert := range lb.ingresses {
 		certificates = append(certificates, cert)
@@ -510,13 +522,13 @@ func createStack(awsAdapter *aws.Adapter, lb *loadBalancer) {
 				return
 			}
 		}
-		log.Errorf("CreateStack(%q) failed: %v", certificates, err)
+		problems.Add("failed to create stack %q: %w", certificates, err)
 	} else {
 		log.Infof("Stack %q for certificates %q created", stackId, certificates)
 	}
 }
 
-func updateStack(awsAdapter *aws.Adapter, lb *loadBalancer) {
+func updateStack(awsAdapter *aws.Adapter, lb *loadBalancer, problems *problem.List) {
 	certificates := lb.CertificateARNs()
 
 	log.Infof("Updating %q stack for %d certificates / %d ingresses", lb.scheme, len(certificates), len(lb.ingresses))
@@ -525,7 +537,7 @@ func updateStack(awsAdapter *aws.Adapter, lb *loadBalancer) {
 	if isNoUpdatesToBePerformedError(err) {
 		log.Debugf("Stack(%q) is already up to date", certificates)
 	} else if err != nil {
-		log.Errorf("UpdateStack(%q) failed: %v", certificates, err)
+		problems.Add("failed to update stack %q: %w", certificates, err)
 	} else {
 		log.Infof("Stack %q for certificate %q updated", stackId, certificates)
 	}
@@ -548,7 +560,7 @@ func isNoUpdatesToBePerformedError(err error) bool {
 	return false
 }
 
-func updateIngress(kubeAdapter *kubernetes.Adapter, lb *loadBalancer) {
+func updateIngress(kubeAdapter *kubernetes.Adapter, lb *loadBalancer, problems *problem.List) {
 	var dnsName string
 	if lb.clusterLocal {
 		dnsName = kubernetes.DefaultClusterLocalDomain
@@ -565,7 +577,7 @@ func updateIngress(kubeAdapter *kubernetes.Adapter, lb *loadBalancer) {
 				if err == kubernetes.ErrUpdateNotNeeded {
 					log.Debugf("Ingress update not needed %v with DNS name %q", ing, dnsName)
 				} else {
-					log.Errorf("Failed to update ingress: %v", err)
+					problems.Add("failed to update ingress %q: %w", ing, err)
 				}
 			} else {
 				log.Infof("Updated ingress %v with DNS name %q", ing, dnsName)
@@ -574,10 +586,10 @@ func updateIngress(kubeAdapter *kubernetes.Adapter, lb *loadBalancer) {
 	}
 }
 
-func deleteStack(awsAdapter *aws.Adapter, lb *loadBalancer) {
+func deleteStack(awsAdapter *aws.Adapter, lb *loadBalancer, problems *problem.List) {
 	stackName := lb.stack.Name
 	if err := awsAdapter.DeleteStack(lb.stack); err != nil {
-		log.Errorf("Failed to delete stack %q: %v", stackName, err)
+		problems.Add("failed to delete stack %q: %w", stackName, err)
 	} else {
 		log.Infof("Deleted orphaned stack %q", stackName)
 	}

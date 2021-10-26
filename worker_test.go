@@ -991,3 +991,11 @@ func TestBuildModel(t *testing.T) {
 		})
 	}
 }
+
+func TestDoWorkPanicReturnsProblem(t *testing.T) {
+	problem := doWork(nil, 0, 0, nil, nil, "")
+
+	require.NotNil(t, problem, "expected problem")
+	require.Len(t, problem.Errors(), 1)
+	require.Error(t, problem.Errors()[0], "panic caused by: runtime error: invalid memory address or nil pointer dereference")
+}
