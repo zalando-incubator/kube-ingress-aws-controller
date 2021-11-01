@@ -4,10 +4,11 @@ go 1.13
 
 require (
 	github.com/alecthomas/units v0.0.0-20210208195552-ff826a37aa15 // indirect
-	github.com/aws/aws-sdk-go v1.40.53
+	github.com/aws/aws-sdk-go v1.41.14
 	github.com/ghodss/yaml v1.0.0
 	github.com/go-playground/universal-translator v0.17.0 // indirect
 	github.com/golang/protobuf v1.5.2 // indirect
+	github.com/google/go-cmp v0.5.5
 	github.com/google/uuid v1.3.0
 	github.com/leodido/go-urn v1.2.1 // indirect
 	github.com/linki/instrumented_http v0.3.0
