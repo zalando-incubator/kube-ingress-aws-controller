@@ -520,7 +520,7 @@ spec:
 When the controller detects that a managed load balancer for the current cluster doesn't have a matching ingress
 resource anymore, it deletes all the previously created resources.
 
-Deletion may take up to about 30 minutes. This ensures proper draining of connections on the lodadbalancers and allows for DNS TTLs to expire.
+Deletion may take up to about 30 minutes. This ensures proper draining of connections on the loadbalancers and allows for DNS TTLs to expire.
 
 ## Building
 
