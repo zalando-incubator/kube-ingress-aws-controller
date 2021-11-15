@@ -237,7 +237,7 @@ func startPolling(
 ) {
 	for {
 		if errs := doWork(certsProvider, certsPerALB, certTTL, awsAdapter, kubeAdapter, globalWAFACL).Errors(); len(errs) > 0 {
-			for err := range errs {
+			for _, err := range errs {
 				log.Error(err)
 			}
 		} else {
