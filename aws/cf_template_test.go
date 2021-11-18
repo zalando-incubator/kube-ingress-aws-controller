@@ -585,6 +585,35 @@ func TestGenerateTemplate(t *testing.T) {
 				validateTargetGroupOutput(t, template, "TG", "TargetGroupARN")
 			},
 		},
+		{
+			name: "For Albs sets Healthy and Unhealthy Threshold Count individually",
+			spec: &stackSpec{
+				loadbalancerType:           LoadBalancerTypeApplication,
+				albHealthyThresholdCount:   7,
+				albUnhealthyThresholdCount: 3,
+			},
+			validate: func(t *testing.T, template *cloudformation.Template) {
+				tg := template.Resources["TG"].Properties.(*cloudformation.ElasticLoadBalancingV2TargetGroup)
+				require.Equal(t, cloudformation.Integer(7), tg.HealthyThresholdCount)
+				require.Equal(t, cloudformation.Integer(3), tg.UnhealthyThresholdCount)
+			},
+		},
+		{
+			name: "For Nlbs sets Healthy and Unhealthy Threshold Count equally and ignores ALB settings",
+			spec: &stackSpec{
+				loadbalancerType:           LoadBalancerTypeNetwork,
+				nlbHealthyThresholdCount:   4,
+				albHealthyThresholdCount:   7,
+				albUnhealthyThresholdCount: 3,
+			},
+			validate: func(t *testing.T, template *cloudformation.Template) {
+				tg := template.Resources["TG"].Properties.(*cloudformation.ElasticLoadBalancingV2TargetGroup)
+				require.Equal(t, cloudformation.Integer(4), tg.HealthyThresholdCount)
+				require.Equal(t, cloudformation.Integer(4), tg.UnhealthyThresholdCount)
+				require.NotEqual(t, cloudformation.Integer(7), tg.HealthyThresholdCount)
+				require.NotEqual(t, cloudformation.Integer(3), tg.UnhealthyThresholdCount)
+			},
+		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			generated, err := generateTemplate(test.spec)

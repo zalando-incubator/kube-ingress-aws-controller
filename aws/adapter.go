@@ -43,6 +43,9 @@ type Adapter struct {
 	healthCheckPort             uint
 	healthCheckInterval         time.Duration
 	healthCheckTimeout          time.Duration
+	albHealthyThresholdCount    uint
+	albUnhealthyThresholdCount  uint
+	nlbHealthyThresholdCount    uint
 	targetPort                  uint
 	albHTTPTargetPort           uint
 	nlbHTTPTargetPort           uint
@@ -86,16 +89,19 @@ type manifest struct {
 type configProviderFunc func() client.ConfigProvider
 
 const (
-	DefaultHealthCheckPath           = "/kube-system/healthz"
-	DefaultHealthCheckPort           = 9999
-	DefaultTargetPort                = 9999
-	DefaultHealthCheckInterval       = 10 * time.Second
-	DefaultHealthCheckTimeout        = 5 * time.Second
-	DefaultCertificateUpdateInterval = 30 * time.Minute
-	DefaultCreationTimeout           = 5 * time.Minute
-	DefaultIdleConnectionTimeout     = 1 * time.Minute
-	DefaultDeregistrationTimeout     = 5 * time.Minute
-	DefaultControllerID              = "kube-ingress-aws-controller"
+	DefaultHealthCheckPath            = "/kube-system/healthz"
+	DefaultHealthCheckPort            = 9999
+	DefaultTargetPort                 = 9999
+	DefaultHealthCheckInterval        = 10 * time.Second
+	DefaultHealthCheckTimeout         = 5 * time.Second
+	DefaultAlbHealthyThresholdCount   = 5
+	DefaultAlbUnhealthyThresholdCount = 2
+	DefaultNlbHealthyThresholdCount   = 3
+	DefaultCertificateUpdateInterval  = 30 * time.Minute
+	DefaultCreationTimeout            = 5 * time.Minute
+	DefaultIdleConnectionTimeout      = 1 * time.Minute
+	DefaultDeregistrationTimeout      = 5 * time.Minute
+	DefaultControllerID               = "kube-ingress-aws-controller"
 	// DefaultMaxCertsPerALB defines the maximum number of certificates per
 	// ALB. AWS limit is 25 but one space is needed to work around
 	// CloudFormation bug:
@@ -192,30 +198,33 @@ func newConfigProvider(debug, disableInstrumentedHttpClient bool) client.ConfigP
 func NewAdapter(clusterID, newControllerID, vpcID string, debug, disableInstrumentedHttpClient bool) (adapter *Adapter, err error) {
 	p := newConfigProvider(debug, disableInstrumentedHttpClient)
 	adapter = &Adapter{
-		ec2:                 ec2.New(p),
-		elbv2:               elbv2.New(p),
-		ec2metadata:         ec2metadata.New(p),
-		autoscaling:         autoscaling.New(p),
-		acm:                 acm.New(p),
-		iam:                 iam.New(p),
-		cloudformation:      cloudformation.New(p),
-		healthCheckPath:     DefaultHealthCheckPath,
-		healthCheckPort:     DefaultHealthCheckPort,
-		targetPort:          DefaultTargetPort,
-		healthCheckInterval: DefaultHealthCheckInterval,
-		healthCheckTimeout:  DefaultHealthCheckTimeout,
-		creationTimeout:     DefaultCreationTimeout,
-		ec2Details:          make(map[string]*instanceDetails),
-		singleInstances:     make(map[string]*instanceDetails),
-		obsoleteInstances:   make([]string, 0),
-		controllerID:        newControllerID,
-		sslPolicy:           DefaultSslPolicy,
-		ipAddressType:       DefaultIpAddressType,
-		albLogsS3Bucket:     DefaultAlbS3LogsBucket,
-		albLogsS3Prefix:     DefaultAlbS3LogsPrefix,
-		nlbCrossZone:        DefaultNLBCrossZone,
-		nlbHTTPEnabled:      DefaultNLBHTTPEnabled,
-		customFilter:        DefaultCustomFilter,
+		ec2:                        ec2.New(p),
+		elbv2:                      elbv2.New(p),
+		ec2metadata:                ec2metadata.New(p),
+		autoscaling:                autoscaling.New(p),
+		acm:                        acm.New(p),
+		iam:                        iam.New(p),
+		cloudformation:             cloudformation.New(p),
+		healthCheckPath:            DefaultHealthCheckPath,
+		healthCheckPort:            DefaultHealthCheckPort,
+		targetPort:                 DefaultTargetPort,
+		healthCheckInterval:        DefaultHealthCheckInterval,
+		healthCheckTimeout:         DefaultHealthCheckTimeout,
+		albHealthyThresholdCount:   DefaultAlbHealthyThresholdCount,
+		albUnhealthyThresholdCount: DefaultAlbUnhealthyThresholdCount,
+		nlbHealthyThresholdCount:   DefaultNlbHealthyThresholdCount,
+		creationTimeout:            DefaultCreationTimeout,
+		ec2Details:                 make(map[string]*instanceDetails),
+		singleInstances:            make(map[string]*instanceDetails),
+		obsoleteInstances:          make([]string, 0),
+		controllerID:               newControllerID,
+		sslPolicy:                  DefaultSslPolicy,
+		ipAddressType:              DefaultIpAddressType,
+		albLogsS3Bucket:            DefaultAlbS3LogsBucket,
+		albLogsS3Prefix:            DefaultAlbS3LogsPrefix,
+		nlbCrossZone:               DefaultNLBCrossZone,
+		nlbHTTPEnabled:             DefaultNLBHTTPEnabled,
+		customFilter:               DefaultCustomFilter,
 	}
 
 	adapter.manifest, err = buildManifest(adapter, clusterID, vpcID)
@@ -245,6 +254,27 @@ func (a *Adapter) WithHealthCheckPath(path string) *Adapter {
 // the resources created by the adapter
 func (a *Adapter) WithHealthCheckPort(port uint) *Adapter {
 	a.healthCheckPort = port
+	return a
+}
+
+// WithAlbHealthyThresholdCount returns the receiver adapter after changing the healthy threshold count that will be used by
+// the resources created by the adapter
+func (a *Adapter) WithAlbHealthyThresholdCount(count uint) *Adapter {
+	a.albHealthyThresholdCount = count
+	return a
+}
+
+// WithAlbUnhealthyThresholdCount returns the receiver adapter after changing the unhealthy threshold count that will be used by
+// the resources created by the adapter
+func (a *Adapter) WithAlbUnhealthyThresholdCount(count uint) *Adapter {
+	a.albUnhealthyThresholdCount = count
+	return a
+}
+
+// WithNlbHealthyThresholdCount returns the receiver adapter after changing the healthy threshold count that will be used by
+// the resources created by the adapter
+func (a *Adapter) WithNlbHealthyThresholdCount(count uint) *Adapter {
+	a.nlbHealthyThresholdCount = count
 	return a
 }
 
@@ -611,6 +641,9 @@ func (a *Adapter) CreateStack(certificateARNs []string, scheme, securityGroup, o
 			interval: a.healthCheckInterval,
 			timeout:  a.healthCheckTimeout,
 		},
+		albHealthyThresholdCount:          a.albHealthyThresholdCount,
+		albUnhealthyThresholdCount:        a.albUnhealthyThresholdCount,
+		nlbHealthyThresholdCount:          a.nlbHealthyThresholdCount,
 		targetPort:                        a.targetPort,
 		targetHTTPS:                       a.targetHTTPS,
 		httpDisabled:                      a.httpDisabled(loadBalancerType),
@@ -663,6 +696,9 @@ func (a *Adapter) UpdateStack(stackName string, certificateARNs map[string]time.
 			interval: a.healthCheckInterval,
 			timeout:  a.healthCheckTimeout,
 		},
+		albHealthyThresholdCount:          a.albHealthyThresholdCount,
+		albUnhealthyThresholdCount:        a.albUnhealthyThresholdCount,
+		nlbHealthyThresholdCount:          a.nlbHealthyThresholdCount,
 		targetPort:                        a.targetPort,
 		targetHTTPS:                       a.targetHTTPS,
 		httpDisabled:                      a.httpDisabled(loadBalancerType),

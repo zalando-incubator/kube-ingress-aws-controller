@@ -43,6 +43,9 @@ var (
 	healthCheckPort               uint
 	healthCheckInterval           time.Duration
 	healthCheckTimeout            time.Duration
+	albHealthyThresholdCount      uint
+	albUnhealthyThresholdCount    uint
+	nlbHealthyThresholdCount      uint
 	targetPort                    uint
 	albHTTPTargetPort             uint
 	nlbHTTPTargetPort             uint
@@ -221,6 +224,12 @@ func loadSettings() error {
 		Default(aws.DefaultHealthCheckInterval.String()).DurationVar(&healthCheckInterval)
 	kingpin.Flag("health-check-timeout", "sets the health check timeout for the created target groups. The flag accepts a value acceptable to time.ParseDuration").
 		Default(aws.DefaultHealthCheckTimeout.String()).DurationVar(&healthCheckTimeout)
+	kingpin.Flag("alb-healthy-threshold-count", "The number of consecutive successful health checks required before considering an unhealthy target healthy. The range is 2–10. (ALB only)").
+		Default(strconv.FormatUint(aws.DefaultAlbHealthyThresholdCount, 10)).UintVar(&albHealthyThresholdCount)
+	kingpin.Flag("alb-unhealthy-threshold-count", "The number of consecutive failed health checks required before considering a target unhealthy. The range is 2–10. (ALB only)").
+		Default(strconv.FormatUint(aws.DefaultAlbUnhealthyThresholdCount, 10)).UintVar(&albUnhealthyThresholdCount)
+	kingpin.Flag("nlb-healthy-threshold-count", "The number of consecutive successful or failed health checks required before considering a target healthy or unhealthy. The range is 2–10. (NLB only)").
+		Default(strconv.FormatUint(aws.DefaultNlbHealthyThresholdCount, 10)).UintVar(&nlbHealthyThresholdCount)
 	kingpin.Flag("idle-connection-timeout", "sets the idle connection timeout of all ALBs. The flag accepts a value acceptable to time.ParseDuration and are between 1s and 4000s.").
 		Default(aws.DefaultIdleConnectionTimeout.String()).DurationVar(&idleConnectionTimeout)
 	kingpin.Flag("deregistration-delay-timeout", "sets the deregistration delay timeout of all target groups.  The flag accepts a value acceptable to time.ParseDuration that is between 1s and 3600s.").
@@ -284,6 +293,12 @@ func loadSettings() error {
 
 	if healthCheckPort == 0 || healthCheckPort > 65535 {
 		return fmt.Errorf("invalid health check port: %d. please use a valid TCP port", healthCheckPort)
+	}
+
+	for _, v := range []uint{albHealthyThresholdCount, albUnhealthyThresholdCount, nlbHealthyThresholdCount} {
+		if v < 2 || v > 10 {
+			return fmt.Errorf("invalid (un)healthy threshold: %d. must be between 2 and 10", v)
+		}
 	}
 
 	if targetPort == 0 || targetPort > 65535 {
@@ -370,6 +385,9 @@ func main() {
 		WithHealthCheckPort(healthCheckPort).
 		WithHealthCheckInterval(healthCheckInterval).
 		WithHealthCheckTimeout(healthCheckTimeout).
+		WithAlbHealthyThresholdCount(albHealthyThresholdCount).
+		WithAlbUnhealthyThresholdCount(albUnhealthyThresholdCount).
+		WithNlbHealthyThresholdCount(nlbHealthyThresholdCount).
 		WithTargetPort(targetPort).
 		WithALBHTTPTargetPort(albHTTPTargetPort).
 		WithNLBHTTPTargetPort(nlbHTTPTargetPort).
