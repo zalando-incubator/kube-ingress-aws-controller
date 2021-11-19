@@ -927,3 +927,23 @@ func TestWithTargetHTTPS(t *testing.T) {
 		require.Equal(t, true, b.targetHTTPS)
 	})
 }
+
+func TestWithxlbHealthyThresholdCount(t *testing.T) {
+	t.Run("WithAlbHealthyThresholdCount sets the albHealthyThresholdCount property", func(t *testing.T) {
+		a := Adapter{}
+		b := a.WithAlbHealthyThresholdCount(2)
+		require.Equal(t, uint(2), b.albHealthyThresholdCount)
+	})
+
+	t.Run("WithAlbUnhealthyThresholdCount sets the albUnhealthyThresholdCount property", func(t *testing.T) {
+		a := Adapter{}
+		b := a.WithAlbUnhealthyThresholdCount(3)
+		require.Equal(t, uint(3), b.albUnhealthyThresholdCount)
+	})
+
+	t.Run("WithNlbHealthyThresholdCount sets the nlbHealthyThresholdCount property", func(t *testing.T) {
+		a := Adapter{}
+		b := a.WithNlbHealthyThresholdCount(4)
+		require.Equal(t, uint(4), b.nlbHealthyThresholdCount)
+	})
+}

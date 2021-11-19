@@ -137,6 +137,9 @@ type stackSpec struct {
 	clusterID                         string
 	vpcID                             string
 	healthCheck                       *healthCheck
+	albHealthyThresholdCount          uint
+	albUnhealthyThresholdCount        uint
+	nlbHealthyThresholdCount          uint
 	targetPort                        uint
 	targetHTTPS                       bool
 	httpDisabled                      bool

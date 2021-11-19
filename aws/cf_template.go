@@ -446,9 +446,12 @@ func generateDenyInternalTrafficRule(listenerName string, rulePriority int64, in
 func newTargetGroup(spec *stackSpec, targetPortParameter string) *cloudformation.ElasticLoadBalancingV2TargetGroup {
 	protocol := "HTTP"
 	healthCheckProtocol := "HTTP"
+	healthyThresholdCount, unhealthyThresholdCount := spec.albHealthyThresholdCount, spec.albUnhealthyThresholdCount
 	if spec.loadbalancerType == LoadBalancerTypeNetwork {
 		protocol = "TCP"
 		healthCheckProtocol = "HTTP"
+		// For NLBs the healthy and unhealthy threshold count value must be equal
+		healthyThresholdCount, unhealthyThresholdCount = spec.nlbHealthyThresholdCount, spec.nlbHealthyThresholdCount
 	} else if spec.targetHTTPS {
 		protocol = "HTTPS"
 		healthCheckProtocol = "HTTPS"
@@ -465,6 +468,8 @@ func newTargetGroup(spec *stackSpec, targetPortParameter string) *cloudformation
 		HealthCheckPath:            cloudformation.Ref(parameterTargetGroupHealthCheckPathParameter).String(),
 		HealthCheckPort:            cloudformation.Ref(parameterTargetGroupHealthCheckPortParameter).String(),
 		HealthCheckProtocol:        cloudformation.String(healthCheckProtocol),
+		HealthyThresholdCount:      cloudformation.Integer(int64(healthyThresholdCount)),
+		UnhealthyThresholdCount:    cloudformation.Integer(int64(unhealthyThresholdCount)),
 		Port:                       cloudformation.Ref(targetPortParameter).Integer(),
 		Protocol:                   cloudformation.String(protocol),
 		VPCID:                      cloudformation.Ref(parameterTargetGroupVPCIDParameter).String(),
