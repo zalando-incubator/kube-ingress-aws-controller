@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	cloudformation "github.com/mweagle/go-cloudformation"
+	cloudformation "github.com/o11n/go-cloudformation"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/zalando-incubator/kube-ingress-aws-controller/aws"
