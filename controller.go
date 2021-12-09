@@ -91,6 +91,7 @@ var (
 	denyInternalRespContentType   string
 	denyInternalRespStatusCode    int
 	defaultInternalDomains        = fmt.Sprintf("*%s", kubernetes.DefaultClusterLocalDomain)
+	targetGroupProtocolVersion    string
 )
 
 func loadSettings() error {
@@ -202,6 +203,8 @@ func loadSettings() error {
 	kingpin.Flag("target-cni-namespace", "AWS VPC CNI only. Defines the namespace for ingress pods that should be linked to target group.").StringVar(&targetCNINamespace)
 	// LabelSelector semantics https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/#label-selectors
 	kingpin.Flag("target-cni-pod-labelselector", "AWS VPC CNI only. Defines the labelselector for ingress pods that should be linked to target group. Supports simple equality and multi value form (a=x,b=y) as well as complex forms (a IN (x,y,z).").StringVar(&targetCNIPodLabelSelector)
+	kingpin.Flag("target-group-protocol-version", "See https://docs.aws.amazon.com/elasticloadbalancing/latest/application/load-balancer-target-groups.html#target-group-protocol-version.").
+		Default("HTTP1").EnumVar(&targetGroupProtocolVersion, "HTTP1", "HTTP2", "GRPC")
 	kingpin.Parse()
 
 	// We currently only support one Ingress API Version
@@ -353,7 +356,8 @@ func main() {
 		WithInternalDomainsDenyResponse(denyInternalRespBody).
 		WithInternalDomainsDenyResponseStatusCode(denyInternalRespStatusCode).
 		WithInternalDomainsDenyResponseContenType(denyInternalRespContentType).
-		WithTargetAccessMode(targetAccessMode)
+		WithTargetAccessMode(targetAccessMode).
+		WithTargetGroupProtocolVersion(targetGroupProtocolVersion)
 
 	log.Debug("certs.NewCachingProvider")
 	certificatesProvider, err := certs.NewCachingProvider(
