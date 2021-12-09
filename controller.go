@@ -87,6 +87,7 @@ var (
 	denyInternalRespContentType   string
 	denyInternalRespStatusCode    int
 	defaultInternalDomains        = fmt.Sprintf("*%s", kubernetes.DefaultClusterLocalDomain)
+	targetGroupProtocolVersion    string
 )
 
 var metrics = struct {
@@ -280,6 +281,8 @@ func loadSettings() error {
 		Default("text/plain").StringVar(&denyInternalRespContentType)
 	kingpin.Flag("deny-internal-domains-response-status-code", "Defines the response status code for a request identified as to an internal domain when -deny-internal-domains is set.").
 		Default("401").IntVar(&denyInternalRespStatusCode)
+	kingpin.Flag("target-group-protocol-version", "Defines the target group protocol version for ALB. Specify GRPC to send requests to targets using gRPC. Specify HTTP2 to send requests to targets using HTTP/2. The default is HTTP1, which sends requests to targets using HTTP/1.1. Note the compatibility chart in https://docs.aws.amazon.com/elasticloadbalancing/latest/application/load-balancer-target-groups.html#target-group-protocol-version.").
+		Default("HTTP1").StringVar(&targetGroupProtocolVersion)
 	kingpin.Parse()
 
 	blacklistCertArnMap = make(map[string]bool)
@@ -319,6 +322,10 @@ func loadSettings() error {
 
 	if maxCertsPerALB > aws.DefaultMaxCertsPerALB {
 		return fmt.Errorf("invalid max number of certificates per ALB: %d. AWS does not allow more than %d", maxCertsPerALB, aws.DefaultMaxCertsPerALB)
+	}
+
+	if !strings.Contains("HTTP1 HTTP2 GRPC", targetGroupProtocolVersion) {
+		return fmt.Errorf("invalid target group protocol version: %s. must be one of HTTP1, HTTP2, GRPC", targetGroupProtocolVersion)
 	}
 
 	if cwAlarmConfigMap != "" {
@@ -410,7 +417,8 @@ func main() {
 		WithDenyInternalDomains(denyInternalDomains).
 		WithInternalDomainsDenyResponse(denyInternalRespBody).
 		WithInternalDomainsDenyResponseStatusCode(denyInternalRespStatusCode).
-		WithInternalDomainsDenyResponseContenType(denyInternalRespContentType)
+		WithInternalDomainsDenyResponseContenType(denyInternalRespContentType).
+		WithTargetGroupProtocolVersion(targetGroupProtocolVersion)
 
 	log.Debug("certs.NewCachingProvider")
 	certificatesProvider, err := certs.NewCachingProvider(

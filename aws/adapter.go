@@ -74,6 +74,7 @@ type Adapter struct {
 	denyInternalRespBody        string
 	denyInternalRespContentType string
 	denyInternalRespStatusCode  int
+	targetGroupProtocolVersion  string
 }
 
 type manifest struct {
@@ -121,8 +122,9 @@ const (
 	DefaultCustomFilter = ""
 	// DefaultNLBCrossZone specifies the default configuration for cross
 	// zone load balancing: https://docs.aws.amazon.com/elasticloadbalancing/latest/network/network-load-balancers.html#load-balancer-attributes
-	DefaultNLBCrossZone   = false
-	DefaultNLBHTTPEnabled = false
+	DefaultNLBCrossZone               = false
+	DefaultNLBHTTPEnabled             = false
+	DefaultTargetGroupProtocolVersion = "HTTP1"
 
 	nameTag                     = "Name"
 	LoadBalancerTypeApplication = "application"
@@ -225,6 +227,7 @@ func NewAdapter(clusterID, newControllerID, vpcID string, debug, disableInstrume
 		nlbCrossZone:               DefaultNLBCrossZone,
 		nlbHTTPEnabled:             DefaultNLBHTTPEnabled,
 		customFilter:               DefaultCustomFilter,
+		targetGroupProtocolVersion: DefaultTargetGroupProtocolVersion,
 	}
 
 	adapter.manifest, err = buildManifest(adapter, clusterID, vpcID)
@@ -466,6 +469,13 @@ func (a *Adapter) WithInternalDomainsDenyResponseContenType(contentType string) 
 	return a
 }
 
+// WithTargetGroupProtocolVersion returns the receiver
+// adapter after setting targetGroupProtocolVersion config.
+func (a *Adapter) WithTargetGroupProtocolVersion(pv string) *Adapter {
+	a.targetGroupProtocolVersion = pv
+	return a
+}
+
 // ClusterID returns the ClusterID tag that all resources from the same Kubernetes cluster share.
 // It's taken from the current ec2 instance.
 func (a *Adapter) ClusterID() string {
@@ -671,6 +681,7 @@ func (a *Adapter) CreateStack(certificateARNs []string, scheme, securityGroup, o
 			statusCode:  a.denyInternalRespStatusCode,
 			contentType: a.denyInternalRespContentType,
 		},
+		targetGroupProtocolVersion: a.targetGroupProtocolVersion,
 	}
 
 	return createStack(a.cloudformation, spec)
@@ -726,6 +737,7 @@ func (a *Adapter) UpdateStack(stackName string, certificateARNs map[string]time.
 			statusCode:  a.denyInternalRespStatusCode,
 			contentType: a.denyInternalRespContentType,
 		},
+		targetGroupProtocolVersion: a.targetGroupProtocolVersion,
 	}
 
 	return updateStack(a.cloudformation, spec)

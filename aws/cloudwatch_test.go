@@ -3,7 +3,7 @@ package aws
 import (
 	"testing"
 
-	cloudformation "github.com/mweagle/go-cloudformation"
+	cloudformation "github.com/o11n/go-cloudformation"
 	"github.com/stretchr/testify/assert"
 )
 
