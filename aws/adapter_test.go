@@ -947,3 +947,79 @@ func TestWithxlbHealthyThresholdCount(t *testing.T) {
 		require.Equal(t, uint(4), b.nlbHealthyThresholdCount)
 	})
 }
+
+func TestAdapter_SetTargetsOnCNITargetGroups(t *testing.T) {
+	thOut := elbv2.DescribeTargetHealthOutput{TargetHealthDescriptions: []*elbv2.TargetHealthDescription{}}
+	m := &mockElbv2Client{
+		outputs: elbv2MockOutputs{
+			describeTargetHealth: &apiResponse{response: &thOut, err: nil},
+			registerTargets:      R(mockDTOutput(), nil),
+			deregisterTargets:    R(mockDTOutput(), nil),
+		},
+	}
+	a := &Adapter{elbv2: m, TargetCNI: &TargetCNIconfig{}}
+
+	t.Run("adding a new endpoint", func(t *testing.T) {
+		a.TargetCNI.TargetGroupARNs = []string{"asg1"}
+
+		require.NoError(t, a.SetTargetsOnCNITargetGroups([]string{"1.1.1.1"}))
+		require.Equal(t, []*elbv2.RegisterTargetsInput{{
+			TargetGroupArn: aws.String("asg1"),
+			Targets:        []*elbv2.TargetDescription{{Id: aws.String("1.1.1.1")}},
+		}}, m.rtinputs)
+		require.Equal(t, []*elbv2.DeregisterTargetsInput(nil), m.dtinputs)
+	})
+
+	t.Run("two new endpoints, registers the new EPs only", func(t *testing.T) {
+		thOut = elbv2.DescribeTargetHealthOutput{TargetHealthDescriptions: []*elbv2.TargetHealthDescription{
+			{Target: &elbv2.TargetDescription{Id: aws.String("1.1.1.1")}}},
+		}
+		m.rtinputs, m.dtinputs = nil, nil
+
+		require.NoError(t, a.SetTargetsOnCNITargetGroups([]string{"1.1.1.1", "2.2.2.2", "3.3.3.3"}))
+		require.Equal(t, []*elbv2.TargetDescription{
+			{Id: aws.String("2.2.2.2")},
+			{Id: aws.String("3.3.3.3")},
+		}, m.rtinputs[0].Targets)
+		require.Equal(t, []*elbv2.DeregisterTargetsInput(nil), m.dtinputs)
+	})
+
+	t.Run("removing one endpoint, causing deregistration of it", func(t *testing.T) {
+		thOut = elbv2.DescribeTargetHealthOutput{TargetHealthDescriptions: []*elbv2.TargetHealthDescription{
+			{Target: &elbv2.TargetDescription{Id: aws.String("1.1.1.1")}},
+			{Target: &elbv2.TargetDescription{Id: aws.String("2.2.2.2")}},
+			{Target: &elbv2.TargetDescription{Id: aws.String("3.3.3.3")}},
+		}}
+		m.rtinputs, m.dtinputs = nil, nil
+
+		require.NoError(t, a.SetTargetsOnCNITargetGroups([]string{"1.1.1.1", "3.3.3.3"}))
+		require.Equal(t, []*elbv2.RegisterTargetsInput(nil), m.rtinputs)
+		require.Equal(t, []*elbv2.TargetDescription{{Id: aws.String("2.2.2.2")}}, m.dtinputs[0].Targets)
+	})
+
+	t.Run("restoring desired state after external manipulation, adding and removing one", func(t *testing.T) {
+		thOut = elbv2.DescribeTargetHealthOutput{TargetHealthDescriptions: []*elbv2.TargetHealthDescription{
+			{Target: &elbv2.TargetDescription{Id: aws.String("1.1.1.1")}},
+			{Target: &elbv2.TargetDescription{Id: aws.String("2.2.2.2")}},
+			{Target: &elbv2.TargetDescription{Id: aws.String("4.4.4.4")}},
+		}}
+		m.rtinputs, m.dtinputs = nil, nil
+
+		require.NoError(t, a.SetTargetsOnCNITargetGroups([]string{"1.1.1.1", "2.2.2.2", "3.3.3.3"}))
+		require.Equal(t, []*elbv2.TargetDescription{{Id: aws.String("3.3.3.3")}}, m.rtinputs[0].Targets)
+		require.Equal(t, []*elbv2.TargetDescription{{Id: aws.String("4.4.4.4")}}, m.dtinputs[0].Targets)
+	})
+}
+
+func TestWithTargetAccessMode(t *testing.T) {
+	t.Run("WithTargetAccessMode enables AWS CNI mode", func(t *testing.T) {
+		a := &Adapter{TargetCNI: &TargetCNIconfig{Enabled: false}}
+		a = a.WithTargetAccessMode("AWSCNI")
+		require.True(t, a.TargetCNI.Enabled)
+	})
+	t.Run("WithTargetAccessMode disables AWS CNI mode", func(t *testing.T) {
+		a := &Adapter{TargetCNI: &TargetCNIconfig{Enabled: true}}
+		a = a.WithTargetAccessMode("HostPort")
+		require.False(t, a.TargetCNI.Enabled)
+	})
+}

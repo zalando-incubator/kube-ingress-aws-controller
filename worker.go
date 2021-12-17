@@ -47,6 +47,7 @@ const (
 
 const (
 	maxTargetGroupSupported = 1000
+	cniEventRateLimit       = 5 * time.Second
 )
 
 func (l *loadBalancer) Status() int {
@@ -640,4 +641,39 @@ func getCloudWatchAlarmsFromConfigMap(configMap *kubernetes.ConfigMap) aws.Cloud
 	}
 
 	return configList
+}
+
+// cniEventHandler syncronizes the events from kubernetes and the status updates from the load balancer controller.
+// Events from kubernetes pod updates trigger a rate limited update of the target groups.
+func cniEventHandler(ctx context.Context, targetCNIcfg *aws.TargetCNIconfig,
+	targetSetter func([]string) error, informer func(context.Context, chan<- []string) error) {
+
+	log.Infoln("Starting CNI event handler")
+
+	rateLimiter := time.NewTicker(cniEventRateLimit)
+	defer rateLimiter.Stop()
+
+	epCh := make(chan []string, 10)
+	go informer(ctx, epCh)
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case targetCNIcfg.TargetGroupARNs = <-targetCNIcfg.TargetGroupCh:
+			log.Debugf("new message target groups: %v", targetCNIcfg.TargetGroupARNs)
+		case eps := <-epCh:
+			log.Debugf("new message endpoints: %v", eps)
+			if len(epCh) > 0 {
+				log.Debugf("skipping new message endpoints event, %d newer messages queued", len(epCh))
+				continue
+			}
+			// blocking for rate limits
+			<-rateLimiter.C
+			err := targetSetter(eps)
+			if err != nil {
+				log.Error(err)
+			}
+		}
+	}
 }

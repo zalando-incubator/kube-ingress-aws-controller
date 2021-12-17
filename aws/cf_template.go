@@ -8,6 +8,7 @@ import (
 	"crypto/sha256"
 	"sort"
 
+	"github.com/aws/aws-sdk-go/service/elbv2"
 	cloudformation "github.com/mweagle/go-cloudformation"
 )
 
@@ -444,6 +445,10 @@ func generateDenyInternalTrafficRule(listenerName string, rulePriority int64, in
 }
 
 func newTargetGroup(spec *stackSpec, targetPortParameter string) *cloudformation.ElasticLoadBalancingV2TargetGroup {
+	targetType := elbv2.TargetTypeEnumInstance
+	if spec.targetAccessModeCNI {
+		targetType = elbv2.TargetTypeEnumIp
+	}
 	protocol := "HTTP"
 	healthCheckProtocol := "HTTP"
 	healthyThresholdCount, unhealthyThresholdCount := spec.albHealthyThresholdCount, spec.albUnhealthyThresholdCount
@@ -472,6 +477,7 @@ func newTargetGroup(spec *stackSpec, targetPortParameter string) *cloudformation
 		UnhealthyThresholdCount:    cloudformation.Integer(int64(unhealthyThresholdCount)),
 		Port:                       cloudformation.Ref(targetPortParameter).Integer(),
 		Protocol:                   cloudformation.String(protocol),
+		TargetType:                 cloudformation.String(targetType),
 		VPCID:                      cloudformation.Ref(parameterTargetGroupVPCIDParameter).String(),
 	}
 

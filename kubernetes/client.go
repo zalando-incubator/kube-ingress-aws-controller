@@ -2,6 +2,7 @@ package kubernetes
 
 import (
 	"bytes"
+	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
@@ -14,6 +15,9 @@ import (
 	"time"
 
 	"github.com/linki/instrumented_http"
+	snet "github.com/zalando/skipper/net"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 )
 
 var ErrResourceNotFound = errors.New("resource not found")
@@ -29,7 +33,15 @@ type simpleClient struct {
 	httpClient *http.Client
 }
 
-const defaultControllerUserAgent = "kube-ingress-aws-controller"
+const (
+	defaultControllerUserAgent = "kube-ingress-aws-controller"
+
+	// aligned with https://pkg.go.dev/net/http#DefaultTransport
+	maxIdleConns        = 100
+	idleConnTimeout     = 90 * time.Second
+	timeout             = 30 * time.Second
+	tlsHandshakeTimeout = 10 * time.Second
+)
 
 func newSimpleClient(cfg *Config, disableInstrumentedHttpClient bool) (client, error) {
 	var (
@@ -53,11 +65,11 @@ func newSimpleClient(cfg *Config, disableInstrumentedHttpClient bool) (client, e
 			RootCAs:            certPool,
 		}
 		transport = &http.Transport{
-			TLSHandshakeTimeout: 10 * time.Second,
+			TLSHandshakeTimeout: tlsHandshakeTimeout,
 			TLSClientConfig:     tlsConfig,
 			Dial: (&net.Dialer{
-				Timeout:   30 * time.Second,
-				KeepAlive: 30 * time.Second,
+				Timeout:   timeout,
+				KeepAlive: timeout,
 			}).Dial,
 		}
 	}
@@ -146,4 +158,48 @@ func (c *simpleClient) createRequest(method, resource string, body io.Reader) (*
 		req.Header.Set("Authorization", "Bearer "+c.cfg.BearerToken)
 	}
 	return req, nil
+}
+
+func (a *Adapter) NewInclusterConfigClientset(ctx context.Context) error {
+	cfg, err := rest.InClusterConfig()
+	if err != nil {
+		return fmt.Errorf("Can't get in cluster config: %w", err)
+	}
+	// cfg.Timeout = timeout
+	trCfg, err := cfg.TransportConfig()
+	if err != nil {
+		return fmt.Errorf("can't get transport config: %w", err)
+	}
+	tlsCfg, err := rest.TLSConfigFor(cfg)
+	if err != nil {
+		return fmt.Errorf("can't get TLS config: %w", err)
+	}
+
+	// Todo: can the default Transport be used instead?
+	tr := snet.NewTransport(snet.Options{
+		IdleConnTimeout: idleConnTimeout,
+		Transport: &http.Transport{
+			Proxy:                 trCfg.Proxy,
+			DialContext:           trCfg.Dial,
+			TLSClientConfig:       tlsCfg,
+			TLSHandshakeTimeout:   tlsHandshakeTimeout,
+			DisableKeepAlives:     false,
+			DisableCompression:    false,
+			MaxIdleConns:          maxIdleConns,
+			MaxIdleConnsPerHost:   maxIdleConns,
+			IdleConnTimeout:       idleConnTimeout,
+			ResponseHeaderTimeout: timeout,
+			ExpectContinueTimeout: timeout,
+			ForceAttemptHTTP2:     true,
+		},
+	})
+	go func() {
+		<-ctx.Done()
+		tr.Close()
+	}()
+	cfg.Transport = tr
+	// github.com/kubernetes/client-go/issues/452
+	cfg.TLSClientConfig = rest.TLSClientConfig{}
+	a.clientset, err = kubernetes.NewForConfig(cfg)
+	return err
 }

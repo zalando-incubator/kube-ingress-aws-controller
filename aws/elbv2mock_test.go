@@ -12,6 +12,7 @@ type elbv2MockOutputs struct {
 	deregisterTargets    *apiResponse
 	describeTags         *apiResponse
 	describeTargetGroups *apiResponse
+	describeTargetHealth *apiResponse
 }
 
 type mockElbv2Client struct {
@@ -53,6 +54,13 @@ func (m *mockElbv2Client) DescribeTargetGroupsPagesWithContext(ctx aws.Context, 
 		f(out, true)
 	}
 	return m.outputs.describeTargetGroups.err
+}
+
+func (m *mockElbv2Client) DescribeTargetHealth(*elbv2.DescribeTargetHealthInput) (*elbv2.DescribeTargetHealthOutput, error) {
+	if out, ok := m.outputs.describeTargetHealth.response.(*elbv2.DescribeTargetHealthOutput); ok {
+		return out, m.outputs.describeTargetHealth.err
+	}
+	return nil, m.outputs.describeTargetHealth.err
 }
 
 func mockDTOutput() *elbv2.DeregisterTargetsOutput {

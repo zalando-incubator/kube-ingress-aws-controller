@@ -31,6 +31,7 @@ This information is used to manage AWS resources for each ingress objects of the
 - Can be used in clusters created by [Kops](https://github.com/kubernetes/kops), see our [deployment guide for Kops](deploy/kops.md)
 - [Support Multiple TLS Certificates per ALB (SNI)](https://aws.amazon.com/blogs/aws/new-application-load-balancer-sni/).
 - Support for AWS WAF and WAFv2
+- Support for AWS CNI pod direct access
 
 ## Upgrade
 
@@ -589,6 +590,28 @@ By default, the controller will expose both HTTP and HTTPS ports on the load bal
 
 The controller used to have only the `--health-check-port` flag available, and would use the same port as health check and the target port.
 Those ports are now configured individually. If you relied on this behavior, please include the `--target-port` in your configuration.
+
+## AWS CNI Mode (experimental)
+
+The default operation mode of the controller (`target-access-mode=HostPort`) is to link the target groups to the autoscaling group. The target group type is `instance`, requiring the ingress pod to be accessible through a `HostNetwork` and `HostPort`.
+
+In *AWS CNI Mode* (`target-access-mode=AWSCNI`) the controller actively manages the target group members. Since AWS EKS cluster running AWS VPC CNI have their pods as first class members in the VPCs, they can receive the traffic directly, being managed through a target group type is `ip`, which means there is no necessity for the HostPort indirection.
+
+### Notes
+
+- For security reasons the HostPort requirement might be of concern
+- Direct management of the target group members is significantly faster compared to the AWS linked mode, but it requires a running controller for updates. As of now, the controller is not prepared for high availability replicated setup.
+- The registration and deregistration is synced with the pod lifecycle, hence a pod in terminating phase is deregistered from the target group before shut down. 
+- Ingress pods are not bound to nodes in CNI mode and the deployment can scale independently.
+
+### Configuration options
+
+| access mode | HostNetwork | HostPort |                      Notes                      |
+| :---------: | :---------: | :------: | :---------------------------------------------: |
+| `HostPort`  |   `true`    |  `true`  | default setup                                   |
+| `AWSCNI`    |   `true`    |  `true`  | PodIP == HostIP: limited scaling and host bound |
+| `AWSCNI`    |   `false`   |  `true`  | PodIP != HostIP: limited scaling and host bound |
+| `AWSCNI`    |   `false`   | `false`  | free scaling, pod VPC CNI IP used               |
 
 ## Trying it out
 

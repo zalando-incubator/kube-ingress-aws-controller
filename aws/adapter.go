@@ -74,6 +74,13 @@ type Adapter struct {
 	denyInternalRespBody        string
 	denyInternalRespContentType string
 	denyInternalRespStatusCode  int
+	TargetCNI                   *TargetCNIconfig
+}
+
+type TargetCNIconfig struct {
+	Enabled         bool
+	TargetGroupARNs []string
+	TargetGroupCh   chan []string
 }
 
 type manifest struct {
@@ -124,11 +131,14 @@ const (
 	DefaultNLBCrossZone   = false
 	DefaultNLBHTTPEnabled = false
 
-	nameTag                     = "Name"
-	LoadBalancerTypeApplication = "application"
-	LoadBalancerTypeNetwork     = "network"
-	IPAddressTypeIPV4           = "ipv4"
-	IPAddressTypeDualstack      = "dualstack"
+	nameTag                       = "Name"
+	LoadBalancerTypeApplication   = "application"
+	LoadBalancerTypeNetwork       = "network"
+	IPAddressTypeIPV4             = "ipv4"
+	IPAddressTypeDualstack        = "dualstack"
+	TargetAccessModeAWSCNI        = "AWSCNI"
+	TargetAccessModeHostPort      = "HostPort"
+	DefaultTargetCNILabelSelector = "kube-system/application=skipper-ingress"
 )
 
 var (
@@ -225,6 +235,10 @@ func NewAdapter(clusterID, newControllerID, vpcID string, debug, disableInstrume
 		nlbCrossZone:               DefaultNLBCrossZone,
 		nlbHTTPEnabled:             DefaultNLBHTTPEnabled,
 		customFilter:               DefaultCustomFilter,
+		TargetCNI: &TargetCNIconfig{
+			Enabled:       false,
+			TargetGroupCh: make(chan []string, 10),
+		},
 	}
 
 	adapter.manifest, err = buildManifest(adapter, clusterID, vpcID)
@@ -432,6 +446,12 @@ func (a *Adapter) WithInternalDomains(domains []string) *Adapter {
 	return a
 }
 
+// WithTargetAccessMode returns the receiver adapter after defining the target access mode
+func (a *Adapter) WithTargetAccessMode(t string) *Adapter {
+	a.TargetCNI.Enabled = t == TargetAccessModeAWSCNI
+	return a
+}
+
 // WithDenyInternalDomains returns the receiver adapter after setting
 // the denyInternalDomains config.
 func (a *Adapter) WithDenyInternalDomains(deny bool) *Adapter {
@@ -568,6 +588,18 @@ func (a *Adapter) UpdateTargetGroupsAndAutoScalingGroups(stacks []*Stack, proble
 		return
 	}
 
+	// split the full list into relevant TG types
+	targetTypesARNs, err := categorizeTargetTypeInstance(a.elbv2, targetGroupARNs)
+	if err != nil {
+		problems.Add("failed to categorize Target Type Instance: %w", err)
+		return
+	}
+
+	// update the CNI TG list
+	if a.TargetCNI.Enabled {
+		a.TargetCNI.TargetGroupCh <- targetTypesARNs[elbv2.TargetTypeEnumIp]
+	}
+
 	ownerTags := map[string]string{
 		clusterIDTagPrefix + a.ClusterID(): resourceLifecycleOwned,
 		kubernetesCreatorTag:               a.controllerID,
@@ -575,7 +607,7 @@ func (a *Adapter) UpdateTargetGroupsAndAutoScalingGroups(stacks []*Stack, proble
 
 	for _, asg := range a.TargetedAutoScalingGroups {
 		// This call is idempotent and safe to execute every time
-		if err := updateTargetGroupsForAutoScalingGroup(a.autoscaling, a.elbv2, targetGroupARNs, asg.name, ownerTags); err != nil {
+		if err := updateTargetGroupsForAutoScalingGroup(a.autoscaling, a.elbv2, targetTypesARNs[elbv2.TargetTypeEnumInstance], asg.name, ownerTags); err != nil {
 			problems.Add("failed to update target groups for autoscaling group %q: %w", asg.name, err)
 		}
 	}
@@ -592,13 +624,13 @@ func (a *Adapter) UpdateTargetGroupsAndAutoScalingGroups(stacks []*Stack, proble
 	runningSingleInstances := a.RunningSingleInstances()
 	if len(runningSingleInstances) != 0 {
 		// This call is idempotent too
-		if err := registerTargetsOnTargetGroups(a.elbv2, targetGroupARNs, runningSingleInstances); err != nil {
+		if err := registerTargetsOnTargetGroups(a.elbv2, targetTypesARNs[elbv2.TargetTypeEnumInstance], runningSingleInstances); err != nil {
 			problems.Add("failed to register instances %q in target groups: %w", runningSingleInstances, err)
 		}
 	}
 	if len(a.obsoleteInstances) != 0 {
 		// Deregister instances from target groups and clean up list of obsolete instances
-		if err := deregisterTargetsOnTargetGroups(a.elbv2, targetGroupARNs, a.obsoleteInstances); err != nil {
+		if err := deregisterTargetsOnTargetGroups(a.elbv2, targetTypesARNs[elbv2.TargetTypeEnumInstance], a.obsoleteInstances); err != nil {
 			problems.Add("failed to deregister instances %q in target groups: %w", a.obsoleteInstances, err)
 		} else {
 			a.obsoleteInstances = make([]string, 0)
@@ -665,6 +697,7 @@ func (a *Adapter) CreateStack(certificateARNs []string, scheme, securityGroup, o
 		http2:                             http2,
 		tags:                              a.stackTags,
 		internalDomains:                   a.internalDomains,
+		targetAccessModeCNI:               a.TargetCNI.Enabled,
 		denyInternalDomains:               a.denyInternalDomains,
 		denyInternalDomainsResponse: denyResp{
 			body:        a.denyInternalRespBody,
@@ -720,6 +753,7 @@ func (a *Adapter) UpdateStack(stackName string, certificateARNs map[string]time.
 		http2:                             http2,
 		tags:                              a.stackTags,
 		internalDomains:                   a.internalDomains,
+		targetAccessModeCNI:               a.TargetCNI.Enabled,
 		denyInternalDomains:               a.denyInternalDomains,
 		denyInternalDomainsResponse: denyResp{
 			body:        a.denyInternalRespBody,
@@ -1008,4 +1042,53 @@ func nonTargetedASGs(ownedASGs, targetedASGs map[string]*autoScalingGroupDetails
 	}
 
 	return nonTargetedASGs
+}
+
+// SetTargetsOnCNITargetGroups implements desired state for CNI target groups
+// by polling the current list of targets thus creating a diff of what needs to be added and removed.
+func (a *Adapter) SetTargetsOnCNITargetGroups(endpoints []string) error {
+	for _, targetGroupARN := range a.TargetCNI.TargetGroupARNs {
+		tgh, err := a.elbv2.DescribeTargetHealth(&elbv2.DescribeTargetHealthInput{TargetGroupArn: &targetGroupARN})
+		if err != nil {
+			log.Errorf("unable to describe target health %v", err)
+			// continue for processing of the rest of the target groups
+			continue
+		}
+		registeredInstances := make([]string, len(tgh.TargetHealthDescriptions))
+		for i, target := range tgh.TargetHealthDescriptions {
+			registeredInstances[i] = *target.Target.Id
+		}
+		toregister := difference(endpoints, registeredInstances)
+		if len(toregister) > 0 {
+			log.Info("Registering CNI targets: ", toregister)
+			err := registerTargetsOnTargetGroups(a.elbv2, []string{targetGroupARN}, toregister)
+			if err != nil {
+				return err
+			}
+		}
+		toderegister := difference(registeredInstances, endpoints)
+		if len(toderegister) > 0 {
+			log.Info("Deregistering CNI targets: ", toderegister)
+			err := deregisterTargetsOnTargetGroups(a.elbv2, []string{targetGroupARN}, toderegister)
+			if err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+// difference returns the elements in `a` that aren't in `b`.
+func difference(a, b []string) []string {
+	mb := make(map[string]struct{}, len(b))
+	for _, x := range b {
+		mb[x] = struct{}{}
+	}
+	var diff []string
+	for _, x := range a {
+		if _, found := mb[x]; !found {
+			diff = append(diff, x)
+		}
+	}
+	return diff
 }

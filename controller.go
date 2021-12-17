@@ -82,6 +82,8 @@ var (
 	nlbHTTPEnabled                bool
 	ingressAPIVersion             string
 	internalDomains               []string
+	targetAccessMode              string
+	targetCNIPodSelector          string
 	denyInternalDomains           bool
 	denyInternalRespBody          string
 	denyInternalRespContentType   string
@@ -280,11 +282,19 @@ func loadSettings() error {
 		Default("text/plain").StringVar(&denyInternalRespContentType)
 	kingpin.Flag("deny-internal-domains-response-status-code", "Defines the response status code for a request identified as to an internal domain when -deny-internal-domains is set.").
 		Default("401").IntVar(&denyInternalRespStatusCode)
+	kingpin.Flag("target-access-mode", "Target group accessing Ingress via HostPort or AWS VPC CNI. Set to ASG for HostPort access or CNI for pod direct IP access.").
+		Default(aws.TargetAccessModeHostPort).EnumVar(&targetAccessMode, aws.TargetAccessModeHostPort, aws.TargetAccessModeAWSCNI)
+	kingpin.Flag("target-cni-pod-selector", "AWS VPC CNI only. Defines the query (namespace/labelselector) for ingress pods that should be linked to target group. Format 'namespace/key=value'.").
+		Default(aws.DefaultTargetCNILabelSelector).StringVar(&targetCNIPodSelector)
 	kingpin.Parse()
 
 	blacklistCertArnMap = make(map[string]bool)
 	for _, s := range blacklistCertARNs {
 		blacklistCertArnMap[s] = true
+	}
+
+	if sl := strings.SplitN(targetCNIPodSelector, "/", 2); len(sl) != 2 || sl[0] == "" || sl[1] == "" {
+		return fmt.Errorf("Invalid target-cni-pod-selector format")
 	}
 
 	if creationTimeout < 1*time.Minute {
@@ -368,7 +378,8 @@ func main() {
 `, path.Base(os.Args[0]), version, buildstamp, githash)
 		os.Exit(0)
 	}
-
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	log.Debug("aws.NewAdapter")
 	awsAdapter, err = aws.NewAdapter(clusterID, controllerID, vpcID, debugFlag, disableInstrumentedHttpClient)
 	if err != nil {
@@ -410,7 +421,8 @@ func main() {
 		WithDenyInternalDomains(denyInternalDomains).
 		WithInternalDomainsDenyResponse(denyInternalRespBody).
 		WithInternalDomainsDenyResponseStatusCode(denyInternalRespStatusCode).
-		WithInternalDomainsDenyResponseContenType(denyInternalRespContentType)
+		WithInternalDomainsDenyResponseContenType(denyInternalRespContentType).
+		WithTargetAccessMode(targetAccessMode)
 
 	log.Debug("certs.NewCachingProvider")
 	certificatesProvider, err := certs.NewCachingProvider(
@@ -444,6 +456,10 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+	if err = kubeAdapter.NewInclusterConfigClientset(ctx); err != nil {
+		log.Fatal(err)
+	}
+	kubeAdapter.WithTargetCNIPodSelector(targetCNIPodSelector)
 
 	certificatesPerALB := maxCertsPerALB
 	if disableSNISupport {
@@ -465,10 +481,13 @@ func main() {
 	log.Infof("ALB Logging S3 Prefix: %s", awsAdapter.S3Prefix())
 	log.Infof("CloudWatch Alarm ConfigMap: %s", cwAlarmConfigMapLocation)
 	log.Infof("Default LoadBalancer type: %s", loadBalancerType)
+	log.Infof("Target access mode: %s", targetAccessMode)
 
-	ctx, cancel := context.WithCancel(context.Background())
 	go handleTerminationSignals(cancel, syscall.SIGTERM, syscall.SIGQUIT)
 	go serveMetrics(metricsAddress)
+	if awsAdapter.TargetCNI.Enabled {
+		go cniEventHandler(ctx, awsAdapter.TargetCNI, awsAdapter.SetTargetsOnCNITargetGroups, kubeAdapter.PodInformer)
+	}
 	startPolling(
 		ctx,
 		certificatesProvider,

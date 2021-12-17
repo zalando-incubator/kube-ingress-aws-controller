@@ -164,6 +164,7 @@ type stackSpec struct {
 	denyInternalDomainsResponse       denyResp
 	internalDomains                   []string
 	tags                              map[string]string
+	targetAccessModeCNI               bool
 }
 
 type healthCheck struct {
