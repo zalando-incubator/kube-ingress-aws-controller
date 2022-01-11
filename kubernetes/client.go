@@ -37,7 +37,7 @@ const (
 	defaultControllerUserAgent = "kube-ingress-aws-controller"
 
 	// aligned with https://pkg.go.dev/net/http#DefaultTransport
-	maxIdleConns        = 100
+	maxIdleConns        = 10
 	idleConnTimeout     = 90 * time.Second
 	timeout             = 30 * time.Second
 	tlsHandshakeTimeout = 10 * time.Second

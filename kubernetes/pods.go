@@ -19,14 +19,35 @@ const resyncInterval = 1 * time.Minute
 
 // PodInformer is a event handler for Pod events registered to, that builds a local list of valid and relevant pods
 // and sends an event to the endpoint channel, triggering a resync of the targets.
-func (a *Adapter) PodInformer(ctx context.Context, endpointChan chan<- []string) error {
+func (a *Adapter) PodInformer(ctx context.Context, endpointChan chan<- []string) (err error) {
 	podEndpoints := sync.Map{}
 
-	log.Infof("Watching for Pods with labelselector %s in namespace %s", a.cniPodNamespace, a.cniPodLabelSelector)
+	log.Infof("Watching for Pods with labelselector %s in namespace %s", a.cniPodLabelSelector, a.cniPodNamespace)
 	factory := informers.NewSharedInformerFactoryWithOptions(a.clientset, resyncInterval, informers.WithNamespace(a.cniPodNamespace),
 		informers.WithTweakListOptions(func(options *apisv1.ListOptions) { options.LabelSelector = a.cniPodLabelSelector }))
 
 	informer := factory.Core().V1().Pods().Informer()
+	factory.Start(ctx.Done())
+	if !cache.WaitForCacheSync(ctx.Done(), informer.HasSynced) {
+		return fmt.Errorf("Timed out waiting for caches to sync")
+	}
+
+	// list warms the pod cache and verifies whether pods for given specs can be found, preventing to fail silently
+	var podList []*corev1.Pod
+	for {
+		podList, err = factory.Core().V1().Pods().Lister().List(labels.Everything())
+		if err == nil && len(podList) > 0 {
+			break
+		}
+		log.Errorf("Error listing Pods with labelselector %s in namespace %s: %v", a.cniPodNamespace, a.cniPodLabelSelector, err)
+		time.Sleep(resyncInterval)
+	}
+	for _, pod := range podList {
+		podEndpoints.Store(pod.Name, pod.Status.PodIP)
+	}
+	queueEndpoints(&podEndpoints, endpointChan)
+
+	// delta triggered updates
 	informer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		UpdateFunc: func(_, newResource interface{}) {
 			pod, ok := newResource.(*corev1.Pod)
@@ -36,6 +57,7 @@ func (a *Adapter) PodInformer(ctx context.Context, endpointChan chan<- []string)
 			}
 			switch {
 
+			// deleted pod
 			case pod.DeletionTimestamp != nil:
 				name, exists := podEndpoints.LoadAndDelete(pod.Name)
 				if !exists {
@@ -44,6 +66,7 @@ func (a *Adapter) PodInformer(ctx context.Context, endpointChan chan<- []string)
 				log.Infof("Deleted pod: %s IP: %s", pod.Name, name)
 				queueEndpoints(&podEndpoints, endpointChan)
 
+			// new pod
 			case pod.Status.ContainerStatuses != nil && len(pod.Status.ContainerStatuses) > 0 &&
 				pod.Status.ContainerStatuses[0].State.Running != nil && pod.Status.PodIP != "":
 				if _, isStored := podEndpoints.LoadOrStore(pod.Name, pod.Status.PodIP); isStored {
@@ -54,35 +77,7 @@ func (a *Adapter) PodInformer(ctx context.Context, endpointChan chan<- []string)
 			}
 		},
 	})
-
-	factory.Start(ctx.Done())
-	if !cache.WaitForCacheSync(ctx.Done(), informer.HasSynced) {
-		return fmt.Errorf("Timed out waiting for caches to sync")
-	}
-
-	for {
-		list, err := factory.Core().V1().Pods().Lister().List(labels.Everything())
-		if err == nil && len(list) > 0 {
-			break
-		}
-		log.Errorf("Error listing Pods with labelselector %s in namespace %s: %v", a.cniPodNamespace, a.cniPodLabelSelector, err)
-		time.Sleep(resyncInterval)
-	}
-
-	// resyncing for desired state
-	go func() {
-		resyncer := time.NewTicker(resyncInterval)
-		defer resyncer.Stop()
-		for {
-			select {
-			case <-resyncer.C:
-				queueEndpoints(&podEndpoints, endpointChan)
-			case <-ctx.Done():
-				return
-			}
-		}
-	}()
-	informer.Run(ctx.Done())
+	<-ctx.Done()
 	return nil
 }
 

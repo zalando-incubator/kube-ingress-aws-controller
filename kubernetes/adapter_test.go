@@ -677,7 +677,7 @@ func TestListIngressFilterClass(t *testing.T) {
 func TestWithTargetCNIPodSelector(t *testing.T) {
 	t.Run("WithTargetCNIPodSelector sets the targetPort property", func(t *testing.T) {
 		a := &Adapter{}
-		a = a.WithTargetCNIPodSelector("kube-system/application=skipper-ingress")
+		a = a.WithTargetCNIPodSelector("kube-system", "application=skipper-ingress")
 		assert.Equal(t, "kube-system", a.cniPodNamespace)
 		assert.Equal(t, "application=skipper-ingress", a.cniPodLabelSelector)
 	})

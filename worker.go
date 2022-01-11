@@ -644,36 +644,40 @@ func getCloudWatchAlarmsFromConfigMap(configMap *kubernetes.ConfigMap) aws.Cloud
 }
 
 // cniEventHandler syncronizes the events from kubernetes and the status updates from the load balancer controller.
-// Events from kubernetes pod updates trigger a rate limited update of the target groups.
+// Events updates a rate limited.
 func cniEventHandler(ctx context.Context, targetCNIcfg *aws.TargetCNIconfig,
-	targetSetter func([]string) error, informer func(context.Context, chan<- []string) error) {
-
+	targetSetter func([]string, []string) error, informer func(context.Context, chan<- []string) error) {
 	log.Infoln("Starting CNI event handler")
 
 	rateLimiter := time.NewTicker(cniEventRateLimit)
 	defer rateLimiter.Stop()
 
-	epCh := make(chan []string, 10)
-	go informer(ctx, epCh)
+	endpointCh := make(chan []string, 10)
+	go informer(ctx, endpointCh)
 
+	var cniTargetGroupARNs, endpoints []string
 	for {
 		select {
 		case <-ctx.Done():
 			return
-		case targetCNIcfg.TargetGroupARNs = <-targetCNIcfg.TargetGroupCh:
-			log.Debugf("new message target groups: %v", targetCNIcfg.TargetGroupARNs)
-		case eps := <-epCh:
-			log.Debugf("new message endpoints: %v", eps)
-			if len(epCh) > 0 {
-				log.Debugf("skipping new message endpoints event, %d newer messages queued", len(epCh))
-				continue
-			}
-			// blocking for rate limits
-			<-rateLimiter.C
-			err := targetSetter(eps)
-			if err != nil {
-				log.Error(err)
-			}
+		case cniTargetGroupARNs = <-targetCNIcfg.TargetGroupCh:
+			log.Debugf("new message target groups: %v", cniTargetGroupARNs)
+		case endpoints = <-endpointCh:
+			log.Debugf("new message endpoints: %v", endpoints)
+		}
+
+		// prevent cleanup due to startup inconsistenty, arns and endpoints can be empty but never nil
+		if cniTargetGroupARNs == nil || endpoints == nil {
+			continue
+		}
+		if len(endpointCh) > 0 || len(targetCNIcfg.TargetGroupCh) > 0 {
+			log.Debugf("flushing, messages queued: %d:%d", len(endpointCh), len(cniTargetGroupARNs))
+			continue
+		}
+		<-rateLimiter.C
+		err := targetSetter(endpoints, cniTargetGroupARNs)
+		if err != nil {
+			log.Error(err)
 		}
 	}
 }

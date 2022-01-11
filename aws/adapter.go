@@ -78,9 +78,8 @@ type Adapter struct {
 }
 
 type TargetCNIconfig struct {
-	Enabled         bool
-	TargetGroupARNs []string
-	TargetGroupCh   chan []string
+	Enabled       bool
+	TargetGroupCh chan []string
 }
 
 type manifest struct {
@@ -131,14 +130,13 @@ const (
 	DefaultNLBCrossZone   = false
 	DefaultNLBHTTPEnabled = false
 
-	nameTag                       = "Name"
-	LoadBalancerTypeApplication   = "application"
-	LoadBalancerTypeNetwork       = "network"
-	IPAddressTypeIPV4             = "ipv4"
-	IPAddressTypeDualstack        = "dualstack"
-	TargetAccessModeAWSCNI        = "AWSCNI"
-	TargetAccessModeHostPort      = "HostPort"
-	DefaultTargetCNILabelSelector = "kube-system/application=skipper-ingress"
+	nameTag                     = "Name"
+	LoadBalancerTypeApplication = "application"
+	LoadBalancerTypeNetwork     = "network"
+	IPAddressTypeIPV4           = "ipv4"
+	IPAddressTypeDualstack      = "dualstack"
+	TargetAccessModeAWSCNI      = "AWSCNI"
+	TargetAccessModeHostPort    = "HostPort"
 )
 
 var (
@@ -576,20 +574,14 @@ func (a *Adapter) FindManagedStacks() ([]*Stack, error) {
 // config to have relevant Target Groups and registers/deregisters single
 // instances (that do not belong to ASG) in relevant Target Groups.
 func (a *Adapter) UpdateTargetGroupsAndAutoScalingGroups(stacks []*Stack, problems *problem.List) {
-	targetGroupARNs := make([]string, 0, len(stacks))
+	allTargetGroupARNs := make([]string, 0, len(stacks))
 	for _, stack := range stacks {
 		if len(stack.TargetGroupARNs) > 0 {
-			targetGroupARNs = append(targetGroupARNs, stack.TargetGroupARNs...)
+			allTargetGroupARNs = append(allTargetGroupARNs, stack.TargetGroupARNs...)
 		}
 	}
-
-	// don't do anything if there are no target groups
-	if len(targetGroupARNs) == 0 {
-		return
-	}
-
-	// split the full list into relevant TG types
-	targetTypesARNs, err := categorizeTargetTypeInstance(a.elbv2, targetGroupARNs)
+	// split the full list into TG types
+	targetTypesARNs, err := categorizeTargetTypeInstance(a.elbv2, allTargetGroupARNs)
 	if err != nil {
 		problems.Add("failed to categorize Target Type Instance: %w", err)
 		return
@@ -600,6 +592,13 @@ func (a *Adapter) UpdateTargetGroupsAndAutoScalingGroups(stacks []*Stack, proble
 		a.TargetCNI.TargetGroupCh <- targetTypesARNs[elbv2.TargetTypeEnumIp]
 	}
 
+	// remove the IP TGs from the list keeping all other TGs including problematic #127 and nonexistent #436
+	targetGroupARNs := difference(allTargetGroupARNs, targetTypesARNs[elbv2.TargetTypeEnumIp])
+	// don't do anything if there are no target groups
+	if len(targetGroupARNs) == 0 {
+		return
+	}
+
 	ownerTags := map[string]string{
 		clusterIDTagPrefix + a.ClusterID(): resourceLifecycleOwned,
 		kubernetesCreatorTag:               a.controllerID,
@@ -607,7 +606,7 @@ func (a *Adapter) UpdateTargetGroupsAndAutoScalingGroups(stacks []*Stack, proble
 
 	for _, asg := range a.TargetedAutoScalingGroups {
 		// This call is idempotent and safe to execute every time
-		if err := updateTargetGroupsForAutoScalingGroup(a.autoscaling, a.elbv2, targetTypesARNs[elbv2.TargetTypeEnumInstance], asg.name, ownerTags); err != nil {
+		if err := updateTargetGroupsForAutoScalingGroup(a.autoscaling, a.elbv2, targetGroupARNs, asg.name, ownerTags); err != nil {
 			problems.Add("failed to update target groups for autoscaling group %q: %w", asg.name, err)
 		}
 	}
@@ -624,13 +623,13 @@ func (a *Adapter) UpdateTargetGroupsAndAutoScalingGroups(stacks []*Stack, proble
 	runningSingleInstances := a.RunningSingleInstances()
 	if len(runningSingleInstances) != 0 {
 		// This call is idempotent too
-		if err := registerTargetsOnTargetGroups(a.elbv2, targetTypesARNs[elbv2.TargetTypeEnumInstance], runningSingleInstances); err != nil {
+		if err := registerTargetsOnTargetGroups(a.elbv2, targetGroupARNs, runningSingleInstances); err != nil {
 			problems.Add("failed to register instances %q in target groups: %w", runningSingleInstances, err)
 		}
 	}
 	if len(a.obsoleteInstances) != 0 {
 		// Deregister instances from target groups and clean up list of obsolete instances
-		if err := deregisterTargetsOnTargetGroups(a.elbv2, targetTypesARNs[elbv2.TargetTypeEnumInstance], a.obsoleteInstances); err != nil {
+		if err := deregisterTargetsOnTargetGroups(a.elbv2, targetGroupARNs, a.obsoleteInstances); err != nil {
 			problems.Add("failed to deregister instances %q in target groups: %w", a.obsoleteInstances, err)
 		} else {
 			a.obsoleteInstances = make([]string, 0)
@@ -1046,8 +1045,9 @@ func nonTargetedASGs(ownedASGs, targetedASGs map[string]*autoScalingGroupDetails
 
 // SetTargetsOnCNITargetGroups implements desired state for CNI target groups
 // by polling the current list of targets thus creating a diff of what needs to be added and removed.
-func (a *Adapter) SetTargetsOnCNITargetGroups(endpoints []string) error {
-	for _, targetGroupARN := range a.TargetCNI.TargetGroupARNs {
+func (a *Adapter) SetTargetsOnCNITargetGroups(endpoints, cniTargetGroupARNs []string) error {
+	log.Debugf("setting targets on CNI target groups: '%v'", cniTargetGroupARNs)
+	for _, targetGroupARN := range cniTargetGroupARNs {
 		tgh, err := a.elbv2.DescribeTargetHealth(&elbv2.DescribeTargetHealthInput{TargetGroupArn: &targetGroupARN})
 		if err != nil {
 			log.Errorf("unable to describe target health %v", err)
@@ -1058,18 +1058,18 @@ func (a *Adapter) SetTargetsOnCNITargetGroups(endpoints []string) error {
 		for i, target := range tgh.TargetHealthDescriptions {
 			registeredInstances[i] = *target.Target.Id
 		}
-		toregister := difference(endpoints, registeredInstances)
-		if len(toregister) > 0 {
-			log.Info("Registering CNI targets: ", toregister)
-			err := registerTargetsOnTargetGroups(a.elbv2, []string{targetGroupARN}, toregister)
+		toRegister := difference(endpoints, registeredInstances)
+		if len(toRegister) > 0 {
+			log.Info("Registering CNI targets: ", toRegister)
+			err := registerTargetsOnTargetGroups(a.elbv2, []string{targetGroupARN}, toRegister)
 			if err != nil {
 				return err
 			}
 		}
-		toderegister := difference(registeredInstances, endpoints)
-		if len(toderegister) > 0 {
-			log.Info("Deregistering CNI targets: ", toderegister)
-			err := deregisterTargetsOnTargetGroups(a.elbv2, []string{targetGroupARN}, toderegister)
+		toDeregister := difference(registeredInstances, endpoints)
+		if len(toDeregister) > 0 {
+			log.Info("Deregistering CNI targets: ", toDeregister)
+			err := deregisterTargetsOnTargetGroups(a.elbv2, []string{targetGroupARN}, toDeregister)
 			if err != nil {
 				return err
 			}

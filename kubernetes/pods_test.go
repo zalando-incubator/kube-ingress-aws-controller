@@ -64,9 +64,8 @@ func TestAdapter_PodInformer(t *testing.T) {
 
 	a.clientset = client
 	pods := make(chan []string, 10)
-	go a.PodInformer(context.TODO(), pods)
 
-	t.Run("creating five pods", func(t *testing.T) {
+	t.Run("initial state five pods", func(t *testing.T) {
 		for i := 1; i <= 5; i++ {
 			newPod := p.DeepCopy()
 			newPod.Name = fmt.Sprintf("skipper-%d", i)
@@ -76,6 +75,9 @@ func TestAdapter_PodInformer(t *testing.T) {
 			time.Sleep(123 * time.Millisecond)
 		}
 	})
+
+	go a.PodInformer(context.TODO(), pods)
+
 	t.Run("receiving event of 5 pod list", func(t *testing.T) {
 		require.Eventually(t, func() bool {
 			pod, ok := <-pods
@@ -114,4 +116,27 @@ func TestAdapter_PodInformer(t *testing.T) {
 		}, wait.ForeverTestTimeout, 200*time.Millisecond)
 	})
 
+	t.Run("4 new pods created", func(t *testing.T) {
+		for i := 6; i <= 9; i++ {
+			newPod := p.DeepCopy()
+			newPod.Name = fmt.Sprintf("skipper-%d", i)
+			newPod.Status.PodIP = fmt.Sprintf("1.1.1.%d", i)
+			_, err := client.CoreV1().Pods("kube-system").Create(context.TODO(), newPod, metav1.CreateOptions{})
+			require.NoError(t, err)
+			time.Sleep(123 * time.Millisecond)
+			_, err = client.CoreV1().Pods("kube-system").UpdateStatus(context.TODO(), newPod, metav1.UpdateOptions{})
+			require.NoError(t, err)
+		}
+	})
+
+	t.Run("receiving new event of 8 pods list", func(t *testing.T) {
+		require.Eventually(t, func() bool {
+			pod, ok := <-pods
+			if !ok {
+				return false
+			}
+			t.Logf("Got pods from channel: %s", pod)
+			return reflect.DeepEqual(pod, []string{"1.1.1.1", "1.1.1.2", "1.1.1.4", "1.1.1.5", "1.1.1.6", "1.1.1.7", "1.1.1.8", "1.1.1.9"})
+		}, wait.ForeverTestTimeout, 200*time.Millisecond)
+	})
 }

@@ -601,7 +601,7 @@ In *AWS CNI Mode* (`target-access-mode=AWSCNI`) the controller actively manages 
 
 - For security reasons the HostPort requirement might be of concern
 - Direct management of the target group members is significantly faster compared to the AWS linked mode, but it requires a running controller for updates. As of now, the controller is not prepared for high availability replicated setup.
-- The registration and deregistration is synced with the pod lifecycle, hence a pod in terminating phase is deregistered from the target group before shut down. 
+- The registration and deregistration is synced with the pod lifecycle, hence a pod in terminating phase is deregistered from the target group before shut down.
 - Ingress pods are not bound to nodes in CNI mode and the deployment can scale independently.
 
 ### Configuration options

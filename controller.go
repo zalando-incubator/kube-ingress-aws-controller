@@ -83,7 +83,8 @@ var (
 	ingressAPIVersion             string
 	internalDomains               []string
 	targetAccessMode              string
-	targetCNIPodSelector          string
+	targetCNINamespace            string
+	targetCNIPodLabelSelector     string
 	denyInternalDomains           bool
 	denyInternalRespBody          string
 	denyInternalRespContentType   string
@@ -284,8 +285,9 @@ func loadSettings() error {
 		Default("401").IntVar(&denyInternalRespStatusCode)
 	kingpin.Flag("target-access-mode", "Target group accessing Ingress via HostPort or AWS VPC CNI. Set to ASG for HostPort access or CNI for pod direct IP access.").
 		Default(aws.TargetAccessModeHostPort).EnumVar(&targetAccessMode, aws.TargetAccessModeHostPort, aws.TargetAccessModeAWSCNI)
-	kingpin.Flag("target-cni-pod-selector", "AWS VPC CNI only. Defines the query (namespace/labelselector) for ingress pods that should be linked to target group. Format 'namespace/key=value'.").
-		Default(aws.DefaultTargetCNILabelSelector).StringVar(&targetCNIPodSelector)
+	kingpin.Flag("target-cni-namespace", "AWS VPC CNI only. Defines the namespace for ingress pods that should be linked to target group.").StringVar(&targetCNINamespace)
+	// LabelSelector semantics https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/#label-selectors
+	kingpin.Flag("target-cni-pod-labelselector", "AWS VPC CNI only. Defines the labelselector for ingress pods that should be linked to target group. Supports simple equality and multi value form (a=x,b=y) as well as complex forms (a IN (x,y,z).").StringVar(&targetCNIPodLabelSelector)
 	kingpin.Parse()
 
 	blacklistCertArnMap = make(map[string]bool)
@@ -293,8 +295,14 @@ func loadSettings() error {
 		blacklistCertArnMap[s] = true
 	}
 
-	if sl := strings.SplitN(targetCNIPodSelector, "/", 2); len(sl) != 2 || sl[0] == "" || sl[1] == "" {
-		return fmt.Errorf("Invalid target-cni-pod-selector format")
+	if targetAccessMode == aws.TargetAccessModeAWSCNI {
+		if targetCNINamespace == "" {
+			return fmt.Errorf("target-cni-namespace is required when target-access-mode is set to %s", aws.TargetAccessModeAWSCNI)
+		}
+		// complex selector formats possible, late validation by the k8s client
+		if targetCNIPodLabelSelector == "" {
+			return fmt.Errorf("target-cni-pod-labelselector definition cannot be empty when target-access-mode is set to %s", aws.TargetAccessModeAWSCNI)
+		}
 	}
 
 	if creationTimeout < 1*time.Minute {
@@ -456,10 +464,12 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	if err = kubeAdapter.NewInclusterConfigClientset(ctx); err != nil {
-		log.Fatal(err)
+	if targetAccessMode == aws.TargetAccessModeAWSCNI {
+		if err = kubeAdapter.NewInclusterConfigClientset(ctx); err != nil {
+			log.Fatal(err)
+		}
+		kubeAdapter.WithTargetCNIPodSelector(targetCNINamespace, targetCNIPodLabelSelector)
 	}
-	kubeAdapter.WithTargetCNIPodSelector(targetCNIPodSelector)
 
 	certificatesPerALB := maxCertsPerALB
 	if disableSNISupport {

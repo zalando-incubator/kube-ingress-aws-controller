@@ -416,9 +416,8 @@ func (a *Adapter) GetConfigMap(namespace, name string) (*ConfigMap, error) {
 }
 
 // WithTargetCNIPodSelector returns the receiver adapter after setting
-// the targetCNIservice config.
-func (a *Adapter) WithTargetCNIPodSelector(ps string) *Adapter {
-	tslice := strings.SplitN(ps, "/", 2)
-	a.cniPodNamespace, a.cniPodLabelSelector = tslice[0], tslice[1]
+// the TargetCNIPodSelector config.
+func (a *Adapter) WithTargetCNIPodSelector(ns string, selector string) *Adapter {
+	a.cniPodNamespace, a.cniPodLabelSelector = ns, selector
 	return a
 }
