@@ -201,7 +201,13 @@ func (a *Adapter) newIngress(typ ingressType, metadata kubeItemMetadata, host st
 
 	loadBalancerType, hasLB := annotations[ingressLoadBalancerTypeAnnotation]
 	if !hasLB {
-		loadBalancerType = a.ingressDefaultLoadBalancerType
+		// internal load balancers should be ALB if user do not override the decision
+		// https://docs.aws.amazon.com/elasticloadbalancing/latest/network/load-balancer-troubleshooting.html#intermittent-connection-failure
+		if scheme == elbv2.LoadBalancerSchemeEnumInternal {
+			loadBalancerType = loadBalancerTypeALB
+		} else {
+			loadBalancerType = a.ingressDefaultLoadBalancerType
+		}
 	}
 
 	securityGroup, hasSG := annotations[ingressSecurityGroupAnnotation]

@@ -344,7 +344,17 @@ spec:
           servicePort: main-port
 ```
 
-You can only select from `internet-facing` (default) and `internal` options.
+You can only select from `internet-facing` (default) and `internal`
+options.
+
+If you run the controller with `--load-balancer-type=network` and
+create an `internal` load balancer, the controller will create an
+Application Load Balancer instead of a Network Load Balancer, because
+it can create [hard to debug issues](https://docs.aws.amazon.com/elasticloadbalancing/latest/network/load-balancer-troubleshooting.html#intermittent-connection-failure),
+that we want to prevent as default. If you know what you are doing you
+can enforce to create a Network Load Balancer by setting annotation
+`zalando.org/aws-load-balancer-type: nlb`.
+
 
 #### Omit to create a Load Balancer for cluster internal domains
 
