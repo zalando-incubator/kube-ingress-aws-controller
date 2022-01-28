@@ -6,7 +6,7 @@ import (
 	"encoding/json"
 
 	"github.com/ghodss/yaml"
-	cloudformation "github.com/mweagle/go-cloudformation"
+	cloudformation "github.com/o11n/go-cloudformation"
 	log "github.com/sirupsen/logrus"
 )
 

@@ -87,6 +87,7 @@ var (
 	denyInternalRespContentType   string
 	denyInternalRespStatusCode    int
 	defaultInternalDomains        = fmt.Sprintf("*%s", kubernetes.DefaultClusterLocalDomain)
+	targetGroupProtocolVersion    string
 )
 
 var metrics = struct {
@@ -280,6 +281,8 @@ func loadSettings() error {
 		Default("text/plain").StringVar(&denyInternalRespContentType)
 	kingpin.Flag("deny-internal-domains-response-status-code", "Defines the response status code for a request identified as to an internal domain when -deny-internal-domains is set.").
 		Default("401").IntVar(&denyInternalRespStatusCode)
+	kingpin.Flag("target-group-protocol-version", "See https://docs.aws.amazon.com/elasticloadbalancing/latest/application/load-balancer-target-groups.html#target-group-protocol-version.").
+		Default("HTTP1").EnumVar(&targetGroupProtocolVersion, "HTTP1", "HTTP2", "GRPC")
 	kingpin.Parse()
 
 	blacklistCertArnMap = make(map[string]bool)
@@ -410,7 +413,8 @@ func main() {
 		WithDenyInternalDomains(denyInternalDomains).
 		WithInternalDomainsDenyResponse(denyInternalRespBody).
 		WithInternalDomainsDenyResponseStatusCode(denyInternalRespStatusCode).
-		WithInternalDomainsDenyResponseContenType(denyInternalRespContentType)
+		WithInternalDomainsDenyResponseContenType(denyInternalRespContentType).
+		WithTargetGroupProtocolVersion(targetGroupProtocolVersion)
 
 	log.Debug("certs.NewCachingProvider")
 	certificatesProvider, err := certs.NewCachingProvider(
