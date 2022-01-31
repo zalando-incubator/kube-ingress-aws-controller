@@ -614,6 +614,31 @@ func TestGenerateTemplate(t *testing.T) {
 				require.NotEqual(t, cloudformation.Integer(3), tg.UnhealthyThresholdCount)
 			},
 		},
+		{
+			name: "Default TG type is Instance",
+			spec: &stackSpec{
+				loadbalancerType: LoadBalancerTypeApplication,
+			},
+			validate: func(t *testing.T, template *cloudformation.Template) {
+				require.NotNil(t, template.Resources, "TG")
+				tg, ok := template.Resources["TG"].Properties.(*cloudformation.ElasticLoadBalancingV2TargetGroup)
+				require.True(t, ok, "couldn't convert resource to ElasticLoadBalancingV2TargetGroup")
+				require.Equal(t, cloudformation.String("instance"), tg.TargetType)
+			},
+		},
+		{
+			name: "TG type is IP in in mode AWS CNI",
+			spec: &stackSpec{
+				loadbalancerType:    LoadBalancerTypeApplication,
+				targetAccessModeCNI: true,
+			},
+			validate: func(t *testing.T, template *cloudformation.Template) {
+				require.NotNil(t, template.Resources, "TG")
+				tg, ok := template.Resources["TG"].Properties.(*cloudformation.ElasticLoadBalancingV2TargetGroup)
+				require.True(t, ok, "couldn't convert resource to ElasticLoadBalancingV2TargetGroup")
+				require.Equal(t, cloudformation.String("ip"), tg.TargetType)
+			},
+		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			generated, err := generateTemplate(test.spec)

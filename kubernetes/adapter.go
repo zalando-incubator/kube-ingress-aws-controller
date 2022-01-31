@@ -8,10 +8,14 @@ import (
 	"github.com/aws/aws-sdk-go/service/elbv2"
 	log "github.com/sirupsen/logrus"
 	"github.com/zalando-incubator/kube-ingress-aws-controller/aws"
+	"k8s.io/client-go/kubernetes"
 )
 
 type Adapter struct {
 	kubeClient                     client
+	clientset                      kubernetes.Interface
+	cniPodNamespace                string
+	cniPodLabelSelector            string
 	ingressClient                  *ingressClient
 	ingressFilters                 []string
 	ingressDefaultSecurityGroup    string
@@ -122,6 +126,7 @@ func NewAdapter(config *Config, ingressAPIVersion string, ingressClassFilters []
 	if err != nil {
 		return nil, err
 	}
+
 	return &Adapter{
 		kubeClient:                     c,
 		ingressClient:                  &ingressClient{apiVersion: ingressAPIVersion},
@@ -414,4 +419,11 @@ func (a *Adapter) GetConfigMap(namespace, name string) (*ConfigMap, error) {
 		Namespace: cm.Metadata.Namespace,
 		Data:      cm.Data,
 	}, nil
+}
+
+// WithTargetCNIPodSelector returns the receiver adapter after setting
+// the TargetCNIPodSelector config.
+func (a *Adapter) WithTargetCNIPodSelector(ns string, selector string) *Adapter {
+	a.cniPodNamespace, a.cniPodLabelSelector = ns, selector
+	return a
 }

@@ -74,6 +74,12 @@ type Adapter struct {
 	denyInternalRespBody        string
 	denyInternalRespContentType string
 	denyInternalRespStatusCode  int
+	TargetCNI                   *TargetCNIconfig
+}
+
+type TargetCNIconfig struct {
+	Enabled       bool
+	TargetGroupCh chan []string
 }
 
 type manifest struct {
@@ -129,6 +135,8 @@ const (
 	LoadBalancerTypeNetwork     = "network"
 	IPAddressTypeIPV4           = "ipv4"
 	IPAddressTypeDualstack      = "dualstack"
+	TargetAccessModeAWSCNI      = "AWSCNI"
+	TargetAccessModeHostPort    = "HostPort"
 )
 
 var (
@@ -225,6 +233,10 @@ func NewAdapter(clusterID, newControllerID, vpcID string, debug, disableInstrume
 		nlbCrossZone:               DefaultNLBCrossZone,
 		nlbHTTPEnabled:             DefaultNLBHTTPEnabled,
 		customFilter:               DefaultCustomFilter,
+		TargetCNI: &TargetCNIconfig{
+			Enabled:       false,
+			TargetGroupCh: make(chan []string, 10),
+		},
 	}
 
 	adapter.manifest, err = buildManifest(adapter, clusterID, vpcID)
@@ -432,6 +444,12 @@ func (a *Adapter) WithInternalDomains(domains []string) *Adapter {
 	return a
 }
 
+// WithTargetAccessMode returns the receiver adapter after defining the target access mode
+func (a *Adapter) WithTargetAccessMode(t string) *Adapter {
+	a.TargetCNI.Enabled = t == TargetAccessModeAWSCNI
+	return a
+}
+
 // WithDenyInternalDomains returns the receiver adapter after setting
 // the denyInternalDomains config.
 func (a *Adapter) WithDenyInternalDomains(deny bool) *Adapter {
@@ -556,13 +574,26 @@ func (a *Adapter) FindManagedStacks() ([]*Stack, error) {
 // config to have relevant Target Groups and registers/deregisters single
 // instances (that do not belong to ASG) in relevant Target Groups.
 func (a *Adapter) UpdateTargetGroupsAndAutoScalingGroups(stacks []*Stack, problems *problem.List) {
-	targetGroupARNs := make([]string, 0, len(stacks))
+	allTargetGroupARNs := make([]string, 0, len(stacks))
 	for _, stack := range stacks {
 		if len(stack.TargetGroupARNs) > 0 {
-			targetGroupARNs = append(targetGroupARNs, stack.TargetGroupARNs...)
+			allTargetGroupARNs = append(allTargetGroupARNs, stack.TargetGroupARNs...)
 		}
 	}
+	// split the full list into TG types
+	targetTypesARNs, err := categorizeTargetTypeInstance(a.elbv2, allTargetGroupARNs)
+	if err != nil {
+		problems.Add("failed to categorize Target Type Instance: %w", err)
+		return
+	}
 
+	// update the CNI TG list
+	if a.TargetCNI.Enabled {
+		a.TargetCNI.TargetGroupCh <- targetTypesARNs[elbv2.TargetTypeEnumIp]
+	}
+
+	// remove the IP TGs from the list keeping all other TGs including problematic #127 and nonexistent #436
+	targetGroupARNs := difference(allTargetGroupARNs, targetTypesARNs[elbv2.TargetTypeEnumIp])
 	// don't do anything if there are no target groups
 	if len(targetGroupARNs) == 0 {
 		return
@@ -665,6 +696,7 @@ func (a *Adapter) CreateStack(certificateARNs []string, scheme, securityGroup, o
 		http2:                             http2,
 		tags:                              a.stackTags,
 		internalDomains:                   a.internalDomains,
+		targetAccessModeCNI:               a.TargetCNI.Enabled,
 		denyInternalDomains:               a.denyInternalDomains,
 		denyInternalDomainsResponse: denyResp{
 			body:        a.denyInternalRespBody,
@@ -720,6 +752,7 @@ func (a *Adapter) UpdateStack(stackName string, certificateARNs map[string]time.
 		http2:                             http2,
 		tags:                              a.stackTags,
 		internalDomains:                   a.internalDomains,
+		targetAccessModeCNI:               a.TargetCNI.Enabled,
 		denyInternalDomains:               a.denyInternalDomains,
 		denyInternalDomainsResponse: denyResp{
 			body:        a.denyInternalRespBody,
@@ -1008,4 +1041,54 @@ func nonTargetedASGs(ownedASGs, targetedASGs map[string]*autoScalingGroupDetails
 	}
 
 	return nonTargetedASGs
+}
+
+// SetTargetsOnCNITargetGroups implements desired state for CNI target groups
+// by polling the current list of targets thus creating a diff of what needs to be added and removed.
+func (a *Adapter) SetTargetsOnCNITargetGroups(endpoints, cniTargetGroupARNs []string) error {
+	log.Debugf("setting targets on CNI target groups: '%v'", cniTargetGroupARNs)
+	for _, targetGroupARN := range cniTargetGroupARNs {
+		tgh, err := a.elbv2.DescribeTargetHealth(&elbv2.DescribeTargetHealthInput{TargetGroupArn: &targetGroupARN})
+		if err != nil {
+			log.Errorf("unable to describe target health %v", err)
+			// continue for processing of the rest of the target groups
+			continue
+		}
+		registeredInstances := make([]string, len(tgh.TargetHealthDescriptions))
+		for i, target := range tgh.TargetHealthDescriptions {
+			registeredInstances[i] = *target.Target.Id
+		}
+		toRegister := difference(endpoints, registeredInstances)
+		if len(toRegister) > 0 {
+			log.Info("Registering CNI targets: ", toRegister)
+			err := registerTargetsOnTargetGroups(a.elbv2, []string{targetGroupARN}, toRegister)
+			if err != nil {
+				return err
+			}
+		}
+		toDeregister := difference(registeredInstances, endpoints)
+		if len(toDeregister) > 0 {
+			log.Info("Deregistering CNI targets: ", toDeregister)
+			err := deregisterTargetsOnTargetGroups(a.elbv2, []string{targetGroupARN}, toDeregister)
+			if err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+// difference returns the elements in `a` that aren't in `b`.
+func difference(a, b []string) []string {
+	mb := make(map[string]struct{}, len(b))
+	for _, x := range b {
+		mb[x] = struct{}{}
+	}
+	var diff []string
+	for _, x := range a {
+		if _, found := mb[x]; !found {
+			diff = append(diff, x)
+		}
+	}
+	return diff
 }

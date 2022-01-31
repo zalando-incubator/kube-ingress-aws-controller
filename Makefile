@@ -24,7 +24,7 @@ test:
 
 ## lint: runs golangci-lint
 lint:
-	golangci-lint run ./...
+	golangci-lint run --timeout 5m ./...
 
 ## fmt: formats all go files
 fmt:

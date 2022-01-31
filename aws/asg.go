@@ -260,6 +260,25 @@ func describeTargetGroups(elbv2svc elbv2iface.ELBV2API) (map[string]struct{}, er
 	return targetGroups, err
 }
 
+// map the target group slice into specific types such as instance, ip, etc
+func categorizeTargetTypeInstance(elbv2svc elbv2iface.ELBV2API, allTGARNs []string) (map[string][]string, error) {
+	targetTypes := make(map[string][]string)
+	err := elbv2svc.DescribeTargetGroupsPagesWithContext(context.TODO(), &elbv2.DescribeTargetGroupsInput{},
+		func(resp *elbv2.DescribeTargetGroupsOutput, lastPage bool) bool {
+			for _, tg := range resp.TargetGroups {
+				for _, v := range allTGARNs {
+					if v != aws.StringValue(tg.TargetGroupArn) {
+						continue
+					}
+					targetTypes[aws.StringValue(tg.TargetType)] = append(targetTypes[aws.StringValue(tg.TargetType)], aws.StringValue(tg.TargetGroupArn))
+				}
+			}
+			return true
+		})
+	log.Debugf("categorized target group arns: %#v", targetTypes)
+	return targetTypes, err
+}
+
 // tgHasTags returns true if the specified resource has the expected tags.
 func tgHasTags(descs []*elbv2.TagDescription, arn string, tags map[string]string) bool {
 	for _, desc := range descs {

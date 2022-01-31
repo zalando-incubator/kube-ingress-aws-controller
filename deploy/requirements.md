@@ -207,6 +207,21 @@ Please also note that the worker nodes will need the right permission to describ
         "Effect": "Allow"
     },
     {
+        "Action": "elasticloadbalancing:RegisterTargets",
+        "Resource": "*",
+        "Effect": "Allow"
+    },
+    {
+        "Action": "elasticloadbalancing:DeregisterTargets",
+        "Resource": "*",
+        "Effect": "Allow"
+    },
+    {
+        "Action": "elasticloadbalancing:DescribeTargetHealth",
+        "Resource": "*",
+        "Effect": "Allow"
+    },
+    {
         "Action": "ec2:DescribeInstances",
         "Resource": "*",
         "Effect": "Allow"

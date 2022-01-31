@@ -82,6 +82,9 @@ var (
 	nlbHTTPEnabled                bool
 	ingressAPIVersion             string
 	internalDomains               []string
+	targetAccessMode              string
+	targetCNINamespace            string
+	targetCNIPodLabelSelector     string
 	denyInternalDomains           bool
 	denyInternalRespBody          string
 	denyInternalRespContentType   string
@@ -280,11 +283,26 @@ func loadSettings() error {
 		Default("text/plain").StringVar(&denyInternalRespContentType)
 	kingpin.Flag("deny-internal-domains-response-status-code", "Defines the response status code for a request identified as to an internal domain when -deny-internal-domains is set.").
 		Default("401").IntVar(&denyInternalRespStatusCode)
+	kingpin.Flag("target-access-mode", "Target group accessing Ingress via HostPort or AWS VPC CNI. Set to ASG for HostPort access or CNI for pod direct IP access.").
+		Default(aws.TargetAccessModeHostPort).EnumVar(&targetAccessMode, aws.TargetAccessModeHostPort, aws.TargetAccessModeAWSCNI)
+	kingpin.Flag("target-cni-namespace", "AWS VPC CNI only. Defines the namespace for ingress pods that should be linked to target group.").StringVar(&targetCNINamespace)
+	// LabelSelector semantics https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/#label-selectors
+	kingpin.Flag("target-cni-pod-labelselector", "AWS VPC CNI only. Defines the labelselector for ingress pods that should be linked to target group. Supports simple equality and multi value form (a=x,b=y) as well as complex forms (a IN (x,y,z).").StringVar(&targetCNIPodLabelSelector)
 	kingpin.Parse()
 
 	blacklistCertArnMap = make(map[string]bool)
 	for _, s := range blacklistCertARNs {
 		blacklistCertArnMap[s] = true
+	}
+
+	if targetAccessMode == aws.TargetAccessModeAWSCNI {
+		if targetCNINamespace == "" {
+			return fmt.Errorf("target-cni-namespace is required when target-access-mode is set to %s", aws.TargetAccessModeAWSCNI)
+		}
+		// complex selector formats possible, late validation by the k8s client
+		if targetCNIPodLabelSelector == "" {
+			return fmt.Errorf("target-cni-pod-labelselector definition cannot be empty when target-access-mode is set to %s", aws.TargetAccessModeAWSCNI)
+		}
 	}
 
 	if creationTimeout < 1*time.Minute {
@@ -368,7 +386,8 @@ func main() {
 `, path.Base(os.Args[0]), version, buildstamp, githash)
 		os.Exit(0)
 	}
-
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	log.Debug("aws.NewAdapter")
 	awsAdapter, err = aws.NewAdapter(clusterID, controllerID, vpcID, debugFlag, disableInstrumentedHttpClient)
 	if err != nil {
@@ -410,7 +429,8 @@ func main() {
 		WithDenyInternalDomains(denyInternalDomains).
 		WithInternalDomainsDenyResponse(denyInternalRespBody).
 		WithInternalDomainsDenyResponseStatusCode(denyInternalRespStatusCode).
-		WithInternalDomainsDenyResponseContenType(denyInternalRespContentType)
+		WithInternalDomainsDenyResponseContenType(denyInternalRespContentType).
+		WithTargetAccessMode(targetAccessMode)
 
 	log.Debug("certs.NewCachingProvider")
 	certificatesProvider, err := certs.NewCachingProvider(
@@ -444,6 +464,12 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+	if targetAccessMode == aws.TargetAccessModeAWSCNI {
+		if err = kubeAdapter.NewInclusterConfigClientset(ctx); err != nil {
+			log.Fatal(err)
+		}
+		kubeAdapter.WithTargetCNIPodSelector(targetCNINamespace, targetCNIPodLabelSelector)
+	}
 
 	certificatesPerALB := maxCertsPerALB
 	if disableSNISupport {
@@ -465,10 +491,13 @@ func main() {
 	log.Infof("ALB Logging S3 Prefix: %s", awsAdapter.S3Prefix())
 	log.Infof("CloudWatch Alarm ConfigMap: %s", cwAlarmConfigMapLocation)
 	log.Infof("Default LoadBalancer type: %s", loadBalancerType)
+	log.Infof("Target access mode: %s", targetAccessMode)
 
-	ctx, cancel := context.WithCancel(context.Background())
 	go handleTerminationSignals(cancel, syscall.SIGTERM, syscall.SIGQUIT)
 	go serveMetrics(metricsAddress)
+	if awsAdapter.TargetCNI.Enabled {
+		go cniEventHandler(ctx, awsAdapter.TargetCNI, awsAdapter.SetTargetsOnCNITargetGroups, kubeAdapter.PodInformer)
+	}
 	startPolling(
 		ctx,
 		certificatesProvider,

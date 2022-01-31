@@ -1,7 +1,10 @@
 package main
 
 import (
+	"context"
 	"crypto/x509"
+	"reflect"
+	"sync"
 	"testing"
 	"time"
 
@@ -11,6 +14,7 @@ import (
 	"github.com/zalando-incubator/kube-ingress-aws-controller/aws"
 	"github.com/zalando-incubator/kube-ingress-aws-controller/certs"
 	"github.com/zalando-incubator/kube-ingress-aws-controller/kubernetes"
+	"k8s.io/apimachinery/pkg/util/wait"
 )
 
 func TestAddIngress(tt *testing.T) {
@@ -998,4 +1002,39 @@ func TestDoWorkPanicReturnsProblem(t *testing.T) {
 	require.NotNil(t, problem, "expected problem")
 	require.Len(t, problem.Errors(), 1)
 	require.Error(t, problem.Errors()[0], "panic caused by: runtime error: invalid memory address or nil pointer dereference")
+}
+
+func Test_cniEventHandler(t *testing.T) {
+	t.Run("handles messages from channels and calls update functions", func(t *testing.T) {
+		targetCNIcfg := &aws.TargetCNIconfig{TargetGroupCh: make(chan []string, 10)}
+		targetCNIcfg.TargetGroupCh <- []string{"bar", "baz"}
+		targetCNIcfg.TargetGroupCh <- []string{"foo"} // flush
+		mutex := &sync.Mutex{}
+		var targetSet, cniTGARNs []string
+		mockTargetSetter := func(endpoints, cniTargetGroupARNs []string) error {
+			mutex.Lock()
+			targetSet = endpoints
+			cniTGARNs = cniTargetGroupARNs
+			mutex.Unlock()
+			return nil
+		}
+		mockInformer := func(_ context.Context, c chan<- []string) error {
+			c <- []string{"4.3.2.1", "4.3.2.1"}
+			c <- []string{"1.2.3.4"} // flush
+			return nil
+		}
+		ctx, cl := context.WithCancel(context.Background())
+		defer cl()
+		go cniEventHandler(ctx, targetCNIcfg, mockTargetSetter, mockInformer)
+
+		require.Eventually(t, func() bool {
+			mutex.Lock()
+			defer mutex.Unlock()
+			return reflect.DeepEqual(targetSet, []string{"1.2.3.4"})
+		}, wait.ForeverTestTimeout, time.Millisecond*100)
+
+		require.Eventually(t, func() bool {
+			return reflect.DeepEqual(cniTGARNs, []string{"foo"})
+		}, wait.ForeverTestTimeout, time.Millisecond*100)
+	})
 }

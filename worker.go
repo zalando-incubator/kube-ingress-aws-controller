@@ -47,6 +47,7 @@ const (
 
 const (
 	maxTargetGroupSupported = 1000
+	cniEventRateLimit       = 5 * time.Second
 )
 
 func (l *loadBalancer) Status() int {
@@ -640,4 +641,43 @@ func getCloudWatchAlarmsFromConfigMap(configMap *kubernetes.ConfigMap) aws.Cloud
 	}
 
 	return configList
+}
+
+// cniEventHandler syncronizes the events from kubernetes and the status updates from the load balancer controller.
+// Events updates a rate limited.
+func cniEventHandler(ctx context.Context, targetCNIcfg *aws.TargetCNIconfig,
+	targetSetter func([]string, []string) error, informer func(context.Context, chan<- []string) error) {
+	log.Infoln("Starting CNI event handler")
+
+	rateLimiter := time.NewTicker(cniEventRateLimit)
+	defer rateLimiter.Stop()
+
+	endpointCh := make(chan []string, 10)
+	go informer(ctx, endpointCh)
+
+	var cniTargetGroupARNs, endpoints []string
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case cniTargetGroupARNs = <-targetCNIcfg.TargetGroupCh:
+			log.Debugf("new message target groups: %v", cniTargetGroupARNs)
+		case endpoints = <-endpointCh:
+			log.Debugf("new message endpoints: %v", endpoints)
+		}
+
+		// prevent cleanup due to startup inconsistenty, arns and endpoints can be empty but never nil
+		if cniTargetGroupARNs == nil || endpoints == nil {
+			continue
+		}
+		if len(endpointCh) > 0 || len(targetCNIcfg.TargetGroupCh) > 0 {
+			log.Debugf("flushing, messages queued: %d:%d", len(endpointCh), len(cniTargetGroupARNs))
+			continue
+		}
+		<-rateLimiter.C
+		err := targetSetter(endpoints, cniTargetGroupARNs)
+		if err != nil {
+			log.Error(err)
+		}
+	}
 }

@@ -1,0 +1,88 @@
+# accessing skipper via CNI IP instead of HostPort exposed
+# requires no HostNetwork
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: skipper-ingress
+  namespace: kube-system
+  labels:
+    application: skipper-ingress
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      application: skipper-ingress
+  template:
+    metadata:
+      name: skipper-ingress
+      labels:
+        application: skipper-ingress
+    spec:
+      priorityClassName: system-cluster-critical
+      serviceAccountName: skipper-ingress
+      containers:
+      - name: skipper-ingress
+        image: registry.opensource.zalan.do/teapot/skipper:latest
+        ports:
+        - name: ingress-port
+          containerPort: 9999
+        - name: redirect-port
+          containerPort: 9998
+        - name: metrics-port
+          containerPort: 9911
+        args:
+          - "skipper"
+          - "-kubernetes"
+          - "-kubernetes-in-cluster"
+          - "-address=:9999"
+          - "-proxy-preserve-host"
+          - "-serve-host-metrics"
+          - "-enable-ratelimits"
+          - "-experimental-upgrade"
+          - "-metrics-exp-decay-sample"
+          - "-lb-healthcheck-interval=3s"
+          - "-metrics-flavour=codahale,prometheus"
+          - "-enable-connection-metrics"
+        resources:
+          requests:
+            cpu: 200m
+            memory: 200Mi
+        readinessProbe:
+          httpGet:
+            path: /kube-system/healthz
+            port: 9999
+          initialDelaySeconds: 5
+          timeoutSeconds: 1
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kube-ingress-aws-controller
+  namespace: kube-system
+  labels:
+    application: kube-ingress-aws-controller
+    component: ingress
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      application: kube-ingress-aws-controller
+      component: ingress
+  template:
+    metadata:
+      labels:
+        application: kube-ingress-aws-controller
+        component: ingress
+      annotations:
+        iam.amazonaws.com/role: arn:aws:iam::12345678901:role/YOUR_PRECONFIGURED_ROLE
+    spec:
+      serviceAccountName: kube-ingress-aws
+      containers:
+      - name: controller
+        image: registry.opensource.zalan.do/teapot/kube-ingress-aws-controller:latest
+        env:
+        - name: AWS_REGION
+          value: <REGION>
+        args:
+          - --target-access-mode=AWSCNI
