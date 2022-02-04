@@ -43,7 +43,9 @@ func (a *Adapter) PodInformer(ctx context.Context, endpointChan chan<- []string)
 		time.Sleep(resyncInterval)
 	}
 	for _, pod := range podList {
-		podEndpoints.Store(pod.Name, pod.Status.PodIP)
+		if !isPodTerminating(pod) && isPodRunning(pod) {
+			podEndpoints.Store(pod.Name, pod.Status.PodIP)
+		}
 	}
 	queueEndpoints(&podEndpoints, endpointChan)
 
@@ -57,8 +59,7 @@ func (a *Adapter) PodInformer(ctx context.Context, endpointChan chan<- []string)
 			}
 			switch {
 
-			// deleted pod
-			case pod.DeletionTimestamp != nil:
+			case isPodTerminating(pod):
 				name, exists := podEndpoints.LoadAndDelete(pod.Name)
 				if !exists {
 					return
@@ -66,9 +67,7 @@ func (a *Adapter) PodInformer(ctx context.Context, endpointChan chan<- []string)
 				log.Infof("Deleted pod: %s IP: %s", pod.Name, name)
 				queueEndpoints(&podEndpoints, endpointChan)
 
-			// new pod
-			case pod.Status.ContainerStatuses != nil && len(pod.Status.ContainerStatuses) > 0 &&
-				pod.Status.ContainerStatuses[0].State.Running != nil && pod.Status.PodIP != "":
+			case isPodRunning(pod):
 				if _, isStored := podEndpoints.LoadOrStore(pod.Name, pod.Status.PodIP); isStored {
 					return
 				}
@@ -89,4 +88,16 @@ func queueEndpoints(podEndpoints *sync.Map, endpointChan chan<- []string) {
 	})
 	sort.StringSlice(podList).Sort()
 	endpointChan <- podList
+}
+
+// intermediate states à la kubectl https://github.com/kubernetes/kubernetes/blob/76cdb57ccfbfebc689fbce45f289add8a0562e07/pkg/printers/internalversion/printers.go#L839
+func isPodTerminating(p *corev1.Pod) bool {
+	return p.DeletionTimestamp != nil
+}
+
+func isPodRunning(p *corev1.Pod) bool {
+	return p.Status.ContainerStatuses != nil &&
+		len(p.Status.ContainerStatuses) > 0 &&
+		p.Status.ContainerStatuses[0].State.Running != nil &&
+		p.Status.PodIP != ""
 }
