@@ -31,9 +31,13 @@ type fabricListMetadata struct {
 }
 
 type fabricSpec struct {
+	Service                 []*fabricService               `json:"x-fabric-service"`
 	ExternalServiceProvider *fabricExternalServiceProvider `json:"x-external-service-provider"`
 }
 
+type fabricService struct {
+	Host string `json:"host"`
+}
 type fabricExternalServiceProvider struct {
 	Hosts []string `json:"hosts"`
 }
@@ -43,14 +47,14 @@ type fabricStatus struct {
 }
 
 type fabricLoadBalancerStatus struct {
-	Fabric []fabricLoadBalancer `json:"fabric"`
+	Fabric []fabricLoadBalancer `json:"fabricgateway"`
 }
 
 type fabricLoadBalancer struct {
 	Hostname string `json:"hostname"`
 }
 
-func listFabrics(c client) (*fabricList, error) {
+func listFabricgateways(c client) (*fabricList, error) {
 	r, err := c.get(fabricListResource)
 	if err != nil {
 		return nil, err
@@ -75,7 +79,7 @@ type patchFabricStatus struct {
 	Status fabricStatus `json:"status"`
 }
 
-func updateFabricLoadBalancer(c client, ns, name, newHostName string) error {
+func updateFabricgatewayLoadBalancer(c client, ns, name, newHostName string) error {
 	patchStatus := patchFabricStatus{
 		Status: fabricStatus{
 			LoadBalancer: fabricLoadBalancerStatus{
