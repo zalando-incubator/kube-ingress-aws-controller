@@ -1,7 +1,6 @@
 package kubernetes
 
 import (
-	"io/ioutil"
 	"net"
 	"os"
 	"time"
@@ -68,7 +67,7 @@ func InClusterConfig() (*Config, error) {
 	}
 
 	dir := serviceAccountLocator()
-	token, err := ioutil.ReadFile(dir + serviceAccountTokenKey)
+	token, err := os.ReadFile(dir + serviceAccountTokenKey)
 	if err != nil {
 		return nil, err
 	}

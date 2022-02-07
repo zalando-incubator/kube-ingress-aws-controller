@@ -3,7 +3,7 @@ package kubernetes
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"time"
 )
 
@@ -104,7 +104,7 @@ func (ic *ingressClient) listIngress(c client) (*ingressList, error) {
 
 	defer r.Close()
 
-	b, err := ioutil.ReadAll(r)
+	b, err := io.ReadAll(r)
 	if err != nil {
 		return nil, err
 	}

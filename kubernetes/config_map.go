@@ -3,7 +3,7 @@ package kubernetes
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 )
 
 const (
@@ -32,7 +32,7 @@ func getConfigMap(c client, namespace, name string) (*configMap, error) {
 
 	defer r.Close()
 
-	b, err := ioutil.ReadAll(r)
+	b, err := io.ReadAll(r)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read ConfigMap %s/%s: %v", namespace, name, err)
 	}

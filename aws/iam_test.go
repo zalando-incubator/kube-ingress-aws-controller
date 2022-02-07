@@ -1,7 +1,7 @@
 package aws
 
 import (
-	"io/ioutil"
+	"os"
 	"testing"
 	"time"
 
@@ -31,7 +31,7 @@ func (m mockedIAMClient) GetServerCertificate(*iam.GetServerCertificateInput) (*
 }
 
 func mustRead(testFile string) string {
-	buf, err := ioutil.ReadFile("testdata/" + testFile)
+	buf, err := os.ReadFile("testdata/" + testFile)
 	if err != nil {
 		panic(err)
 	}
