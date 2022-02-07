@@ -32,6 +32,8 @@ This information is used to manage AWS resources for each ingress objects of the
 - [Support Multiple TLS Certificates per ALB (SNI)](https://aws.amazon.com/blogs/aws/new-application-load-balancer-sni/).
 - Support for AWS WAF and WAFv2
 - Support for AWS CNI pod direct access
+- Support for Kubernetes CRD [RouteGroup](https://opensource.zalando.com/skipper/kubernetes/routegroups/)
+- Support for Kubernetes CRD [FabricGateway](https://opensource.zalando.com/skipper/kubernetes/fabricgateways/)
 
 ## Upgrade
 
@@ -48,7 +50,7 @@ work the controller needs to have permissions to `list` `ingresses` and
 [See deployment example](deploy/ingress-serviceaccount.yaml). To fallback to
 the old behavior you can set the apiVersion via the `--ingress-api-version`
 flag. Value must be `extensions/v1beta1` or `networking.k8s.io/v1beta1`
-(default).
+(default) or `networking.k8s.io/v1`.
 
 ### <v0.9.0 to >=v0.9.0
 
@@ -271,7 +273,7 @@ When the controller learns about new ingress resources, it uses the hosts specif
 the most specific, valid certificates to use. The certificates has to be valid for at least 7 days. An example ingress:
 
 ```yaml
-apiVersion: extensions/v1beta1
+apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: test-app
@@ -281,8 +283,12 @@ spec:
     http:
       paths:
       - backend:
-          serviceName: test-app-service
-          servicePort: main-port
+          service:
+            name: test-app-service
+            port:
+              name: main-port
+        path: /
+        pathType: ImplementationSpecific
 ```
 
 The Application Load Balancer created by the controller will have both an HTTP listener and an HTTPS listener. The
@@ -307,7 +313,7 @@ As a second option you can specify the [Amazon Resource Name](https://docs.aws.a
 of the desired certificate with an annotation like the one shown here:
 
 ```yaml
-apiVersion: extensions/v1beta1
+apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: myingress
@@ -319,8 +325,12 @@ spec:
     http:
       paths:
       - backend:
-          serviceName: test-app-service
-          servicePort: main-port
+          service:
+            name: test-app-service
+            port:
+              name: main-port
+        path: /
+        pathType: ImplementationSpecific
 ```
 
 #### Create an internal Load Balancer
@@ -329,7 +339,7 @@ You can select the [Application Load Balancer Scheme](http://docs.aws.amazon.com
 with an annotation like the one shown here:
 
 ```yaml
-apiVersion: extensions/v1beta1
+apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: myingress
@@ -341,8 +351,12 @@ spec:
     http:
       paths:
       - backend:
-          serviceName: test-app-service
-          servicePort: main-port
+          service:
+            name: test-app-service
+            port:
+              name: main-port
+        path: /
+        pathType: ImplementationSpecific
 ```
 
 You can only select from `internet-facing` (default) and `internal`
@@ -364,7 +378,7 @@ that have the `.cluster.local` and the controller will not create an
 ALB for this.
 
 ```yaml
-apiVersion: extensions/v1beta1
+apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: myingress
@@ -374,8 +388,12 @@ spec:
     http:
       paths:
       - backend:
-          serviceName: test-app-service
-          servicePort: main-port
+          service:
+            name: test-app-service
+            port:
+              name: main-port
+        path: /
+        pathType: ImplementationSpecific
 ```
 
 If you pass `--cluster-local-domain=".cluster.local"`, you can change
@@ -436,7 +454,7 @@ values will be checked by the controller.
 Example:
 
 ```yaml
-apiVersion: extensions/v1beta1
+apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: myingress
@@ -448,8 +466,12 @@ spec:
     http:
       paths:
       - backend:
-          serviceName: test-app-service
-          servicePort: main-port
+          service:
+            name: test-app-service
+            port:
+              name: main-port
+        path: /
+        pathType: ImplementationSpecific
 ```
 
 #### Create Load Balancer with SecurityGroup
@@ -467,7 +489,7 @@ SecurityGroup of your choice with the
 shown here:
 
 ```yaml
-apiVersion: extensions/v1beta1
+apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: myingress
@@ -479,8 +501,12 @@ spec:
     http:
       paths:
       - backend:
-          serviceName: test-app-service
-          servicePort: main-port
+          service:
+            name: test-app-service
+            port:
+              name: main-port
+        path: /
+        pathType: ImplementationSpecific
 ```
 
 #### Create Load Balancers with WAF associations
@@ -508,7 +534,7 @@ kube-ingress-aws-controller --aws-waf-web-acl-id=arn:aws:wafv2:eu-central-1:1234
 ##### Setting ingress specicif WAF association:
 
 ```yaml
-apiVersion: extensions/v1beta1
+apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: myingress
@@ -520,8 +546,12 @@ spec:
     http:
       paths:
       - backend:
-          serviceName: test-app-service
-          servicePort: main-port
+          service:
+            name: test-app-service
+            port:
+              name: main-port
+        path: /
+        pathType: ImplementationSpecific
 ```
 
 

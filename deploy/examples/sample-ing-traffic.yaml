@@ -1,4 +1,4 @@
-apiVersion: extensions/v1beta1
+apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: "demo-traffic-switching"
@@ -13,8 +13,16 @@ spec:
     http:
       paths:
       - backend:
-          serviceName: "demo-app-v1"
-          servicePort: 80
+          service:
+            name: "demo-app-v1"
+            port:
+              number: 80
+        path: /
+        pathType: ImplementationSpecific
       - backend:
-          serviceName: "demo-app-v2"
-          servicePort: 80
+          service:
+            name: "demo-app-v2"
+            port:
+              number: 80
+        path: /
+        pathType: ImplementationSpecific
