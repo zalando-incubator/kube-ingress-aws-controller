@@ -65,15 +65,27 @@ func TestAdapter_PodInformer(t *testing.T) {
 	a.clientset = client
 	pods := make(chan []string, 10)
 
-	t.Run("initial state five pods", func(t *testing.T) {
+	t.Run("initial state of five ready pods, a terminating and pending one", func(t *testing.T) {
 		for i := 1; i <= 5; i++ {
 			newPod := p.DeepCopy()
 			newPod.Name = fmt.Sprintf("skipper-%d", i)
 			newPod.Status.PodIP = fmt.Sprintf("1.1.1.%d", i)
 			_, err := client.CoreV1().Pods("kube-system").Create(context.TODO(), newPod, metav1.CreateOptions{})
 			require.NoError(t, err)
-			time.Sleep(123 * time.Millisecond)
 		}
+
+		termPod := p.DeepCopy()
+		termPod.Name = "skipper-terminating"
+		termPod.Status.PodIP = "9.9.9.9"
+		termPod.DeletionTimestamp = &metav1.Time{}
+		_, err := client.CoreV1().Pods("kube-system").Create(context.TODO(), termPod, metav1.CreateOptions{})
+		require.NoError(t, err)
+
+		pendingPod := p.DeepCopy()
+		pendingPod.Name = "skipper-pending"
+		pendingPod.Status.PodIP = ""
+		_, err = client.CoreV1().Pods("kube-system").Create(context.TODO(), pendingPod, metav1.CreateOptions{})
+		require.NoError(t, err)
 	})
 
 	go a.PodInformer(context.TODO(), pods)
@@ -85,6 +97,8 @@ func TestAdapter_PodInformer(t *testing.T) {
 				return false
 			}
 			t.Logf("Got pods from channel: %s", pod)
+			require.NotContains(t, pod, "9.9.9.9", "terminating pod should not appear in the initial list")
+			require.NotContains(t, pod, "", "pending pod should not appear in the initial list")
 			return reflect.DeepEqual(pod, []string{"1.1.1.1", "1.1.1.2", "1.1.1.3", "1.1.1.4", "1.1.1.5"})
 		}, wait.ForeverTestTimeout, 200*time.Millisecond)
 		// flush channel
@@ -116,17 +130,29 @@ func TestAdapter_PodInformer(t *testing.T) {
 		}, wait.ForeverTestTimeout, 200*time.Millisecond)
 	})
 
-	t.Run("4 new pods created", func(t *testing.T) {
+	t.Run("4 new pods created, updates a terminating and pending one", func(t *testing.T) {
 		for i := 6; i <= 9; i++ {
 			newPod := p.DeepCopy()
 			newPod.Name = fmt.Sprintf("skipper-%d", i)
 			newPod.Status.PodIP = fmt.Sprintf("1.1.1.%d", i)
 			_, err := client.CoreV1().Pods("kube-system").Create(context.TODO(), newPod, metav1.CreateOptions{})
 			require.NoError(t, err)
-			time.Sleep(123 * time.Millisecond)
 			_, err = client.CoreV1().Pods("kube-system").UpdateStatus(context.TODO(), newPod, metav1.UpdateOptions{})
 			require.NoError(t, err)
 		}
+
+		termPod := p.DeepCopy()
+		termPod.Name = "skipper-4"
+		termPod.Status.PodIP = "1.1.1.4"
+		termPod.DeletionTimestamp = &metav1.Time{}
+		_, err := client.CoreV1().Pods("kube-system").UpdateStatus(context.TODO(), termPod, metav1.UpdateOptions{})
+		require.NoError(t, err)
+
+		pendingPod := p.DeepCopy()
+		pendingPod.Name = "skipper-pending"
+		pendingPod.Status.PodIP = ""
+		_, err = client.CoreV1().Pods("kube-system").UpdateStatus(context.TODO(), pendingPod, metav1.UpdateOptions{})
+		require.NoError(t, err)
 	})
 
 	t.Run("receiving new event of 8 pods list", func(t *testing.T) {
@@ -136,7 +162,51 @@ func TestAdapter_PodInformer(t *testing.T) {
 				return false
 			}
 			t.Logf("Got pods from channel: %s", pod)
-			return reflect.DeepEqual(pod, []string{"1.1.1.1", "1.1.1.2", "1.1.1.4", "1.1.1.5", "1.1.1.6", "1.1.1.7", "1.1.1.8", "1.1.1.9"})
+			require.NotContains(t, pod, "9.9.9.9", "terminating pod must not be part of the list")
+			require.NotContains(t, pod, "", "pending pod must not be part of the list")
+			return reflect.DeepEqual(pod, []string{"1.1.1.1", "1.1.1.2", "1.1.1.5", "1.1.1.6", "1.1.1.7", "1.1.1.8", "1.1.1.9"})
 		}, wait.ForeverTestTimeout, 200*time.Millisecond)
+	})
+}
+
+func TestPodStatuses(t *testing.T) {
+	t.Run("pod is in status terminating", func(t *testing.T) {
+		require.True(t, isPodTerminating(&corev1.Pod{
+			ObjectMeta: metav1.ObjectMeta{
+				DeletionTimestamp: &metav1.Time{},
+			},
+		}))
+	})
+	t.Run("pod is not in status terminating", func(t *testing.T) {
+		require.False(t, isPodTerminating(&corev1.Pod{
+			ObjectMeta: metav1.ObjectMeta{
+				DeletionTimestamp: nil,
+			},
+		}))
+	})
+
+	t.Run("pod is running when IP assigned", func(t *testing.T) {
+		require.True(t, isPodRunning(&corev1.Pod{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:   "skipper-1",
+				Labels: map[string]string{"application": "skipper-ingress"},
+			},
+			Status: corev1.PodStatus{
+				ContainerStatuses: []corev1.ContainerStatus{{State: corev1.ContainerState{Running: &corev1.ContainerStateRunning{}}}},
+				PodIP:             "1.1.1.1",
+			},
+		}))
+	})
+	t.Run("pod is not running when IP not assigned", func(t *testing.T) {
+		require.False(t, isPodRunning(&corev1.Pod{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:   "skipper-1",
+				Labels: map[string]string{"application": "skipper-ingress"},
+			},
+			Status: corev1.PodStatus{
+				ContainerStatuses: []corev1.ContainerStatus{{State: corev1.ContainerState{Running: &corev1.ContainerStateRunning{}}}},
+				PodIP:             "",
+			},
+		}))
 	})
 }
