@@ -4,7 +4,6 @@ import (
 	"crypto/tls"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
@@ -54,7 +53,7 @@ func TestClientGet(t *testing.T) {
 			}
 
 			if !test.wantError {
-				b, err := ioutil.ReadAll(r)
+				b, err := io.ReadAll(r)
 				if err != nil {
 					t.Error("error reading response", err)
 				}
@@ -93,7 +92,7 @@ func TestClientPatch(t *testing.T) {
 					w.WriteHeader(http.StatusBadRequest)
 					return
 				}
-				b, err := ioutil.ReadAll(r.Body)
+				b, err := io.ReadAll(r.Body)
 				if err != nil {
 					t.Error("failure reading request payload", err)
 					return
@@ -120,7 +119,7 @@ func TestClientPatch(t *testing.T) {
 			}
 
 			if !test.wantError {
-				b, err := ioutil.ReadAll(r)
+				b, err := io.ReadAll(r)
 				if err != nil {
 					t.Error("error reading response", err)
 				}
@@ -139,7 +138,7 @@ func TestTLS(t *testing.T) {
 		if token != "Bearer foo" {
 			t.Errorf(`wrong auth bearer token. wanted "Bearer: foo" but got %q`, token)
 		}
-		buf, err := ioutil.ReadAll(r.Body)
+		buf, err := io.ReadAll(r.Body)
 		if err != nil {
 			t.Error(err)
 		}

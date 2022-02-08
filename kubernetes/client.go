@@ -8,9 +8,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
@@ -50,7 +50,7 @@ func newSimpleClient(cfg *Config, disableInstrumentedHttpClient bool) (client, e
 		c         *http.Client      = http.DefaultClient
 	)
 	if cfg.CAFile != "" {
-		fileData, err := ioutil.ReadFile(cfg.CAFile)
+		fileData, err := os.ReadFile(cfg.CAFile)
 		if err != nil {
 			return nil, err
 		}
@@ -114,7 +114,7 @@ func (c *simpleClient) get(resource string) (io.ReadCloser, error) {
 	if resp.StatusCode == http.StatusForbidden {
 		return nil, ErrNoPermissionToAccessResource
 	}
-	b, err := ioutil.ReadAll(resp.Body)
+	b, err := io.ReadAll(resp.Body)
 	if err == nil {
 		err = fmt.Errorf("unexpected status code (%s) for GET %q: %s", http.StatusText(resp.StatusCode), resource, b)
 	}
@@ -133,13 +133,13 @@ func (c *simpleClient) patch(resource string, payload []byte) (io.ReadCloser, er
 	}
 	if resp.StatusCode != http.StatusOK {
 		var err error
-		b, err := ioutil.ReadAll(resp.Body)
+		b, err := io.ReadAll(resp.Body)
 		if err == nil {
 			err = fmt.Errorf("unexpected status code (%s) for PATCH %q: %s", http.StatusText(resp.StatusCode), resource, b)
 		}
 
 		resp.Body.Close()
-		return ioutil.NopCloser(bytes.NewBuffer(b)), err
+		return io.NopCloser(bytes.NewBuffer(b)), err
 	}
 	return resp.Body, nil
 }

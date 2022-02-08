@@ -3,7 +3,6 @@ package kubernetes
 import (
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -112,7 +111,7 @@ func TestUpdateIngressLoadBalancer(t *testing.T) {
 		if !expectedContentType[ct] {
 			t.Error("unexpected content type", ct)
 		}
-		b, err := ioutil.ReadAll(req.Body)
+		b, err := io.ReadAll(req.Body)
 		if err != nil {
 			t.Error(err)
 		}

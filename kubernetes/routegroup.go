@@ -3,7 +3,7 @@ package kubernetes
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 )
 
 type routegroupList struct {
@@ -54,7 +54,7 @@ func listRoutegroups(c client) (*routegroupList, error) {
 
 	defer r.Close()
 
-	b, err := ioutil.ReadAll(r)
+	b, err := io.ReadAll(r)
 	if err != nil {
 		return nil, err
 	}

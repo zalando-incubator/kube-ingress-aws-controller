@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
+	"os"
 	"reflect"
 	"strings"
 	"testing"
@@ -498,20 +498,20 @@ func (c *mockClient) get(res string) (io.ReadCloser, error) {
 		return nil, fmt.Errorf("unexpected resource: %s", res)
 	}
 
-	buf, err := ioutil.ReadFile(fixture)
+	buf, err := os.ReadFile(fixture)
 	if err != nil {
 		return nil, err
 	}
-	return ioutil.NopCloser(bytes.NewReader(buf)), nil
+	return io.NopCloser(bytes.NewReader(buf)), nil
 }
 
 func (c *mockClient) patch(res string, payload []byte) (io.ReadCloser, error) {
 	if !c.broken {
 		switch res {
 		case fmt.Sprintf("/apis/%s/namespaces/default/ingresses/foo/status", IngressAPIVersionNetworking):
-			return ioutil.NopCloser(strings.NewReader(":)")), nil
+			return io.NopCloser(strings.NewReader(":)")), nil
 		case "/apis/zalando.org/v1/namespaces/default/routegroups/foo/status":
-			return ioutil.NopCloser(strings.NewReader(":)")), nil
+			return io.NopCloser(strings.NewReader(":)")), nil
 		}
 	}
 	return nil, errors.New("mocked error")
