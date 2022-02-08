@@ -88,7 +88,7 @@ func updateRoutegroupLoadBalancer(c client, ns, name, newHostName string) error 
 
 	r, err := c.patch(resource, payload)
 	if err != nil {
-		return fmt.Errorf("failed to patch routegroup %s/%s = %q: %v", ns, name, newHostName, err)
+		return fmt.Errorf("failed to patch routegroup %s/%s = %q: %w", ns, name, newHostName, err)
 	}
 	defer r.Close()
 	return nil

@@ -99,7 +99,7 @@ type ingressClient struct {
 func (ic *ingressClient) listIngress(c client) (*ingressList, error) {
 	r, err := c.get(fmt.Sprintf(ingressListResource, ic.apiVersion))
 	if err != nil {
-		return nil, fmt.Errorf("failed to get ingress list: %v", err)
+		return nil, fmt.Errorf("failed to get ingress list: %w", err)
 	}
 
 	defer r.Close()
@@ -138,7 +138,7 @@ func (ic *ingressClient) updateIngressLoadBalancer(c client, ns, name, newHostNa
 
 	r, err := c.patch(resource, payload)
 	if err != nil {
-		return fmt.Errorf("failed to patch ingress %s/%s = %q: %v", ns, name, newHostName, err)
+		return fmt.Errorf("failed to patch ingress %s/%s = %q: %w", ns, name, newHostName, err)
 	}
 	defer r.Close()
 	return nil
