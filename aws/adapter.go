@@ -594,10 +594,6 @@ func (a *Adapter) UpdateTargetGroupsAndAutoScalingGroups(stacks []*Stack, proble
 
 	// remove the IP TGs from the list keeping all other TGs including problematic #127 and nonexistent #436
 	targetGroupARNs := difference(allTargetGroupARNs, targetTypesARNs[elbv2.TargetTypeEnumIp])
-	// don't do anything if there are no target groups
-	if len(targetGroupARNs) == 0 {
-		return
-	}
 
 	ownerTags := map[string]string{
 		clusterIDTagPrefix + a.ClusterID(): resourceLifecycleOwned,
