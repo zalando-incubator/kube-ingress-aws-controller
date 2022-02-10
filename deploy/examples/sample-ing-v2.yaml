@@ -1,4 +1,4 @@
-apiVersion: extensions/v1beta1
+apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: "demo-feature-toggle"
@@ -13,5 +13,10 @@ spec:
     http:
       paths:
       - backend:
-          serviceName: "demo-app-v1"
-          servicePort: 80
+      - backend:
+          service:
+            name: demo-app-v1
+            port:
+              number: 80
+        path: /
+        pathType: ImplementationSpecific

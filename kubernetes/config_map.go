@@ -27,19 +27,19 @@ func getConfigMap(c client, namespace, name string) (*configMap, error) {
 
 	r, err := c.get(resource)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get ConfigMap %s/%s: %v", namespace, name, err)
+		return nil, fmt.Errorf("failed to get ConfigMap %s/%s: %w", namespace, name, err)
 	}
 
 	defer r.Close()
 
 	b, err := io.ReadAll(r)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read ConfigMap %s/%s: %v", namespace, name, err)
+		return nil, fmt.Errorf("failed to read ConfigMap %s/%s: %w", namespace, name, err)
 	}
 
 	var result configMap
 	if err := json.Unmarshal(b, &result); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal ConfigMap %s/%s: %v", namespace, name, err)
+		return nil, fmt.Errorf("failed to unmarshal ConfigMap %s/%s: %w", namespace, name, err)
 	}
 
 	return &result, nil
