@@ -75,7 +75,6 @@ func TestIAM(t *testing.T) {
 		expectNotBefore   time.Time
 		expectNotAfter    time.Time
 		expertDomainNames []string
-		expectChain       int
 	}{
 		{
 			msg:               "Parse foobar.de Certificate",
@@ -92,7 +91,6 @@ func TestIAM(t *testing.T) {
 			expectNotBefore:   foobarNotBefore,
 			expectNotAfter:    foobarNotAfter,
 			expertDomainNames: []string{"foobar.de"},
-			expectChain:       2,
 		},
 		{
 			msg:             "Parse Zalando Certificate",
@@ -197,7 +195,6 @@ func TestIAM(t *testing.T) {
 			require.Equal(t, ti.expertDomainNames, detail.DomainNames())
 			require.Equal(t, ti.expectNotBefore, detail.NotBefore())
 			require.Equal(t, ti.expectNotAfter, detail.NotAfter())
-			require.Equal(t, ti.expectChain, detail.ChainSize())
 		})
 	}
 }

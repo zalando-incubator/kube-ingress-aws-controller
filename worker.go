@@ -268,7 +268,7 @@ func doWork(
 	defer func() {
 		if r := recover(); r != nil {
 			debug.PrintStack()
-			problems.Add("panic caused by: %w", r)
+			problems.Add("panic caused by: %v", r)
 		}
 	}()
 

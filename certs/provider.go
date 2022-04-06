@@ -54,12 +54,6 @@ func (c *CertificateSummary) DomainNames() []string {
 	return c.domainNames
 }
 
-// ChainSize returns the number of intermediate certificates
-// in the chain
-func (c *CertificateSummary) ChainSize() int {
-	return len(c.chain.Subjects())
-}
-
 // NotBefore returns the field with the same name from the certificate
 func (c *CertificateSummary) NotBefore() time.Time {
 	return c.certificate.NotBefore

@@ -55,7 +55,4 @@ func TestCachingProvider(t *testing.T) {
 	if certificateSummary.ID() != "foo" {
 		t.Fatalf("Expected foo, got: %v", certificateSummary.ID())
 	}
-	if certificateSummary.ChainSize() != 0 {
-		t.Fatalf("Expected 0, got: %v", certificateSummary.ChainSize())
-	}
 }
