@@ -63,7 +63,6 @@ func TestACM(t *testing.T) {
 			expect: acmExpect{
 				ARN:         "foobar",
 				DomainNames: []string{"foobar.de"},
-				Chain:       2,
 				Error:       nil,
 			},
 		},
@@ -85,7 +84,6 @@ func TestACM(t *testing.T) {
 			expect: acmExpect{
 				ARN:         "foobar",
 				DomainNames: []string{"foobar.de"},
-				Chain:       0,
 				Error:       nil,
 			},
 		},
@@ -105,7 +103,6 @@ func TestACM(t *testing.T) {
 			cert := list[0]
 			require.Equal(t, ti.expect.ARN, cert.ID())
 			require.Equal(t, ti.expect.DomainNames, cert.DomainNames())
-			require.Equal(t, ti.expect.Chain, cert.ChainSize())
 		})
 	}
 }
