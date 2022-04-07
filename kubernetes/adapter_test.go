@@ -455,7 +455,7 @@ func TestNewIngressFromKube(tt *testing.T) {
 			} else {
 				assert.NoError(t, err)
 				assert.Equal(t, tc.ingress, got, "mapping from kubernetes ingress to adapter failed")
-				assert.Equal(t, got.String(), fmt.Sprintf("%s/%s", tc.ingress.Namespace, tc.ingress.Name), "wrong value from String()")
+				assert.Equal(t, got.String(), fmt.Sprintf("%s %s/%s", tc.ingress.resourceType, tc.ingress.Namespace, tc.ingress.Name), "wrong value from String()")
 			}
 		})
 	}
