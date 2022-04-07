@@ -305,7 +305,11 @@ func doWork(
 	log.Infof("Found %d certificate(s)", len(certificateSummaries))
 	log.Infof("Found %d cloudwatch alarm configuration(s)", len(cwAlarms))
 
-	metrics.ingressesTotal.Set(float64(len(ingresses)))
+	counts := countByIngressType(ingresses)
+
+	metrics.ingressesTotal.Set(float64(counts[kubernetes.TypeIngress]))
+	metrics.routegroupsTotal.Set(float64(counts[kubernetes.TypeRouteGroup]))
+	metrics.fabricgatewaysTotal.Set(float64(counts[kubernetes.TypeFabricGateway]))
 	metrics.stacksTotal.Set(float64(len(stacks)))
 	metrics.ownedAutoscalingGroupsTotal.Set(float64(len(awsAdapter.OwnedAutoScalingGroups)))
 	metrics.targetedAutoscalingGroupsTotal.Set(float64(len(awsAdapter.TargetedAutoScalingGroups)))
@@ -334,6 +338,14 @@ func doWork(
 		}
 	}
 	return
+}
+
+func countByIngressType(ingresses []*kubernetes.Ingress) map[kubernetes.IngressType]int {
+	counts := make(map[kubernetes.IngressType]int)
+	for _, ing := range ingresses {
+		counts[ing.ResourceType]++
+	}
+	return counts
 }
 
 func sortStacks(stacks []*aws.Stack) {
