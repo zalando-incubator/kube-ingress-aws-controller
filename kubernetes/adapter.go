@@ -317,10 +317,11 @@ func (a *Adapter) ListResources() ([]*Ingress, error) {
 	if a.routeGroupSupport {
 		rgs, err = a.ListRoutegroups()
 		if err != nil {
-			a.routeGroupSupport = false
-			log.Warnf("Disabling RouteGroup support because listing RouteGroups failed: %v, to get more information https://opensource.zalando.com/skipper/kubernetes/routegroups/#routegroups", err)
-			// Generic error, RouteGroup CRD exists and we have permission to access
-			if err != ErrResourceNotFound && err != ErrNoPermissionToAccessResource {
+			if errors.Is(err, ErrResourceNotFound) || errors.Is(err, ErrNoPermissionToAccessResource) {
+				a.routeGroupSupport = false
+				log.Warnf("Disabling RouteGroup support because listing RouteGroups failed: %v, to get more information https://opensource.zalando.com/skipper/kubernetes/routegroups/#routegroups", err)
+			} else {
+				// Generic error, RouteGroup CRD exists and we have permission to access
 				return nil, err
 			}
 		}
@@ -330,10 +331,11 @@ func (a *Adapter) ListResources() ([]*Ingress, error) {
 	if a.fabricSupport {
 		fgs, err = a.ListFabricgateways()
 		if err != nil {
-			a.fabricSupport = false
-			log.Warnf("Disabling FabricGateway support because listing FabricGateways failed: %v, to get more information https://opensource.zalando.com/skipper/kubernetes/fabric/#fabricgateways", err)
-			// Generic error, FabricGateway CRD exists and we have permission to access
-			if err != ErrResourceNotFound && err != ErrNoPermissionToAccessResource {
+			if errors.Is(err, ErrResourceNotFound) || errors.Is(err, ErrNoPermissionToAccessResource) {
+				a.fabricSupport = false
+				log.Warnf("Disabling FabricGateway support because listing FabricGateways failed: %v, to get more information https://opensource.zalando.com/skipper/kubernetes/fabric/#fabricgateways", err)
+			} else {
+				// Generic error, FabricGateway CRD exists and we have permission to access
 				return nil, err
 			}
 		}
