@@ -401,12 +401,7 @@ func matchIngressesToLoadBalancers(
 
 		if ingress.CertificateARN != "" {
 			if !certs.CertificateExists(ingress.CertificateARN) {
-				log.Errorf(
-					"Failed to find certificate '%s' for ingress '%s/%s'",
-					ingress.CertificateARN,
-					ingress.Namespace,
-					ingress.Name,
-				)
+				log.Errorf("Failed to find certificate %s for %s", ingress.CertificateARN, ingress)
 				continue
 			}
 			certificateARNs = []string{ingress.CertificateARN}
@@ -576,12 +571,12 @@ func updateIngress(kubeAdapter *kubernetes.Adapter, lb *loadBalancer, problems *
 		for _, ing := range ingresses {
 			if err := kubeAdapter.UpdateIngressLoadBalancer(ing, dnsName); err != nil {
 				if err == kubernetes.ErrUpdateNotNeeded {
-					log.Debugf("Ingress update not needed %v with DNS name %q", ing, dnsName)
+					log.Debugf("Update not needed for %s with DNS name %s", ing, dnsName)
 				} else {
-					problems.Add("failed to update ingress %q: %w", ing, err)
+					problems.Add("failed to update %s: %w", ing, err)
 				}
 			} else {
-				log.Infof("Updated ingress %v with DNS name %q", ing, dnsName)
+				log.Infof("Updated %s with DNS name %s", ing, dnsName)
 			}
 		}
 	}

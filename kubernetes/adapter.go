@@ -102,9 +102,9 @@ type Ingress struct {
 	resourceType     ingressType
 }
 
-// String returns a string representation of the Ingress instance containing the namespace and the resource name.
+// String returns a string representation of the Ingress instance containing the type, namespace and the resource name.
 func (i *Ingress) String() string {
-	return fmt.Sprintf("%s/%s", i.Namespace, i.Name)
+	return fmt.Sprintf("%s %s/%s", i.resourceType, i.Namespace, i.Name)
 }
 
 // ConfigMap is the ingress-controller's representation of a Kubernetes
