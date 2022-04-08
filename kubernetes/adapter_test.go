@@ -50,7 +50,7 @@ func TestNewIngressFromKube(tt *testing.T) {
 				SSLPolicy:        testSSLPolicy,
 				IPAddressType:    testIPAddressTypeDefault,
 				LoadBalancerType: aws.LoadBalancerTypeApplication,
-				resourceType:     ingressTypeIngress,
+				ResourceType:     TypeIngress,
 				WAFWebACLID:      testWAFWebACLID,
 			},
 			kubeIngress: &ingress{
@@ -102,7 +102,7 @@ func TestNewIngressFromKube(tt *testing.T) {
 				SSLPolicy:        testSSLPolicy,
 				IPAddressType:    testIPAddressTypeDefault,
 				LoadBalancerType: aws.LoadBalancerTypeApplication,
-				resourceType:     ingressTypeIngress,
+				ResourceType:     TypeIngress,
 				WAFWebACLID:      testWAFWebACLID,
 			},
 			kubeIngress: &ingress{
@@ -154,7 +154,7 @@ func TestNewIngressFromKube(tt *testing.T) {
 				SSLPolicy:        testSSLPolicy,
 				IPAddressType:    testIPAddressTypeDefault,
 				LoadBalancerType: aws.LoadBalancerTypeApplication,
-				resourceType:     ingressTypeIngress,
+				ResourceType:     TypeIngress,
 				WAFWebACLID:      testWAFWebACLID,
 			},
 			kubeIngress: &ingress{
@@ -199,7 +199,7 @@ func TestNewIngressFromKube(tt *testing.T) {
 				SSLPolicy:        testSSLPolicy,
 				IPAddressType:    testIPAddressTypeDualStack,
 				LoadBalancerType: aws.LoadBalancerTypeApplication,
-				resourceType:     ingressTypeIngress,
+				ResourceType:     TypeIngress,
 				WAFWebACLID:      testWAFWebACLID,
 			},
 			kubeIngress: &ingress{
@@ -232,7 +232,7 @@ func TestNewIngressFromKube(tt *testing.T) {
 			msg:                     "test default NLB without annotations",
 			defaultLoadBalancerType: aws.LoadBalancerTypeNetwork,
 			ingress: &Ingress{
-				resourceType:     ingressTypeIngress,
+				ResourceType:     TypeIngress,
 				Namespace:        "default",
 				Name:             "foo",
 				Hostname:         "bar",
@@ -263,7 +263,7 @@ func TestNewIngressFromKube(tt *testing.T) {
 			msg:                     "test default NLB with security group fallbacks to ALB",
 			defaultLoadBalancerType: aws.LoadBalancerTypeNetwork,
 			ingress: &Ingress{
-				resourceType:     ingressTypeIngress,
+				ResourceType:     TypeIngress,
 				Namespace:        "default",
 				Name:             "foo",
 				Hostname:         "bar",
@@ -297,7 +297,7 @@ func TestNewIngressFromKube(tt *testing.T) {
 			msg:                     "test default NLB with internal annotations fallbacks to ALB",
 			defaultLoadBalancerType: aws.LoadBalancerTypeNetwork,
 			ingress: &Ingress{
-				resourceType:     ingressTypeIngress,
+				ResourceType:     TypeIngress,
 				Namespace:        "default",
 				Name:             "foo",
 				Hostname:         "bar",
@@ -331,7 +331,7 @@ func TestNewIngressFromKube(tt *testing.T) {
 			msg:                     "test default ALB with lb type annotation nlb and internal annotation uses NLB",
 			defaultLoadBalancerType: aws.LoadBalancerTypeApplication,
 			ingress: &Ingress{
-				resourceType:     ingressTypeIngress,
+				ResourceType:     TypeIngress,
 				Namespace:        "default",
 				Name:             "foo",
 				Hostname:         "bar",
@@ -366,7 +366,7 @@ func TestNewIngressFromKube(tt *testing.T) {
 			msg:                     "test default NLB with WAF fallbacks to ALB",
 			defaultLoadBalancerType: aws.LoadBalancerTypeNetwork,
 			ingress: &Ingress{
-				resourceType:     ingressTypeIngress,
+				ResourceType:     TypeIngress,
 				Namespace:        "default",
 				Name:             "foo",
 				Hostname:         "bar",
@@ -455,7 +455,7 @@ func TestNewIngressFromKube(tt *testing.T) {
 			} else {
 				assert.NoError(t, err)
 				assert.Equal(t, tc.ingress, got, "mapping from kubernetes ingress to adapter failed")
-				assert.Equal(t, got.String(), fmt.Sprintf("%s %s/%s", tc.ingress.resourceType, tc.ingress.Namespace, tc.ingress.Name), "wrong value from String()")
+				assert.Equal(t, got.String(), fmt.Sprintf("%s %s/%s", tc.ingress.ResourceType, tc.ingress.Namespace, tc.ingress.Name), "wrong value from String()")
 			}
 		})
 	}
@@ -548,7 +548,7 @@ func TestAdapterUpdateIngressLoadBalancer(t *testing.T) {
 		Name:           "foo",
 		Hostname:       "bar",
 		CertificateARN: "zbr",
-		resourceType:   ingressTypeIngress,
+		ResourceType:   TypeIngress,
 	}
 	if err := a.UpdateIngressLoadBalancer(ing, "bar"); err != ErrUpdateNotNeeded {
 		t.Error("expected ErrUpdateNotNeeded")
@@ -577,7 +577,7 @@ func TestUpdateRouteGroupLoadBalancer(t *testing.T) {
 		Name:           "foo",
 		Hostname:       "bar",
 		CertificateARN: "zbr",
-		resourceType:   ingressTypeRouteGroup,
+		ResourceType:   TypeRouteGroup,
 	}
 	if err := a.UpdateIngressLoadBalancer(ing, "bar"); err != ErrUpdateNotNeeded {
 		t.Error("expected ErrUpdateNotNeeded")
@@ -606,7 +606,7 @@ func TestUpdateFabricGatewayLoadBalancer(t *testing.T) {
 		Name:           "foo",
 		Hostname:       "bar",
 		CertificateARN: "zbr",
-		resourceType:   ingressTypeFabric,
+		ResourceType:   TypeFabricGateway,
 	}
 	if err := a.UpdateIngressLoadBalancer(ing, "bar"); err != ErrUpdateNotNeeded {
 		t.Error("expected ErrUpdateNotNeeded")

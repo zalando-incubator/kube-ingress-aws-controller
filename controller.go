@@ -95,6 +95,8 @@ var (
 var metrics = struct {
 	lastSyncTimestamp              prometheus.Gauge
 	ingressesTotal                 prometheus.Gauge
+	routegroupsTotal               prometheus.Gauge
+	fabricgatewaysTotal            prometheus.Gauge
 	stacksTotal                    prometheus.Gauge
 	ownedAutoscalingGroupsTotal    prometheus.Gauge
 	targetedAutoscalingGroupsTotal prometheus.Gauge
@@ -116,7 +118,23 @@ var metrics = struct {
 			Namespace: "kube_ingress_aws",
 			Subsystem: "controller",
 			Name:      "ingresses_total",
-			Help:      "Number of managed Kubernetes Ingresses and Route Groups",
+			Help:      "Number of managed Kubernetes Ingresses",
+		},
+	),
+	routegroupsTotal: prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Namespace: "kube_ingress_aws",
+			Subsystem: "controller",
+			Name:      "routegroups_total",
+			Help:      "Number of managed Route Groups",
+		},
+	),
+	fabricgatewaysTotal: prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Namespace: "kube_ingress_aws",
+			Subsystem: "controller",
+			Name:      "fabricgateways_total",
+			Help:      "Number of managed Fabric Gateways",
 		},
 	),
 	stacksTotal: prometheus.NewGauge(
@@ -180,6 +198,8 @@ var metrics = struct {
 func init() {
 	prometheus.MustRegister(metrics.lastSyncTimestamp)
 	prometheus.MustRegister(metrics.ingressesTotal)
+	prometheus.MustRegister(metrics.routegroupsTotal)
+	prometheus.MustRegister(metrics.fabricgatewaysTotal)
 	prometheus.MustRegister(metrics.stacksTotal)
 	prometheus.MustRegister(metrics.ownedAutoscalingGroupsTotal)
 	prometheus.MustRegister(metrics.targetedAutoscalingGroupsTotal)

@@ -26,26 +26,13 @@ type Adapter struct {
 	fabricSupport                  bool
 }
 
-type ingressType int
+type IngressType string
 
 const (
-	ingressTypeIngress ingressType = iota + 1
-	ingressTypeRouteGroup
-	ingressTypeFabric
+	TypeIngress       IngressType = "ingress"
+	TypeRouteGroup    IngressType = "routegroup"
+	TypeFabricGateway IngressType = "fabricgateway"
 )
-
-func (t ingressType) String() string {
-	switch t {
-	case ingressTypeIngress:
-		return "ingress"
-	case ingressTypeRouteGroup:
-		return "routegroup"
-	case ingressTypeFabric:
-		return "fabric"
-	default:
-		return "unknown"
-	}
-}
 
 const (
 	DefaultClusterLocalDomain = ".cluster.local"
@@ -85,12 +72,13 @@ var (
 // Ingress is the ingress-controller's business object. It is used to
 // store Kubernetes ingress and routegroup resources.
 type Ingress struct {
+	ResourceType     IngressType
+	Namespace        string
+	Name             string
 	Shared           bool
 	HTTP2            bool
 	ClusterLocal     bool
 	CertificateARN   string
-	Namespace        string
-	Name             string
 	Hostname         string
 	Scheme           string
 	SecurityGroup    string
@@ -99,12 +87,11 @@ type Ingress struct {
 	LoadBalancerType string
 	WAFWebACLID      string
 	Hostnames        []string
-	resourceType     ingressType
 }
 
 // String returns a string representation of the Ingress instance containing the type, namespace and the resource name.
 func (i *Ingress) String() string {
-	return fmt.Sprintf("%s %s/%s", i.resourceType, i.Namespace, i.Name)
+	return fmt.Sprintf("%s %s/%s", i.ResourceType, i.Namespace, i.Name)
 }
 
 // ConfigMap is the ingress-controller's representation of a Kubernetes
@@ -159,7 +146,7 @@ func (a *Adapter) newIngressFromKube(kubeIngress *ingress) (*Ingress, error) {
 		}
 	}
 
-	return a.newIngress(ingressTypeIngress, kubeIngress.Metadata, host, hostnames)
+	return a.newIngress(TypeIngress, kubeIngress.Metadata, host, hostnames)
 }
 
 func (a *Adapter) newIngressFromRouteGroup(rg *routegroup) (*Ingress, error) {
@@ -178,7 +165,7 @@ func (a *Adapter) newIngressFromRouteGroup(rg *routegroup) (*Ingress, error) {
 		}
 	}
 
-	return a.newIngress(ingressTypeRouteGroup, rg.Metadata, host, hostnames)
+	return a.newIngress(TypeRouteGroup, rg.Metadata, host, hostnames)
 }
 
 func (a *Adapter) newIngressFromFabric(fg *fabric) (*Ingress, error) {
@@ -206,10 +193,10 @@ func (a *Adapter) newIngressFromFabric(fg *fabric) (*Ingress, error) {
 		}
 	}
 
-	return a.newIngress(ingressTypeFabric, fg.Metadata, host, hostnames)
+	return a.newIngress(TypeFabricGateway, fg.Metadata, host, hostnames)
 }
 
-func (a *Adapter) newIngress(typ ingressType, metadata kubeItemMetadata, host string, hostnames []string) (*Ingress, error) {
+func (a *Adapter) newIngress(typ IngressType, metadata kubeItemMetadata, host string, hostnames []string) (*Ingress, error) {
 	annotations := metadata.Annotations
 
 	var scheme string
@@ -280,7 +267,7 @@ func (a *Adapter) newIngress(typ ingressType, metadata kubeItemMetadata, host st
 	}
 
 	return &Ingress{
-		resourceType:     typ,
+		ResourceType:     typ,
 		Namespace:        metadata.Namespace,
 		Name:             metadata.Name,
 		Hostname:         host,
@@ -364,7 +351,7 @@ func (a *Adapter) ListIngress() ([]*Ingress, error) {
 			ret = append(ret, ing)
 		} else {
 			log.WithFields(log.Fields{
-				"type": ingressTypeIngress.String(),
+				"type": TypeIngress,
 				"ns":   ingress.Metadata.Namespace,
 				"name": ingress.Metadata.Name,
 			}).Errorf("%v", err)
@@ -393,7 +380,7 @@ func (a *Adapter) ListRoutegroups() ([]*Ingress, error) {
 			ret = append(ret, ing)
 		} else {
 			log.WithFields(log.Fields{
-				"type": ingressTypeRouteGroup.String(),
+				"type": TypeRouteGroup,
 				"ns":   rg.Metadata.Namespace,
 				"name": rg.Metadata.Name,
 			}).Errorf("%v", err)
@@ -422,7 +409,7 @@ func (a *Adapter) ListFabricgateways() ([]*Ingress, error) {
 			ret = append(ret, ing)
 		} else {
 			log.WithFields(log.Fields{
-				"type": ingressTypeFabric.String(),
+				"type": TypeFabricGateway,
 				"ns":   fg.Metadata.Namespace,
 				"name": fg.Metadata.Name,
 			}).Errorf("%v", err)
@@ -476,15 +463,15 @@ func (a *Adapter) UpdateIngressLoadBalancer(ingress *Ingress, loadBalancerDNSNam
 		return ErrUpdateNotNeeded
 	}
 
-	switch ingress.resourceType {
-	case ingressTypeFabric:
+	switch ingress.ResourceType {
+	case TypeFabricGateway:
 		return updateFabricgatewayLoadBalancer(a.kubeClient, ingress.Namespace, ingress.Name, loadBalancerDNSName)
-	case ingressTypeRouteGroup:
+	case TypeRouteGroup:
 		return updateRoutegroupLoadBalancer(a.kubeClient, ingress.Namespace, ingress.Name, loadBalancerDNSName)
-	case ingressTypeIngress:
+	case TypeIngress:
 		return a.ingressClient.updateIngressLoadBalancer(a.kubeClient, ingress.Namespace, ingress.Name, loadBalancerDNSName)
 	}
-	return fmt.Errorf("Unknown resourceType '%s', failed to update Kubernetes resource", ingress.resourceType)
+	return fmt.Errorf("Unknown resourceType '%s', failed to update Kubernetes resource", ingress.ResourceType)
 }
 
 // GetConfigMap retrieves the ConfigMap with name from namespace.
