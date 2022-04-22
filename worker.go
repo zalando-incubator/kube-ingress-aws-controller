@@ -297,14 +297,6 @@ func doWork(
 		return problems.Add("failed to retrieve cloudwatch alarm configuration: %w", err)
 	}
 
-	// TODO: remove after transition to the metrics
-	log.Infof("Found %d owned auto scaling group(s)", len(awsAdapter.OwnedAutoScalingGroups))
-	log.Infof("Found %d targeted auto scaling group(s)", len(awsAdapter.TargetedAutoScalingGroups))
-	log.Infof("Found %d single instance(s)", len(awsAdapter.SingleInstances()))
-	log.Infof("Found %d EC2 instance(s)", awsAdapter.CachedInstances())
-	log.Infof("Found %d certificate(s)", len(certificateSummaries))
-	log.Infof("Found %d cloudwatch alarm configuration(s)", len(cwAlarms))
-
 	counts := countByIngressType(ingresses)
 
 	metrics.ingressesTotal.Set(float64(counts[kubernetes.TypeIngress]))
@@ -317,6 +309,17 @@ func doWork(
 	metrics.standaloneInstancesTotal.Set(float64(len(awsAdapter.SingleInstances())))
 	metrics.certificatesTotal.Set(float64(len(certificateSummaries)))
 	metrics.cloudWatchAlarmsTotal.Set(float64(len(cwAlarms)))
+
+	log.Debugf("Found %d ingress(es)", counts[kubernetes.TypeIngress])
+	log.Debugf("Found %d route group(s)", counts[kubernetes.TypeRouteGroup])
+	log.Debugf("Found %d fabric gateway(s)", counts[kubernetes.TypeFabricGateway])
+	log.Debugf("Found %d stack(s)", len(stacks))
+	log.Debugf("Found %d owned auto scaling group(s)", len(awsAdapter.OwnedAutoScalingGroups))
+	log.Debugf("Found %d targeted auto scaling group(s)", len(awsAdapter.TargetedAutoScalingGroups))
+	log.Debugf("Found %d EC2 instance(s)", awsAdapter.CachedInstances())
+	log.Debugf("Found %d single instance(s)", len(awsAdapter.SingleInstances()))
+	log.Debugf("Found %d certificate(s)", len(certificateSummaries))
+	log.Debugf("Found %d cloudwatch alarm configuration(s)", len(cwAlarms))
 
 	awsAdapter.UpdateTargetGroupsAndAutoScalingGroups(stacks, problems)
 
