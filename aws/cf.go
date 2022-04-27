@@ -21,6 +21,7 @@ const (
 type Stack struct {
 	Name              string
 	status            string
+	statusReason      string
 	DNSName           string
 	Scheme            string
 	SecurityGroup     string
@@ -67,6 +68,29 @@ func (s *Stack) ShouldDelete() bool {
 	}
 
 	return true
+}
+
+// Err returns nil or an error describing the stack state.
+func (s *Stack) Err() error {
+	if s == nil {
+		return nil
+	}
+
+	switch s.status {
+	case cloudformation.StackStatusCreateInProgress,
+		cloudformation.StackStatusCreateComplete,
+		cloudformation.StackStatusUpdateInProgress,
+		cloudformation.StackStatusUpdateComplete,
+		cloudformation.StackStatusUpdateCompleteCleanupInProgress,
+		cloudformation.StackStatusDeleteInProgress,
+		cloudformation.StackStatusDeleteComplete:
+		return nil
+	}
+
+	if s.statusReason != "" {
+		return fmt.Errorf("unexpected status %s: %s", s.status, s.statusReason)
+	}
+	return fmt.Errorf("unexpected status %s", s.status)
 }
 
 type stackOutput map[string]string
@@ -472,6 +496,7 @@ func mapToManagedStack(stack *cloudformation.Stack) *Stack {
 		tags:              tags,
 		OwnerIngress:      ownerIngress,
 		status:            aws.StringValue(stack.StackStatus),
+		statusReason:      aws.StringValue(stack.StackStatusReason),
 		CWAlarmConfigHash: tags[cwAlarmConfigHashTag],
 		WAFWebACLID:       parameters[parameterLoadBalancerWAFWebACLIDParameter],
 	}
