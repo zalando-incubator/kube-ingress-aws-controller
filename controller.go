@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"net/http"
 	"os"
 	"os/signal"
 	"path"
@@ -13,8 +12,6 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go/service/elbv2"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 	log "github.com/sirupsen/logrus"
 	"github.com/zalando-incubator/kube-ingress-aws-controller/aws"
 	"github.com/zalando-incubator/kube-ingress-aws-controller/certs"
@@ -92,121 +89,8 @@ var (
 	defaultInternalDomains        = fmt.Sprintf("*%s", kubernetes.DefaultClusterLocalDomain)
 )
 
-var metrics = struct {
-	lastSyncTimestamp              prometheus.Gauge
-	ingressesTotal                 prometheus.Gauge
-	routegroupsTotal               prometheus.Gauge
-	fabricgatewaysTotal            prometheus.Gauge
-	stacksTotal                    prometheus.Gauge
-	ownedAutoscalingGroupsTotal    prometheus.Gauge
-	targetedAutoscalingGroupsTotal prometheus.Gauge
-	instancesTotal                 prometheus.Gauge
-	standaloneInstancesTotal       prometheus.Gauge
-	certificatesTotal              prometheus.Gauge
-	cloudWatchAlarmsTotal          prometheus.Gauge
-}{
-	lastSyncTimestamp: prometheus.NewGauge(
-		prometheus.GaugeOpts{
-			Namespace: "kube_ingress_aws",
-			Subsystem: "controller",
-			Name:      "last_sync_timestamp_seconds",
-			Help:      "Timestamp of the last successful controller reconciliation run",
-		},
-	),
-	ingressesTotal: prometheus.NewGauge(
-		prometheus.GaugeOpts{
-			Namespace: "kube_ingress_aws",
-			Subsystem: "controller",
-			Name:      "ingresses_total",
-			Help:      "Number of managed Kubernetes Ingresses",
-		},
-	),
-	routegroupsTotal: prometheus.NewGauge(
-		prometheus.GaugeOpts{
-			Namespace: "kube_ingress_aws",
-			Subsystem: "controller",
-			Name:      "routegroups_total",
-			Help:      "Number of managed Route Groups",
-		},
-	),
-	fabricgatewaysTotal: prometheus.NewGauge(
-		prometheus.GaugeOpts{
-			Namespace: "kube_ingress_aws",
-			Subsystem: "controller",
-			Name:      "fabricgateways_total",
-			Help:      "Number of managed Fabric Gateways",
-		},
-	),
-	stacksTotal: prometheus.NewGauge(
-		prometheus.GaugeOpts{
-			Namespace: "kube_ingress_aws",
-			Subsystem: "controller",
-			Name:      "stacks_total",
-			Help:      "Number of managed Cloud Formation stacks",
-		},
-	),
-	ownedAutoscalingGroupsTotal: prometheus.NewGauge(
-		prometheus.GaugeOpts{
-			Namespace: "kube_ingress_aws",
-			Subsystem: "controller",
-			Name:      "owned_autoscaling_groups_total",
-			Help:      "Number of owned Autoscaling Groups",
-		},
-	),
-	targetedAutoscalingGroupsTotal: prometheus.NewGauge(
-		prometheus.GaugeOpts{
-			Namespace: "kube_ingress_aws",
-			Subsystem: "controller",
-			Name:      "targeted_autoscaling_groups_total",
-			Help:      "Number of targeted Autoscaling Groups",
-		},
-	),
-	instancesTotal: prometheus.NewGauge(
-		prometheus.GaugeOpts{
-			Namespace: "kube_ingress_aws",
-			Subsystem: "controller",
-			Name:      "instances_total",
-			Help:      "Number of managed EC2 instances",
-		},
-	),
-	standaloneInstancesTotal: prometheus.NewGauge(
-		prometheus.GaugeOpts{
-			Namespace: "kube_ingress_aws",
-			Subsystem: "controller",
-			Name:      "standalone_instances_total",
-			Help:      "Number of managed EC2 instances not in the Autoscaling Group",
-		},
-	),
-	certificatesTotal: prometheus.NewGauge(
-		prometheus.GaugeOpts{
-			Namespace: "kube_ingress_aws",
-			Subsystem: "controller",
-			Name:      "certificates_total",
-			Help:      "Number of certificates",
-		},
-	),
-	cloudWatchAlarmsTotal: prometheus.NewGauge(
-		prometheus.GaugeOpts{
-			Namespace: "kube_ingress_aws",
-			Subsystem: "controller",
-			Name:      "cloud_watch_alarms_total",
-			Help:      "Number of Cloud Watch Alarms",
-		},
-	),
-}
-
 func init() {
-	prometheus.MustRegister(metrics.lastSyncTimestamp)
-	prometheus.MustRegister(metrics.ingressesTotal)
-	prometheus.MustRegister(metrics.routegroupsTotal)
-	prometheus.MustRegister(metrics.fabricgatewaysTotal)
-	prometheus.MustRegister(metrics.stacksTotal)
-	prometheus.MustRegister(metrics.ownedAutoscalingGroupsTotal)
-	prometheus.MustRegister(metrics.targetedAutoscalingGroupsTotal)
-	prometheus.MustRegister(metrics.instancesTotal)
-	prometheus.MustRegister(metrics.standaloneInstancesTotal)
-	prometheus.MustRegister(metrics.certificatesTotal)
-	prometheus.MustRegister(metrics.cloudWatchAlarmsTotal)
+	registerMetrics()
 }
 
 func loadSettings() error {
@@ -537,9 +421,4 @@ func handleTerminationSignals(cancelFunc func(), signals ...os.Signal) {
 	signal.Notify(sigsc, signals...)
 	<-sigsc
 	cancelFunc()
-}
-
-func serveMetrics(address string) {
-	http.Handle("/metrics", promhttp.Handler())
-	log.Fatal(http.ListenAndServe(address, nil))
 }

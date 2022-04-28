@@ -535,6 +535,7 @@ func createStack(awsAdapter *aws.Adapter, lb *loadBalancer, problems *problem.Li
 		}
 		problems.Add("failed to create stack %q: %w", certificates, err)
 	} else {
+		metrics.changesTotal.created("stack")
 		log.Infof("Stack %q for certificates %q created", stackId, certificates)
 	}
 }
@@ -550,6 +551,7 @@ func updateStack(awsAdapter *aws.Adapter, lb *loadBalancer, problems *problem.Li
 	} else if err != nil {
 		problems.Add("failed to update stack %q: %w", certificates, err)
 	} else {
+		metrics.changesTotal.updated("stack")
 		log.Infof("Stack %q for certificate %q updated", stackId, certificates)
 	}
 }
@@ -591,6 +593,7 @@ func updateIngress(kubeAdapter *kubernetes.Adapter, lb *loadBalancer, problems *
 					problems.Add("failed to update %s: %w", ing, err)
 				}
 			} else {
+				metrics.changesTotal.updated(string(ing.ResourceType))
 				log.Infof("Updated %s with DNS name %s", ing, dnsName)
 			}
 		}
@@ -602,6 +605,7 @@ func deleteStack(awsAdapter *aws.Adapter, lb *loadBalancer, problems *problem.Li
 	if err := awsAdapter.DeleteStack(lb.stack); err != nil {
 		problems.Add("failed to delete stack %q: %w", stackName, err)
 	} else {
+		metrics.changesTotal.deleted("stack")
 		log.Infof("Deleted orphaned stack %q", stackName)
 	}
 }
