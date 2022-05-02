@@ -282,6 +282,12 @@ func doWork(
 		return problems.Add("failed to list managed stacks: %w", err)
 	}
 
+	for _, stack := range stacks {
+		if err := stack.Err(); err != nil {
+			problems.Add("stack %s error: %w", stack.Name, err)
+		}
+	}
+
 	err = awsAdapter.UpdateAutoScalingGroupsAndInstances()
 	if err != nil {
 		return problems.Add("failed to get instances from EC2: %w", err)

@@ -7,6 +7,7 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/cloudformation"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestCreatingStack(t *testing.T) {
@@ -258,6 +259,45 @@ func TestIsComplete(t *testing.T) {
 		})
 	}
 
+}
+
+func TestErr(t *testing.T) {
+	const NONE = ""
+	for _, ti := range []struct {
+		stack         *Stack
+		expectedError string
+	}{
+		{stack: nil, expectedError: NONE},
+		{stack: &Stack{status: cloudformation.StackStatusCreateInProgress}, expectedError: NONE},
+		{stack: &Stack{status: cloudformation.StackStatusCreateComplete}, expectedError: NONE},
+		{stack: &Stack{status: cloudformation.StackStatusUpdateInProgress}, expectedError: NONE},
+		{stack: &Stack{status: cloudformation.StackStatusUpdateComplete}, expectedError: NONE},
+		{stack: &Stack{status: cloudformation.StackStatusUpdateCompleteCleanupInProgress}, expectedError: NONE},
+		{stack: &Stack{status: cloudformation.StackStatusDeleteInProgress}, expectedError: NONE},
+		{stack: &Stack{status: cloudformation.StackStatusDeleteComplete}, expectedError: NONE},
+		//
+		{stack: &Stack{status: cloudformation.StackStatusUpdateRollbackComplete}, expectedError: "unexpected status UPDATE_ROLLBACK_COMPLETE"},
+		{
+			stack: &Stack{
+				status:       cloudformation.StackStatusUpdateRollbackInProgress,
+				statusReason: "Parameter validation failed: parameter value sg-xxx for parameter name LoadBalancerSecurityGroupParameter does not exist",
+			},
+			expectedError: "unexpected status UPDATE_ROLLBACK_IN_PROGRESS: Parameter validation failed: parameter value sg-xxx for parameter name LoadBalancerSecurityGroupParameter does not exist",
+		},
+	} {
+		testName := "nil stack"
+		if ti.stack != nil {
+			testName = ti.stack.status
+		}
+		t.Run(testName, func(t *testing.T) {
+			err := ti.stack.Err()
+			if ti.expectedError == NONE {
+				assert.NoError(t, err)
+			} else {
+				assert.EqualError(t, err, ti.expectedError)
+			}
+		})
+	}
 }
 
 func TestManagementAssertion(t *testing.T) {
