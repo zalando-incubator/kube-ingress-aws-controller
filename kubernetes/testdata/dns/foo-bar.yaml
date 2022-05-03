@@ -1,0 +1,16 @@
+apiVersion: externaldns.k8s.io/v1alpha1
+kind: DNSEndpoint
+metadata:
+  namespace: kube-system
+  name: kube-ingress-aws-controller-dns
+  creationTimestamp: null # workaround https://github.com/kubernetes/apimachinery/issues/119
+spec:
+  endpoints:
+    - dnsName: bar.test
+      recordType: CNAME
+      targets:
+        - kube-ing-lb-2
+    - dnsName: foo.test
+      recordType: CNAME
+      targets:
+        - kube-ing-lb-1

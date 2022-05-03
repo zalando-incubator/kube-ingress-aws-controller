@@ -521,6 +521,10 @@ func (c *mockClient) patch(res string, payload []byte) (io.ReadCloser, error) {
 	return nil, errors.New("mocked error")
 }
 
+func (c *mockClient) post(res string, payload []byte) (io.ReadCloser, error) {
+	return nil, errors.New("not implemented")
+}
+
 func TestListIngress(t *testing.T) {
 	a, _ := NewAdapter(testConfig, IngressAPIVersionNetworking, testIngressFilter, testIngressDefaultSecurityGroup, testSSLPolicy, aws.LoadBalancerTypeApplication, DefaultClusterLocalDomain, false)
 	client := &mockClient{}

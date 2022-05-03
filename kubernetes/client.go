@@ -26,6 +26,7 @@ var ErrNoPermissionToAccessResource = errors.New("no permission to access resour
 type client interface {
 	get(string) (io.ReadCloser, error)
 	patch(string, []byte) (io.ReadCloser, error)
+	post(string, []byte) (io.ReadCloser, error)
 }
 
 type simpleClient struct {
@@ -114,11 +115,7 @@ func (c *simpleClient) get(resource string) (io.ReadCloser, error) {
 	if resp.StatusCode == http.StatusForbidden {
 		return nil, ErrNoPermissionToAccessResource
 	}
-	b, err := io.ReadAll(resp.Body)
-	if err == nil {
-		err = fmt.Errorf("unexpected status code (%s) for GET %q: %s", http.StatusText(resp.StatusCode), resource, b)
-	}
-	return nil, err
+	return unexpectedStatusError(req, resp)
 }
 
 func (c *simpleClient) patch(resource string, payload []byte) (io.ReadCloser, error) {
@@ -131,17 +128,32 @@ func (c *simpleClient) patch(resource string, payload []byte) (io.ReadCloser, er
 	if err != nil {
 		return nil, err
 	}
-	if resp.StatusCode != http.StatusOK {
-		var err error
-		b, err := io.ReadAll(resp.Body)
-		if err == nil {
-			err = fmt.Errorf("unexpected status code (%s) for PATCH %q: %s", http.StatusText(resp.StatusCode), resource, b)
-		}
 
-		resp.Body.Close()
-		return io.NopCloser(bytes.NewBuffer(b)), err
+	if resp.StatusCode == http.StatusOK {
+		return resp.Body, nil
 	}
-	return resp.Body, nil
+	defer resp.Body.Close()
+
+	return unexpectedStatusError(req, resp)
+}
+
+func (c *simpleClient) post(resource string, payload []byte) (io.ReadCloser, error) {
+	req, err := c.createRequest("POST", resource, bytes.NewReader(payload))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+
+	if resp.StatusCode == http.StatusCreated {
+		return resp.Body, nil
+	}
+	defer resp.Body.Close()
+
+	return unexpectedStatusError(req, resp)
 }
 
 func (c *simpleClient) createRequest(method, resource string, body io.Reader) (*http.Request, error) {
@@ -202,4 +214,12 @@ func (a *Adapter) NewInclusterConfigClientset(ctx context.Context) error {
 	cfg.TLSClientConfig = rest.TLSClientConfig{}
 	a.clientset, err = kubernetes.NewForConfig(cfg)
 	return err
+}
+
+func unexpectedStatusError(req *http.Request, resp *http.Response) (io.ReadCloser, error) {
+	b, err := io.ReadAll(resp.Body)
+	if err == nil {
+		err = fmt.Errorf("unexpected status code (%s) for %s %q: %s", http.StatusText(resp.StatusCode), req.Method, req.URL.Path, b)
+	}
+	return io.NopCloser(bytes.NewBuffer(b)), err
 }

@@ -1,0 +1,14 @@
+spec:
+  endpoints:
+    - dnsName: bar.test
+      recordType: CNAME
+      targets:
+        - kube-ing-lb-3
+    - dnsName: baz.test
+      recordType: CNAME
+      targets:
+        - kube-ing-lb-3
+    - dnsName: foo.test
+      recordType: CNAME
+      targets:
+        - kube-ing-lb-3

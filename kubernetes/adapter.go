@@ -26,6 +26,12 @@ type Adapter struct {
 	fabricSupport                  bool
 }
 
+type DNSUpdater interface {
+	UpdateHostnames(loadBalancerHostnames map[string]string) error
+}
+
+var _ DNSUpdater = (*Adapter)(nil)
+
 type IngressType string
 
 const (
@@ -49,9 +55,9 @@ var (
 	// ErrInvalidIngressUpdateARNParams is returned when a request to update ingress resources has an empty ARN
 	// or doesn't specify any ingress resources
 	ErrInvalidIngressUpdateARNParams = errors.New("invalid ingress updateARN parameters")
-	// ErrUpdateNotNeeded is returned when an ingress update call doesn't require an update due to already having
-	// the desired hostname
-	ErrUpdateNotNeeded = errors.New("update to ingress resource not needed")
+	// ErrUpdateNotNeeded is returned when a resource update call doesn't require an update due to already having
+	// the desired state
+	ErrUpdateNotNeeded = errors.New("resource update not needed")
 	// ErrInvalidConfiguration is returned when the Kubernetes configuration is missing required attributes
 	ErrInvalidConfiguration = errors.New("invalid Kubernetes Adapter configuration")
 	// ErrInvalidCertificates is returned when the CA certificates required to communicate with the
@@ -472,6 +478,10 @@ func (a *Adapter) UpdateIngressLoadBalancer(ingress *Ingress, loadBalancerDNSNam
 		return a.ingressClient.updateIngressLoadBalancer(a.kubeClient, ingress.Namespace, ingress.Name, loadBalancerDNSName)
 	}
 	return fmt.Errorf("Unknown resourceType '%s', failed to update Kubernetes resource", ingress.ResourceType)
+}
+
+func (a *Adapter) UpdateHostnames(loadBalancerHostnames map[string]string) error {
+	return updateHostnames(a.kubeClient, loadBalancerHostnames)
 }
 
 // GetConfigMap retrieves the ConfigMap with name from namespace.

@@ -20,7 +20,7 @@ const (
 // Stack is a simple wrapper around a CloudFormation Stack.
 type Stack struct {
 	Name              string
-	status            string
+	Status            string
 	statusReason      string
 	DNSName           string
 	Scheme            string
@@ -43,7 +43,7 @@ func (s *Stack) IsComplete() bool {
 		return false
 	}
 
-	switch s.status {
+	switch s.Status {
 	case cloudformation.StackStatusCreateComplete,
 		cloudformation.StackStatusUpdateComplete,
 		cloudformation.StackStatusRollbackComplete,
@@ -76,7 +76,7 @@ func (s *Stack) Err() error {
 		return nil
 	}
 
-	switch s.status {
+	switch s.Status {
 	case cloudformation.StackStatusCreateInProgress,
 		cloudformation.StackStatusCreateComplete,
 		cloudformation.StackStatusUpdateInProgress,
@@ -88,9 +88,9 @@ func (s *Stack) Err() error {
 	}
 
 	if s.statusReason != "" {
-		return fmt.Errorf("unexpected status %s: %s", s.status, s.statusReason)
+		return fmt.Errorf("unexpected status %s: %s", s.Status, s.statusReason)
 	}
-	return fmt.Errorf("unexpected status %s", s.status)
+	return fmt.Errorf("unexpected status %s", s.Status)
 }
 
 type stackOutput map[string]string
@@ -495,7 +495,7 @@ func mapToManagedStack(stack *cloudformation.Stack) *Stack {
 		CertificateARNs:   certificateARNs,
 		tags:              tags,
 		OwnerIngress:      ownerIngress,
-		status:            aws.StringValue(stack.StackStatus),
+		Status:            aws.StringValue(stack.StackStatus),
 		statusReason:      aws.StringValue(stack.StackStatusReason),
 		CWAlarmConfigHash: tags[cwAlarmConfigHashTag],
 		WAFWebACLID:       parameters[parameterLoadBalancerWAFWebACLIDParameter],

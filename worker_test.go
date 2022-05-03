@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"crypto/x509"
+	"fmt"
 	"reflect"
 	"sync"
 	"testing"
@@ -14,6 +15,7 @@ import (
 	"github.com/zalando-incubator/kube-ingress-aws-controller/aws"
 	"github.com/zalando-incubator/kube-ingress-aws-controller/certs"
 	"github.com/zalando-incubator/kube-ingress-aws-controller/kubernetes"
+	"github.com/zalando-incubator/kube-ingress-aws-controller/problem"
 	"k8s.io/apimachinery/pkg/util/wait"
 )
 
@@ -1054,4 +1056,192 @@ func TestCountByIngressType(t *testing.T) {
 	assert.Equal(t, 3, counts[kubernetes.TypeIngress])
 	assert.Equal(t, 2, counts[kubernetes.TypeRouteGroup])
 	assert.Equal(t, 1, counts[kubernetes.TypeFabricGateway])
+}
+
+type testDNSUpdater struct {
+	updateHostnames func(loadBalancerHostnames map[string]string) error
+}
+
+func (u *testDNSUpdater) UpdateHostnames(loadBalancerHostnames map[string]string) error {
+	return u.updateHostnames(loadBalancerHostnames)
+}
+
+func TestUpdateDNS(t *testing.T) {
+	fabricGateway := func(hostnames ...string) *kubernetes.Ingress {
+		return &kubernetes.Ingress{ResourceType: kubernetes.TypeFabricGateway, Hostnames: hostnames}
+	}
+	ingress := func(hostnames ...string) *kubernetes.Ingress {
+		return &kubernetes.Ingress{ResourceType: kubernetes.TypeIngress, Hostnames: hostnames}
+	}
+	routeGroup := func(hostnames ...string) *kubernetes.Ingress {
+		return &kubernetes.Ingress{ResourceType: kubernetes.TypeRouteGroup, Hostnames: hostnames}
+	}
+
+	for _, test := range []struct {
+		name            string
+		loadBalancers   []*loadBalancer
+		checkUpdate     func(t *testing.T, loadBalancerHostnames map[string]string) error
+		expectedProblem string
+	}{
+		{
+			name: "successful update",
+			loadBalancers: []*loadBalancer{
+				&loadBalancer{
+					stack: &aws.Stack{
+						Name:    "stack1",
+						DNSName: "kube-ING-LB-1.test",
+						Status:  "UPDATE_COMPLETE",
+					},
+					ingresses: map[string][]*kubernetes.Ingress{
+						"cert1": []*kubernetes.Ingress{
+							fabricGateway("foo.test", "bar.test"),
+							fabricGateway("bar.test"),
+						},
+						"cert2": []*kubernetes.Ingress{
+							fabricGateway("foo.test"),
+							fabricGateway("baz.test"),
+						},
+					},
+				},
+				&loadBalancer{
+					stack: &aws.Stack{
+						Name:    "stack2",
+						DNSName: "kube-ING-LB-2.test",
+						Status:  "UPDATE_COMPLETE",
+					},
+					ingresses: map[string][]*kubernetes.Ingress{
+						"cert1": []*kubernetes.Ingress{
+							fabricGateway("qux.test"),
+						},
+						"cert2": []*kubernetes.Ingress{
+							fabricGateway("baz.test"),
+						},
+					},
+				},
+			},
+			checkUpdate: func(t *testing.T, loadBalancerHostnames map[string]string) error {
+				assert.Equal(t, map[string]string{
+					"foo.test": "kube-ing-lb-1.test",
+					"bar.test": "kube-ing-lb-1.test",
+					"baz.test": "kube-ing-lb-2.test", // second loadbalancer overwrites mapping of the first
+					"qux.test": "kube-ing-lb-2.test",
+				}, loadBalancerHostnames)
+				return nil
+			},
+		},
+		{
+			name: "ignore cluster local, incomplete, missing dns name",
+			loadBalancers: []*loadBalancer{
+				&loadBalancer{
+					clusterLocal: true,
+					stack: &aws.Stack{
+						Name:    "cluster-local-stack",
+						DNSName: ".cluster.local",
+						Status:  "UPDATE_COMPLETE",
+					},
+				},
+				&loadBalancer{
+					stack: &aws.Stack{
+						Name:    "incomplete-stack",
+						DNSName: "kube-ing-lb.test",
+						Status:  "UPDATE_IN_PROGRESS",
+					},
+				},
+				&loadBalancer{
+					stack: &aws.Stack{
+						Name:    "missing-dns-name-stack",
+						DNSName: "",
+						Status:  "UPDATE_COMPLETE",
+					},
+				},
+			},
+			checkUpdate: func(t *testing.T, loadBalancerHostnames map[string]string) error {
+				assert.Empty(t, loadBalancerHostnames)
+				return nil
+			},
+		},
+		{
+			name: "update problem",
+			loadBalancers: []*loadBalancer{
+				&loadBalancer{
+					stack: &aws.Stack{
+						Name:    "test-stack",
+						DNSName: "kube-ing-lb.test",
+						Status:  "UPDATE_COMPLETE",
+					},
+				},
+			},
+			checkUpdate: func(t *testing.T, _ map[string]string) error {
+				return fmt.Errorf("error updating DNS")
+			},
+			expectedProblem: `failed to update loadbalancer hostnames: error updating DNS`,
+		},
+		{
+			name: "update not needed",
+			loadBalancers: []*loadBalancer{
+				&loadBalancer{
+					stack: &aws.Stack{
+						Name:    "test-stack",
+						DNSName: "kube-ing-lb.test",
+						Status:  "UPDATE_COMPLETE",
+					},
+					ingresses: map[string][]*kubernetes.Ingress{
+						"cert1": []*kubernetes.Ingress{
+							fabricGateway("foo.test", "bar.test"),
+						},
+					},
+				},
+			},
+			checkUpdate: func(t *testing.T, loadBalancerHostnames map[string]string) error {
+				assert.NotEmpty(t, loadBalancerHostnames)
+				return kubernetes.ErrUpdateNotNeeded
+			},
+		},
+		{
+			name: "ignore ingress and routegroups",
+			loadBalancers: []*loadBalancer{
+				&loadBalancer{
+					stack: &aws.Stack{
+						Name:    "test-stack",
+						DNSName: "kube-ing-lb.test",
+						Status:  "UPDATE_COMPLETE",
+					},
+					ingresses: map[string][]*kubernetes.Ingress{
+						"cert1": []*kubernetes.Ingress{
+							fabricGateway("foo.test", "bar.test"),
+							ingress("baz.test"),
+							routeGroup("qux.test"),
+						},
+					},
+				},
+			},
+			checkUpdate: func(t *testing.T, loadBalancerHostnames map[string]string) error {
+				assert.Equal(t, map[string]string{
+					"foo.test": "kube-ing-lb.test",
+					"bar.test": "kube-ing-lb.test",
+				}, loadBalancerHostnames)
+				return nil
+			},
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			updater := &testDNSUpdater{
+				updateHostnames: func(loadBalancerHostnames map[string]string) error {
+					return test.checkUpdate(t, loadBalancerHostnames)
+				},
+			}
+			problems := new(problem.List)
+
+			updateDNS(updater, test.loadBalancers, problems)
+
+			errs := problems.Errors()
+			if test.expectedProblem != "" {
+				require.Len(t, errs, 1)
+				t.Log(errs[0], test.expectedProblem)
+				assert.EqualError(t, errs[0], test.expectedProblem)
+			} else {
+				assert.Empty(t, errs)
+			}
+		})
+	}
 }

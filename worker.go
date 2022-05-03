@@ -346,6 +346,8 @@ func doWork(
 			updateIngress(kubeAdapter, loadBalancer, problems)
 		}
 	}
+	updateDNS(kubeAdapter, model, problems)
+
 	return
 }
 
@@ -603,6 +605,44 @@ func updateIngress(kubeAdapter *kubernetes.Adapter, lb *loadBalancer, problems *
 				log.Infof("Updated %s with DNS name %s", ing, dnsName)
 			}
 		}
+	}
+}
+
+func updateDNS(dnsUpdater kubernetes.DNSUpdater, model []*loadBalancer, problems *problem.List) {
+	loadBalancerHostnames := make(map[string]string)
+
+	for _, lb := range model {
+		if lb.clusterLocal {
+			continue
+		}
+		if !lb.stack.IsComplete() {
+			continue
+		}
+		if lb.stack.DNSName == "" {
+			continue
+		}
+		dnsName := strings.ToLower(lb.stack.DNSName)
+
+		for _, ingresses := range lb.ingresses {
+			for _, ingress := range ingresses {
+				if ingress.ResourceType != kubernetes.TypeFabricGateway {
+					continue
+				}
+				for _, hostname := range ingress.Hostnames {
+					loadBalancerHostnames[hostname] = dnsName
+				}
+			}
+		}
+	}
+
+	if err := dnsUpdater.UpdateHostnames(loadBalancerHostnames); err != nil {
+		if err == kubernetes.ErrUpdateNotNeeded {
+			log.Debug("Loadbalancer hostnames update not needed")
+		} else {
+			problems.Add("failed to update loadbalancer hostnames: %w", err)
+		}
+	} else {
+		log.Infof("Loadbalancer hostnames updated")
 	}
 }
 

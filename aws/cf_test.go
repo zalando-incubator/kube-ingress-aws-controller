@@ -251,7 +251,7 @@ func TestIsComplete(t *testing.T) {
 		{"dummy-status", false},
 	} {
 		t.Run(ti.given, func(t *testing.T) {
-			stack := &Stack{status: ti.given}
+			stack := &Stack{Status: ti.given}
 			got := stack.IsComplete()
 			if ti.want != got {
 				t.Errorf("unexpected result. wanted %+v, got %+v", ti.want, got)
@@ -268,18 +268,18 @@ func TestErr(t *testing.T) {
 		expectedError string
 	}{
 		{stack: nil, expectedError: NONE},
-		{stack: &Stack{status: cloudformation.StackStatusCreateInProgress}, expectedError: NONE},
-		{stack: &Stack{status: cloudformation.StackStatusCreateComplete}, expectedError: NONE},
-		{stack: &Stack{status: cloudformation.StackStatusUpdateInProgress}, expectedError: NONE},
-		{stack: &Stack{status: cloudformation.StackStatusUpdateComplete}, expectedError: NONE},
-		{stack: &Stack{status: cloudformation.StackStatusUpdateCompleteCleanupInProgress}, expectedError: NONE},
-		{stack: &Stack{status: cloudformation.StackStatusDeleteInProgress}, expectedError: NONE},
-		{stack: &Stack{status: cloudformation.StackStatusDeleteComplete}, expectedError: NONE},
+		{stack: &Stack{Status: cloudformation.StackStatusCreateInProgress}, expectedError: NONE},
+		{stack: &Stack{Status: cloudformation.StackStatusCreateComplete}, expectedError: NONE},
+		{stack: &Stack{Status: cloudformation.StackStatusUpdateInProgress}, expectedError: NONE},
+		{stack: &Stack{Status: cloudformation.StackStatusUpdateComplete}, expectedError: NONE},
+		{stack: &Stack{Status: cloudformation.StackStatusUpdateCompleteCleanupInProgress}, expectedError: NONE},
+		{stack: &Stack{Status: cloudformation.StackStatusDeleteInProgress}, expectedError: NONE},
+		{stack: &Stack{Status: cloudformation.StackStatusDeleteComplete}, expectedError: NONE},
 		//
-		{stack: &Stack{status: cloudformation.StackStatusUpdateRollbackComplete}, expectedError: "unexpected status UPDATE_ROLLBACK_COMPLETE"},
+		{stack: &Stack{Status: cloudformation.StackStatusUpdateRollbackComplete}, expectedError: "unexpected status UPDATE_ROLLBACK_COMPLETE"},
 		{
 			stack: &Stack{
-				status:       cloudformation.StackStatusUpdateRollbackInProgress,
+				Status:       cloudformation.StackStatusUpdateRollbackInProgress,
 				statusReason: "Parameter validation failed: parameter value sg-xxx for parameter name LoadBalancerSecurityGroupParameter does not exist",
 			},
 			expectedError: "unexpected status UPDATE_ROLLBACK_IN_PROGRESS: Parameter validation failed: parameter value sg-xxx for parameter name LoadBalancerSecurityGroupParameter does not exist",
@@ -287,7 +287,7 @@ func TestErr(t *testing.T) {
 	} {
 		testName := "nil stack"
 		if ti.stack != nil {
-			testName = ti.stack.status
+			testName = ti.stack.Status
 		}
 		t.Run(testName, func(t *testing.T) {
 			err := ti.stack.Err()
@@ -481,7 +481,7 @@ func TestFindManagedStacks(t *testing.T) {
 						clusterIDTagPrefix + "test-cluster":  resourceLifecycleOwned,
 						certificateARNTagPrefix + "cert-arn": time.Time{}.Format(time.RFC3339),
 					},
-					status: cloudformation.StackStatusUpdateInProgress,
+					Status: cloudformation.StackStatusUpdateInProgress,
 					HTTP2:  true,
 				},
 				{
@@ -496,7 +496,7 @@ func TestFindManagedStacks(t *testing.T) {
 						clusterIDTagPrefix + "test-cluster":  resourceLifecycleOwned,
 						certificateARNTagPrefix + "cert-arn": time.Time{}.Format(time.RFC3339),
 					},
-					status: cloudformation.StackStatusCreateComplete,
+					Status: cloudformation.StackStatusCreateComplete,
 					HTTP2:  true,
 				},
 				{
@@ -511,7 +511,7 @@ func TestFindManagedStacks(t *testing.T) {
 						clusterIDTagPrefix + "test-cluster":  resourceLifecycleOwned,
 						certificateARNTagPrefix + "cert-arn": time.Time{}.Format(time.RFC3339),
 					},
-					status: cloudformation.StackStatusCreateComplete,
+					Status: cloudformation.StackStatusCreateComplete,
 					HTTP2:  true,
 				},
 				{
@@ -521,7 +521,7 @@ func TestFindManagedStacks(t *testing.T) {
 						kubernetesCreatorTag:                DefaultControllerID,
 						clusterIDTagPrefix + "test-cluster": resourceLifecycleOwned,
 					},
-					status: cloudformation.StackStatusUpdateInProgress,
+					Status: cloudformation.StackStatusUpdateInProgress,
 					HTTP2:  true,
 				},
 			},
@@ -570,7 +570,7 @@ func TestFindManagedStacks(t *testing.T) {
 						kubernetesCreatorTag:                DefaultControllerID,
 						clusterIDTagPrefix + "test-cluster": resourceLifecycleOwned,
 					},
-					status: cloudformation.StackStatusReviewInProgress,
+					Status: cloudformation.StackStatusReviewInProgress,
 					HTTP2:  true,
 				},
 				{
@@ -582,7 +582,7 @@ func TestFindManagedStacks(t *testing.T) {
 						kubernetesCreatorTag:                DefaultControllerID,
 						clusterIDTagPrefix + "test-cluster": resourceLifecycleOwned,
 					},
-					status: cloudformation.StackStatusRollbackComplete,
+					Status: cloudformation.StackStatusRollbackComplete,
 					HTTP2:  true,
 				},
 			},
@@ -663,7 +663,7 @@ func TestGetStack(t *testing.T) {
 					clusterIDTagPrefix + "test-cluster":  resourceLifecycleOwned,
 					certificateARNTagPrefix + "cert-arn": time.Time{}.Format(time.RFC3339),
 				},
-				status: cloudformation.StackStatusCreateComplete,
+				Status: cloudformation.StackStatusCreateComplete,
 				HTTP2:  true,
 			},
 			wantErr: false,
@@ -703,7 +703,7 @@ func TestGetStack(t *testing.T) {
 					clusterIDTagPrefix + "test-cluster":  resourceLifecycleOwned,
 					certificateARNTagPrefix + "cert-arn": time.Time{}.Format(time.RFC3339),
 				},
-				status: cloudformation.StackStatusCreateComplete,
+				Status: cloudformation.StackStatusCreateComplete,
 				HTTP2:  true,
 			},
 			wantErr: false,
