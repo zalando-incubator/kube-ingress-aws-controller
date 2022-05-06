@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/zalando-incubator/kube-ingress-aws-controller/aws"
 )
 
@@ -802,4 +803,35 @@ func TestWithTargetCNIPodSelector(t *testing.T) {
 		assert.Equal(t, "kube-system", a.cniPodNamespace)
 		assert.Equal(t, "application=skipper-ingress", a.cniPodLabelSelector)
 	})
+}
+
+func TestConfigureFabricSSLPolicy(t *testing.T) {
+	require.Contains(t, aws.SSLPolicies, defaultFabricSSLPolicy)
+
+	for _, test := range []struct {
+		name     string
+		fg       *fabric
+		expected string
+	}{
+		{
+			name:     "no annotations",
+			fg:       &fabric{},
+			expected: defaultFabricSSLPolicy,
+		},
+		{
+			name:     "other annotations",
+			fg:       &fabric{Metadata: kubeItemMetadata{Annotations: map[string]string{"foo": "bar"}}},
+			expected: defaultFabricSSLPolicy,
+		},
+		{
+			name:     "allow override",
+			fg:       &fabric{Metadata: kubeItemMetadata{Annotations: map[string]string{ingressSSLPolicyAnnotation: "a-policy"}}},
+			expected: "a-policy",
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			configureFabricSSLPolicy(test.fg)
+			assert.Equal(t, test.expected, test.fg.Metadata.Annotations[ingressSSLPolicyAnnotation])
+		})
+	}
 }

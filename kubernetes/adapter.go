@@ -44,6 +44,7 @@ const (
 	DefaultClusterLocalDomain = ".cluster.local"
 	loadBalancerTypeNLB       = "nlb"
 	loadBalancerTypeALB       = "alb"
+	defaultFabricSSLPolicy    = "ELBSecurityPolicy-FS-2018-06"
 )
 
 var (
@@ -199,7 +200,22 @@ func (a *Adapter) newIngressFromFabric(fg *fabric) (*Ingress, error) {
 		}
 	}
 
+	configureFabricSSLPolicy(fg)
+
 	return a.newIngress(TypeFabricGateway, fg.Metadata, host, hostnames)
+}
+
+// Configure pre-defined SSL policy for backward compatibility with
+// Fabric gateway operator, see
+// https://github.com/zalando-incubator/fabric-gateway/blob/cdef22c0fc7914ae6434be1f59f4c80f9f24a171/src/main/scala/ie/zalando/fabric/gateway/service/IngressDerivationChain.scala#L627-L629
+func configureFabricSSLPolicy(fg *fabric) {
+	if fg.Metadata.Annotations == nil {
+		fg.Metadata.Annotations = make(map[string]string)
+	}
+	// Allow override
+	if _, ok := fg.Metadata.Annotations[ingressSSLPolicyAnnotation]; !ok {
+		fg.Metadata.Annotations[ingressSSLPolicyAnnotation] = defaultFabricSSLPolicy
+	}
 }
 
 func (a *Adapter) newIngress(typ IngressType, metadata kubeItemMetadata, host string, hostnames []string) (*Ingress, error) {
