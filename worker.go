@@ -594,6 +594,9 @@ func updateIngress(kubeAdapter *kubernetes.Adapter, lb *loadBalancer, problems *
 	}
 	for _, ingresses := range lb.ingresses {
 		for _, ing := range ingresses {
+			if skipUpdateIngressLoadBalancer(ing) {
+				continue
+			}
 			if err := kubeAdapter.UpdateIngressLoadBalancer(ing, dnsName); err != nil {
 				if err == kubernetes.ErrUpdateNotNeeded {
 					log.Debugf("Update not needed for %s with DNS name %s", ing, dnsName)
@@ -625,7 +628,7 @@ func updateDNS(dnsUpdater kubernetes.DNSUpdater, model []*loadBalancer, problems
 
 		for _, ingresses := range lb.ingresses {
 			for _, ingress := range ingresses {
-				if ingress.ResourceType != kubernetes.TypeFabricGateway {
+				if skipUpdateHostnames(ingress) {
 					continue
 				}
 				for _, hostname := range ingress.Hostnames {
@@ -644,6 +647,14 @@ func updateDNS(dnsUpdater kubernetes.DNSUpdater, model []*loadBalancer, problems
 	} else {
 		log.Infof("Loadbalancer hostnames updated")
 	}
+}
+
+func skipUpdateIngressLoadBalancer(ingress *kubernetes.Ingress) bool {
+	return ingress.ResourceType == kubernetes.TypeFabricGateway
+}
+
+func skipUpdateHostnames(ingress *kubernetes.Ingress) bool {
+	return !skipUpdateIngressLoadBalancer(ingress)
 }
 
 func deleteStack(awsAdapter *aws.Adapter, lb *loadBalancer, problems *problem.List) {
