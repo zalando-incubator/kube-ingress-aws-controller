@@ -236,6 +236,8 @@ func startPolling(
 	pollingInterval time.Duration,
 	globalWAFACL string,
 ) {
+	ticker := time.NewTicker(pollingInterval)
+	defer ticker.Stop()
 	for {
 		if errs := doWork(certsProvider, certsPerALB, certTTL, awsAdapter, kubeAdapter, globalWAFACL).Errors(); len(errs) > 0 {
 			for _, err := range errs {
@@ -246,9 +248,9 @@ func startPolling(
 		}
 		firstRun = false
 
-		log.Debugf("Start polling sleep %s", pollingInterval)
 		select {
-		case <-time.After(pollingInterval):
+		case now := <-ticker.C:
+			log.Debugf("Starting controller cycle at %v", now)
 		case <-ctx.Done():
 			return
 		}
