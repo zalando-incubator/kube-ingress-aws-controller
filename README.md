@@ -37,7 +37,19 @@ This information is used to manage AWS resources for each ingress objects of the
 
 ## Upgrade
 
-### <v0.12.0 to >=0.12.0
+### <v0.13.0 to >=0.13.0
+
+Version `v0.13.0` use Ingress version v1 as default. You can downgrade
+ingress version to earlier versions via flag. You will also need to
+allow the access via RBAC, see more information in [<v0.11.0 to >=0.11.0](#v0110-to-0110) below.
+
+### <v0.12.17 to >=v0.12.17
+
+Please see [release note](https://github.com/zalando-incubator/kube-ingress-aws-controller/releases/tag/v0.12.17)
+and [issue](https://github.com/zalando-incubator/kube-ingress-aws-controller/issues/507)
+this update can cause 30s downtime, if you don't use AWS CNI mode.
+
+### <v0.12.0 to <=0.12.16
 
 Version `v0.12.0` changes Network Load Balancer type handling if Application Load Balancer type feature is requested. See [Load Balancers types](#load-balancers-types) notes for details.
 
