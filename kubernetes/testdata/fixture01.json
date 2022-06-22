@@ -1,8 +1,8 @@
 {
   "kind": "IngressList",
-  "apiVersion": "networking.k8s.io/v1beta1",
+  "apiVersion": "networking.k8s.io/v1",
   "metadata": {
-    "selfLink": "/apis/networking.k8s.io/v1beta1/ingresses",
+    "selfLink": "/apis/networking.k8s.io/v1/ingresses",
     "resourceVersion": "42"
   },
   "items": [
@@ -10,7 +10,7 @@
       "metadata": {
         "name": "fixture01",
         "namespace": "default",
-        "selfLink": "/apis/networking.k8s.io/v1beta1/namespaces/default/ingresses/fixture01",
+        "selfLink": "/apis/networking.k8s.io/v1/namespaces/default/ingresses/fixture01",
         "uid": "fixture01",
         "resourceVersion": "42",
         "generation": 1,
@@ -31,7 +31,7 @@
       "metadata": {
         "name": "fixture02",
         "namespace": "default",
-        "selfLink": "/apis/networking.k8s.io/v1beta1/namespaces/default/ingresses/fixture02",
+        "selfLink": "/apis/networking.k8s.io/v1/namespaces/default/ingresses/fixture02",
         "uid": "fixture02",
         "resourceVersion": "42",
         "generation": 1,
@@ -53,7 +53,7 @@
       "metadata": {
         "name": "fixture03",
         "namespace": "default",
-        "selfLink": "/apis/networking.k8s.io/v1beta1/namespaces/default/ingresses/fixture03",
+        "selfLink": "/apis/networking.k8s.io/v1/namespaces/default/ingresses/fixture03",
         "uid": "fixture03",
         "resourceVersion": "42",
         "generation": 1,
@@ -75,7 +75,7 @@
       "metadata": {
         "name": "fixture04",
         "namespace": "default",
-        "selfLink": "/apis/networking.k8s.io/v1beta1/namespaces/default/ingresses/fixture04",
+        "selfLink": "/apis/networking.k8s.io/v1/namespaces/default/ingresses/fixture04",
         "uid": "fixture04",
         "resourceVersion": "42",
         "generation": 1,
@@ -99,7 +99,7 @@
       "metadata": {
         "name": "fixture05",
         "namespace": "default",
-        "selfLink": "/apis/networking.k8s.io/v1beta1/namespaces/default/ingresses/fixture05",
+        "selfLink": "/apis/networking.k8s.io/v1/namespaces/default/ingresses/fixture05",
         "uid": "fixture05",
         "resourceVersion": "42",
         "generation": 1,
