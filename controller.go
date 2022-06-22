@@ -175,8 +175,6 @@ func loadSettings() error {
 		Default("false").BoolVar(&nlbCrossZone)
 	kingpin.Flag("nlb-http-enabled", "Enable HTTP (port 80) for Network Load Balancers. By default this is disabled as NLB can't provide HTTP -> HTTPS redirect.").
 		Default("false").BoolVar(&nlbHTTPEnabled)
-	kingpin.Flag("ingress-api-version", "APIversion used for listing/updating ingresses.").
-		Default(kubernetes.IngressAPIVersionNetworking).EnumVar(&ingressAPIVersion, kubernetes.IngressAPIVersionNetworking)
 	kingpin.Flag("deny-internal-domains", "Sets a rule on ALB's Listeners that denies requests with the Host header as a internal domain. Domains can be set with the -internal-domains flag.").
 		Default("false").BoolVar(&denyInternalDomains)
 	kingpin.Flag("internal-domains", "Define the internal domains to be blocked when -deny-internal-domains is set to true. Set it multiple times for multiple domains. The maximum size of each name is 128 characters. The following wildcard characters are supported: * (matches 0 or more characters) and ? (matches exactly 1 character).").
