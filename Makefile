@@ -33,11 +33,11 @@ fmt:
 ## build.local: builds a local binary in build directory
 build.local: build/$(BINARY)
 
-## build.local: builds a binary for linux/amd64 in build directory
+## build.linux: builds a binary for linux/amd64 in build directory
 build.linux: build/linux/$(BINARY)
 
-## build.osx: builds a binary for osx/amd64 in build directory
-build.osx: build/osx/$(BINARY)
+build.linux.amd64: build/linux/amd64/$(BINARY)
+build.linux.arm64: build/linux/arm64/$(BINARY)
 
 build/$(BINARY): $(SOURCES)
 	CGO_ENABLED=0 go build -o build/$(BINARY) $(BUILD_FLAGS) -ldflags "$(LDFLAGS)" .
@@ -45,12 +45,15 @@ build/$(BINARY): $(SOURCES)
 build/linux/$(BINARY): $(SOURCES)
 	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build $(BUILD_FLAGS) -o build/linux/$(BINARY) -ldflags "$(LDFLAGS)" .
 
-build/osx/$(BINARY): $(SOURCES)
-	GOOS=darwin GOARCH=amd64 CGO_ENABLED=0 go build $(BUILD_FLAGS) -o build/osx/$(BINARY) -ldflags "$(LDFLAGS)" .
+build/linux/amd64/$(BINARY): go.mod $(SOURCES)
+	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build $(BUILD_FLAGS) -o build/linux/amd64/$(BINARY) -ldflags "$(LDFLAGS)" .
+
+build/linux/arm64/$(BINARY): go.mod $(SOURCES)
+	GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build $(BUILD_FLAGS) -o build/linux/arm64/$(BINARY) -ldflags "$(LDFLAGS)" .
 
 ## build.docker: builds docker image
 build.docker: build.linux
-	docker build --rm -t "$(IMAGE):$(TAG)" -f $(DOCKERFILE) .
+	docker build --rm -t "$(IMAGE):$(TAG)" -f $(DOCKERFILE) --build-arg TARGETARCH= .
 
 ## build.push: pushes docker image to registry
 build.push: build.docker
