@@ -36,7 +36,9 @@ pipeline:
 - id: buildprod
   when:
     branch: master
-  overlay: ci/golang
+  vm_config:
+    type: linux
+    image: "cdp-runtime/go"
   type: script
   env:
     GOFLAGS: "-mod=readonly"
