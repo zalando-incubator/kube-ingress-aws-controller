@@ -187,8 +187,12 @@ func loadSettings() error {
 		Default("text/plain").StringVar(&denyInternalRespContentType)
 	kingpin.Flag("deny-internal-domains-response-status-code", "Defines the response status code for a request identified as to an internal domain when -deny-internal-domains is set.").
 		Default("401").IntVar(&denyInternalRespStatusCode)
-	kingpin.Flag("target-access-mode", "Target group accessing Ingress via HostPort or AWS VPC CNI. Set to ASG for HostPort access or CNI for pod direct IP access.").
-		Default(aws.TargetAccessModeHostPort).EnumVar(&targetAccessMode, aws.TargetAccessModeHostPort, aws.TargetAccessModeAWSCNI)
+	kingpin.Flag("target-access-mode", "Defines target type of the target groups in CloudFormation and how loadbalancer targets are discovered. "+
+		"HostPort sets target type to 'instance' and discovers EC2 instances using AWS API and instance filters. "+
+		"AWSCNI sets target type to 'ip' and discovers target IPs using Kubernetes API and Pod label selector. "+
+		"Legacy is the same as HostPort but does not set target type and relies on CloudFormation to use 'instance' as a default value. "+
+		"Changing value from 'Legacy' to 'HostPort' will change target type in CloudFormation and trigger target group recreation and downtime.").
+		Required().EnumVar(&targetAccessMode, aws.TargetAccessModeHostPort, aws.TargetAccessModeAWSCNI, aws.TargetAccessModeLegacy)
 	kingpin.Flag("target-cni-namespace", "AWS VPC CNI only. Defines the namespace for ingress pods that should be linked to target group.").StringVar(&targetCNINamespace)
 	// LabelSelector semantics https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/#label-selectors
 	kingpin.Flag("target-cni-pod-labelselector", "AWS VPC CNI only. Defines the labelselector for ingress pods that should be linked to target group. Supports simple equality and multi value form (a=x,b=y) as well as complex forms (a IN (x,y,z).").StringVar(&targetCNIPodLabelSelector)

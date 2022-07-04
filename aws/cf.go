@@ -163,6 +163,7 @@ type stackSpec struct {
 	albHealthyThresholdCount          uint
 	albUnhealthyThresholdCount        uint
 	nlbHealthyThresholdCount          uint
+	targetType                        string
 	targetPort                        uint
 	targetHTTPS                       bool
 	httpDisabled                      bool
@@ -186,7 +187,6 @@ type stackSpec struct {
 	denyInternalDomainsResponse       denyResp
 	internalDomains                   []string
 	tags                              map[string]string
-	targetAccessModeCNI               bool
 }
 
 type healthCheck struct {
