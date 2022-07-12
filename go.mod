@@ -25,7 +25,7 @@ require (
 	github.com/rcrowley/go-metrics v0.0.0-20201227073835-cf1acfcdf475 // indirect
 	github.com/shirou/gopsutil/v3 v3.22.3 // indirect
 	github.com/sirupsen/logrus v1.8.1
-	github.com/stretchr/testify v1.7.1
+	github.com/stretchr/testify v1.8.0
 	github.com/tidwall/gjson v1.14.0 // indirect
 	github.com/zalando/skipper v0.13.231
 	golang.org/x/crypto v0.0.0-20220331220935-ae2d96664a29 // indirect
