@@ -33,7 +33,6 @@ This information is used to manage AWS resources for each ingress objects of the
 - Support for AWS WAF and WAFv2
 - Support for AWS CNI pod direct access
 - Support for Kubernetes CRD [RouteGroup](https://opensource.zalando.com/skipper/kubernetes/routegroups/)
-- Support for Kubernetes CRD [FabricGateway](https://opensource.zalando.com/skipper/kubernetes/fabricgateways/)
 
 ## Upgrade
 

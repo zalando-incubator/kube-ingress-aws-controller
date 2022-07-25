@@ -488,8 +488,6 @@ func (c *mockClient) get(res string) (io.ReadCloser, error) {
 
 	var fixture string
 	switch res {
-	case fabricListResource:
-		fixture = "testdata/fixture01_fg.json"
 	case routegroupListResource:
 		fixture = "testdata/fixture01_rg.json"
 	case fmt.Sprintf(ingressListResource, IngressAPIVersionNetworking):
@@ -513,8 +511,6 @@ func (c *mockClient) patch(res string, payload []byte) (io.ReadCloser, error) {
 		case fmt.Sprintf("/apis/%s/namespaces/default/ingresses/foo/status", IngressAPIVersionNetworking):
 			return io.NopCloser(strings.NewReader(":)")), nil
 		case "/apis/zalando.org/v1/namespaces/default/routegroups/foo/status":
-			return io.NopCloser(strings.NewReader(":)")), nil
-		case "/apis/zalando.org/v1/namespaces/default/fabricgateways/foo/status":
 			return io.NopCloser(strings.NewReader(":)")), nil
 		}
 	}
@@ -597,35 +593,6 @@ func TestUpdateRouteGroupLoadBalancer(t *testing.T) {
 	}
 }
 
-func TestUpdateFabricGatewayLoadBalancer(t *testing.T) {
-	a, _ := NewAdapter(testConfig, IngressAPIVersionNetworking, testIngressFilter, testSecurityGroup, testSSLPolicy, aws.LoadBalancerTypeApplication, DefaultClusterLocalDomain, false)
-	client := &mockClient{}
-	a.kubeClient = client
-	ing := &Ingress{
-		Namespace:      "default",
-		Name:           "foo",
-		Hostname:       "bar",
-		CertificateARN: "zbr",
-		ResourceType:   TypeFabricGateway,
-	}
-	if err := a.UpdateIngressLoadBalancer(ing, "bar"); err != ErrUpdateNotNeeded {
-		t.Error("expected ErrUpdateNotNeeded")
-	}
-	if err := a.UpdateIngressLoadBalancer(ing, "xpto"); err != nil {
-		t.Error(err)
-	}
-	client.broken = true
-	if err := a.UpdateIngressLoadBalancer(ing, "xpto"); err == nil {
-		t.Error("expected an error")
-	}
-	if err := a.UpdateIngressLoadBalancer(ing, ""); err == nil {
-		t.Error("expected an error")
-	}
-	if err := a.UpdateIngressLoadBalancer(nil, "xpto"); err == nil {
-		t.Error("expected an error")
-	}
-}
-
 func TestBrokenConfig(t *testing.T) {
 	for _, test := range []struct {
 		name string
@@ -684,9 +651,6 @@ func TestListIngressFilterClass(t *testing.T) {
 				"fixture-rg01",
 				"fixture-rg02",
 				"fixture-rg03",
-				"fixture-fg01",
-				"fixture-fg02",
-				"fixture-fg03",
 			},
 		},
 		"emptyIngressClassFilters2": {
@@ -700,9 +664,6 @@ func TestListIngressFilterClass(t *testing.T) {
 				"fixture-rg01",
 				"fixture-rg02",
 				"fixture-rg03",
-				"fixture-fg01",
-				"fixture-fg02",
-				"fixture-fg03",
 			},
 		},
 		"singleIngressClass1": {
@@ -710,7 +671,6 @@ func TestListIngressFilterClass(t *testing.T) {
 			expectedIngressNames: []string{
 				"fixture02",
 				"fixture-rg02",
-				"fixture-fg02",
 			},
 		},
 		"singleIngressClass2": {
@@ -718,7 +678,6 @@ func TestListIngressFilterClass(t *testing.T) {
 			expectedIngressNames: []string{
 				"fixture03",
 				"fixture-rg03",
-				"fixture-fg03",
 			},
 		},
 		"multipleIngressClass": {
@@ -728,8 +687,6 @@ func TestListIngressFilterClass(t *testing.T) {
 				"fixture03",
 				"fixture-rg02",
 				"fixture-rg03",
-				"fixture-fg02",
-				"fixture-fg03",
 			},
 		},
 		"multipleIngressClassWithDefault": {
@@ -739,8 +696,6 @@ func TestListIngressFilterClass(t *testing.T) {
 				"fixture02",
 				"fixture-rg01",
 				"fixture-rg02",
-				"fixture-fg01",
-				"fixture-fg02",
 			},
 		},
 		"multipleIngressClassWithDefault2": {
@@ -750,8 +705,6 @@ func TestListIngressFilterClass(t *testing.T) {
 				"fixture03",
 				"fixture-rg01",
 				"fixture-rg03",
-				"fixture-fg01",
-				"fixture-fg03",
 			},
 		},
 		"multipleIngressClassMixedAnnotationAndSpec": {
@@ -759,7 +712,6 @@ func TestListIngressFilterClass(t *testing.T) {
 			expectedIngressNames: []string{
 				"fixture03",
 				"fixture-rg03",
-				"fixture-fg03",
 				"fixture04",
 			},
 		},
