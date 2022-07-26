@@ -952,8 +952,91 @@ func TestWithxlbHealthyThresholdCount(t *testing.T) {
 	})
 }
 
+func Test_getRegisteredTargets(t *testing.T) {
+	t.Run("should return an error if unable to describe target health", func(t *testing.T) {
+		m := &fake.ELBv2Client{
+			Outputs: fake.ELBv2Outputs{
+				DescribeTargetHealth: fake.R(
+					elbv2.DescribeTargetHealthOutput{TargetHealthDescriptions: []*elbv2.TargetHealthDescription{}},
+					fmt.Errorf("error")),
+				RegisterTargets:   fake.R(fake.MockDeregisterTargetsOutput(), nil),
+				DeregisterTargets: fake.R(fake.MockDeregisterTargetsOutput(), nil),
+			},
+		}
+		a := Adapter{elbv2: m}
+		_, err := a.getRegisteredTargets("none")
+		require.Error(t, err)
+	})
+	t.Run("should a slice of strings representing the ids of found targets", func(t *testing.T) {
+		thOut := elbv2.DescribeTargetHealthOutput{TargetHealthDescriptions: []*elbv2.TargetHealthDescription{
+			{Target: &elbv2.TargetDescription{Id: aws.String("asg1")}},
+			{Target: &elbv2.TargetDescription{Id: aws.String("asg2")}},
+			{Target: &elbv2.TargetDescription{Id: aws.String("blah")}},
+		}}
+		expected := []string{"asg1", "asg2", "blah"}
+		m := &fake.ELBv2Client{
+			Outputs: fake.ELBv2Outputs{
+				DescribeTargetHealth: fake.R(&thOut, nil),
+				RegisterTargets:      fake.R(fake.MockDeregisterTargetsOutput(), nil),
+				DeregisterTargets:    fake.R(fake.MockDeregisterTargetsOutput(), nil),
+			},
+		}
+		a := Adapter{elbv2: m}
+		response, err := a.getRegisteredTargets("none")
+		require.Nil(t, err)
+		require.Equal(t, expected, response)
+	})
+}
+
+func Test_registerAndDeregister(t *testing.T) {
+	t.Run("should return an error if unable to register new targets", func(t *testing.T) {
+		m := &fake.ELBv2Client{
+			Outputs: fake.ELBv2Outputs{
+				RegisterTargets:   fake.R(fake.MockDeregisterTargetsOutput(), fmt.Errorf("this is an error")),
+				DeregisterTargets: fake.R(fake.MockDeregisterTargetsOutput(), nil),
+			},
+		}
+		a := Adapter{elbv2: m}
+		err := a.registerAndDeregister([]string{"new"}, []string{"old"}, "none")
+		require.Error(t, err)
+	})
+	t.Run("should return an error if unable to deregister new targets", func(t *testing.T) {
+		m := &fake.ELBv2Client{
+			Outputs: fake.ELBv2Outputs{
+				RegisterTargets:   fake.R(fake.MockDeregisterTargetsOutput(), nil),
+				DeregisterTargets: fake.R(fake.MockDeregisterTargetsOutput(), fmt.Errorf("this is an error")),
+			},
+		}
+		a := Adapter{elbv2: m}
+		err := a.registerAndDeregister([]string{"new"}, []string{"old"}, "none")
+		require.Error(t, err)
+	})
+	t.Run("should return nil if there's nothing to register", func(t *testing.T) {
+		m := &fake.ELBv2Client{
+			Outputs: fake.ELBv2Outputs{
+				RegisterTargets:   fake.R(fake.MockDeregisterTargetsOutput(), fmt.Errorf("this is an error")),
+				DeregisterTargets: fake.R(fake.MockDeregisterTargetsOutput(), fmt.Errorf("this is also an error")),
+			},
+		}
+		a := Adapter{elbv2: m}
+		err := a.registerAndDeregister([]string{"same"}, []string{"same"}, "none")
+		require.Nil(t, err)
+	})
+	t.Run("should return nil if there's no upstream errors", func(t *testing.T) {
+		m := &fake.ELBv2Client{
+			Outputs: fake.ELBv2Outputs{
+				RegisterTargets:   fake.R(fake.MockDeregisterTargetsOutput(), nil),
+				DeregisterTargets: fake.R(fake.MockDeregisterTargetsOutput(), nil),
+			},
+		}
+		a := Adapter{elbv2: m}
+		err := a.registerAndDeregister([]string{"new"}, []string{"old"}, "none")
+		require.Nil(t, err)
+	})
+}
+
 func TestAdapter_SetTargetsOnCNITargetGroups(t *testing.T) {
-	tgARNs := []string{"asg1"}
+	tgARNs := []TargetGroupWithLabels{{ARN: "asg1"}}
 	thOut := elbv2.DescribeTargetHealthOutput{TargetHealthDescriptions: []*elbv2.TargetHealthDescription{}}
 	m := &fake.ELBv2Client{
 		Outputs: fake.ELBv2Outputs{
@@ -965,7 +1048,7 @@ func TestAdapter_SetTargetsOnCNITargetGroups(t *testing.T) {
 	a := &Adapter{elbv2: m, TargetCNI: &TargetCNIconfig{}}
 
 	t.Run("adding a new endpoint", func(t *testing.T) {
-		require.NoError(t, a.SetTargetsOnCNITargetGroups([]string{"1.1.1.1"}, tgARNs))
+		require.NoError(t, a.SetTargetsOnCNITargetGroups([]CNIEndpoint{{IPAddress: "1.1.1.1"}}, tgARNs))
 		require.Equal(t, []*elbv2.RegisterTargetsInput{{
 			TargetGroupArn: aws.String("asg1"),
 			Targets:        []*elbv2.TargetDescription{{Id: aws.String("1.1.1.1")}},
@@ -979,7 +1062,8 @@ func TestAdapter_SetTargetsOnCNITargetGroups(t *testing.T) {
 		}
 		m.Rtinputs, m.Dtinputs = nil, nil
 
-		require.NoError(t, a.SetTargetsOnCNITargetGroups([]string{"1.1.1.1", "2.2.2.2", "3.3.3.3"}, tgARNs))
+		require.NoError(t, a.SetTargetsOnCNITargetGroups(
+			[]CNIEndpoint{{IPAddress: "1.1.1.1"}, {IPAddress: "2.2.2.2"}, {IPAddress: "3.3.3.3"}}, tgARNs))
 		require.Equal(t, []*elbv2.TargetDescription{
 			{Id: aws.String("2.2.2.2")},
 			{Id: aws.String("3.3.3.3")},
@@ -995,7 +1079,7 @@ func TestAdapter_SetTargetsOnCNITargetGroups(t *testing.T) {
 		}}
 		m.Rtinputs, m.Dtinputs = nil, nil
 
-		require.NoError(t, a.SetTargetsOnCNITargetGroups([]string{"1.1.1.1", "3.3.3.3"}, tgARNs))
+		require.NoError(t, a.SetTargetsOnCNITargetGroups([]CNIEndpoint{{IPAddress: "1.1.1.1"}, {IPAddress: "3.3.3.3"}}, tgARNs))
 		require.Equal(t, []*elbv2.RegisterTargetsInput(nil), m.Rtinputs)
 		require.Equal(t, []*elbv2.TargetDescription{{Id: aws.String("2.2.2.2")}}, m.Dtinputs[0].Targets)
 	})
@@ -1008,7 +1092,8 @@ func TestAdapter_SetTargetsOnCNITargetGroups(t *testing.T) {
 		}}
 		m.Rtinputs, m.Dtinputs = nil, nil
 
-		require.NoError(t, a.SetTargetsOnCNITargetGroups([]string{"1.1.1.1", "2.2.2.2", "3.3.3.3"}, tgARNs))
+		require.NoError(t, a.SetTargetsOnCNITargetGroups(
+			[]CNIEndpoint{{IPAddress: "1.1.1.1"}, {IPAddress: "2.2.2.2"}, {IPAddress: "3.3.3.3"}}, tgARNs))
 		require.Equal(t, []*elbv2.TargetDescription{{Id: aws.String("3.3.3.3")}}, m.Rtinputs[0].Targets)
 		require.Equal(t, []*elbv2.TargetDescription{{Id: aws.String("4.4.4.4")}}, m.Dtinputs[0].Targets)
 	})

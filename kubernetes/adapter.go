@@ -1,6 +1,7 @@
 package kubernetes
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -23,6 +24,7 @@ type Adapter struct {
 	ingressDefaultLoadBalancerType string
 	clusterLocalDomain             string
 	routeGroupSupport              bool
+	extraCNIEndpoints              []aws.CNIEndpoint
 }
 
 type IngressType string
@@ -78,6 +80,7 @@ type Ingress struct {
 	ClusterLocal     bool
 	CertificateARN   string
 	Hostname         string
+	ExtraListeners   []aws.ExtraListener
 	Scheme           string
 	SecurityGroup    string
 	SSLPolicy        string
@@ -210,6 +213,24 @@ func (a *Adapter) newIngress(typ IngressType, metadata kubeItemMetadata, host st
 
 	wafWebAclId, hasWAF := annotations[ingressWAFWebACLIDAnnotation]
 
+	var extraListeners []aws.ExtraListener
+	rawlisteners, hasExtraListeners := annotations[ingressNLBExtraListenersAnnotation]
+	if hasExtraListeners {
+		if loadBalancerType != loadBalancerTypeNLB {
+			return nil, errors.New("extra listeners are only supported on NLBs")
+		}
+		if err := json.Unmarshal([]byte(rawlisteners), &extraListeners); err != nil {
+			return nil, fmt.Errorf("unable to parse aws-nlb-extra-listeners annotation: %v", err)
+		}
+		for idx, listener := range extraListeners {
+			if listener.ListenProtocol != "TCP" && listener.ListenProtocol != "UDP" && listener.ListenProtocol != "TCP_UDP" {
+				return nil, errors.New("only TCP, UDP, or TCP_UDP are allowed as protocols for extra listeners")
+			}
+			extraListeners[idx].Namespace = metadata.Namespace
+			a.extraCNIEndpoints = append(a.extraCNIEndpoints, aws.CNIEndpoint{Namespace: metadata.Namespace, Podlabel: listener.PodLabel})
+		}
+	}
+
 	if (loadBalancerType == loadBalancerTypeNLB) && (hasSG || hasWAF) {
 		if hasLB {
 			return nil, errors.New("security group or WAF are not supported by NLB (configured by annotation)")
@@ -251,6 +272,7 @@ func (a *Adapter) newIngress(typ IngressType, metadata kubeItemMetadata, host st
 		LoadBalancerType: loadBalancerType,
 		WAFWebACLID:      wafWebAclId,
 		HTTP2:            http2,
+		ExtraListeners:   extraListeners,
 	}, nil
 }
 

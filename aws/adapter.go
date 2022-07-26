@@ -80,9 +80,19 @@ type Adapter struct {
 
 type TargetCNIconfig struct {
 	Enabled       bool
-	TargetGroupCh chan []string
+	TargetGroupCh chan []TargetGroupWithLabels
 }
 
+type TargetGroupWithLabels struct {
+	ARN          string
+	PodNamespace string
+	PodLabel     string
+}
+type CNIEndpoint struct {
+	IPAddress string
+	Namespace string
+	Podlabel  string
+}
 type manifest struct {
 	securityGroup *securityGroupDetails
 	instance      *instanceDetails
@@ -250,7 +260,7 @@ func NewAdapter(clusterID, newControllerID, vpcID string, debug, disableInstrume
 		customFilter:               DefaultCustomFilter,
 		TargetCNI: &TargetCNIconfig{
 			Enabled:       false,
-			TargetGroupCh: make(chan []string, 10),
+			TargetGroupCh: make(chan []TargetGroupWithLabels, 10),
 		},
 	}
 
@@ -655,8 +665,33 @@ func (a *Adapter) UpdateTargetGroupsAndAutoScalingGroups(stacks []*Stack, proble
 		a.TargetCNI.TargetGroupCh <- targetTypesARNs[elbv2.TargetTypeEnumIp]
 	}
 
+	// run through any target groups with ALB targets and register all ALBs
+	for _, tg := range targetTypesARNs[elbv2.TargetTypeEnumAlb] {
+		albARNs := make([]string, 0, len(stacks))
+		for _, stack := range stacks {
+			if stack.LoadBalancerType == LoadBalancerTypeApplication {
+				albARNs = append(albARNs, stack.loadbalancerARN)
+			}
+		}
+		registeredTargets, err := a.getRegisteredTargets(tg.ARN)
+		if err != nil {
+			problems.Add("failed to get existing targets: %w", err)
+		}
+		if err := a.registerAndDeregister(albARNs, registeredTargets, tg.ARN); err != nil {
+			problems.Add("failed to update target registration %w", err)
+		}
+	}
+
 	// remove the IP TGs from the list keeping all other TGs including problematic #127 and nonexistent #436
-	targetGroupARNs := difference(allTargetGroupARNs, targetTypesARNs[elbv2.TargetTypeEnumIp])
+	var targetGroupARNs []string
+	for targetType, tgList := range targetTypesARNs {
+		if targetType == elbv2.TargetTypeEnumIp || targetType == elbv2.TargetTypeEnumAlb {
+			continue
+		}
+		for _, tg := range tgList {
+			targetGroupARNs = append(targetGroupARNs, tg.ARN)
+		}
+	}
 
 	ownerTags := map[string]string{
 		clusterIDTagPrefix + a.ClusterID(): resourceLifecycleOwned,
@@ -702,7 +737,7 @@ func (a *Adapter) UpdateTargetGroupsAndAutoScalingGroups(stacks []*Stack, proble
 // All the required resources (listeners and target group) are created in a
 // transactional fashion.
 // Failure to create the stack causes it to be deleted automatically.
-func (a *Adapter) CreateStack(certificateARNs []string, scheme, securityGroup, owner, sslPolicy, ipAddressType, wafWebACLID string, cwAlarms CloudWatchAlarmList, loadBalancerType string, http2 bool) (string, error) {
+func (a *Adapter) CreateStack(certificateARNs []string, scheme, securityGroup, owner, sslPolicy, ipAddressType, wafWebACLID string, cwAlarms CloudWatchAlarmList, loadBalancerType string, http2 bool, extraListeners []ExtraListener) (string, error) {
 	certARNs := make(map[string]time.Time, len(certificateARNs))
 	for _, arn := range certificateARNs {
 		certARNs[arn] = time.Time{}
@@ -754,6 +789,7 @@ func (a *Adapter) CreateStack(certificateARNs []string, scheme, securityGroup, o
 		httpRedirectToHTTPS:               a.httpRedirectToHTTPS,
 		nlbCrossZone:                      a.nlbCrossZone,
 		http2:                             http2,
+		extraListeners:                    extraListeners,
 		tags:                              a.stackTags,
 		internalDomains:                   a.internalDomains,
 		denyInternalDomains:               a.denyInternalDomains,
@@ -767,7 +803,7 @@ func (a *Adapter) CreateStack(certificateARNs []string, scheme, securityGroup, o
 	return createStack(a.cloudformation, spec)
 }
 
-func (a *Adapter) UpdateStack(stackName string, certificateARNs map[string]time.Time, scheme, securityGroup, owner, sslPolicy, ipAddressType, wafWebACLID string, cwAlarms CloudWatchAlarmList, loadBalancerType string, http2 bool) (string, error) {
+func (a *Adapter) UpdateStack(stackName string, certificateARNs map[string]time.Time, scheme, securityGroup, owner, sslPolicy, ipAddressType, wafWebACLID string, cwAlarms CloudWatchAlarmList, loadBalancerType string, http2 bool, extraListeners []ExtraListener) (string, error) {
 	if _, ok := SSLPolicies[sslPolicy]; !ok {
 		return "", fmt.Errorf("invalid SSLPolicy '%s' defined", sslPolicy)
 	}
@@ -810,6 +846,7 @@ func (a *Adapter) UpdateStack(stackName string, certificateARNs map[string]time.
 		httpRedirectToHTTPS:               a.httpRedirectToHTTPS,
 		nlbCrossZone:                      a.nlbCrossZone,
 		http2:                             http2,
+		extraListeners:                    extraListeners,
 		tags:                              a.stackTags,
 		internalDomains:                   a.internalDomains,
 		denyInternalDomains:               a.denyInternalDomains,
@@ -1102,36 +1139,56 @@ func nonTargetedASGs(ownedASGs, targetedASGs map[string]*autoScalingGroupDetails
 	return nonTargetedASGs
 }
 
+func (a *Adapter) getRegisteredTargets(tgARN string) ([]string, error) {
+	tgh, err := a.elbv2.DescribeTargetHealth(&elbv2.DescribeTargetHealthInput{TargetGroupArn: &tgARN})
+	if err != nil {
+		log.Errorf("unable to describe target health %v", err)
+		return []string{}, err
+	}
+	registeredTargets := make([]string, len(tgh.TargetHealthDescriptions))
+	for i, target := range tgh.TargetHealthDescriptions {
+		registeredTargets[i] = *target.Target.Id
+	}
+	return registeredTargets, nil
+}
+
+func (a *Adapter) registerAndDeregister(new []string, old []string, tgARN string) error {
+	toRegister := difference(new, old)
+	if len(toRegister) > 0 {
+		log.Info("Registering CNI targets: ", toRegister)
+		err := registerTargetsOnTargetGroups(a.elbv2, []string{tgARN}, toRegister)
+		if err != nil {
+			return err
+		}
+	}
+	toDeregister := difference(old, new)
+	if len(toDeregister) > 0 {
+		log.Info("Deregistering CNI targets: ", toDeregister)
+		err := deregisterTargetsOnTargetGroups(a.elbv2, []string{tgARN}, toDeregister)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // SetTargetsOnCNITargetGroups implements desired state for CNI target groups
 // by polling the current list of targets thus creating a diff of what needs to be added and removed.
-func (a *Adapter) SetTargetsOnCNITargetGroups(endpoints, cniTargetGroupARNs []string) error {
-	log.Debugf("setting targets on CNI target groups: '%v'", cniTargetGroupARNs)
-	for _, targetGroupARN := range cniTargetGroupARNs {
-		tgh, err := a.elbv2.DescribeTargetHealth(&elbv2.DescribeTargetHealthInput{TargetGroupArn: &targetGroupARN})
+func (a *Adapter) SetTargetsOnCNITargetGroups(endpoints []CNIEndpoint, cniTargetGroups []TargetGroupWithLabels) error {
+	log.Debugf("setting targets on CNI target groups: '%v'", cniTargetGroups)
+	for _, targetGroup := range cniTargetGroups {
+		registeredTargets, err := a.getRegisteredTargets(targetGroup.ARN)
 		if err != nil {
-			log.Errorf("unable to describe target health %v", err)
-			// continue for processing of the rest of the target groups
 			continue
 		}
-		registeredInstances := make([]string, len(tgh.TargetHealthDescriptions))
-		for i, target := range tgh.TargetHealthDescriptions {
-			registeredInstances[i] = *target.Target.Id
-		}
-		toRegister := difference(endpoints, registeredInstances)
-		if len(toRegister) > 0 {
-			log.Info("Registering CNI targets: ", toRegister)
-			err := registerTargetsOnTargetGroups(a.elbv2, []string{targetGroupARN}, toRegister)
-			if err != nil {
-				return err
+		var matchingEndpoints []string
+		for _, endpoint := range endpoints {
+			if endpoint.Podlabel == targetGroup.PodLabel && endpoint.Namespace == targetGroup.PodNamespace {
+				matchingEndpoints = append(matchingEndpoints, endpoint.IPAddress)
 			}
 		}
-		toDeregister := difference(registeredInstances, endpoints)
-		if len(toDeregister) > 0 {
-			log.Info("Deregistering CNI targets: ", toDeregister)
-			err := deregisterTargetsOnTargetGroups(a.elbv2, []string{targetGroupARN}, toDeregister)
-			if err != nil {
-				return err
-			}
+		if err := a.registerAndDeregister(matchingEndpoints, registeredTargets, targetGroup.ARN); err != nil {
+			return err
 		}
 	}
 	return nil

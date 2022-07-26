@@ -258,8 +258,8 @@ func describeTargetGroups(elbv2svc elbv2iface.ELBV2API) (map[string]struct{}, er
 }
 
 // map the target group slice into specific types such as instance, ip, etc
-func categorizeTargetTypeInstance(elbv2svc elbv2iface.ELBV2API, allTGARNs []string) (map[string][]string, error) {
-	targetTypes := make(map[string][]string)
+func categorizeTargetTypeInstance(elbv2svc elbv2iface.ELBV2API, allTGARNs []string) (map[string][]TargetGroupWithLabels, error) {
+	targetTypes := make(map[string][]TargetGroupWithLabels)
 	err := elbv2svc.DescribeTargetGroupsPagesWithContext(context.TODO(), &elbv2.DescribeTargetGroupsInput{},
 		func(resp *elbv2.DescribeTargetGroupsOutput, lastPage bool) bool {
 			for _, tg := range resp.TargetGroups {
@@ -267,7 +267,30 @@ func categorizeTargetTypeInstance(elbv2svc elbv2iface.ELBV2API, allTGARNs []stri
 					if v != aws.StringValue(tg.TargetGroupArn) {
 						continue
 					}
-					targetTypes[aws.StringValue(tg.TargetType)] = append(targetTypes[aws.StringValue(tg.TargetType)], aws.StringValue(tg.TargetGroupArn))
+					var podlabel, podnamespace string
+					log.Debugf("Looking for tags on %s", aws.StringValue(tg.TargetGroupArn))
+					out, err := elbv2svc.DescribeTags(&elbv2.DescribeTagsInput{ResourceArns: []*string{tg.TargetGroupArn}})
+					if err != nil {
+						log.Errorf("cannot describe tags on target group: %v", err)
+					} else {
+						for _, desc := range out.TagDescriptions {
+							for _, tag := range desc.Tags {
+								switch aws.StringValue(tag.Key) {
+								case podLabelTag:
+									podlabel = aws.StringValue(tag.Value)
+								case podNamespaceTag:
+									podnamespace = aws.StringValue(tag.Value)
+								}
+							}
+						}
+					}
+					log.Debugf("Adding tg with label: '%s' in namespace: '%s'", podlabel, podnamespace)
+					targetTypes[aws.StringValue(tg.TargetType)] = append(
+						targetTypes[aws.StringValue(tg.TargetType)],
+						TargetGroupWithLabels{
+							ARN:          aws.StringValue(tg.TargetGroupArn),
+							PodLabel:     podlabel,
+							PodNamespace: podnamespace})
 				}
 			}
 			return true

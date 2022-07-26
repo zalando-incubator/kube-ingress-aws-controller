@@ -1,0 +1,18 @@
+[
+  {
+    "key": "kubernetes:application",
+    "value": ""
+  },
+  {
+    "key": "kubernetes.io/cluster/aws:123:eu-central-1:kube-1",
+    "value": "owned"
+  },
+  {
+    "key": "ingress:certificate-arn/DUMMY",
+    "value": "0001-01-01T00:00:00Z"
+  },
+  {
+    "key": "ingress:extra-listeners",
+    "value": "W3sicHJvdG9jb2wiOiJUQ1AiLCJsaXN0ZW5wb3J0IjoyMiwidGFyZ2V0cG9ydCI6MjIyMiwicG9kbGFiZWwiOiJhcHBsaWNhdGlvbj1zc2gtc2VydmljZSIsIk5hbWVzcGFjZSI6IiJ9XQ=="
+  }
+]

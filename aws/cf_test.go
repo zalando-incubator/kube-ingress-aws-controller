@@ -75,6 +75,19 @@ func TestCreatingStack(t *testing.T) {
 			false,
 		},
 		{
+			"stack extra listeners",
+			stackSpec{
+				name:             "foo",
+				securityGroupID:  "bar",
+				vpcID:            "baz",
+				loadbalancerType: LoadBalancerTypeNetwork,
+				extraListeners:   []ExtraListener{{ListenProtocol: "TCP", TargetPort: 2222, ListenPort: 22, PodLabel: "app=test"}},
+			},
+			fake.CFOutputs{CreateStack: fake.R(fake.MockCSOutput("fake-stack-id"), nil)},
+			"fake-stack-id",
+			false,
+		},
+		{
 			"stack with NLB http port",
 			stackSpec{
 				name:             "foo",
@@ -179,6 +192,19 @@ func TestUpdatingStack(t *testing.T) {
 			"fake-stack-id",
 			false,
 		},
+		{
+			"stack extra listeners",
+			stackSpec{
+				name:             "foo",
+				securityGroupID:  "bar",
+				vpcID:            "baz",
+				loadbalancerType: LoadBalancerTypeNetwork,
+				extraListeners:   []ExtraListener{{ListenProtocol: "TCP", TargetPort: 2222, ListenPort: 22, PodLabel: "app=test"}},
+			},
+			fake.CFOutputs{UpdateStack: fake.R(fake.MockUSOutput("fake-stack-id"), nil)},
+			"fake-stack-id",
+			false,
+		},
 	} {
 		t.Run(ti.name, func(t *testing.T) {
 			c := &fake.CFClient{Outputs: ti.givenOutputs}
@@ -194,6 +220,17 @@ func TestUpdatingStack(t *testing.T) {
 			}
 		})
 	}
+}
+
+func Test_lbARN(t *testing.T) {
+	t.Run("should return the ARN", func(t *testing.T) {
+		want := "blah"
+		s := stackOutput{outputLoadBalancerARN: want}
+		got := s.lbARN()
+		if want != got {
+			t.Errorf("unexpected result. wanted %+v, got %+v", want, got)
+		}
+	})
 }
 
 func TestDeleteStack(t *testing.T) {

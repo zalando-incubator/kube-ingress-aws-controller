@@ -152,6 +152,7 @@ Overview of configuration which can be set via Ingress annotations.
 |`zalando.org/aws-load-balancer-ssl-policy`|`string`|`ELBSecurityPolicy-2016-08`|
 |`zalando.org/aws-load-balancer-type`| `nlb` \| `alb`|`alb`|
 |`zalando.org/aws-load-balancer-http2`| `true` \| `false`|`true`|
+|[`zalando.org/aws-nlb-extra-listeners`](#extra-listen-ports)|`string`|N/A|
 |`zalando.org/aws-waf-web-acl-id` | `string` | N/A |
 |`kubernetes.io/ingress.class`|`string`|N/A|
 
@@ -708,6 +709,29 @@ being managed through a target group type is `ip`, which means there is no neces
 | `AWSCNI`    |   `true`    |  `true`  | PodIP == HostIP: limited scaling and host bound        |
 | `AWSCNI`    |   `false`   |  `true`  | PodIP != HostIP: limited scaling and host bound        |
 | `AWSCNI`    |   `false`   | `false`  | free scaling, pod VPC CNI IP used                      |
+
+## Advanced Options for NLBs
+
+### Extra Listen Ports
+
+Some real world scenarios may require non-standard TCP or UDP ingresses. The `zalando.org/aws-nlb-extra-listeners`
+annotation allows you to specify a list of additional listeners to add to your NLB. The value of the annotation should
+be a valid JSON string of the following format.
+
+```json
+[
+    {
+        "protocol": "TCP",
+        "listenport": 22,
+        "targetport": 2222,
+        "podlabel": "application=ssh-service"
+    }
+]
+```
+
+The `podlabel` value is used to register targets in the target group associated with the listener. This depends on the
+AWS CNI Mode feature, where individual pods receive accessible IP addresses. The value is used to identify pods running
+in the same namespace as the ingress that will receive traffic from the load balancer.
 
 ## Trying it out
 
