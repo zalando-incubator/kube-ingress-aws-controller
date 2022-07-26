@@ -307,7 +307,6 @@ func doWork(
 
 	metrics.ingressesTotal.Set(float64(counts[kubernetes.TypeIngress]))
 	metrics.routegroupsTotal.Set(float64(counts[kubernetes.TypeRouteGroup]))
-	metrics.fabricgatewaysTotal.Set(float64(counts[kubernetes.TypeFabricGateway]))
 	metrics.stacksTotal.Set(float64(len(stacks)))
 	metrics.ownedAutoscalingGroupsTotal.Set(float64(len(awsAdapter.OwnedAutoScalingGroups)))
 	metrics.targetedAutoscalingGroupsTotal.Set(float64(len(awsAdapter.TargetedAutoScalingGroups)))
@@ -318,7 +317,6 @@ func doWork(
 
 	log.Debugf("Found %d ingress(es)", counts[kubernetes.TypeIngress])
 	log.Debugf("Found %d route group(s)", counts[kubernetes.TypeRouteGroup])
-	log.Debugf("Found %d fabric gateway(s)", counts[kubernetes.TypeFabricGateway])
 	log.Debugf("Found %d stack(s)", len(stacks))
 	log.Debugf("Found %d owned auto scaling group(s)", len(awsAdapter.OwnedAutoScalingGroups))
 	log.Debugf("Found %d targeted auto scaling group(s)", len(awsAdapter.TargetedAutoScalingGroups))

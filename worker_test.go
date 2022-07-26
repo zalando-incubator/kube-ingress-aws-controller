@@ -1046,12 +1046,10 @@ func TestCountByIngressType(t *testing.T) {
 		&kubernetes.Ingress{ResourceType: kubernetes.TypeIngress},
 		&kubernetes.Ingress{ResourceType: kubernetes.TypeRouteGroup},
 		&kubernetes.Ingress{ResourceType: kubernetes.TypeRouteGroup},
-		&kubernetes.Ingress{ResourceType: kubernetes.TypeFabricGateway},
 	}
 
 	counts := countByIngressType(ingresses)
 
 	assert.Equal(t, 3, counts[kubernetes.TypeIngress])
 	assert.Equal(t, 2, counts[kubernetes.TypeRouteGroup])
-	assert.Equal(t, 1, counts[kubernetes.TypeFabricGateway])
 }
