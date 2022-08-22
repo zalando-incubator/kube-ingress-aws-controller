@@ -88,16 +88,6 @@ func (l *loadBalancer) addIngress(certificateARNs []string, ingress *kubernetes.
 		return true
 	}
 
-	if l.ipAddressType != ingress.IPAddressType ||
-		l.scheme != ingress.Scheme ||
-		l.securityGroup != ingress.SecurityGroup ||
-		l.sslPolicy != ingress.SSLPolicy ||
-		l.loadBalancerType != ingress.LoadBalancerType ||
-		l.http2 != ingress.HTTP2 ||
-		l.wafWebACLID != ingress.WAFWebACLID {
-		return false
-	}
-
 	resourceName := fmt.Sprintf("%s/%s", ingress.Namespace, ingress.Name)
 
 	owner := ""
@@ -110,6 +100,23 @@ func (l *loadBalancer) addIngress(certificateARNs []string, ingress *kubernetes.
 	}
 
 	if !ingress.Shared && resourceName != owner {
+		return false
+	}
+
+	// settings that would require a new load balancer no matter if it's
+	// shared or not.
+	if l.ipAddressType != ingress.IPAddressType ||
+		l.scheme != ingress.Scheme ||
+		l.loadBalancerType != ingress.LoadBalancerType ||
+		l.http2 != ingress.HTTP2 {
+		return false
+	}
+
+	// settings that can be changed on an existing load balancer if it's
+	// NOT shared.
+	if ingress.Shared && (l.securityGroup != ingress.SecurityGroup ||
+		l.sslPolicy != ingress.SSLPolicy ||
+		l.wafWebACLID != ingress.WAFWebACLID) {
 		return false
 	}
 

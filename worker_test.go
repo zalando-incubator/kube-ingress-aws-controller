@@ -169,12 +169,31 @@ func TestAddIngress(tt *testing.T) {
 			},
 			added: false,
 		},
+		{
+			name: "Adding/changing WAF, SG or TLS settings on non-shared LB should work",
+			loadBalancer: &loadBalancer{
+				ingresses: make(map[string][]*kubernetes.Ingress),
+				stack: &aws.Stack{
+					OwnerIngress: "foo/bar",
+				},
+				sslPolicy: "ELBSecurityPolicy-2016-08",
+			},
+			ingress: &kubernetes.Ingress{
+				Name:          "bar",
+				Namespace:     "foo",
+				WAFWebACLID:   "WAFZXX",
+				SecurityGroup: "bar",
+				SSLPolicy:     "ELBSecurityPolicy-FS-2018-06",
+				Shared:        false,
+			},
+			added: true,
+		},
 	} {
 		tt.Run(test.name, func(t *testing.T) {
 			assert.Equal(
 				t,
-				test.loadBalancer.addIngress(test.certificateARNs, test.ingress, test.maxCerts),
 				test.added,
+				test.loadBalancer.addIngress(test.certificateARNs, test.ingress, test.maxCerts),
 			)
 		})
 	}
