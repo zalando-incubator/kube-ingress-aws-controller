@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/stretchr/testify/require"
 )
 
 func TestListIngresses(t *testing.T) {
@@ -18,7 +19,8 @@ func TestListIngresses(t *testing.T) {
 		f, _ := os.Open("testdata/fixture01.json")
 		defer f.Close()
 		rw.WriteHeader(http.StatusOK)
-		io.Copy(rw, f)
+		_, err := io.Copy(rw, f)
+		require.NoError(t, err)
 	}))
 	defer testServer.Close()
 	kubeClient, _ := newSimpleClient(&Config{BaseURL: testServer.URL}, false)
@@ -46,7 +48,8 @@ func TestListIngressesV1(t *testing.T) {
 		f, _ := os.Open("testdata/fixture03.json")
 		defer f.Close()
 		rw.WriteHeader(http.StatusOK)
-		io.Copy(rw, f)
+		_, err := io.Copy(rw, f)
+		require.NoError(t, err)
 	}))
 	defer testServer.Close()
 	kubeClient, _ := newSimpleClient(&Config{BaseURL: testServer.URL}, false)

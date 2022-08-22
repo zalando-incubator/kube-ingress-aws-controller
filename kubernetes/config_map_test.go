@@ -8,6 +8,8 @@ import (
 	"os"
 	"reflect"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestGetConfigMap(t *testing.T) {
@@ -15,7 +17,8 @@ func TestGetConfigMap(t *testing.T) {
 		f, _ := os.Open("testdata/fixture02.json")
 		defer f.Close()
 		rw.WriteHeader(http.StatusOK)
-		io.Copy(rw, f)
+		_, err := io.Copy(rw, f)
+		require.NoError(t, err)
 	}))
 	defer testServer.Close()
 

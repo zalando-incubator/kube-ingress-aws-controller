@@ -92,8 +92,6 @@ type manifest struct {
 	vpcID         string
 }
 
-type configProviderFunc func() client.ConfigProvider
-
 const (
 	DefaultHealthCheckPath            = "/kube-system/healthz"
 	DefaultHealthCheckPort            = 9999

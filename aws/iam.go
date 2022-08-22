@@ -40,9 +40,7 @@ func getIAMServerCertificateMetadata(api iamiface.IAMAPI) ([]*iam.ServerCertific
 	}
 	certList := make([]*iam.ServerCertificateMetadata, 0)
 	err := api.ListServerCertificatesPages(params, func(p *iam.ListServerCertificatesOutput, lastPage bool) bool {
-		for _, cert := range p.ServerCertificateMetadataList {
-			certList = append(certList, cert)
-		}
+		certList = append(certList, p.ServerCertificateMetadataList...)
 		return true
 	})
 	return certList, err

@@ -9,6 +9,8 @@ import (
 	"reflect"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestListRoutegroups(t *testing.T) {
@@ -16,7 +18,9 @@ func TestListRoutegroups(t *testing.T) {
 		f, _ := os.Open("testdata/fixture01_rg.json")
 		defer f.Close()
 		rw.WriteHeader(http.StatusOK)
-		io.Copy(rw, f)
+		_, err := io.Copy(rw, f)
+		require.NoError(t, err)
+
 	}))
 	defer testServer.Close()
 	kubeClient, _ := newSimpleClient(&Config{BaseURL: testServer.URL}, false)

@@ -5,43 +5,16 @@ package kubernetes
 import (
 	"context"
 	"fmt"
-	"os"
 	"reflect"
 	"testing"
 	"time"
 
-	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
-	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/fake"
-	"k8s.io/client-go/tools/clientcmd"
 )
-
-func kubeconfig() *kubernetes.Clientset {
-	kubeconfig := os.Getenv("KUBECONFIG")
-	kubeCfg, err := clientcmd.BuildConfigFromFlags("", kubeconfig)
-	if err != nil {
-		panic(err.Error())
-	}
-	clientset, err := kubernetes.NewForConfig(kubeCfg)
-	if err != nil {
-		log.Panicf("Can't get kubernetes client: %v", err)
-	}
-	return clientset
-}
-
-func ExampleAdapter_PodInformer() {
-	epCh := make(chan []string, 10)
-	a := Adapter{
-		clientset:           kubeconfig(),
-		cniPodNamespace:     "kube-system",
-		cniPodLabelSelector: "application=skipper-ingress",
-	}
-	a.PodInformer(context.TODO(), epCh)
-}
 
 // The fake client fails under race tests https://github.com/kubernetes/kubernetes/issues/95372
 func TestAdapter_PodInformer(t *testing.T) {
@@ -88,7 +61,10 @@ func TestAdapter_PodInformer(t *testing.T) {
 		require.NoError(t, err)
 	})
 
-	go a.PodInformer(context.TODO(), pods)
+	go func() {
+		err := a.PodInformer(context.TODO(), pods)
+		require.NoError(t, err)
+	}()
 
 	t.Run("receiving event of 5 pod list", func(t *testing.T) {
 		require.Eventually(t, func() bool {
