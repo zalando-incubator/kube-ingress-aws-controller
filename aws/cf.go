@@ -143,7 +143,6 @@ const (
 	parameterTargetGroupTargetPortParameter          = "TargetGroupTargetPortParameter"
 	parameterTargetGroupHTTPTargetPortParameter      = "TargetGroupHTTPTargetPortParameter"
 	parameterTargetGroupVPCIDParameter               = "TargetGroupVPCIDParameter"
-	parameterListenerCertificatesParameter           = "ListenerCertificatesParameter"
 	parameterListenerSslPolicyParameter              = "ListenerSslPolicyParameter"
 	parameterIpAddressTypeParameter                  = "IpAddressType"
 	parameterLoadBalancerTypeParameter               = "Type"
@@ -169,7 +168,6 @@ type stackSpec struct {
 	httpDisabled                      bool
 	httpTargetPort                    uint
 	timeoutInMinutes                  uint
-	customTemplate                    string
 	stackTerminationProtection        bool
 	idleConnectionTimeoutSeconds      uint
 	deregistrationDelayTimeoutSeconds uint

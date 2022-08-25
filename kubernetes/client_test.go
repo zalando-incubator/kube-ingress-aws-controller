@@ -9,6 +9,8 @@ import (
 	"reflect"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestClientGet(t *testing.T) {
@@ -35,7 +37,8 @@ func TestClientGet(t *testing.T) {
 					w.WriteHeader(http.StatusBadRequest)
 				}
 				w.WriteHeader(test.responseCode)
-				io.WriteString(w, test.responseBody)
+				_, err := io.WriteString(w, test.responseBody)
+				require.NoError(t, err)
 			}
 
 			server := httptest.NewServer(http.HandlerFunc(handler))
@@ -101,7 +104,8 @@ func TestClientPatch(t *testing.T) {
 					t.Errorf("unexpected request payload. wanted %v, got %v\n", test.payload, b)
 				}
 				w.WriteHeader(test.responseCode)
-				io.WriteString(w, test.responseBody)
+				_, err = io.WriteString(w, test.responseBody)
+				require.NoError(t, err)
 			}
 
 			server := httptest.NewServer(http.HandlerFunc(handler))
@@ -146,7 +150,8 @@ func TestTLS(t *testing.T) {
 			t.Errorf(`unexpected request body. wanted "bar" but got %q`, string(buf))
 		}
 		w.WriteHeader(http.StatusOK)
-		io.Copy(w, r.Body)
+		_, err = io.Copy(w, r.Body)
+		require.NoError(t, err)
 	}
 	cert, err := tls.LoadX509KeyPair("testdata/cert.pem", "testdata/key.pem")
 	if err != nil {

@@ -42,9 +42,7 @@ func getACMCertificateSummaries(api acmiface.ACMAPI) ([]*acm.CertificateSummary,
 	}
 	acmSummaries := make([]*acm.CertificateSummary, 0)
 	err := api.ListCertificatesPages(params, func(page *acm.ListCertificatesOutput, lastPage bool) bool {
-		for _, cert := range page.CertificateSummaryList {
-			acmSummaries = append(acmSummaries, cert)
-		}
+		acmSummaries = append(acmSummaries, page.CertificateSummaryList...)
 		return true
 	})
 	return acmSummaries, err

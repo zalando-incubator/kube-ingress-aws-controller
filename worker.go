@@ -46,8 +46,7 @@ const (
 )
 
 const (
-	maxTargetGroupSupported = 1000
-	cniEventRateLimit       = 5 * time.Second
+	cniEventRateLimit = 5 * time.Second
 )
 
 func (l *loadBalancer) Status() int {
@@ -671,7 +670,13 @@ func cniEventHandler(ctx context.Context, targetCNIcfg *aws.TargetCNIconfig,
 	defer rateLimiter.Stop()
 
 	endpointCh := make(chan []string, 10)
-	go informer(ctx, endpointCh)
+	go func() {
+		err := informer(ctx, endpointCh)
+		if err != nil {
+			log.Errorf("Informer failed: %v", err)
+			return
+		}
+	}()
 
 	var cniTargetGroupARNs, endpoints []string
 	for {
