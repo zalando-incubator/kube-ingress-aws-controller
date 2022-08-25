@@ -20,8 +20,7 @@ require (
 	github.com/opencontainers/runc v1.1.3 // indirect
 	github.com/power-devops/perfstat v0.0.0-20220216144756-c35f1ee13d7c // indirect
 	github.com/pquerna/cachecontrol v0.1.0 // indirect
-	github.com/prometheus/client_golang v1.12.2
-	github.com/prometheus/common v0.33.0 // indirect
+	github.com/prometheus/client_golang v1.13.0
 	github.com/rcrowley/go-metrics v0.0.0-20201227073835-cf1acfcdf475 // indirect
 	github.com/shirou/gopsutil/v3 v3.22.3 // indirect
 	github.com/sirupsen/logrus v1.8.1
