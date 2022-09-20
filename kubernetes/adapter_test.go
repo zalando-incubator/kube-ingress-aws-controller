@@ -469,8 +469,8 @@ func TestInsecureConfig(t *testing.T) {
 	if cfg.CAFile != "" {
 		t.Error("unexpected CAFile attribute")
 	}
-	if cfg.BearerToken != "" {
-		t.Error("unexpected Bearer token attribute")
+	if cfg.TokenProvider != nil {
+		t.Error("unexpected token provider attribute")
 	}
 	if cfg.UserAgent != defaultControllerUserAgent {
 		t.Error("unexpected User Agent attribute")

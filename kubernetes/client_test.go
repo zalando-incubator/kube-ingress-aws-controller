@@ -166,7 +166,7 @@ func TestTLS(t *testing.T) {
 	cfg := &Config{
 		BaseURL:         server.URL,
 		UserAgent:       "kube-ingress-aws-controller",
-		BearerToken:     "foo",
+		TokenProvider:   mockSecretProvider("foo"),
 		TLSClientConfig: TLSClientConfig{CAFile: "testdata/cert.pem"},
 		Timeout:         5 * time.Second,
 	}
@@ -182,4 +182,18 @@ func TestTLS(t *testing.T) {
 	} else {
 		defer r.Close()
 	}
+}
+
+// mock the SecretProvider from skipper module
+type mockSecretProvider string
+
+func (sp mockSecretProvider) GetSecret(_ string) ([]byte, bool) {
+	return []byte(sp), true
+}
+
+func (sp mockSecretProvider) Add(_ string) error {
+	return nil
+}
+
+func (sp mockSecretProvider) Close() {
 }
