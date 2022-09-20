@@ -155,7 +155,7 @@ func (c *simpleClient) createRequest(method, resource string, body io.Reader) (*
 		req.Header.Set("User-Agent", c.cfg.UserAgent)
 	}
 	if c.cfg.TokenProvider != nil {
-		token, ok := c.cfg.TokenProvider.GetSecret(serviceAccountTokenKey)
+		token, ok := c.cfg.TokenProvider.GetSecret(serviceAccountDir + serviceAccountTokenKey)
 		if !ok {
 			return nil, fmt.Errorf("secret not found: %v", serviceAccountTokenKey)
 		}
