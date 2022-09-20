@@ -395,7 +395,7 @@ func (a *Adapter) UpdateIngressLoadBalancer(ingress *Ingress, loadBalancerDNSNam
 	case TypeIngress:
 		return a.ingressClient.updateIngressLoadBalancer(a.kubeClient, ingress.Namespace, ingress.Name, loadBalancerDNSName)
 	}
-	return fmt.Errorf("unknown resourceType '%s', failed to update kubernetes resource", ingress.ResourceType)
+	return fmt.Errorf("unknown resourceType '%s', failed to update Kubernetes resource", ingress.ResourceType)
 }
 
 // GetConfigMap retrieves the ConfigMap with name from namespace.

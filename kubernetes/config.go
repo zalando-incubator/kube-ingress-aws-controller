@@ -1,6 +1,7 @@
 package kubernetes
 
 import (
+	"fmt"
 	"net"
 	"os"
 	"time"
@@ -70,7 +71,11 @@ func InClusterConfig() (*Config, error) {
 
 	dir := serviceAccountLocator()
 	tokenProvider := secrets.NewSecretPaths(time.Minute)
-	tokenProvider.Add(dir + serviceAccountTokenKey)
+	err := tokenProvider.Add(dir + serviceAccountTokenKey)
+
+	if err != nil {
+		return nil, fmt.Errorf("error when adding token file to token provider: %v", err)
+	}
 
 	rootCAFile := dir + serviceAccountRootCAKey
 	if _, err := os.Stat(rootCAFile); os.IsNotExist(err) {
