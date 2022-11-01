@@ -430,8 +430,8 @@ github.com/yuin/goldmark v1.2.1/go.mod h1:3hX8gzYuyVAZsxl0MRgGTJEmQBFcNTphYh9dec
 github.com/yuin/gopher-lua v0.0.0-20210529063254-f4c35e4016d9 h1:k/gmLsJDWwWqbLCur2yWnJzwQEKRcAHXo6seXGuSwWw=
 github.com/yusufpapurcu/wmi v1.2.2 h1:KBNDSne4vP5mbSWnJbO+51IMOXJB67QiYCSBrubbPRg=
 github.com/yusufpapurcu/wmi v1.2.2/go.mod h1:SBZ9tNy3G9/m5Oi98Zks0QjeHVDvuK0qfxQmPyzfmi0=
-github.com/zalando/skipper v0.13.254 h1:gD2/hZQFSs2Z//MI1RocCD9deDShPcGIrSG9PUyPzeA=
-github.com/zalando/skipper v0.13.254/go.mod h1:ichyBM+1Fs2gOBHPfX3PAWxgrgGcbouyaOHyz3OiafI=
+github.com/zalando/skipper v0.14.1 h1:U5GRELgSoLJ+w23chlFAgxUemk4zJyqs6cwKTJFw+wE=
+github.com/zalando/skipper v0.14.1/go.mod h1:pLMW/HCO3fW1Q9J3uwfokz1Lat8gbk5jvwG4xrQrgAk=
 go.opencensus.io v0.21.0/go.mod h1:mSImk1erAIZhrmZN+AvHh14ztQfjbGwt4TtuofqLduU=
 go.opencensus.io v0.22.0/go.mod h1:+kGneAE2xo2IficOXnaByMWTGM9T73dGwxeWcUqIpI8=
 go.opencensus.io v0.22.2/go.mod h1:yxeiOL68Rb0Xd1ddK5vPZ/oVn4vY4Ynel7k9FzqtOIw=
