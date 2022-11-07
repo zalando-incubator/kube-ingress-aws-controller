@@ -9,6 +9,8 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/aws/aws-sdk-go/service/elbv2"
+
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -1011,14 +1013,25 @@ func TestAdapter_SetTargetsOnCNITargetGroups(t *testing.T) {
 }
 
 func TestWithTargetAccessMode(t *testing.T) {
-	t.Run("WithTargetAccessMode enables AWS CNI mode", func(t *testing.T) {
+	t.Run("WithTargetAccessMode AWSCNI", func(t *testing.T) {
 		a := &Adapter{TargetCNI: &TargetCNIconfig{Enabled: false}}
 		a = a.WithTargetAccessMode("AWSCNI")
-		require.True(t, a.TargetCNI.Enabled)
+
+		assert.Equal(t, elbv2.TargetTypeEnumIp, a.targetType)
+		assert.True(t, a.TargetCNI.Enabled)
 	})
-	t.Run("WithTargetAccessMode disables AWS CNI mode", func(t *testing.T) {
+	t.Run("WithTargetAccessMode HostPort", func(t *testing.T) {
 		a := &Adapter{TargetCNI: &TargetCNIconfig{Enabled: true}}
 		a = a.WithTargetAccessMode("HostPort")
-		require.False(t, a.TargetCNI.Enabled)
+
+		assert.Equal(t, elbv2.TargetTypeEnumInstance, a.targetType)
+		assert.False(t, a.TargetCNI.Enabled)
+	})
+	t.Run("WithTargetAccessMode Legacy", func(t *testing.T) {
+		a := &Adapter{TargetCNI: &TargetCNIconfig{Enabled: true}}
+		a = a.WithTargetAccessMode("Legacy")
+
+		assert.Equal(t, "", a.targetType)
+		assert.False(t, a.TargetCNI.Enabled)
 	})
 }

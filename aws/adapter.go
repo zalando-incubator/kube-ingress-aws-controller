@@ -46,6 +46,7 @@ type Adapter struct {
 	albHealthyThresholdCount    uint
 	albUnhealthyThresholdCount  uint
 	nlbHealthyThresholdCount    uint
+	targetType                  string
 	targetPort                  uint
 	albHTTPTargetPort           uint
 	nlbHTTPTargetPort           uint
@@ -133,8 +134,10 @@ const (
 	LoadBalancerTypeNetwork     = "network"
 	IPAddressTypeIPV4           = "ipv4"
 	IPAddressTypeDualstack      = "dualstack"
-	TargetAccessModeAWSCNI      = "AWSCNI"
-	TargetAccessModeHostPort    = "HostPort"
+
+	TargetAccessModeAWSCNI   = "AWSCNI"
+	TargetAccessModeHostPort = "HostPort"
+	TargetAccessModeLegacy   = "Legacy"
 )
 
 var (
@@ -443,8 +446,17 @@ func (a *Adapter) WithInternalDomains(domains []string) *Adapter {
 }
 
 // WithTargetAccessMode returns the receiver adapter after defining the target access mode
-func (a *Adapter) WithTargetAccessMode(t string) *Adapter {
-	a.TargetCNI.Enabled = t == TargetAccessModeAWSCNI
+func (a *Adapter) WithTargetAccessMode(mode string) *Adapter {
+	a.TargetCNI.Enabled = mode == TargetAccessModeAWSCNI
+
+	switch mode {
+	case TargetAccessModeHostPort:
+		a.targetType = elbv2.TargetTypeEnumInstance
+	case TargetAccessModeAWSCNI:
+		a.targetType = elbv2.TargetTypeEnumIp
+	case TargetAccessModeLegacy:
+		a.targetType = ""
+	}
 	return a
 }
 
@@ -669,6 +681,7 @@ func (a *Adapter) CreateStack(certificateARNs []string, scheme, securityGroup, o
 		albHealthyThresholdCount:          a.albHealthyThresholdCount,
 		albUnhealthyThresholdCount:        a.albUnhealthyThresholdCount,
 		nlbHealthyThresholdCount:          a.nlbHealthyThresholdCount,
+		targetType:                        a.targetType,
 		targetPort:                        a.targetPort,
 		targetHTTPS:                       a.targetHTTPS,
 		httpDisabled:                      a.httpDisabled(loadBalancerType),
@@ -690,7 +703,6 @@ func (a *Adapter) CreateStack(certificateARNs []string, scheme, securityGroup, o
 		http2:                             http2,
 		tags:                              a.stackTags,
 		internalDomains:                   a.internalDomains,
-		targetAccessModeCNI:               a.TargetCNI.Enabled,
 		denyInternalDomains:               a.denyInternalDomains,
 		denyInternalDomainsResponse: denyResp{
 			body:        a.denyInternalRespBody,
@@ -725,6 +737,7 @@ func (a *Adapter) UpdateStack(stackName string, certificateARNs map[string]time.
 		albHealthyThresholdCount:          a.albHealthyThresholdCount,
 		albUnhealthyThresholdCount:        a.albUnhealthyThresholdCount,
 		nlbHealthyThresholdCount:          a.nlbHealthyThresholdCount,
+		targetType:                        a.targetType,
 		targetPort:                        a.targetPort,
 		targetHTTPS:                       a.targetHTTPS,
 		httpDisabled:                      a.httpDisabled(loadBalancerType),
@@ -746,7 +759,6 @@ func (a *Adapter) UpdateStack(stackName string, certificateARNs map[string]time.
 		http2:                             http2,
 		tags:                              a.stackTags,
 		internalDomains:                   a.internalDomains,
-		targetAccessModeCNI:               a.TargetCNI.Enabled,
 		denyInternalDomains:               a.denyInternalDomains,
 		denyInternalDomainsResponse: denyResp{
 			body:        a.denyInternalRespBody,
