@@ -7,7 +7,7 @@ resources and orchestrate [AWS Load Balancers](https://aws.amazon.com/elasticloa
 [![Build Status](https://github.com/zalando-incubator/kube-ingress-aws-controller/workflows/ci/badge.svg)](https://github.com/zalando-incubator/kube-ingress-aws-controller/actions?query=branch:master)
 [![Coverage Status](https://coveralls.io/repos/github/zalando-incubator/kube-ingress-aws-controller/badge.svg?branch=master)](https://coveralls.io/github/zalando-incubator/kube-ingress-aws-controller?branch=master)
 [![GitHub release](https://img.shields.io/github/release/zalando-incubator/kube-ingress-aws-controller.svg)](https://github.com/zalando-incubator/kube-ingress-aws-controller/releases)
-[![go-doc](https://godoc.org/github.com/zalando-incubator/kube-ingress-aws-controller?status.svg)](https://godoc.org/github.com/zalando-incubator/kube-ingress-aws-controller)
+[![go-doc](https://pkg.go.dev/github.com/zalando-incubator/kube-ingress-aws-controller?status.svg)](https://pkg.go.dev/github.com/zalando-incubator/kube-ingress-aws-controller)
 
 
 This ingress controller uses the EC2 instance metadata of the worker node where it's currently running to find the
@@ -609,7 +609,7 @@ To [deploy](deploy/README.md) the ingress controller, use the
 [example YAML](deploy/ingress-controller.yaml.example) as the descriptor.
 You can customize the image used in the example YAML file.
 
-We provide `registry.opensource.zalan.do/teapot/kube-ingress-aws-controller:latest` as a publicly usable Docker image
+We provide `ghcr.io/zalando-incubator/kube-ingress-aws-controller:latest` as a publicly usable Docker image
 built from this codebase. You can deploy it with 2 easy steps:
 - Replace the placeholder for your region inside the example YAML, for ex., `eu-west-1`
 - Use kubectl to execute the command  `kubectl apply -f deploy/ingress-controller.yaml`
