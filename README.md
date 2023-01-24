@@ -293,6 +293,31 @@ On startup, the controller discovers the AWS resources required for the controll
     If there are two possible subnets for a single Availability Zone then the
     first subnet, lexicographically sorted by ID, will be selected.
 
+#### Running outside of EC2
+
+The controller can run outside of EC2. In this mode it can't dicover `vpc-id`
+and `cluster-id` which needs to be passed via flags on startup:
+
+```sh
+./kube-ingress-aws-controller \
+  --cluster-id="<cluster-id>" \
+  --vpc-id="<vpc-id>"
+```
+
+You can get the VPC ID by listing VPCs in your AWS account:
+
+```sh
+aws ec2 describe-vpcs
+{
+    "Vpcs": [
+        {
+            "CidrBlock": "172.31.0.0/16",
+            "DhcpOptionsId": "....",
+            "State": "available",
+            "VpcId": "vpc-abcde",
+            ...
+```
+
 ### Creating Load Balancers
 
 When the controller learns about new ingress resources, it uses the hosts specified in it to automatically determine
