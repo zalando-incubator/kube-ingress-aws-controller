@@ -494,6 +494,27 @@ func (a *Adapter) WithInternalDomainsDenyResponseContenType(contentType string) 
 	return a
 }
 
+// WithCustomEc2Client returns an Adapter that will use the provided
+// Ec2 client, instead of the generic Ec2 client provided by AWS.
+func (a *Adapter) WithCustomEc2Client(c ec2iface.EC2API) *Adapter {
+	a.ec2 = c
+	return a
+}
+
+// WithCustomEc2Client returns an Adapter that will use the provided
+// Ec2 client, instead of the generic Ec2 client provided by AWS.
+func (a *Adapter) WithCustomAutoScalingClient(c autoscalingiface.AutoScalingAPI) *Adapter {
+	a.autoscaling = c
+	return a
+}
+
+// WithCustomElbv2Client returns an Adapter that will use the provided
+// ELBv2 client, instead of the generic ELBv2 client provided by AWS.
+func (a *Adapter) WithCustomElbv2Client(c elbv2iface.ELBV2API) * Adapter {
+	a.elbv2 = c
+	return a
+}
+
 // ClusterID returns the ClusterID tag that all resources from the same Kubernetes cluster share.
 // It's taken from the current ec2 instance.
 func (a *Adapter) ClusterID() string {
