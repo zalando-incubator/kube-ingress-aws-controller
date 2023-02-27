@@ -32,6 +32,7 @@ func (m *MockAutoScalingClient) DescribeAutoScalingGroups(*autoscaling.DescribeA
 	if out, ok := m.Outputs.DescribeAutoScalingGroups.response.(*autoscaling.DescribeAutoScalingGroupsOutput); ok {
 		return out, m.Outputs.DescribeAutoScalingGroups.err
 	}
+
 	return nil, m.Outputs.DescribeAutoScalingGroups.err
 }
 

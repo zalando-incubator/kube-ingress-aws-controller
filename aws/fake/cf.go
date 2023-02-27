@@ -17,7 +17,12 @@ type CfMockOutputs struct {
 
 type MockCloudFormationClient struct {
 	cloudformationiface.CloudFormationAPI
-	Outputs CfMockOutputs
+	lastGeneratedTemplate string
+	Outputs               CfMockOutputs
+}
+
+func (m *MockCloudFormationClient) GetLastGeneratedTemplate() string {
+	return m.lastGeneratedTemplate
 }
 
 func (m *MockCloudFormationClient) DescribeStacksPages(in *cloudformation.DescribeStacksInput, fn func(*cloudformation.DescribeStacksOutput, bool) bool) (err error) {
@@ -46,6 +51,7 @@ func (m *MockCloudFormationClient) DescribeStacks(in *cloudformation.DescribeSta
 }
 
 func (m *MockCloudFormationClient) CreateStack(params *cloudformation.CreateStackInput) (*cloudformation.CreateStackOutput, error) {
+	m.lastGeneratedTemplate = *params.TemplateBody
 	if out, ok := m.Outputs.CreateStack.response.(*cloudformation.CreateStackOutput); ok {
 		return out, m.Outputs.CreateStack.err
 	}
@@ -59,6 +65,7 @@ func MockCSOutput(stackId string) *cloudformation.CreateStackOutput {
 }
 
 func (m *MockCloudFormationClient) UpdateStack(params *cloudformation.UpdateStackInput) (*cloudformation.UpdateStackOutput, error) {
+	m.lastGeneratedTemplate = *params.TemplateBody
 	if out, ok := m.Outputs.UpdateStack.response.(*cloudformation.UpdateStackOutput); ok {
 		return out, m.Outputs.UpdateStack.err
 	}

@@ -248,6 +248,17 @@ func NewAdapter(clusterID, newControllerID, vpcID string, debug, disableInstrume
 	return
 }
 
+// UpdateManifest generates a manifest again based on cluster and VPC information.
+// This method is useful when using custom AWS clients.
+func (a *Adapter) UpdateManifest(clusterID, vpcID string) (*Adapter, error) {
+	m, err := buildManifest(a, clusterID, vpcID)
+	if err == nil {
+		a.manifest = m
+	}
+
+	return a, err
+}
+
 func (a *Adapter) NewACMCertificateProvider() certs.CertificatesProvider {
 	return newACMCertProvider(a.acm)
 }
@@ -510,8 +521,15 @@ func (a *Adapter) WithCustomAutoScalingClient(c autoscalingiface.AutoScalingAPI)
 
 // WithCustomElbv2Client returns an Adapter that will use the provided
 // ELBv2 client, instead of the generic ELBv2 client provided by AWS.
-func (a *Adapter) WithCustomElbv2Client(c elbv2iface.ELBV2API) * Adapter {
+func (a *Adapter) WithCustomElbv2Client(c elbv2iface.ELBV2API) *Adapter {
 	a.elbv2 = c
+	return a
+}
+
+// WithCustomCloudFormationClient returns an Adapter that will use the provided
+// CloudFormation client, instead of the generic CloudFormation client provided by AWS.
+func (a *Adapter) WithCustomCloudFormationClient(c cloudformationiface.CloudFormationAPI) *Adapter {
+	a.cloudformation = c
 	return a
 }
 

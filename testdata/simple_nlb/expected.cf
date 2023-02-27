@@ -1,0 +1,187 @@
+{
+    "AWSTemplateFormatVersion": "2010-09-09",
+    "Description": "Load Balancer for Kubernetes Ingress",
+    "Parameters": {
+        "HTTP2": {
+            "Type": "String",
+            "Default": "true",
+            "Description": "H2 Enabled"
+        },
+        "IpAddressType": {
+            "Type": "String",
+            "Default": "ipv4",
+            "Description": "IP Address Type, 'ipv4' or 'dualstack'"
+        },
+        "ListenerSslPolicyParameter": {
+            "Type": "String",
+            "Default": "ELBSecurityPolicy-2016-08",
+            "Description": "The HTTPS SSL Security Policy Name"
+        },
+        "LoadBalancerSchemeParameter": {
+            "Type": "String",
+            "Default": "internet-facing",
+            "Description": "The Load Balancer scheme - 'internal' or 'internet-facing'"
+        },
+        "LoadBalancerSecurityGroupParameter": {
+            "Type": "List\u003cAWS::EC2::SecurityGroup::Id\u003e",
+            "Description": "The security group ID for the Load Balancer"
+        },
+        "LoadBalancerSubnetsParameter": {
+            "Type": "List\u003cAWS::EC2::Subnet::Id\u003e",
+            "Description": "The list of subnets IDs for the Load Balancer"
+        },
+        "TargetGroupHealthCheckIntervalParameter": {
+            "Type": "Number",
+            "Default": "10",
+            "Description": "The healthcheck interval"
+        },
+        "TargetGroupHealthCheckPathParameter": {
+            "Type": "String",
+            "Default": "/kube-system/healthz",
+            "Description": "The healthcheck path"
+        },
+        "TargetGroupHealthCheckPortParameter": {
+            "Type": "Number",
+            "Default": "9999",
+            "Description": "The healthcheck port"
+        },
+        "TargetGroupHealthCheckTimeoutParameter": {
+            "Type": "Number",
+            "Default": "5",
+            "Description": "The healthcheck timeout"
+        },
+        "TargetGroupTargetPortParameter": {
+            "Type": "Number",
+            "Default": "9999",
+            "Description": "The target port"
+        },
+        "TargetGroupVPCIDParameter": {
+            "Type": "AWS::EC2::VPC::Id",
+            "Description": "The VPCID for the TargetGroup"
+        },
+        "Type": {
+            "Type": "String",
+            "Default": "application",
+            "Description": "Loadbalancer Type, 'application' or 'network'"
+        }
+    },
+    "Resources": {
+        "HTTPSListener": {
+            "Type": "AWS::ElasticLoadBalancingV2::Listener",
+            "Properties": {
+                "Certificates": [
+                    {
+                        "CertificateArn": "DUMMY"
+                    }
+                ],
+                "DefaultActions": [
+                    {
+                        "TargetGroupArn": {
+                            "Ref": "TG"
+                        },
+                        "Type": "forward"
+                    }
+                ],
+                "LoadBalancerArn": {
+                    "Ref": "LB"
+                },
+                "Port": 443,
+                "Protocol": "TLS",
+                "SslPolicy": {
+                    "Ref": "ListenerSslPolicyParameter"
+                }
+            }
+        },
+        "HTTPSListenerCertificatefc48082457b770e278fc0bd3d392d127869993166f76e8df57d19a0e662820ea": {
+            "Type": "AWS::ElasticLoadBalancingV2::ListenerCertificate",
+            "Properties": {
+                "Certificates": [
+                    {
+                        "CertificateArn": "DUMMY"
+                    }
+                ],
+                "ListenerArn": {
+                    "Ref": "HTTPSListener"
+                }
+            }
+        },
+        "LB": {
+            "Type": "AWS::ElasticLoadBalancingV2::LoadBalancer",
+            "Properties": {
+                "IpAddressType": {
+                    "Ref": "IpAddressType"
+                },
+                "LoadBalancerAttributes": [
+                    {
+                        "Key": "access_logs.s3.enabled",
+                        "Value": "false"
+                    }
+                ],
+                "Scheme": {
+                    "Ref": "LoadBalancerSchemeParameter"
+                },
+                "Subnets": {
+                    "Ref": "LoadBalancerSubnetsParameter"
+                },
+                "Tags": [
+                    {
+                        "Key": "StackName",
+                        "Value": {
+                            "Ref": "AWS::StackName"
+                        }
+                    }
+                ],
+                "Type": {
+                    "Ref": "Type"
+                }
+            }
+        },
+        "TG": {
+            "Type": "AWS::ElasticLoadBalancingV2::TargetGroup",
+            "Properties": {
+                "HealthCheckIntervalSeconds": {
+                    "Ref": "TargetGroupHealthCheckIntervalParameter"
+                },
+                "HealthCheckPath": {
+                    "Ref": "TargetGroupHealthCheckPathParameter"
+                },
+                "HealthCheckPort": {
+                    "Ref": "TargetGroupHealthCheckPortParameter"
+                },
+                "HealthCheckProtocol": "HTTP",
+                "HealthyThresholdCount": 0,
+                "Port": {
+                    "Ref": "TargetGroupTargetPortParameter"
+                },
+                "Protocol": "TCP",
+                "TargetGroupAttributes": [
+                    {
+                        "Key": "deregistration_delay.timeout_seconds",
+                        "Value": "0"
+                    }
+                ],
+                "UnhealthyThresholdCount": 0,
+                "VpcId": {
+                    "Ref": "TargetGroupVPCIDParameter"
+                }
+            }
+        }
+    },
+    "Outputs": {
+        "LoadBalancerDNSName": {
+            "Description": "DNS name for the LoadBalancer",
+            "Value": {
+                "Fn::GetAtt": [
+                    "LB",
+                    "DNSName"
+                ]
+            }
+        },
+        "TargetGroupARN": {
+            "Description": "The ARN of the TargetGroup",
+            "Value": {
+                "Ref": "TG"
+            }
+        }
+    }
+}
