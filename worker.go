@@ -409,7 +409,6 @@ func matchIngressesToLoadBalancers(
 	certsPerALB int,
 	ingresses []*kubernetes.Ingress,
 ) []*loadBalancer {
-	// WHy does it create a cluster local LB here?
 	clusterLocalLB := &loadBalancer{
 		clusterLocal: true,
 		ingresses:    make(map[string][]*kubernetes.Ingress),

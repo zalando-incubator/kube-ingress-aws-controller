@@ -34,7 +34,7 @@ func TestGetAutoScalingGroupByName(t *testing.T) {
 			"success-call-single-asg",
 			"foo",
 			fake.AutoscalingMockOutputs{
-				DescribeAutoScalingGroups: fake.R(fake.MockDASGOutput(map[string]fake.Asgtags{"foo": {"bar": "baz"}}), nil),
+				DescribeAutoScalingGroups: fake.R(fake.MockDescribeAutoScalingGroupOutput(map[string]fake.Asgtags{"foo": {"bar": "baz"}}), nil),
 			},
 			mockAutoScalingGroupDetails("foo", map[string]string{"bar": "baz"}),
 			false,
@@ -43,7 +43,7 @@ func TestGetAutoScalingGroupByName(t *testing.T) {
 			"success-call-multiple-asg",
 			"d",
 			fake.AutoscalingMockOutputs{
-				DescribeAutoScalingGroups: fake.R(fake.MockDASGOutput(map[string]fake.Asgtags{
+				DescribeAutoScalingGroups: fake.R(fake.MockDescribeAutoScalingGroupOutput(map[string]fake.Asgtags{
 					"a": {"b": "c"},
 					"d": {"e": "f"},
 				}), nil),
@@ -55,7 +55,7 @@ func TestGetAutoScalingGroupByName(t *testing.T) {
 			"fail-to-match-single-asg",
 			"miss",
 			fake.AutoscalingMockOutputs{
-				DescribeAutoScalingGroups: fake.R(fake.MockDASGOutput(map[string]fake.Asgtags{"foo": {"bar": "baz"}}), nil),
+				DescribeAutoScalingGroups: fake.R(fake.MockDescribeAutoScalingGroupOutput(map[string]fake.Asgtags{"foo": {"bar": "baz"}}), nil),
 			},
 			nil,
 			true,
@@ -64,7 +64,7 @@ func TestGetAutoScalingGroupByName(t *testing.T) {
 			"fail-to-match-multiple-asg",
 			"miss",
 			fake.AutoscalingMockOutputs{
-				DescribeAutoScalingGroups: fake.R(fake.MockDASGOutput(map[string]fake.Asgtags{
+				DescribeAutoScalingGroups: fake.R(fake.MockDescribeAutoScalingGroupOutput(map[string]fake.Asgtags{
 					"a": {"b": "c"},
 					"d": {"e": "f"},
 				}), nil),
@@ -112,7 +112,7 @@ func TestGetAutoScalingGroupsByName(t *testing.T) {
 			"success-call-single-asg",
 			[]string{"foo"},
 			fake.AutoscalingMockOutputs{
-				DescribeAutoScalingGroups: fake.R(fake.MockDASGOutput(map[string]fake.Asgtags{"foo": {"bar": "baz"}}), nil),
+				DescribeAutoScalingGroups: fake.R(fake.MockDescribeAutoScalingGroupOutput(map[string]fake.Asgtags{"foo": {"bar": "baz"}}), nil),
 			},
 			map[string]*autoScalingGroupDetails{
 				"foo": mockAutoScalingGroupDetails("foo", map[string]string{"bar": "baz"}),
@@ -123,7 +123,7 @@ func TestGetAutoScalingGroupsByName(t *testing.T) {
 			"success-call-multiple-asg",
 			[]string{"a", "d"},
 			fake.AutoscalingMockOutputs{
-				DescribeAutoScalingGroups: fake.R(fake.MockDASGOutput(map[string]fake.Asgtags{
+				DescribeAutoScalingGroups: fake.R(fake.MockDescribeAutoScalingGroupOutput(map[string]fake.Asgtags{
 					"a": {"b": "c"},
 					"d": {"e": "f"},
 				}), nil),
@@ -138,7 +138,7 @@ func TestGetAutoScalingGroupsByName(t *testing.T) {
 			"fail-to-match-single-asg",
 			[]string{"miss"},
 			fake.AutoscalingMockOutputs{
-				DescribeAutoScalingGroups: fake.R(fake.MockDASGOutput(map[string]fake.Asgtags{"foo": {"bar": "baz"}}), nil),
+				DescribeAutoScalingGroups: fake.R(fake.MockDescribeAutoScalingGroupOutput(map[string]fake.Asgtags{"foo": {"bar": "baz"}}), nil),
 			},
 			nil,
 			true,
@@ -147,7 +147,7 @@ func TestGetAutoScalingGroupsByName(t *testing.T) {
 			"fail-to-match-multiple-asg",
 			[]string{"miss", "miss2"},
 			fake.AutoscalingMockOutputs{
-				DescribeAutoScalingGroups: fake.R(fake.MockDASGOutput(map[string]fake.Asgtags{
+				DescribeAutoScalingGroups: fake.R(fake.MockDescribeAutoScalingGroupOutput(map[string]fake.Asgtags{
 					"a": {"b": "c"},
 					"d": {"e": "f"},
 				}), nil),

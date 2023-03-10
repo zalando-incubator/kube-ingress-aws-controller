@@ -61,7 +61,7 @@ func (m *MockAutoScalingClient) DetachLoadBalancerTargetGroups(*autoscaling.Deta
 	return nil, m.Outputs.DetachLoadBalancerTargetGroups.err
 }
 
-func MockDASGOutput(asgs ...map[string]Asgtags) *autoscaling.DescribeAutoScalingGroupsOutput {
+func MockDescribeAutoScalingGroupOutput(asgs ...map[string]Asgtags) *autoscaling.DescribeAutoScalingGroupsOutput {
 	groups := make([]*autoscaling.Group, 0)
 	for _, asg := range asgs {
 		for name, tags := range asg {

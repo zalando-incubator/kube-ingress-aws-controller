@@ -32,66 +32,30 @@ import (
 // TODO(LThiesen): This should be extracted to another file.
 // This is also just a copy of certs test so it might be useful
 // to just distribute it in a separate package like aws/fake
-type mockedCertificateProvider struct {
-	t *testing.T
-}
-
-func (m mockedCertificateProvider) GetCertificates() ([]*certs.CertificateSummary, error) {
-	//tenYears := time.Hour * 24 * 365 * 10
-	/*caCert := x509.Certificate{
-		SerialNumber: big.NewInt(123),
-		Subject: pkix.Name{
-			Organization: []string{"Testing CA"},
-			CommonName:   "foo.bar.org",
-		},
-		NotBefore: time.Time{},
-		NotAfter:  time.Now().Add(tenYears),
-
-		KeyUsage:              x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature | x509.KeyUsageCertSign,
-		BasicConstraintsValid: true,
-
-		DNSNames: []string{"foo.bar.org"},
-		IsCA:     false,
-	}*/
-
-	/*caCert := x509.Certificate{
-		SerialNumber: big.NewInt(123),
-		DNSNames:     []string{"foo.bar.org"},
-		NotBefore:    time.Now(),
-		NotAfter:     time.Now().Add(time.Hour * 24),
-
-		KeyUsage:              x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature | x509.KeyUsageCertSign,
-		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
-		BasicConstraintsValid: true,
-
-		IsCA: true,
-	}*/
-
-	certSummary := createDummyCertDetail(m.t, "DUMMY", []string{"foo.bar.org"}, time.Now(), time.Now().Add(time.Hour*24))
-
-	/*certificateSummary := certs.NewCertificate(
-	"foo.bar.org",
-	&caCert,
-	nil)*/
-	return []*certs.CertificateSummary{certSummary}, nil
-}
-
-type caInfra struct {
-	sync.Once
+type caSingleton struct {
+	once      sync.Once
 	err       error
 	chainKey  *rsa.PrivateKey
 	roots     *x509.CertPool
 	chainCert *x509.Certificate
 }
 
-var ca = caInfra{}
+type mockedCertificateProvider struct {
+	t  *testing.T
+	ca caSingleton
+}
 
-func createDummyCertDetail(t *testing.T, arn string, altNames []string, notBefore, notAfter time.Time) *certs.CertificateSummary {
+func (m *mockedCertificateProvider) GetCertificates() ([]*certs.CertificateSummary, error) {
 	tenYears := time.Hour * 24 * 365 * 10
-	ca.Do(func() {
+	altNames := []string{"foo.bar.org"}
+	arn := "DUMMY"
+	notBefore := time.Now()
+	notAfter := time.Now().Add(time.Hour * 24)
+
+	m.ca.once.Do(func() {
 		caKey, err := rsa.GenerateKey(rand.Reader, 2048)
 		if err != nil {
-			ca.err = fmt.Errorf("unable to generate CA key: %v", err)
+			m.ca.err = fmt.Errorf("unable to generate CA key: %v", err)
 			return
 		}
 
@@ -110,20 +74,20 @@ func createDummyCertDetail(t *testing.T, arn string, altNames []string, notBefor
 		}
 		caBody, err := x509.CreateCertificate(rand.Reader, &caCert, &caCert, caKey.Public(), caKey)
 		if err != nil {
-			ca.err = fmt.Errorf("unable to generate CA certificate: %v", err)
+			m.ca.err = fmt.Errorf("unable to generate CA certificate: %v", err)
 			return
 		}
 		caReparsed, err := x509.ParseCertificate(caBody)
 		if err != nil {
-			ca.err = fmt.Errorf("unable to parse CA certificate: %v", err)
+			m.ca.err = fmt.Errorf("unable to parse CA certificate: %v", err)
 			return
 		}
-		ca.roots = x509.NewCertPool()
-		ca.roots.AddCert(caReparsed)
+		m.ca.roots = x509.NewCertPool()
+		m.ca.roots.AddCert(caReparsed)
 
 		chainKey, err := rsa.GenerateKey(rand.Reader, 2048)
 		if err != nil {
-			ca.err = fmt.Errorf("unable to generate sub-CA key: %v", err)
+			m.ca.err = fmt.Errorf("unable to generate sub-CA key: %v", err)
 			return
 		}
 		chainCert := x509.Certificate{
@@ -141,22 +105,22 @@ func createDummyCertDetail(t *testing.T, arn string, altNames []string, notBefor
 		}
 		chainBody, err := x509.CreateCertificate(rand.Reader, &chainCert, caReparsed, chainKey.Public(), caKey)
 		if err != nil {
-			ca.err = fmt.Errorf("unable to generate sub-CA certificate: %v", err)
+			m.ca.err = fmt.Errorf("unable to generate sub-CA certificate: %v", err)
 			return
 		}
 		chainReparsed, err := x509.ParseCertificate(chainBody)
 		if err != nil {
-			ca.err = fmt.Errorf("unable to parse sub-CA certificate: %v", err)
+			m.ca.err = fmt.Errorf("unable to parse sub-CA certificate: %v", err)
 			return
 		}
 
-		ca.chainKey = chainKey
-		ca.chainCert = chainReparsed
+		m.ca.chainKey = chainKey
+		m.ca.chainCert = chainReparsed
 	})
 
 	certKey, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
-		require.NoErrorf(t, err, "unable to generate certificate key")
+		require.NoErrorf(m.t, err, "unable to generate certificate key")
 	}
 	cert := x509.Certificate{
 		SerialNumber: big.NewInt(3),
@@ -169,17 +133,17 @@ func createDummyCertDetail(t *testing.T, arn string, altNames []string, notBefor
 		BasicConstraintsValid: true,
 	}
 
-	body, err := x509.CreateCertificate(rand.Reader, &cert, ca.chainCert, certKey.Public(), ca.chainKey)
+	body, err := x509.CreateCertificate(rand.Reader, &cert, m.ca.chainCert, certKey.Public(), m.ca.chainKey)
 	if err != nil {
-		require.NoErrorf(t, err, "unable to generate certificate")
+		require.NoErrorf(m.t, err, "unable to generate certificate")
 	}
 	reparsed, err := x509.ParseCertificate(body)
 	if err != nil {
-		require.NoErrorf(t, err, "unable to parse certificate")
+		require.NoErrorf(m.t, err, "unable to parse certificate")
 	}
 
-	c := certs.NewCertificate(arn, reparsed, []*x509.Certificate{ca.chainCert})
-	return c.WithRoots(ca.roots)
+	c := certs.NewCertificate(arn, reparsed, []*x509.Certificate{m.ca.chainCert})
+	return []*certs.CertificateSummary{c.WithRoots(m.ca.roots)}, nil
 }
 
 func TestResourceConversion(tt *testing.T) {
@@ -191,15 +155,15 @@ func TestResourceConversion(tt *testing.T) {
 
 	for _, scenario := range []struct {
 		name           string
-		ec2responses   fake.Ec2MockOutputs
-		asgresponses   fake.AutoscalingMockOutputs
-		elbv2responses fake.Elbv2MockOutputs
+		ec2Responses   fake.Ec2MockOutputs
+		asgResponses   fake.AutoscalingMockOutputs
+		elbv2Responses fake.Elbv2MockOutputs
 		cfResponses    fake.CfMockOutputs
 		lbType         string
 	}{
 		{
-			"simple_alb",
-			fake.Ec2MockOutputs{DescribeInstancesPages: fake.MockDIPOutput(
+			name: "simple_alb",
+			ec2Responses: fake.Ec2MockOutputs{DescribeInstancesPages: fake.MockDescribeInstancesPagesOutput(
 				nil,
 				fake.TestInstance{
 					Id:        "i0",
@@ -222,16 +186,16 @@ func TestResourceConversion(tt *testing.T) {
 					VpcId:     vpcID,
 					State:     running,
 				}),
-				DescribeSecurityGroups: fake.R(fake.MockDSGOutput(map[string]string{"id": securityGroupID}), nil),
-				DescribeSubnets: fake.R(fake.MockDSOutput(
+				DescribeSecurityGroups: fake.R(fake.MockDescribeSecurityGroupsOutput(map[string]string{"id": securityGroupID}), nil),
+				DescribeSubnets: fake.R(fake.MockDescribeSubnetsOutput(
 					fake.TestSubnet{Id: "foo1", Name: "bar1", Az: "baz1", Tags: map[string]string{"kubernetes.io/role/elb": ""}}), nil),
-				DescribeRouteTables: fake.R(fake.MockDRTOutput(
+				DescribeRouteTables: fake.R(fake.MockDescribeRouteTableOutput(
 					fake.TestRouteTable{SubnetID: "foo1", GatewayIds: []string{"igw-foo1"}},
 					fake.TestRouteTable{SubnetID: "mismatch", GatewayIds: []string{"igw-foo2"}, Main: true},
 				), nil),
 			},
-			fake.AutoscalingMockOutputs{
-				DescribeAutoScalingGroups: fake.R(fake.MockDASGOutput(map[string]fake.Asgtags{"asg1": {
+			asgResponses: fake.AutoscalingMockOutputs{
+				DescribeAutoScalingGroups: fake.R(fake.MockDescribeAutoScalingGroupOutput(map[string]fake.Asgtags{"asg1": {
 					clusterIDTagPrefix + clusterID: "owned",
 				}}), nil),
 				DescribeLoadBalancerTargetGroups: fake.R(&autoscaling.DescribeLoadBalancerTargetGroupsOutput{
@@ -239,20 +203,20 @@ func TestResourceConversion(tt *testing.T) {
 				}, nil),
 				AttachLoadBalancerTargetGroups: fake.R(nil, nil),
 			},
-			fake.Elbv2MockOutputs{
+			elbv2Responses: fake.Elbv2MockOutputs{
 				DescribeTargetGroups: fake.R(nil, nil),
 				DescribeTags:         fake.R(nil, nil),
 			},
-			fake.CfMockOutputs{
+			cfResponses: fake.CfMockOutputs{
 				DescribeStackPages: fake.R(nil, nil),
 				DescribeStacks:     fake.R(nil, nil),
 				CreateStack:        fake.R(fake.MockCSOutput("42"), nil),
 			},
-			awsAdapter.LoadBalancerTypeApplication,
+			lbType: awsAdapter.LoadBalancerTypeApplication,
 		},
 		{
-			"simple_nlb",
-			fake.Ec2MockOutputs{DescribeInstancesPages: fake.MockDIPOutput(
+			name: "simple_nlb",
+			ec2Responses: fake.Ec2MockOutputs{DescribeInstancesPages: fake.MockDescribeInstancesPagesOutput(
 				nil,
 				fake.TestInstance{
 					Id:        "i0",
@@ -275,16 +239,16 @@ func TestResourceConversion(tt *testing.T) {
 					VpcId:     vpcID,
 					State:     running,
 				}),
-				DescribeSecurityGroups: fake.R(fake.MockDSGOutput(map[string]string{"id": securityGroupID}), nil),
-				DescribeSubnets: fake.R(fake.MockDSOutput(
+				DescribeSecurityGroups: fake.R(fake.MockDescribeSecurityGroupsOutput(map[string]string{"id": securityGroupID}), nil),
+				DescribeSubnets: fake.R(fake.MockDescribeSubnetsOutput(
 					fake.TestSubnet{Id: "foo1", Name: "bar1", Az: "baz1", Tags: map[string]string{"kubernetes.io/role/elb": ""}}), nil),
-				DescribeRouteTables: fake.R(fake.MockDRTOutput(
+				DescribeRouteTables: fake.R(fake.MockDescribeRouteTableOutput(
 					fake.TestRouteTable{SubnetID: "foo1", GatewayIds: []string{"igw-foo1"}},
 					fake.TestRouteTable{SubnetID: "mismatch", GatewayIds: []string{"igw-foo2"}, Main: true},
 				), nil),
 			},
-			fake.AutoscalingMockOutputs{
-				DescribeAutoScalingGroups: fake.R(fake.MockDASGOutput(map[string]fake.Asgtags{"asg1": {
+			asgResponses: fake.AutoscalingMockOutputs{
+				DescribeAutoScalingGroups: fake.R(fake.MockDescribeAutoScalingGroupOutput(map[string]fake.Asgtags{"asg1": {
 					clusterIDTagPrefix + clusterID: "owned",
 				}}), nil),
 				DescribeLoadBalancerTargetGroups: fake.R(&autoscaling.DescribeLoadBalancerTargetGroupsOutput{
@@ -292,32 +256,32 @@ func TestResourceConversion(tt *testing.T) {
 				}, nil),
 				AttachLoadBalancerTargetGroups: fake.R(nil, nil),
 			},
-			fake.Elbv2MockOutputs{
+			elbv2Responses: fake.Elbv2MockOutputs{
 				DescribeTargetGroups: fake.R(nil, nil),
 				DescribeTags:         fake.R(nil, nil),
 			},
-			fake.CfMockOutputs{
+			cfResponses: fake.CfMockOutputs{
 				DescribeStackPages: fake.R(nil, nil),
 				DescribeStacks:     fake.R(nil, nil),
 				CreateStack:        fake.R(fake.MockCSOutput("42"), nil),
 			},
-			awsAdapter.LoadBalancerTypeNetwork,
+			lbType: awsAdapter.LoadBalancerTypeNetwork,
 		},
 	} {
 		tt.Run(scenario.name, func(t *testing.T) {
 			b, err := os.ReadFile("./testdata/" + scenario.name + "/expected.cf")
 			if err != nil {
-				t.Error(err)
+				t.Fatal(err)
 			}
 			expected := string(b)
 
-			ec2Client := &fake.MockEc2Client{Outputs: scenario.ec2responses}
-			asgClient := &fake.MockAutoScalingClient{Outputs: scenario.asgresponses}
-			elbv2Client := &fake.MockElbv2Client{Outputs: scenario.elbv2responses}
+			ec2Client := &fake.MockEc2Client{Outputs: scenario.ec2Responses}
+			asgClient := &fake.MockAutoScalingClient{Outputs: scenario.asgResponses}
+			elbv2Client := &fake.MockElbv2Client{Outputs: scenario.elbv2Responses}
 			cfClient := &fake.MockCloudFormationClient{Outputs: scenario.cfResponses}
 
 			a := &awsAdapter.Adapter{
-				TargetCNI: &awsAdapter.TargetCNIconfig{Enabled: false, TargetGroupCh: make(chan []string, 2)},
+				TargetCNI: &awsAdapter.TargetCNIconfig{Enabled: false},
 			}
 			a = a.WithCustomAutoScalingClient(asgClient).
 				WithCustomEc2Client(ec2Client).
@@ -331,19 +295,19 @@ func TestResourceConversion(tt *testing.T) {
 
 			f, err := os.Open("./testdata/" + scenario.name + "/ing.yaml")
 			if err != nil {
-				t.Error(err)
+				t.Fatal(err)
 			}
 
 			api, err := kubernetestest.NewAPI(kubernetestest.TestAPIOptions{}, f)
 			if err != nil {
-				t.Error(err)
+				t.Fatal(err)
 			}
 
 			s := httptest.NewServer(api)
 			defer s.Close()
 
 			kubeConfig := kubernetes.InsecureConfig(s.URL)
-			ingressClassFilterList := []string{}
+			ingressClassFilterList := make([]string, 0)
 
 			sslPolicy := "ELBSecurityPolicy-2016-08"
 			clusterLocalDomain := ""
@@ -359,10 +323,10 @@ func TestResourceConversion(tt *testing.T) {
 				clusterLocalDomain,
 				true)
 			if err != nil {
-				t.Error(err)
+				t.Fatal(err)
 			}
 			log.SetLevel(log.DebugLevel)
-			problems := doWork(mockedCertificateProvider{t: t}, 10, time.Hour, a, k, "")
+			problems := doWork(&mockedCertificateProvider{t: t}, 10, time.Hour, a, k, "")
 			if len(problems.Errors()) > 0 {
 				t.Error(problems.Errors())
 			}

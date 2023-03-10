@@ -22,17 +22,19 @@ type MockEc2Client struct {
 }
 
 func (m *MockEc2Client) DescribeSecurityGroups(*ec2.DescribeSecurityGroupsInput) (*ec2.DescribeSecurityGroupsOutput, error) {
-	if out, ok := m.Outputs.DescribeSecurityGroups.response.(*ec2.DescribeSecurityGroupsOutput); ok {
-		return out, m.Outputs.DescribeSecurityGroups.err
+	out, ok := m.Outputs.DescribeSecurityGroups.response.(*ec2.DescribeSecurityGroupsOutput)
+	if !ok {
+		return nil, m.Outputs.DescribeSecurityGroups.err
 	}
-	return nil, m.Outputs.DescribeSecurityGroups.err
+	return out, m.Outputs.DescribeSecurityGroups.err
 }
 
 func (m *MockEc2Client) DescribeInstances(*ec2.DescribeInstancesInput) (*ec2.DescribeInstancesOutput, error) {
-	if out, ok := m.Outputs.DescribeInstances.response.(*ec2.DescribeInstancesOutput); ok {
-		return out, m.Outputs.DescribeInstances.err
+	out, ok := m.Outputs.DescribeInstances.response.(*ec2.DescribeInstancesOutput)
+	if !ok {
+		return nil, m.Outputs.DescribeInstances.err
 	}
-	return nil, m.Outputs.DescribeInstances.err
+	return out, m.Outputs.DescribeInstances.err
 }
 
 func (m *MockEc2Client) DescribeInstancesPages(params *ec2.DescribeInstancesInput, f func(*ec2.DescribeInstancesOutput, bool) bool) error {
@@ -48,20 +50,22 @@ func (m *MockEc2Client) DescribeInstancesPages(params *ec2.DescribeInstancesInpu
 }
 
 func (m *MockEc2Client) DescribeSubnets(*ec2.DescribeSubnetsInput) (*ec2.DescribeSubnetsOutput, error) {
-	if out, ok := m.Outputs.DescribeSubnets.response.(*ec2.DescribeSubnetsOutput); ok {
-		return out, m.Outputs.DescribeSubnets.err
+	out, ok := m.Outputs.DescribeSubnets.response.(*ec2.DescribeSubnetsOutput)
+	if !ok {
+		return nil, m.Outputs.DescribeSubnets.err
 	}
-	return nil, m.Outputs.DescribeSubnets.err
+	return out, m.Outputs.DescribeSubnets.err
 }
 
 func (m *MockEc2Client) DescribeRouteTables(*ec2.DescribeRouteTablesInput) (*ec2.DescribeRouteTablesOutput, error) {
-	if out, ok := m.Outputs.DescribeRouteTables.response.(*ec2.DescribeRouteTablesOutput); ok {
-		return out, m.Outputs.DescribeRouteTables.err
+	out, ok := m.Outputs.DescribeRouteTables.response.(*ec2.DescribeRouteTablesOutput)
+	if !ok {
+		return nil, m.Outputs.DescribeRouteTables.err
 	}
-	return nil, m.Outputs.DescribeRouteTables.err
+	return out, m.Outputs.DescribeRouteTables.err
 }
 
-func MockDSGOutput(sgs map[string]string) *ec2.DescribeSecurityGroupsOutput {
+func MockDescribeSecurityGroupsOutput(sgs map[string]string) *ec2.DescribeSecurityGroupsOutput {
 	groups := make([]*ec2.SecurityGroup, 0)
 	for id, name := range sgs {
 		sg := &ec2.SecurityGroup{
@@ -81,7 +85,7 @@ type TestInstance struct {
 	State     int64
 }
 
-func MockDIOutput(mockedInstances ...TestInstance) *ec2.DescribeInstancesOutput {
+func MockDescribeInstancesOutput(mockedInstances ...TestInstance) *ec2.DescribeInstancesOutput {
 	instances := make([]*ec2.Instance, 0, len(mockedInstances))
 	for _, i := range mockedInstances {
 		tags := make([]*ec2.Tag, 0, len(i.Tags))
@@ -100,14 +104,14 @@ func MockDIOutput(mockedInstances ...TestInstance) *ec2.DescribeInstancesOutput 
 	return &ec2.DescribeInstancesOutput{Reservations: []*ec2.Reservation{{Instances: instances}}}
 }
 
-func MockDIPOutput(e error, mockedInstances ...TestInstance) []*ApiResponse {
+func MockDescribeInstancesPagesOutput(e error, mockedInstances ...TestInstance) []*ApiResponse {
 	pages := len(mockedInstances) / dipSplitSize
 	result := make([]*ApiResponse, pages, pages+1)
 	for i := 0; i < pages; i++ {
-		result[i] = R(MockDIOutput(mockedInstances[i*dipSplitSize:(i+1)*dipSplitSize]...), e)
+		result[i] = R(MockDescribeInstancesOutput(mockedInstances[i*dipSplitSize:(i+1)*dipSplitSize]...), e)
 	}
 	if len(mockedInstances)%dipSplitSize != 0 {
-		result = append(result, R(MockDIOutput(mockedInstances[pages*dipSplitSize:]...), e))
+		result = append(result, R(MockDescribeInstancesOutput(mockedInstances[pages*dipSplitSize:]...), e))
 	}
 	return result
 }
@@ -119,7 +123,7 @@ type TestSubnet struct {
 	Tags map[string]string
 }
 
-func MockDSOutput(mockedSubnets ...TestSubnet) *ec2.DescribeSubnetsOutput {
+func MockDescribeSubnetsOutput(mockedSubnets ...TestSubnet) *ec2.DescribeSubnetsOutput {
 	subnets := make([]*ec2.Subnet, 0, len(mockedSubnets))
 	for _, subnet := range mockedSubnets {
 		s := &ec2.Subnet{
@@ -143,7 +147,7 @@ type TestRouteTable struct {
 	GatewayIds []string
 }
 
-func MockDRTOutput(mockedRouteTables ...TestRouteTable) *ec2.DescribeRouteTablesOutput {
+func MockDescribeRouteTableOutput(mockedRouteTables ...TestRouteTable) *ec2.DescribeRouteTablesOutput {
 	routeTables := make([]*ec2.RouteTable, 0, len(mockedRouteTables))
 	for _, mrt := range mockedRouteTables {
 		routes := make([]*ec2.Route, 0, len(mrt.GatewayIds))

@@ -9,7 +9,6 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 
 	"github.com/zalando-incubator/kube-ingress-aws-controller/aws/fake"
-
 )
 
 type registerTargetsOnTargetGroupsInputTest struct {
@@ -117,10 +116,10 @@ func TestRegisterTargetsOnTargetGroups(t *testing.T) {
 
 func TestDeregisterTargetsOnTargetGroups(t *testing.T) {
 	outputsSuccess := fake.Elbv2MockOutputs{
-		DeregisterTargets: fake.R(fake.MockDTOutput(), nil),
+		DeregisterTargets: fake.R(fake.MockDeregisterTargetsOutput(), nil),
 	}
 	outputsError := fake.Elbv2MockOutputs{
-		DeregisterTargets: fake.R(fake.MockDTOutput(), fake.ErrDummy),
+		DeregisterTargets: fake.R(fake.MockDeregisterTargetsOutput(), fake.ErrDummy),
 	}
 
 	for _, test := range []struct {

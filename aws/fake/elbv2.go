@@ -24,10 +24,11 @@ type MockElbv2Client struct {
 
 func (m *MockElbv2Client) RegisterTargets(in *elbv2.RegisterTargetsInput) (*elbv2.RegisterTargetsOutput, error) {
 	m.Rtinputs = append(m.Rtinputs, in)
-	if out, ok := m.Outputs.RegisterTargets.response.(*elbv2.RegisterTargetsOutput); ok {
-		return out, m.Outputs.RegisterTargets.err
+	out, ok := m.Outputs.RegisterTargets.response.(*elbv2.RegisterTargetsOutput)
+	if !ok {
+		return nil, m.Outputs.RegisterTargets.err
 	}
-	return nil, m.Outputs.RegisterTargets.err
+	return out, m.Outputs.RegisterTargets.err
 }
 
 func MockRTOutput() *elbv2.RegisterTargetsOutput {
@@ -36,17 +37,19 @@ func MockRTOutput() *elbv2.RegisterTargetsOutput {
 
 func (m *MockElbv2Client) DeregisterTargets(in *elbv2.DeregisterTargetsInput) (*elbv2.DeregisterTargetsOutput, error) {
 	m.Dtinputs = append(m.Dtinputs, in)
-	if out, ok := m.Outputs.DeregisterTargets.response.(*elbv2.DeregisterTargetsOutput); ok {
-		return out, m.Outputs.DeregisterTargets.err
+	out, ok := m.Outputs.DeregisterTargets.response.(*elbv2.DeregisterTargetsOutput)
+	if !ok {
+		return nil, m.Outputs.DeregisterTargets.err
 	}
-	return nil, m.Outputs.DeregisterTargets.err
+	return out, m.Outputs.DeregisterTargets.err
 }
 
 func (m *MockElbv2Client) DescribeTags(tags *elbv2.DescribeTagsInput) (*elbv2.DescribeTagsOutput, error) {
-	if out, ok := m.Outputs.DescribeTags.response.(*elbv2.DescribeTagsOutput); ok {
-		return out, m.Outputs.DescribeTags.err
+	out, ok := m.Outputs.DescribeTags.response.(*elbv2.DescribeTagsOutput)
+	if !ok {
+		return nil, m.Outputs.DescribeTags.err
 	}
-	return nil, m.Outputs.DescribeTags.err
+	return out, m.Outputs.DescribeTags.err
 }
 
 func (m *MockElbv2Client) DescribeTargetGroupsPagesWithContext(ctx aws.Context, in *elbv2.DescribeTargetGroupsInput, f func(resp *elbv2.DescribeTargetGroupsOutput, lastPage bool) bool, opt ...request.Option) error {
@@ -57,12 +60,13 @@ func (m *MockElbv2Client) DescribeTargetGroupsPagesWithContext(ctx aws.Context, 
 }
 
 func (m *MockElbv2Client) DescribeTargetHealth(*elbv2.DescribeTargetHealthInput) (*elbv2.DescribeTargetHealthOutput, error) {
-	if out, ok := m.Outputs.DescribeTargetHealth.response.(*elbv2.DescribeTargetHealthOutput); ok {
-		return out, m.Outputs.DescribeTargetHealth.err
+	out, ok := m.Outputs.DescribeTargetHealth.response.(*elbv2.DescribeTargetHealthOutput)
+	if !ok {
+		return nil, m.Outputs.DescribeTargetHealth.err
 	}
-	return nil, m.Outputs.DescribeTargetHealth.err
+	return out, m.Outputs.DescribeTargetHealth.err
 }
 
-func MockDTOutput() *elbv2.DeregisterTargetsOutput {
+func MockDeregisterTargetsOutput() *elbv2.DeregisterTargetsOutput {
 	return &elbv2.DeregisterTargetsOutput{}
 }

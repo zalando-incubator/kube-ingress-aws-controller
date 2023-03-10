@@ -44,18 +44,20 @@ func (m *MockCloudFormationClient) DescribeStacksPages(in *cloudformation.Descri
 }
 
 func (m *MockCloudFormationClient) DescribeStacks(in *cloudformation.DescribeStacksInput) (*cloudformation.DescribeStacksOutput, error) {
-	if out, ok := m.Outputs.DescribeStacks.response.(*cloudformation.DescribeStacksOutput); ok {
-		return out, m.Outputs.DescribeStacks.err
+	out, ok := m.Outputs.DescribeStacks.response.(*cloudformation.DescribeStacksOutput)
+	if !ok {
+		return nil, m.Outputs.DescribeStacks.err
 	}
-	return nil, m.Outputs.DescribeStacks.err
+	return out, m.Outputs.DescribeStacks.err
 }
 
 func (m *MockCloudFormationClient) CreateStack(params *cloudformation.CreateStackInput) (*cloudformation.CreateStackOutput, error) {
 	m.lastGeneratedTemplate = *params.TemplateBody
-	if out, ok := m.Outputs.CreateStack.response.(*cloudformation.CreateStackOutput); ok {
-		return out, m.Outputs.CreateStack.err
+	out, ok := m.Outputs.CreateStack.response.(*cloudformation.CreateStackOutput)
+	if !ok {
+		return nil, m.Outputs.CreateStack.err
 	}
-	return nil, m.Outputs.CreateStack.err
+	return out, m.Outputs.CreateStack.err
 }
 
 func MockCSOutput(stackId string) *cloudformation.CreateStackOutput {
@@ -66,10 +68,11 @@ func MockCSOutput(stackId string) *cloudformation.CreateStackOutput {
 
 func (m *MockCloudFormationClient) UpdateStack(params *cloudformation.UpdateStackInput) (*cloudformation.UpdateStackOutput, error) {
 	m.lastGeneratedTemplate = *params.TemplateBody
-	if out, ok := m.Outputs.UpdateStack.response.(*cloudformation.UpdateStackOutput); ok {
-		return out, m.Outputs.UpdateStack.err
+	out, ok := m.Outputs.UpdateStack.response.(*cloudformation.UpdateStackOutput)
+	if !ok {
+		return nil, m.Outputs.UpdateStack.err
 	}
-	return nil, m.Outputs.UpdateStack.err
+	return out, m.Outputs.UpdateStack.err
 }
 
 func MockUSOutput(stackId string) *cloudformation.UpdateStackOutput {
@@ -79,10 +82,11 @@ func MockUSOutput(stackId string) *cloudformation.UpdateStackOutput {
 }
 
 func (m *MockCloudFormationClient) DeleteStack(params *cloudformation.DeleteStackInput) (*cloudformation.DeleteStackOutput, error) {
-	if out, ok := m.Outputs.DeleteStack.response.(*cloudformation.DeleteStackOutput); ok {
-		return out, m.Outputs.DeleteStack.err
+	out, ok := m.Outputs.DeleteStack.response.(*cloudformation.DeleteStackOutput)
+	if !ok {
+		return nil, m.Outputs.DeleteStack.err
 	}
-	return nil, m.Outputs.DeleteStack.err
+	return out, m.Outputs.DeleteStack.err
 }
 
 func MockDeleteStackOutput(stackId string) *cloudformation.DeleteStackOutput {
@@ -90,8 +94,9 @@ func MockDeleteStackOutput(stackId string) *cloudformation.DeleteStackOutput {
 }
 
 func (m *MockCloudFormationClient) UpdateTerminationProtection(params *cloudformation.UpdateTerminationProtectionInput) (*cloudformation.UpdateTerminationProtectionOutput, error) {
-	if out, ok := m.Outputs.UpdateTerminationProtection.response.(*cloudformation.UpdateTerminationProtectionOutput); ok {
-		return out, m.Outputs.UpdateTerminationProtection.err
+	out, ok := m.Outputs.UpdateTerminationProtection.response.(*cloudformation.UpdateTerminationProtectionOutput)
+	if !ok {
+		return nil, m.Outputs.UpdateTerminationProtection.err
 	}
-	return nil, m.Outputs.UpdateTerminationProtection.err
+	return out, m.Outputs.UpdateTerminationProtection.err
 }

@@ -9,7 +9,6 @@ import (
 	"github.com/aws/aws-sdk-go/service/ec2"
 
 	"github.com/zalando-incubator/kube-ingress-aws-controller/aws/fake"
-
 )
 
 func TestGetAutoScalingName(t *testing.T) {
@@ -41,14 +40,14 @@ func TestFindingSecurityGroup(t *testing.T) {
 		{
 			"success-find-sg",
 			fake.Ec2MockOutputs{
-				DescribeSecurityGroups: fake.R(fake.MockDSGOutput(map[string]string{"id": "foo"}), nil),
+				DescribeSecurityGroups: fake.R(fake.MockDescribeSecurityGroupsOutput(map[string]string{"id": "foo"}), nil),
 			},
 			&securityGroupDetails{id: "id", name: "foo"},
 			false,
 		},
 		{
 			"fail-no-security-groups",
-			fake.Ec2MockOutputs{DescribeSecurityGroups: fake.R(fake.MockDSGOutput(nil), nil)}, nil, true,
+			fake.Ec2MockOutputs{DescribeSecurityGroups: fake.R(fake.MockDescribeSecurityGroupsOutput(nil), nil)}, nil, true,
 		},
 		{
 			"fail-with-aws-api-error",
@@ -128,7 +127,7 @@ func TestGetInstanceDetails(t *testing.T) {
 	}{
 		{
 			"success-call",
-			fake.Ec2MockOutputs{DescribeInstances: fake.R(fake.MockDIOutput(
+			fake.Ec2MockOutputs{DescribeInstances: fake.R(fake.MockDescribeInstancesOutput(
 				fake.TestInstance{Id: "foo", Tags: fake.Tags{"bar": "baz"}, State: runningState},
 			), nil)},
 			&instanceDetails{id: "foo", tags: map[string]string{"bar": "baz"}, running: true},
@@ -136,7 +135,7 @@ func TestGetInstanceDetails(t *testing.T) {
 		},
 		{
 			"failed-state-match",
-			fake.Ec2MockOutputs{DescribeInstances: fake.R(fake.MockDIOutput(
+			fake.Ec2MockOutputs{DescribeInstances: fake.R(fake.MockDescribeInstancesOutput(
 				fake.TestInstance{Id: "foo1", Tags: fake.Tags{"bar": "baz"}, State: 0},
 				fake.TestInstance{Id: "foo2", Tags: fake.Tags{"bar": "baz"}, State: 32}, // shutting-down
 				fake.TestInstance{Id: "foo2", Tags: fake.Tags{"bar": "baz"}, State: 48}, // terminated includes running?!?
@@ -148,7 +147,7 @@ func TestGetInstanceDetails(t *testing.T) {
 		},
 		{
 			"nothing-returned-from-aws-api",
-			fake.Ec2MockOutputs{DescribeInstances: fake.R(fake.MockDIOutput(), nil)},
+			fake.Ec2MockOutputs{DescribeInstances: fake.R(fake.MockDescribeInstancesOutput(), nil)},
 			nil,
 			true,
 		},
@@ -177,11 +176,11 @@ func TestGetSubnets(t *testing.T) {
 		{
 			"success-call-nofilter",
 			fake.Ec2MockOutputs{
-				DescribeSubnets: fake.R(fake.MockDSOutput(
+				DescribeSubnets: fake.R(fake.MockDescribeSubnetsOutput(
 					fake.TestSubnet{Id: "foo1", Name: "bar1", Az: "baz1", Tags: map[string]string{elbRoleTagName: ""}},
 					fake.TestSubnet{Id: "foo2", Name: "bar2", Az: "baz2"},
 				), nil),
-				DescribeRouteTables: fake.R(fake.MockDRTOutput(
+				DescribeRouteTables: fake.R(fake.MockDescribeRouteTableOutput(
 					fake.TestRouteTable{SubnetID: "foo1", GatewayIds: []string{"igw-foo1"}},
 					fake.TestRouteTable{SubnetID: "mismatch", GatewayIds: []string{"igw-foo2"}, Main: true},
 				), nil),
@@ -195,11 +194,11 @@ func TestGetSubnets(t *testing.T) {
 		{
 			"success-call-filtered",
 			fake.Ec2MockOutputs{
-				DescribeSubnets: fake.R(fake.MockDSOutput(
+				DescribeSubnets: fake.R(fake.MockDescribeSubnetsOutput(
 					fake.TestSubnet{Id: "foo1", Name: "bar1", Az: "baz1", Tags: map[string]string{elbRoleTagName: "", clusterIDTagPrefix + "bar": "shared"}},
 					fake.TestSubnet{Id: "foo2", Name: "bar2", Az: "baz2", Tags: map[string]string{clusterIDTagPrefix + "bar": "shared"}},
 				), nil),
-				DescribeRouteTables: fake.R(fake.MockDRTOutput(
+				DescribeRouteTables: fake.R(fake.MockDescribeRouteTableOutput(
 					fake.TestRouteTable{SubnetID: "foo1", GatewayIds: []string{"igw-foo1"}},
 					fake.TestRouteTable{SubnetID: "mismatch", GatewayIds: []string{"igw-foo2"}, Main: true},
 				), nil),
@@ -217,7 +216,7 @@ func TestGetSubnets(t *testing.T) {
 		{
 			"aws-sdk-failure-describing-route-tables",
 			fake.Ec2MockOutputs{
-				DescribeSubnets: fake.R(fake.MockDSOutput(
+				DescribeSubnets: fake.R(fake.MockDescribeSubnetsOutput(
 					fake.TestSubnet{Id: "foo1", Name: "bar1", Az: "baz1"},
 					fake.TestSubnet{Id: "foo2", Name: "bar2", Az: "baz2"},
 				), nil),
@@ -227,10 +226,10 @@ func TestGetSubnets(t *testing.T) {
 		{
 			"failure-to-map-subnets",
 			fake.Ec2MockOutputs{
-				DescribeSubnets: fake.R(fake.MockDSOutput(
+				DescribeSubnets: fake.R(fake.MockDescribeSubnetsOutput(
 					fake.TestSubnet{Id: "foo1", Name: "bar1", Az: "baz1"},
 				), nil),
-				DescribeRouteTables: fake.R(fake.MockDRTOutput(
+				DescribeRouteTables: fake.R(fake.MockDescribeRouteTableOutput(
 					fake.TestRouteTable{SubnetID: "x", GatewayIds: []string{"y"}},
 				), nil),
 			},
@@ -263,7 +262,7 @@ func TestGetInstancesDetailsWithFilters(t *testing.T) {
 					},
 				},
 			},
-			fake.Ec2MockOutputs{DescribeInstancesPages: fake.MockDIPOutput(
+			fake.Ec2MockOutputs{DescribeInstancesPages: fake.MockDescribeInstancesPagesOutput(
 				nil,
 				fake.TestInstance{Id: "foo1", Tags: fake.Tags{"bar": "baz"}, PrivateIp: "1.2.3.4", VpcId: "1", State: 16},
 				fake.TestInstance{Id: "foo2", Tags: fake.Tags{"bar": "baz"}, PrivateIp: "1.2.3.5", VpcId: "1", State: 32},
@@ -279,7 +278,7 @@ func TestGetInstancesDetailsWithFilters(t *testing.T) {
 		{
 			"success-empty-filters",
 			[]*ec2.Filter{},
-			fake.Ec2MockOutputs{DescribeInstancesPages: fake.MockDIPOutput(
+			fake.Ec2MockOutputs{DescribeInstancesPages: fake.MockDescribeInstancesPagesOutput(
 				nil,
 				fake.TestInstance{Id: "foo1", Tags: fake.Tags{"bar": "baz"}, PrivateIp: "1.2.3.4", VpcId: "1", State: 16},
 				fake.TestInstance{Id: "foo3", Tags: fake.Tags{"aaa": "zzz"}, PrivateIp: "1.2.3.6", VpcId: "1", State: 80},
@@ -300,7 +299,7 @@ func TestGetInstancesDetailsWithFilters(t *testing.T) {
 					},
 				},
 			},
-			fake.Ec2MockOutputs{DescribeInstancesPages: fake.MockDIPOutput(nil)},
+			fake.Ec2MockOutputs{DescribeInstancesPages: fake.MockDescribeInstancesPagesOutput(nil)},
 			map[string]*instanceDetails{},
 			false,
 		},
@@ -314,7 +313,7 @@ func TestGetInstancesDetailsWithFilters(t *testing.T) {
 					},
 				},
 			},
-			fake.Ec2MockOutputs{DescribeInstancesPages: fake.MockDIPOutput(fake.ErrDummy, fake.TestInstance{})},
+			fake.Ec2MockOutputs{DescribeInstancesPages: fake.MockDescribeInstancesPagesOutput(fake.ErrDummy, fake.TestInstance{})},
 			nil,
 			true,
 		},
