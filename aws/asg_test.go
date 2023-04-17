@@ -26,15 +26,15 @@ func TestGetAutoScalingGroupByName(t *testing.T) {
 	for _, test := range []struct {
 		name      string
 		givenName string
-		responses fake.AutoscalingMockOutputs
+		responses fake.ASGOutputs
 		want      *autoScalingGroupDetails
 		wantError bool
 	}{
 		{
 			"success-call-single-asg",
 			"foo",
-			fake.AutoscalingMockOutputs{
-				DescribeAutoScalingGroups: fake.R(fake.MockDescribeAutoScalingGroupOutput(map[string]fake.Asgtags{"foo": {"bar": "baz"}}), nil),
+			fake.ASGOutputs{
+				DescribeAutoScalingGroups: fake.R(fake.MockDescribeAutoScalingGroupOutput(map[string]fake.ASGtags{"foo": {"bar": "baz"}}), nil),
 			},
 			mockAutoScalingGroupDetails("foo", map[string]string{"bar": "baz"}),
 			false,
@@ -42,8 +42,8 @@ func TestGetAutoScalingGroupByName(t *testing.T) {
 		{
 			"success-call-multiple-asg",
 			"d",
-			fake.AutoscalingMockOutputs{
-				DescribeAutoScalingGroups: fake.R(fake.MockDescribeAutoScalingGroupOutput(map[string]fake.Asgtags{
+			fake.ASGOutputs{
+				DescribeAutoScalingGroups: fake.R(fake.MockDescribeAutoScalingGroupOutput(map[string]fake.ASGtags{
 					"a": {"b": "c"},
 					"d": {"e": "f"},
 				}), nil),
@@ -54,8 +54,8 @@ func TestGetAutoScalingGroupByName(t *testing.T) {
 		{
 			"fail-to-match-single-asg",
 			"miss",
-			fake.AutoscalingMockOutputs{
-				DescribeAutoScalingGroups: fake.R(fake.MockDescribeAutoScalingGroupOutput(map[string]fake.Asgtags{"foo": {"bar": "baz"}}), nil),
+			fake.ASGOutputs{
+				DescribeAutoScalingGroups: fake.R(fake.MockDescribeAutoScalingGroupOutput(map[string]fake.ASGtags{"foo": {"bar": "baz"}}), nil),
 			},
 			nil,
 			true,
@@ -63,8 +63,8 @@ func TestGetAutoScalingGroupByName(t *testing.T) {
 		{
 			"fail-to-match-multiple-asg",
 			"miss",
-			fake.AutoscalingMockOutputs{
-				DescribeAutoScalingGroups: fake.R(fake.MockDescribeAutoScalingGroupOutput(map[string]fake.Asgtags{
+			fake.ASGOutputs{
+				DescribeAutoScalingGroups: fake.R(fake.MockDescribeAutoScalingGroupOutput(map[string]fake.ASGtags{
 					"a": {"b": "c"},
 					"d": {"e": "f"},
 				}), nil),
@@ -75,13 +75,13 @@ func TestGetAutoScalingGroupByName(t *testing.T) {
 		{
 			"autoscaling-api-failure",
 			"dontcare",
-			fake.AutoscalingMockOutputs{DescribeAutoScalingGroups: fake.R(nil, fake.ErrDummy)},
+			fake.ASGOutputs{DescribeAutoScalingGroups: fake.R(nil, fake.ErrDummy)},
 			nil,
 			true,
 		},
 	} {
 		t.Run(fmt.Sprintf("%v", test.name), func(t *testing.T) {
-			mockSvc := &fake.MockAutoScalingClient{Outputs: test.responses}
+			mockSvc := &fake.ASGClient{Outputs: test.responses}
 			got, err := getAutoScalingGroupByName(mockSvc, test.givenName)
 
 			if test.wantError {
@@ -104,15 +104,15 @@ func TestGetAutoScalingGroupsByName(t *testing.T) {
 	for _, test := range []struct {
 		name       string
 		givenNames []string
-		responses  fake.AutoscalingMockOutputs
+		responses  fake.ASGOutputs
 		want       map[string]*autoScalingGroupDetails
 		wantError  bool
 	}{
 		{
 			"success-call-single-asg",
 			[]string{"foo"},
-			fake.AutoscalingMockOutputs{
-				DescribeAutoScalingGroups: fake.R(fake.MockDescribeAutoScalingGroupOutput(map[string]fake.Asgtags{"foo": {"bar": "baz"}}), nil),
+			fake.ASGOutputs{
+				DescribeAutoScalingGroups: fake.R(fake.MockDescribeAutoScalingGroupOutput(map[string]fake.ASGtags{"foo": {"bar": "baz"}}), nil),
 			},
 			map[string]*autoScalingGroupDetails{
 				"foo": mockAutoScalingGroupDetails("foo", map[string]string{"bar": "baz"}),
@@ -122,8 +122,8 @@ func TestGetAutoScalingGroupsByName(t *testing.T) {
 		{
 			"success-call-multiple-asg",
 			[]string{"a", "d"},
-			fake.AutoscalingMockOutputs{
-				DescribeAutoScalingGroups: fake.R(fake.MockDescribeAutoScalingGroupOutput(map[string]fake.Asgtags{
+			fake.ASGOutputs{
+				DescribeAutoScalingGroups: fake.R(fake.MockDescribeAutoScalingGroupOutput(map[string]fake.ASGtags{
 					"a": {"b": "c"},
 					"d": {"e": "f"},
 				}), nil),
@@ -137,8 +137,8 @@ func TestGetAutoScalingGroupsByName(t *testing.T) {
 		{
 			"fail-to-match-single-asg",
 			[]string{"miss"},
-			fake.AutoscalingMockOutputs{
-				DescribeAutoScalingGroups: fake.R(fake.MockDescribeAutoScalingGroupOutput(map[string]fake.Asgtags{"foo": {"bar": "baz"}}), nil),
+			fake.ASGOutputs{
+				DescribeAutoScalingGroups: fake.R(fake.MockDescribeAutoScalingGroupOutput(map[string]fake.ASGtags{"foo": {"bar": "baz"}}), nil),
 			},
 			nil,
 			true,
@@ -146,8 +146,8 @@ func TestGetAutoScalingGroupsByName(t *testing.T) {
 		{
 			"fail-to-match-multiple-asg",
 			[]string{"miss", "miss2"},
-			fake.AutoscalingMockOutputs{
-				DescribeAutoScalingGroups: fake.R(fake.MockDescribeAutoScalingGroupOutput(map[string]fake.Asgtags{
+			fake.ASGOutputs{
+				DescribeAutoScalingGroups: fake.R(fake.MockDescribeAutoScalingGroupOutput(map[string]fake.ASGtags{
 					"a": {"b": "c"},
 					"d": {"e": "f"},
 				}), nil),
@@ -158,13 +158,13 @@ func TestGetAutoScalingGroupsByName(t *testing.T) {
 		{
 			"autoscaling-api-failure",
 			[]string{"dontcare"},
-			fake.AutoscalingMockOutputs{DescribeAutoScalingGroups: fake.R(nil, fake.ErrDummy)},
+			fake.ASGOutputs{DescribeAutoScalingGroups: fake.R(nil, fake.ErrDummy)},
 			nil,
 			true,
 		},
 	} {
 		t.Run(fmt.Sprintf("%v", test.name), func(t *testing.T) {
-			mockSvc := &fake.MockAutoScalingClient{Outputs: test.responses}
+			mockSvc := &fake.ASGClient{Outputs: test.responses}
 			got, err := getAutoScalingGroupsByName(mockSvc, test.givenNames)
 
 			if test.wantError {
@@ -187,16 +187,16 @@ func TestAttach(t *testing.T) {
 	for _, test := range []struct {
 		name               string
 		targetGroups       []string
-		autoscalingOutputs fake.AutoscalingMockOutputs
-		autoscalingInputs  fake.AutoscalingMockInputs
-		elbv2Response      fake.Elbv2MockOutputs
+		autoscalingOutputs fake.ASGOutputs
+		autoscalingInputs  fake.ASGInputs
+		elbv2Response      fake.ELBv2Outputs
 		ownerTags          map[string]string
 		wantError          bool
 	}{
 		{
 			name:         "describe-lb-target-groups-failed",
 			targetGroups: []string{"foo"},
-			autoscalingOutputs: fake.AutoscalingMockOutputs{
+			autoscalingOutputs: fake.ASGOutputs{
 				DescribeLoadBalancerTargetGroups: fake.R(nil, fake.ErrDummy),
 			},
 			wantError: true,
@@ -204,7 +204,7 @@ func TestAttach(t *testing.T) {
 		{
 			name:         "describe-all-target-groups-failed",
 			targetGroups: []string{"foo"},
-			autoscalingOutputs: fake.AutoscalingMockOutputs{
+			autoscalingOutputs: fake.ASGOutputs{
 				AttachLoadBalancerTargetGroups: fake.R(nil, nil),
 				DescribeLoadBalancerTargetGroups: fake.R(&autoscaling.DescribeLoadBalancerTargetGroupsOutput{
 					LoadBalancerTargetGroups: []*autoscaling.LoadBalancerTargetGroupState{
@@ -215,7 +215,7 @@ func TestAttach(t *testing.T) {
 				}, nil),
 				DetachLoadBalancerTargetGroups: fake.R(nil, nil),
 			},
-			elbv2Response: fake.Elbv2MockOutputs{
+			elbv2Response: fake.ELBv2Outputs{
 				DescribeTargetGroups: fake.R(nil, fake.ErrDummy),
 			},
 			wantError: true,
@@ -223,7 +223,7 @@ func TestAttach(t *testing.T) {
 		{
 			name:         "describe-tags-failed",
 			targetGroups: []string{"foo"},
-			autoscalingOutputs: fake.AutoscalingMockOutputs{
+			autoscalingOutputs: fake.ASGOutputs{
 				AttachLoadBalancerTargetGroups: fake.R(nil, nil),
 				DescribeLoadBalancerTargetGroups: fake.R(&autoscaling.DescribeLoadBalancerTargetGroupsOutput{
 					LoadBalancerTargetGroups: []*autoscaling.LoadBalancerTargetGroupState{
@@ -234,7 +234,7 @@ func TestAttach(t *testing.T) {
 				}, nil),
 				DetachLoadBalancerTargetGroups: fake.R(nil, nil),
 			},
-			elbv2Response: fake.Elbv2MockOutputs{
+			elbv2Response: fake.ELBv2Outputs{
 				DescribeTargetGroups: fake.R(&elbv2.DescribeTargetGroupsOutput{
 					TargetGroups: []*elbv2.TargetGroup{
 						{
@@ -249,7 +249,7 @@ func TestAttach(t *testing.T) {
 		{
 			name:         "success-attach",
 			targetGroups: []string{"foo"},
-			autoscalingOutputs: fake.AutoscalingMockOutputs{
+			autoscalingOutputs: fake.ASGOutputs{
 				AttachLoadBalancerTargetGroups: fake.R(nil, nil),
 				DescribeLoadBalancerTargetGroups: fake.R(&autoscaling.DescribeLoadBalancerTargetGroupsOutput{
 					LoadBalancerTargetGroups: []*autoscaling.LoadBalancerTargetGroupState{
@@ -258,7 +258,7 @@ func TestAttach(t *testing.T) {
 						},
 					},
 				}, nil)},
-			elbv2Response: fake.Elbv2MockOutputs{
+			elbv2Response: fake.ELBv2Outputs{
 				DescribeTargetGroups: fake.R(&elbv2.DescribeTargetGroupsOutput{
 					TargetGroups: []*elbv2.TargetGroup{
 						{
@@ -287,7 +287,7 @@ func TestAttach(t *testing.T) {
 		{
 			name:         "failed-attach",
 			targetGroups: []string{"foo"},
-			autoscalingOutputs: fake.AutoscalingMockOutputs{
+			autoscalingOutputs: fake.ASGOutputs{
 				AttachLoadBalancerTargetGroups: fake.R(nil, fake.ErrDummy),
 				DescribeLoadBalancerTargetGroups: fake.R(&autoscaling.DescribeLoadBalancerTargetGroupsOutput{
 					LoadBalancerTargetGroups: []*autoscaling.LoadBalancerTargetGroupState{
@@ -297,7 +297,7 @@ func TestAttach(t *testing.T) {
 					},
 				}, nil),
 			},
-			elbv2Response: fake.Elbv2MockOutputs{
+			elbv2Response: fake.ELBv2Outputs{
 				DescribeTargetGroups: fake.R(&elbv2.DescribeTargetGroupsOutput{
 					TargetGroups: []*elbv2.TargetGroup{
 						{
@@ -326,7 +326,7 @@ func TestAttach(t *testing.T) {
 		{
 			name:         "detach-obsolete",
 			targetGroups: []string{"foo"},
-			autoscalingOutputs: fake.AutoscalingMockOutputs{
+			autoscalingOutputs: fake.ASGOutputs{
 				AttachLoadBalancerTargetGroups: fake.R(nil, nil),
 				DescribeLoadBalancerTargetGroups: fake.R(&autoscaling.DescribeLoadBalancerTargetGroupsOutput{
 					LoadBalancerTargetGroups: []*autoscaling.LoadBalancerTargetGroupState{
@@ -346,7 +346,7 @@ func TestAttach(t *testing.T) {
 				}, nil),
 				DetachLoadBalancerTargetGroups: fake.R(nil, nil),
 			},
-			elbv2Response: fake.Elbv2MockOutputs{
+			elbv2Response: fake.ELBv2Outputs{
 				DescribeTargetGroups: fake.R(&elbv2.DescribeTargetGroupsOutput{
 					TargetGroups: []*elbv2.TargetGroup{
 						{
@@ -397,7 +397,7 @@ func TestAttach(t *testing.T) {
 		{
 			name:         "failed-detach",
 			targetGroups: []string{"foo"},
-			autoscalingOutputs: fake.AutoscalingMockOutputs{
+			autoscalingOutputs: fake.ASGOutputs{
 				AttachLoadBalancerTargetGroups: fake.R(nil, nil),
 				DescribeLoadBalancerTargetGroups: fake.R(&autoscaling.DescribeLoadBalancerTargetGroupsOutput{
 					LoadBalancerTargetGroups: []*autoscaling.LoadBalancerTargetGroupState{
@@ -411,7 +411,7 @@ func TestAttach(t *testing.T) {
 				}, nil),
 				DetachLoadBalancerTargetGroups: fake.R(nil, fake.ErrDummy),
 			},
-			elbv2Response: fake.Elbv2MockOutputs{
+			elbv2Response: fake.ELBv2Outputs{
 				DescribeTargetGroups: fake.R(&elbv2.DescribeTargetGroupsOutput{
 					TargetGroups: []*elbv2.TargetGroup{
 						{
@@ -451,7 +451,7 @@ func TestAttach(t *testing.T) {
 		{
 			name:         "attach ignores nonexistent target groups",
 			targetGroups: []string{"foo", "void", "bar", "blank"},
-			autoscalingOutputs: fake.AutoscalingMockOutputs{
+			autoscalingOutputs: fake.ASGOutputs{
 				AttachLoadBalancerTargetGroups: fake.R(nil, nil),
 				DescribeLoadBalancerTargetGroups: fake.R(&autoscaling.DescribeLoadBalancerTargetGroupsOutput{
 					LoadBalancerTargetGroups: []*autoscaling.LoadBalancerTargetGroupState{
@@ -463,7 +463,7 @@ func TestAttach(t *testing.T) {
 						},
 					},
 				}, nil)},
-			elbv2Response: fake.Elbv2MockOutputs{
+			elbv2Response: fake.ELBv2Outputs{
 				DescribeTargetGroups: fake.R(&elbv2.DescribeTargetGroupsOutput{
 					TargetGroups: []*elbv2.TargetGroup{
 						{
@@ -489,7 +489,7 @@ func TestAttach(t *testing.T) {
 					},
 				}, nil),
 			},
-			autoscalingInputs: fake.AutoscalingMockInputs{
+			autoscalingInputs: fake.ASGInputs{
 				AttachLoadBalancerTargetGroups: func(t *testing.T, input *autoscaling.AttachLoadBalancerTargetGroupsInput) {
 					assert.Equal(t, aws.String("asg-name"), input.AutoScalingGroupName)
 					assert.Equal(t, aws.StringSlice([]string{"foo", "bar"}), input.TargetGroupARNs)
@@ -500,8 +500,8 @@ func TestAttach(t *testing.T) {
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			mockSvc := &fake.MockAutoScalingClient{Outputs: test.autoscalingOutputs, Inputs: test.autoscalingInputs, T: t}
-			mockElbv2Svc := &fake.MockElbv2Client{Outputs: test.elbv2Response}
+			mockSvc := &fake.ASGClient{Outputs: test.autoscalingOutputs, Inputs: test.autoscalingInputs, T: t}
+			mockElbv2Svc := &fake.ELBv2Client{Outputs: test.elbv2Response}
 			err := updateTargetGroupsForAutoScalingGroup(mockSvc, mockElbv2Svc, test.targetGroups, "asg-name", test.ownerTags)
 			if test.wantError {
 				if err == nil {
@@ -519,16 +519,16 @@ func TestAttach(t *testing.T) {
 func TestDetach(t *testing.T) {
 	for _, test := range []struct {
 		name      string
-		responses fake.AutoscalingMockOutputs
+		responses fake.ASGOutputs
 		wantError bool
 	}{
-		{"success-detach", fake.AutoscalingMockOutputs{DetachLoadBalancerTargetGroups: fake.R(nil, nil)},
+		{"success-detach", fake.ASGOutputs{DetachLoadBalancerTargetGroups: fake.R(nil, nil)},
 			false},
-		{"failed-detach", fake.AutoscalingMockOutputs{DetachLoadBalancerTargetGroups: fake.R(nil, fake.ErrDummy)},
+		{"failed-detach", fake.ASGOutputs{DetachLoadBalancerTargetGroups: fake.R(nil, fake.ErrDummy)},
 			true},
 	} {
 		t.Run(fmt.Sprintf("%v", test.name), func(t *testing.T) {
-			mockSvc := &fake.MockAutoScalingClient{Outputs: test.responses}
+			mockSvc := &fake.ASGClient{Outputs: test.responses}
 			err := detachTargetGroupsFromAutoScalingGroup(mockSvc, []string{"foo"}, "bar")
 			if test.wantError {
 				if err == nil {
@@ -718,7 +718,7 @@ func Test_categorizeTargetTypeInstance(t *testing.T) {
 				}
 			}
 
-			mockElbv2Svc := &fake.MockElbv2Client{Outputs: fake.Elbv2MockOutputs{DescribeTargetGroups: fake.R(&elbv2.DescribeTargetGroupsOutput{TargetGroups: tgResponse}, nil)}}
+			mockElbv2Svc := &fake.ELBv2Client{Outputs: fake.ELBv2Outputs{DescribeTargetGroups: fake.R(&elbv2.DescribeTargetGroupsOutput{TargetGroups: tgResponse}, nil)}}
 			got, err := categorizeTargetTypeInstance(mockElbv2Svc, tg)
 			assert.NoError(t, err)
 			for k, v := range test.targetGroups {

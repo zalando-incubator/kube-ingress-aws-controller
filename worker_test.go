@@ -155,15 +155,15 @@ func TestResourceConversion(tt *testing.T) {
 
 	for _, scenario := range []struct {
 		name           string
-		ec2Responses   fake.Ec2MockOutputs
-		asgResponses   fake.AutoscalingMockOutputs
-		elbv2Responses fake.Elbv2MockOutputs
-		cfResponses    fake.CfMockOutputs
-		lbType         string
+		responsesEC2   fake.EC2Outputs
+		responsesASG   fake.ASGOutputs
+		responsesELBv2 fake.ELBv2Outputs
+		responsesCF    fake.CFOutputs
+		typeLB         string
 	}{
 		{
 			name: "simple_alb",
-			ec2Responses: fake.Ec2MockOutputs{DescribeInstancesPages: fake.MockDescribeInstancesPagesOutput(
+			responsesEC2: fake.EC2Outputs{DescribeInstancesPages: fake.MockDescribeInstancesPagesOutput(
 				nil,
 				fake.TestInstance{
 					Id:        "i0",
@@ -194,8 +194,8 @@ func TestResourceConversion(tt *testing.T) {
 					fake.TestRouteTable{SubnetID: "mismatch", GatewayIds: []string{"igw-foo2"}, Main: true},
 				), nil),
 			},
-			asgResponses: fake.AutoscalingMockOutputs{
-				DescribeAutoScalingGroups: fake.R(fake.MockDescribeAutoScalingGroupOutput(map[string]fake.Asgtags{"asg1": {
+			responsesASG: fake.ASGOutputs{
+				DescribeAutoScalingGroups: fake.R(fake.MockDescribeAutoScalingGroupOutput(map[string]fake.ASGtags{"asg1": {
 					clusterIDTagPrefix + clusterID: "owned",
 				}}), nil),
 				DescribeLoadBalancerTargetGroups: fake.R(&autoscaling.DescribeLoadBalancerTargetGroupsOutput{
@@ -203,20 +203,20 @@ func TestResourceConversion(tt *testing.T) {
 				}, nil),
 				AttachLoadBalancerTargetGroups: fake.R(nil, nil),
 			},
-			elbv2Responses: fake.Elbv2MockOutputs{
+			responsesELBv2: fake.ELBv2Outputs{
 				DescribeTargetGroups: fake.R(nil, nil),
 				DescribeTags:         fake.R(nil, nil),
 			},
-			cfResponses: fake.CfMockOutputs{
+			responsesCF: fake.CFOutputs{
 				DescribeStackPages: fake.R(nil, nil),
 				DescribeStacks:     fake.R(nil, nil),
 				CreateStack:        fake.R(fake.MockCSOutput("42"), nil),
 			},
-			lbType: awsAdapter.LoadBalancerTypeApplication,
+			typeLB: awsAdapter.LoadBalancerTypeApplication,
 		},
 		{
 			name: "simple_nlb",
-			ec2Responses: fake.Ec2MockOutputs{DescribeInstancesPages: fake.MockDescribeInstancesPagesOutput(
+			responsesEC2: fake.EC2Outputs{DescribeInstancesPages: fake.MockDescribeInstancesPagesOutput(
 				nil,
 				fake.TestInstance{
 					Id:        "i0",
@@ -247,8 +247,8 @@ func TestResourceConversion(tt *testing.T) {
 					fake.TestRouteTable{SubnetID: "mismatch", GatewayIds: []string{"igw-foo2"}, Main: true},
 				), nil),
 			},
-			asgResponses: fake.AutoscalingMockOutputs{
-				DescribeAutoScalingGroups: fake.R(fake.MockDescribeAutoScalingGroupOutput(map[string]fake.Asgtags{"asg1": {
+			responsesASG: fake.ASGOutputs{
+				DescribeAutoScalingGroups: fake.R(fake.MockDescribeAutoScalingGroupOutput(map[string]fake.ASGtags{"asg1": {
 					clusterIDTagPrefix + clusterID: "owned",
 				}}), nil),
 				DescribeLoadBalancerTargetGroups: fake.R(&autoscaling.DescribeLoadBalancerTargetGroupsOutput{
@@ -256,16 +256,16 @@ func TestResourceConversion(tt *testing.T) {
 				}, nil),
 				AttachLoadBalancerTargetGroups: fake.R(nil, nil),
 			},
-			elbv2Responses: fake.Elbv2MockOutputs{
+			responsesELBv2: fake.ELBv2Outputs{
 				DescribeTargetGroups: fake.R(nil, nil),
 				DescribeTags:         fake.R(nil, nil),
 			},
-			cfResponses: fake.CfMockOutputs{
+			responsesCF: fake.CFOutputs{
 				DescribeStackPages: fake.R(nil, nil),
 				DescribeStacks:     fake.R(nil, nil),
 				CreateStack:        fake.R(fake.MockCSOutput("42"), nil),
 			},
-			lbType: awsAdapter.LoadBalancerTypeNetwork,
+			typeLB: awsAdapter.LoadBalancerTypeNetwork,
 		},
 	} {
 		tt.Run(scenario.name, func(t *testing.T) {
@@ -275,18 +275,18 @@ func TestResourceConversion(tt *testing.T) {
 			}
 			expected := string(b)
 
-			ec2Client := &fake.MockEc2Client{Outputs: scenario.ec2Responses}
-			asgClient := &fake.MockAutoScalingClient{Outputs: scenario.asgResponses}
-			elbv2Client := &fake.MockElbv2Client{Outputs: scenario.elbv2Responses}
-			cfClient := &fake.MockCloudFormationClient{Outputs: scenario.cfResponses}
+			clientEC2 := &fake.EC2Client{Outputs: scenario.responsesEC2}
+			clientASG := &fake.ASGClient{Outputs: scenario.responsesASG}
+			clientELBv2 := &fake.ELBv2Client{Outputs: scenario.responsesELBv2}
+			clientCF := &fake.CFClient{Outputs: scenario.responsesCF}
 
 			a := &awsAdapter.Adapter{
 				TargetCNI: &awsAdapter.TargetCNIconfig{Enabled: false},
 			}
-			a = a.WithCustomAutoScalingClient(asgClient).
-				WithCustomEc2Client(ec2Client).
-				WithCustomElbv2Client(elbv2Client).
-				WithCustomCloudFormationClient(cfClient)
+			a = a.WithCustomAutoScalingClient(clientASG).
+				WithCustomEc2Client(clientEC2).
+				WithCustomElbv2Client(clientELBv2).
+				WithCustomCloudFormationClient(clientCF)
 
 			a, err = a.UpdateManifest(clusterID, vpcID)
 			if err != nil {
@@ -319,7 +319,7 @@ func TestResourceConversion(tt *testing.T) {
 				ingressClassFilterList,
 				securityGroupID,
 				sslPolicy,
-				scenario.lbType,
+				scenario.typeLB,
 				clusterLocalDomain,
 				true)
 			if err != nil {
@@ -334,7 +334,7 @@ func TestResourceConversion(tt *testing.T) {
 			assert.Equal(
 				t,
 				expected,
-				cfClient.GetLastGeneratedTemplate(),
+				clientCF.GetLastGeneratedTemplate(),
 			)
 		})
 	}

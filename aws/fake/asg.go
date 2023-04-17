@@ -8,27 +8,27 @@ import (
 	"github.com/aws/aws-sdk-go/service/autoscaling/autoscalingiface"
 )
 
-type Asgtags map[string]string
+type ASGtags map[string]string
 
-type AutoscalingMockInputs struct {
+type ASGInputs struct {
 	AttachLoadBalancerTargetGroups func(*testing.T, *autoscaling.AttachLoadBalancerTargetGroupsInput)
 }
 
-type AutoscalingMockOutputs struct {
-	DescribeAutoScalingGroups        *ApiResponse
-	AttachLoadBalancerTargetGroups   *ApiResponse
-	DetachLoadBalancerTargetGroups   *ApiResponse
-	DescribeLoadBalancerTargetGroups *ApiResponse
+type ASGOutputs struct {
+	DescribeAutoScalingGroups        *APIResponse
+	AttachLoadBalancerTargetGroups   *APIResponse
+	DetachLoadBalancerTargetGroups   *APIResponse
+	DescribeLoadBalancerTargetGroups *APIResponse
 }
 
-type MockAutoScalingClient struct {
+type ASGClient struct {
 	autoscalingiface.AutoScalingAPI
-	Outputs AutoscalingMockOutputs
-	Inputs  AutoscalingMockInputs
+	Outputs ASGOutputs
+	Inputs  ASGInputs
 	T       *testing.T
 }
 
-func (m *MockAutoScalingClient) DescribeAutoScalingGroups(*autoscaling.DescribeAutoScalingGroupsInput) (*autoscaling.DescribeAutoScalingGroupsOutput, error) {
+func (m *ASGClient) DescribeAutoScalingGroups(*autoscaling.DescribeAutoScalingGroupsInput) (*autoscaling.DescribeAutoScalingGroupsOutput, error) {
 	if out, ok := m.Outputs.DescribeAutoScalingGroups.response.(*autoscaling.DescribeAutoScalingGroupsOutput); ok {
 		return out, m.Outputs.DescribeAutoScalingGroups.err
 	}
@@ -36,32 +36,32 @@ func (m *MockAutoScalingClient) DescribeAutoScalingGroups(*autoscaling.DescribeA
 	return nil, m.Outputs.DescribeAutoScalingGroups.err
 }
 
-func (m *MockAutoScalingClient) DescribeAutoScalingGroupsPages(_ *autoscaling.DescribeAutoScalingGroupsInput, fn func(*autoscaling.DescribeAutoScalingGroupsOutput, bool) bool) error {
+func (m *ASGClient) DescribeAutoScalingGroupsPages(_ *autoscaling.DescribeAutoScalingGroupsInput, fn func(*autoscaling.DescribeAutoScalingGroupsOutput, bool) bool) error {
 	if out, ok := m.Outputs.DescribeAutoScalingGroups.response.(*autoscaling.DescribeAutoScalingGroupsOutput); ok {
 		fn(out, true)
 	}
 	return m.Outputs.DescribeAutoScalingGroups.err
 }
 
-func (m *MockAutoScalingClient) DescribeLoadBalancerTargetGroups(*autoscaling.DescribeLoadBalancerTargetGroupsInput) (*autoscaling.DescribeLoadBalancerTargetGroupsOutput, error) {
+func (m *ASGClient) DescribeLoadBalancerTargetGroups(*autoscaling.DescribeLoadBalancerTargetGroupsInput) (*autoscaling.DescribeLoadBalancerTargetGroupsOutput, error) {
 	if out, ok := m.Outputs.DescribeLoadBalancerTargetGroups.response.(*autoscaling.DescribeLoadBalancerTargetGroupsOutput); ok {
 		return out, m.Outputs.DescribeLoadBalancerTargetGroups.err
 	}
 	return nil, m.Outputs.DescribeLoadBalancerTargetGroups.err
 }
 
-func (m *MockAutoScalingClient) AttachLoadBalancerTargetGroups(input *autoscaling.AttachLoadBalancerTargetGroupsInput) (*autoscaling.AttachLoadBalancerTargetGroupsOutput, error) {
+func (m *ASGClient) AttachLoadBalancerTargetGroups(input *autoscaling.AttachLoadBalancerTargetGroupsInput) (*autoscaling.AttachLoadBalancerTargetGroupsOutput, error) {
 	if m.Inputs.AttachLoadBalancerTargetGroups != nil {
 		m.Inputs.AttachLoadBalancerTargetGroups(m.T, input)
 	}
 	return nil, m.Outputs.AttachLoadBalancerTargetGroups.err
 }
 
-func (m *MockAutoScalingClient) DetachLoadBalancerTargetGroups(*autoscaling.DetachLoadBalancerTargetGroupsInput) (*autoscaling.DetachLoadBalancerTargetGroupsOutput, error) {
+func (m *ASGClient) DetachLoadBalancerTargetGroups(*autoscaling.DetachLoadBalancerTargetGroupsInput) (*autoscaling.DetachLoadBalancerTargetGroupsOutput, error) {
 	return nil, m.Outputs.DetachLoadBalancerTargetGroups.err
 }
 
-func MockDescribeAutoScalingGroupOutput(asgs ...map[string]Asgtags) *autoscaling.DescribeAutoScalingGroupsOutput {
+func MockDescribeAutoScalingGroupOutput(asgs ...map[string]ASGtags) *autoscaling.DescribeAutoScalingGroupsOutput {
 	groups := make([]*autoscaling.Group, 0)
 	for _, asg := range asgs {
 		for name, tags := range asg {

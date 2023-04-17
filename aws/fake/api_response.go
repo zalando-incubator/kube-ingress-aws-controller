@@ -2,7 +2,7 @@ package fake
 
 import "errors"
 
-type ApiResponse struct {
+type APIResponse struct {
 	response interface{}
 	err      error
 }
@@ -11,6 +11,6 @@ type Tags map[string]string
 
 var ErrDummy = errors.New("fail")
 
-func R(r interface{}, e error) *ApiResponse {
-	return &ApiResponse{response: r, err: e}
+func R(r interface{}, e error) *APIResponse {
+	return &APIResponse{response: r, err: e}
 }

@@ -8,20 +8,20 @@ import (
 
 const dipSplitSize = 2
 
-type Ec2MockOutputs struct {
-	DescribeSecurityGroups *ApiResponse
-	DescribeInstances      *ApiResponse
-	DescribeInstancesPages []*ApiResponse
-	DescribeSubnets        *ApiResponse
-	DescribeRouteTables    *ApiResponse
+type EC2Outputs struct {
+	DescribeSecurityGroups *APIResponse
+	DescribeInstances      *APIResponse
+	DescribeInstancesPages []*APIResponse
+	DescribeSubnets        *APIResponse
+	DescribeRouteTables    *APIResponse
 }
 
-type MockEc2Client struct {
+type EC2Client struct {
 	ec2iface.EC2API
-	Outputs Ec2MockOutputs
+	Outputs EC2Outputs
 }
 
-func (m *MockEc2Client) DescribeSecurityGroups(*ec2.DescribeSecurityGroupsInput) (*ec2.DescribeSecurityGroupsOutput, error) {
+func (m *EC2Client) DescribeSecurityGroups(*ec2.DescribeSecurityGroupsInput) (*ec2.DescribeSecurityGroupsOutput, error) {
 	out, ok := m.Outputs.DescribeSecurityGroups.response.(*ec2.DescribeSecurityGroupsOutput)
 	if !ok {
 		return nil, m.Outputs.DescribeSecurityGroups.err
@@ -29,7 +29,7 @@ func (m *MockEc2Client) DescribeSecurityGroups(*ec2.DescribeSecurityGroupsInput)
 	return out, m.Outputs.DescribeSecurityGroups.err
 }
 
-func (m *MockEc2Client) DescribeInstances(*ec2.DescribeInstancesInput) (*ec2.DescribeInstancesOutput, error) {
+func (m *EC2Client) DescribeInstances(*ec2.DescribeInstancesInput) (*ec2.DescribeInstancesOutput, error) {
 	out, ok := m.Outputs.DescribeInstances.response.(*ec2.DescribeInstancesOutput)
 	if !ok {
 		return nil, m.Outputs.DescribeInstances.err
@@ -37,7 +37,7 @@ func (m *MockEc2Client) DescribeInstances(*ec2.DescribeInstancesInput) (*ec2.Des
 	return out, m.Outputs.DescribeInstances.err
 }
 
-func (m *MockEc2Client) DescribeInstancesPages(params *ec2.DescribeInstancesInput, f func(*ec2.DescribeInstancesOutput, bool) bool) error {
+func (m *EC2Client) DescribeInstancesPages(params *ec2.DescribeInstancesInput, f func(*ec2.DescribeInstancesOutput, bool) bool) error {
 	for _, resp := range m.Outputs.DescribeInstancesPages {
 		if out, ok := resp.response.(*ec2.DescribeInstancesOutput); ok {
 			f(out, true)
@@ -49,7 +49,7 @@ func (m *MockEc2Client) DescribeInstancesPages(params *ec2.DescribeInstancesInpu
 	return nil
 }
 
-func (m *MockEc2Client) DescribeSubnets(*ec2.DescribeSubnetsInput) (*ec2.DescribeSubnetsOutput, error) {
+func (m *EC2Client) DescribeSubnets(*ec2.DescribeSubnetsInput) (*ec2.DescribeSubnetsOutput, error) {
 	out, ok := m.Outputs.DescribeSubnets.response.(*ec2.DescribeSubnetsOutput)
 	if !ok {
 		return nil, m.Outputs.DescribeSubnets.err
@@ -57,7 +57,7 @@ func (m *MockEc2Client) DescribeSubnets(*ec2.DescribeSubnetsInput) (*ec2.Describ
 	return out, m.Outputs.DescribeSubnets.err
 }
 
-func (m *MockEc2Client) DescribeRouteTables(*ec2.DescribeRouteTablesInput) (*ec2.DescribeRouteTablesOutput, error) {
+func (m *EC2Client) DescribeRouteTables(*ec2.DescribeRouteTablesInput) (*ec2.DescribeRouteTablesOutput, error) {
 	out, ok := m.Outputs.DescribeRouteTables.response.(*ec2.DescribeRouteTablesOutput)
 	if !ok {
 		return nil, m.Outputs.DescribeRouteTables.err
@@ -104,9 +104,9 @@ func MockDescribeInstancesOutput(mockedInstances ...TestInstance) *ec2.DescribeI
 	return &ec2.DescribeInstancesOutput{Reservations: []*ec2.Reservation{{Instances: instances}}}
 }
 
-func MockDescribeInstancesPagesOutput(e error, mockedInstances ...TestInstance) []*ApiResponse {
+func MockDescribeInstancesPagesOutput(e error, mockedInstances ...TestInstance) []*APIResponse {
 	pages := len(mockedInstances) / dipSplitSize
-	result := make([]*ApiResponse, pages, pages+1)
+	result := make([]*APIResponse, pages, pages+1)
 	for i := 0; i < pages; i++ {
 		result[i] = R(MockDescribeInstancesOutput(mockedInstances[i*dipSplitSize:(i+1)*dipSplitSize]...), e)
 	}

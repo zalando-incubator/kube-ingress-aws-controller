@@ -22,17 +22,17 @@ type deregisterTargetsOnTargetGroupsInputTest struct {
 }
 
 func TestRegisterTargetsOnTargetGroups(t *testing.T) {
-	outputsSuccess := fake.Elbv2MockOutputs{
+	outputsSuccess := fake.ELBv2Outputs{
 		RegisterTargets: fake.R(fake.MockRTOutput(), nil),
 	}
-	outputsError := fake.Elbv2MockOutputs{
+	outputsError := fake.ELBv2Outputs{
 		RegisterTargets: fake.R(fake.MockRTOutput(), fake.ErrDummy),
 	}
 
 	for _, test := range []struct {
 		name      string
 		input     registerTargetsOnTargetGroupsInputTest
-		outputs   fake.Elbv2MockOutputs
+		outputs   fake.ELBv2Outputs
 		wantError bool
 	}{
 		{
@@ -82,7 +82,7 @@ func TestRegisterTargetsOnTargetGroups(t *testing.T) {
 		},
 	} {
 		t.Run(fmt.Sprintf("%v", test.name), func(t *testing.T) {
-			svc := &fake.MockElbv2Client{Outputs: test.outputs}
+			svc := &fake.ELBv2Client{Outputs: test.outputs}
 			err := registerTargetsOnTargetGroups(svc, test.input.targetGroupARNs, test.input.instances)
 			if test.wantError && err == nil {
 				t.Fatalf("expected error, got nothing")
@@ -115,17 +115,17 @@ func TestRegisterTargetsOnTargetGroups(t *testing.T) {
 }
 
 func TestDeregisterTargetsOnTargetGroups(t *testing.T) {
-	outputsSuccess := fake.Elbv2MockOutputs{
+	outputsSuccess := fake.ELBv2Outputs{
 		DeregisterTargets: fake.R(fake.MockDeregisterTargetsOutput(), nil),
 	}
-	outputsError := fake.Elbv2MockOutputs{
+	outputsError := fake.ELBv2Outputs{
 		DeregisterTargets: fake.R(fake.MockDeregisterTargetsOutput(), fake.ErrDummy),
 	}
 
 	for _, test := range []struct {
 		name      string
 		input     deregisterTargetsOnTargetGroupsInputTest
-		outputs   fake.Elbv2MockOutputs
+		outputs   fake.ELBv2Outputs
 		wantError bool
 	}{
 		{
@@ -175,7 +175,7 @@ func TestDeregisterTargetsOnTargetGroups(t *testing.T) {
 		},
 	} {
 		t.Run(fmt.Sprintf("%v", test.name), func(t *testing.T) {
-			svc := &fake.MockElbv2Client{Outputs: test.outputs}
+			svc := &fake.ELBv2Client{Outputs: test.outputs}
 			err := deregisterTargetsOnTargetGroups(svc, test.input.targetGroupARNs, test.input.instances)
 			if test.wantError && err == nil {
 				t.Fatalf("expected error, got nothing")

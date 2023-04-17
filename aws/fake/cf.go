@@ -6,26 +6,26 @@ import (
 	"github.com/aws/aws-sdk-go/service/cloudformation/cloudformationiface"
 )
 
-type CfMockOutputs struct {
-	DescribeStackPages          *ApiResponse
-	DescribeStacks              *ApiResponse
-	CreateStack                 *ApiResponse
-	UpdateStack                 *ApiResponse
-	DeleteStack                 *ApiResponse
-	UpdateTerminationProtection *ApiResponse
+type CFOutputs struct {
+	DescribeStackPages          *APIResponse
+	DescribeStacks              *APIResponse
+	CreateStack                 *APIResponse
+	UpdateStack                 *APIResponse
+	DeleteStack                 *APIResponse
+	UpdateTerminationProtection *APIResponse
 }
 
-type MockCloudFormationClient struct {
+type CFClient struct {
 	cloudformationiface.CloudFormationAPI
 	lastGeneratedTemplate string
-	Outputs               CfMockOutputs
+	Outputs               CFOutputs
 }
 
-func (m *MockCloudFormationClient) GetLastGeneratedTemplate() string {
+func (m *CFClient) GetLastGeneratedTemplate() string {
 	return m.lastGeneratedTemplate
 }
 
-func (m *MockCloudFormationClient) DescribeStacksPages(in *cloudformation.DescribeStacksInput, fn func(*cloudformation.DescribeStacksOutput, bool) bool) (err error) {
+func (m *CFClient) DescribeStacksPages(in *cloudformation.DescribeStacksInput, fn func(*cloudformation.DescribeStacksOutput, bool) bool) (err error) {
 	if m.Outputs.DescribeStackPages != nil {
 		err = m.Outputs.DescribeStackPages.err
 	}
@@ -43,7 +43,7 @@ func (m *MockCloudFormationClient) DescribeStacksPages(in *cloudformation.Descri
 	return
 }
 
-func (m *MockCloudFormationClient) DescribeStacks(in *cloudformation.DescribeStacksInput) (*cloudformation.DescribeStacksOutput, error) {
+func (m *CFClient) DescribeStacks(in *cloudformation.DescribeStacksInput) (*cloudformation.DescribeStacksOutput, error) {
 	out, ok := m.Outputs.DescribeStacks.response.(*cloudformation.DescribeStacksOutput)
 	if !ok {
 		return nil, m.Outputs.DescribeStacks.err
@@ -51,7 +51,7 @@ func (m *MockCloudFormationClient) DescribeStacks(in *cloudformation.DescribeSta
 	return out, m.Outputs.DescribeStacks.err
 }
 
-func (m *MockCloudFormationClient) CreateStack(params *cloudformation.CreateStackInput) (*cloudformation.CreateStackOutput, error) {
+func (m *CFClient) CreateStack(params *cloudformation.CreateStackInput) (*cloudformation.CreateStackOutput, error) {
 	m.lastGeneratedTemplate = *params.TemplateBody
 	out, ok := m.Outputs.CreateStack.response.(*cloudformation.CreateStackOutput)
 	if !ok {
@@ -66,7 +66,7 @@ func MockCSOutput(stackId string) *cloudformation.CreateStackOutput {
 	}
 }
 
-func (m *MockCloudFormationClient) UpdateStack(params *cloudformation.UpdateStackInput) (*cloudformation.UpdateStackOutput, error) {
+func (m *CFClient) UpdateStack(params *cloudformation.UpdateStackInput) (*cloudformation.UpdateStackOutput, error) {
 	m.lastGeneratedTemplate = *params.TemplateBody
 	out, ok := m.Outputs.UpdateStack.response.(*cloudformation.UpdateStackOutput)
 	if !ok {
@@ -81,7 +81,7 @@ func MockUSOutput(stackId string) *cloudformation.UpdateStackOutput {
 	}
 }
 
-func (m *MockCloudFormationClient) DeleteStack(params *cloudformation.DeleteStackInput) (*cloudformation.DeleteStackOutput, error) {
+func (m *CFClient) DeleteStack(params *cloudformation.DeleteStackInput) (*cloudformation.DeleteStackOutput, error) {
 	out, ok := m.Outputs.DeleteStack.response.(*cloudformation.DeleteStackOutput)
 	if !ok {
 		return nil, m.Outputs.DeleteStack.err
@@ -93,7 +93,7 @@ func MockDeleteStackOutput(stackId string) *cloudformation.DeleteStackOutput {
 	return &cloudformation.DeleteStackOutput{}
 }
 
-func (m *MockCloudFormationClient) UpdateTerminationProtection(params *cloudformation.UpdateTerminationProtectionInput) (*cloudformation.UpdateTerminationProtectionOutput, error) {
+func (m *CFClient) UpdateTerminationProtection(params *cloudformation.UpdateTerminationProtectionInput) (*cloudformation.UpdateTerminationProtectionOutput, error) {
 	out, ok := m.Outputs.UpdateTerminationProtection.response.(*cloudformation.UpdateTerminationProtectionOutput)
 	if !ok {
 		return nil, m.Outputs.UpdateTerminationProtection.err
