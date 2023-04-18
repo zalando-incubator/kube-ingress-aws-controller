@@ -270,7 +270,6 @@ func doWork(
 	globalWAFACL string,
 ) (problems *problem.List) {
 	problems = new(problem.List)
-
 	defer func() {
 		if r := recover(); r != nil {
 			debug.PrintStack()

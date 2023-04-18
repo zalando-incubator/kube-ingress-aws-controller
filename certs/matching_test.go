@@ -22,6 +22,7 @@ type caInfra struct {
 	sync.Once
 	err       error
 	chainKey  *rsa.PrivateKey
+	roots     *x509.CertPool
 	chainCert *x509.Certificate
 }
 
@@ -83,8 +84,8 @@ func createDummyCertDetail(t *testing.T, arn string, altNames []string, notBefor
 			ca.err = fmt.Errorf("unable to parse CA certificate: %v", err)
 			return
 		}
-		roots = x509.NewCertPool()
-		roots.AddCert(caReparsed)
+		ca.roots = x509.NewCertPool()
+		ca.roots.AddCert(caReparsed)
 
 		chainKey, err := rsa.GenerateKey(rand.Reader, 2048)
 		if err != nil {
@@ -143,7 +144,8 @@ func createDummyCertDetail(t *testing.T, arn string, altNames []string, notBefor
 		require.NoErrorf(t, err, "unable to parse certificate")
 	}
 
-	return NewCertificate(arn, reparsed, []*x509.Certificate{ca.chainCert})
+	c := NewCertificate(arn, reparsed, []*x509.Certificate{ca.chainCert})
+	return c.WithRoots(ca.roots)
 }
 
 type certCondition func(error, *CertificateSummary, *CertificateSummary) bool

@@ -248,6 +248,17 @@ func NewAdapter(clusterID, newControllerID, vpcID string, debug, disableInstrume
 	return
 }
 
+// UpdateManifest generates a manifest again based on cluster and VPC information.
+// This method is useful when using custom AWS clients.
+func (a *Adapter) UpdateManifest(clusterID, vpcID string) (*Adapter, error) {
+	m, err := buildManifest(a, clusterID, vpcID)
+	if err != nil {
+		return nil, err
+	}
+	a.manifest = m
+	return a, err
+}
+
 func (a *Adapter) NewACMCertificateProvider() certs.CertificatesProvider {
 	return newACMCertProvider(a.acm)
 }
@@ -491,6 +502,34 @@ func (a *Adapter) WithInternalDomainsDenyResponseStatusCode(code int) *Adapter {
 // denyInternalDomains is set to true.
 func (a *Adapter) WithInternalDomainsDenyResponseContenType(contentType string) *Adapter {
 	a.denyInternalRespContentType = contentType
+	return a
+}
+
+// WithCustomEc2Client returns an Adapter that will use the provided
+// EC2 client, instead of the EC2 client provided by AWS.
+func (a *Adapter) WithCustomEc2Client(c ec2iface.EC2API) *Adapter {
+	a.ec2 = c
+	return a
+}
+
+// WithCustomAutoScalingClient returns an Adapter that will use the provided
+// Auto scaling client, instead of the Auto scaling client provided by AWS.
+func (a *Adapter) WithCustomAutoScalingClient(c autoscalingiface.AutoScalingAPI) *Adapter {
+	a.autoscaling = c
+	return a
+}
+
+// WithCustomElbv2Client returns an Adapter that will use the provided
+// ELBv2 client, instead of the ELBv2 client provided by AWS.
+func (a *Adapter) WithCustomElbv2Client(c elbv2iface.ELBV2API) *Adapter {
+	a.elbv2 = c
+	return a
+}
+
+// WithCustomCloudFormationClient returns an Adapter that will use the provided
+// CloudFormation client, instead of the CloudFormation client provided by AWS.
+func (a *Adapter) WithCustomCloudFormationClient(c cloudformationiface.CloudFormationAPI) *Adapter {
+	a.cloudformation = c
 	return a
 }
 

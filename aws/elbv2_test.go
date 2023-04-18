@@ -7,6 +7,8 @@ import (
 	"testing"
 
 	"github.com/aws/aws-sdk-go/aws"
+
+	"github.com/zalando-incubator/kube-ingress-aws-controller/aws/fake"
 )
 
 type registerTargetsOnTargetGroupsInputTest struct {
@@ -20,17 +22,17 @@ type deregisterTargetsOnTargetGroupsInputTest struct {
 }
 
 func TestRegisterTargetsOnTargetGroups(t *testing.T) {
-	outputsSuccess := elbv2MockOutputs{
-		registerTargets: R(mockRTOutput(), nil),
+	outputsSuccess := fake.ELBv2Outputs{
+		RegisterTargets: fake.R(fake.MockRTOutput(), nil),
 	}
-	outputsError := elbv2MockOutputs{
-		registerTargets: R(mockRTOutput(), errDummy),
+	outputsError := fake.ELBv2Outputs{
+		RegisterTargets: fake.R(fake.MockRTOutput(), fake.ErrDummy),
 	}
 
 	for _, test := range []struct {
 		name      string
 		input     registerTargetsOnTargetGroupsInputTest
-		outputs   elbv2MockOutputs
+		outputs   fake.ELBv2Outputs
 		wantError bool
 	}{
 		{
@@ -80,7 +82,7 @@ func TestRegisterTargetsOnTargetGroups(t *testing.T) {
 		},
 	} {
 		t.Run(fmt.Sprintf("%v", test.name), func(t *testing.T) {
-			svc := &mockElbv2Client{outputs: test.outputs}
+			svc := &fake.ELBv2Client{Outputs: test.outputs}
 			err := registerTargetsOnTargetGroups(svc, test.input.targetGroupARNs, test.input.instances)
 			if test.wantError && err == nil {
 				t.Fatalf("expected error, got nothing")
@@ -92,7 +94,7 @@ func TestRegisterTargetsOnTargetGroups(t *testing.T) {
 				sort.Strings(test.input.targetGroupARNs)
 				sort.Strings(test.input.instances)
 				rtTargetsGroupARNs := make([]string, 0, len(test.input.targetGroupARNs))
-				for _, input := range svc.rtinputs {
+				for _, input := range svc.Rtinputs {
 					rtTargetsGroupARNs = append(rtTargetsGroupARNs, aws.StringValue(input.TargetGroupArn))
 					rtInstances := make([]string, len(input.Targets))
 					for j, tgt := range input.Targets {
@@ -113,17 +115,17 @@ func TestRegisterTargetsOnTargetGroups(t *testing.T) {
 }
 
 func TestDeregisterTargetsOnTargetGroups(t *testing.T) {
-	outputsSuccess := elbv2MockOutputs{
-		deregisterTargets: R(mockDTOutput(), nil),
+	outputsSuccess := fake.ELBv2Outputs{
+		DeregisterTargets: fake.R(fake.MockDeregisterTargetsOutput(), nil),
 	}
-	outputsError := elbv2MockOutputs{
-		deregisterTargets: R(mockDTOutput(), errDummy),
+	outputsError := fake.ELBv2Outputs{
+		DeregisterTargets: fake.R(fake.MockDeregisterTargetsOutput(), fake.ErrDummy),
 	}
 
 	for _, test := range []struct {
 		name      string
 		input     deregisterTargetsOnTargetGroupsInputTest
-		outputs   elbv2MockOutputs
+		outputs   fake.ELBv2Outputs
 		wantError bool
 	}{
 		{
@@ -173,7 +175,7 @@ func TestDeregisterTargetsOnTargetGroups(t *testing.T) {
 		},
 	} {
 		t.Run(fmt.Sprintf("%v", test.name), func(t *testing.T) {
-			svc := &mockElbv2Client{outputs: test.outputs}
+			svc := &fake.ELBv2Client{Outputs: test.outputs}
 			err := deregisterTargetsOnTargetGroups(svc, test.input.targetGroupARNs, test.input.instances)
 			if test.wantError && err == nil {
 				t.Fatalf("expected error, got nothing")
@@ -185,7 +187,7 @@ func TestDeregisterTargetsOnTargetGroups(t *testing.T) {
 				sort.Strings(test.input.targetGroupARNs)
 				sort.Strings(test.input.instances)
 				dtTargetsGroupARNs := make([]string, 0, len(test.input.targetGroupARNs))
-				for _, input := range svc.dtinputs {
+				for _, input := range svc.Dtinputs {
 					dtTargetsGroupARNs = append(dtTargetsGroupARNs, aws.StringValue(input.TargetGroupArn))
 					dtInstances := make([]string, len(input.Targets))
 					for j, tgt := range input.Targets {
