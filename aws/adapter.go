@@ -158,17 +158,24 @@ var (
 	// SSLPolicies is a map of valid ALB SSL Policies
 	// https://docs.aws.amazon.com/elasticloadbalancing/latest/application/create-https-listener.html#describe-ssl-policies
 	SSLPolicies = map[string]bool{
-		"ELBSecurityPolicy-2016-08":             true,
-		"ELBSecurityPolicy-FS-2018-06":          true,
-		"ELBSecurityPolicy-TLS-1-2-2017-01":     true,
-		"ELBSecurityPolicy-TLS-1-2-Ext-2018-06": true,
-		"ELBSecurityPolicy-TLS-1-1-2017-01":     true,
-		"ELBSecurityPolicy-2015-05":             true,
-		"ELBSecurityPolicy-TLS-1-0-2015-04":     true,
-		"ELBSecurityPolicy-FS-1-1-2019-08":      true,
-		"ELBSecurityPolicy-FS-1-2-2019-08":      true,
-		"ELBSecurityPolicy-FS-1-2-Res-2019-08":  true,
-		"ELBSecurityPolicy-FS-1-2-Res-2020-10":  true,
+		"ELBSecurityPolicy-2016-08":                true,
+		"ELBSecurityPolicy-FS-2018-06":             true,
+		"ELBSecurityPolicy-TLS-1-2-2017-01":        true,
+		"ELBSecurityPolicy-TLS-1-2-Ext-2018-06":    true,
+		"ELBSecurityPolicy-TLS-1-1-2017-01":        true,
+		"ELBSecurityPolicy-2015-05":                true,
+		"ELBSecurityPolicy-TLS-1-0-2015-04":        true,
+		"ELBSecurityPolicy-FS-1-1-2019-08":         true,
+		"ELBSecurityPolicy-FS-1-2-2019-08":         true,
+		"ELBSecurityPolicy-FS-1-2-Res-2019-08":     true,
+		"ELBSecurityPolicy-FS-1-2-Res-2020-10":     true,
+		"ELBSecurityPolicy-TLS13-1-2-2021-06":      true,
+		"ELBSecurityPolicy-TLS13-1-2-Res-2021-06":  true,
+		"ELBSecurityPolicy-TLS13-1-2-Ext1-2021-06": true,
+		"ELBSecurityPolicy-TLS13-1-2-Ext2-2021-06": true,
+		"ELBSecurityPolicy-TLS13-1-1-2021-06":      true,
+		"ELBSecurityPolicy-TLS13-1-0-2021-06":      true,
+		"ELBSecurityPolicy-TLS13-1-3-2021-06":      true,
 	}
 	SSLPoliciesList = []string{
 		"ELBSecurityPolicy-2016-08",
@@ -182,6 +189,13 @@ var (
 		"ELBSecurityPolicy-FS-1-2-2019-08",
 		"ELBSecurityPolicy-FS-1-2-Res-2019-08",
 		"ELBSecurityPolicy-FS-1-2-Res-2020-10",
+		"ELBSecurityPolicy-TLS13-1-2-2021-06",
+		"ELBSecurityPolicy-TLS13-1-2-Res-2021-06",
+		"ELBSecurityPolicy-TLS13-1-2-Ext1-2021-06",
+		"ELBSecurityPolicy-TLS13-1-2-Ext2-2021-06",
+		"ELBSecurityPolicy-TLS13-1-1-2021-06",
+		"ELBSecurityPolicy-TLS13-1-0-2021-06",
+		"ELBSecurityPolicy-TLS13-1-3-2021-06",
 	}
 )
 
