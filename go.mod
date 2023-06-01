@@ -11,7 +11,7 @@ require (
 	github.com/mweagle/go-cloudformation v0.0.0-20211009163201-0a35d7d0fa70
 	github.com/prometheus/client_golang v1.14.0
 	github.com/sirupsen/logrus v1.9.0
-	github.com/stretchr/testify v1.8.2
+	github.com/stretchr/testify v1.8.4
 	github.com/zalando/skipper v0.16.6
 	gopkg.in/alecthomas/kingpin.v2 v2.2.6
 	k8s.io/api v0.22.17
