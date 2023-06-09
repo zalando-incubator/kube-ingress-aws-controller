@@ -333,7 +333,7 @@ func doWork(
 	awsAdapter.UpdateTargetGroupsAndAutoScalingGroups(stacks, problems)
 
 	certs := NewCertificates(certificateSummaries)
-	model := buildManagedModel(certs, certsPerALB, certTTL, ingresses, stacks, cwAlarms, globalWAFACL)
+	model := buildManagedModel(certs, certsPerALB, certTTL, ingresses, stacks, cwAlarms, globalWAFACL, awsAdapter.FindLBSubnets)
 	log.Debugf("Have %d model(s)", len(model))
 	for _, loadBalancer := range model {
 		switch loadBalancer.Status() {
@@ -408,6 +408,7 @@ func matchIngressesToLoadBalancers(
 	certs CertificatesFinder,
 	certsPerALB int,
 	ingresses []*kubernetes.Ingress,
+	subnetsByScheme func(scheme string) []string,
 ) []*loadBalancer {
 	clusterLocalLB := &loadBalancer{
 		clusterLocal: true,
@@ -449,6 +450,15 @@ func matchIngressesToLoadBalancers(
 				lb.loadBalancerType == aws.LoadBalancerTypeNetwork
 			if !supportedLBType {
 				continue
+			}
+
+			// Ignore NLBs with a wrong set of subnets
+			if lb.loadBalancerType == aws.LoadBalancerTypeNetwork {
+				subnets := subnetsByScheme(lb.scheme)
+
+				if !equalSlices[string](lb.stack.Subnets, subnets) {
+					continue
+				}
 			}
 
 			if lb.addIngress(certificateARNs, ingress, certsPerALB) {
@@ -516,11 +526,12 @@ func buildManagedModel(
 	stacks []*aws.Stack,
 	cwAlarms aws.CloudWatchAlarmList,
 	globalWAFACL string,
+	subnetsByScheme func(scheme string) []string,
 ) []*loadBalancer {
 	sortStacks(stacks)
 	attachGlobalWAFACL(ingresses, globalWAFACL)
 	model := getAllLoadBalancers(certs, certTTL, stacks)
-	model = matchIngressesToLoadBalancers(model, certs, certsPerALB, ingresses)
+	model = matchIngressesToLoadBalancers(model, certs, certsPerALB, ingresses, subnetsByScheme)
 	attachCloudWatchAlarms(model, cwAlarms)
 
 	return model
@@ -709,4 +720,26 @@ func cniEventHandler(ctx context.Context, targetCNIcfg *aws.TargetCNIconfig,
 			log.Error(err)
 		}
 	}
+}
+
+func equalSlices[T comparable](a, b []T) bool {
+	if len(a) != len(b) {
+		return false
+	}
+
+	for _, aElem := range a {
+		found := false
+		for _, bElem := range b {
+			if aElem == bElem {
+				found = true
+				break
+			}
+		}
+
+		if !found {
+			return false
+		}
+	}
+
+	return true
 }
