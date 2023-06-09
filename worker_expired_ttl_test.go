@@ -57,7 +57,7 @@ func TestExpiredCertTTLStacksWithIngresses(t *testing.T) {
 			stack("kube-ingress-aws-controller-cluster-bbbb", "live-lb.elb.amazonaws.com"),
 			stack("kube-ingress-aws-controller-cluster-aaaa", "old-lb.elb.amazonaws.com"),
 		},
-		nil, "")
+		nil, "", func(string) []string { return nil })
 
 	byName := map[string]*loadBalancer{}
 	for _, lb := range model {

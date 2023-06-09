@@ -44,6 +44,7 @@ type Stack struct {
 	CertificateARNs          map[string]time.Time
 	tags                     map[string]string
 	targetGroupIPAddressType string
+	Subnets                  []string
 }
 
 // IsComplete returns true if the stack status is a complete state.
@@ -542,6 +543,11 @@ func mapToManagedStack(stack *types.Stack) *Stack {
 		alpnPolicy = DefaultAlpnPolicy
 	}
 
+	var subnets []string
+	if parameters[parameterLoadBalancerSubnetsParameter] != "" {
+		subnets = strings.Split(parameters[parameterLoadBalancerSubnetsParameter], ",")
+	}
+
 	return &Stack{
 		Name:                     aws.ToString(stack.StackName),
 		LoadBalancerARN:          outputs.loadBalancerARN(),
@@ -564,6 +570,7 @@ func mapToManagedStack(stack *types.Stack) *Stack {
 		CWAlarmConfigHash:        tags[cwAlarmConfigHashTag],
 		WAFWebACLID:              parameters[parameterLoadBalancerWAFWebACLIDParameter],
 		targetGroupIPAddressType: targetGroupIPAddressType,
+		Subnets:                  subnets,
 	}
 }
 
