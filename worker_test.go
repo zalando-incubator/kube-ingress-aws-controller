@@ -18,6 +18,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/zalando-incubator/kube-ingress-aws-controller/aws"
 	awsAdapter "github.com/zalando-incubator/kube-ingress-aws-controller/aws"
 	"github.com/zalando-incubator/kube-ingress-aws-controller/certs"
 	"github.com/zalando-incubator/kube-ingress-aws-controller/kubernetes"
@@ -1179,6 +1180,7 @@ func TestMatchIngressesToLoadbalancers(t *testing.T) {
 		maxCertsPerLB int
 		lbs           []*loadBalancer
 		ingresses     []*kubernetes.Ingress
+		subnets       []string
 		validate      func(*testing.T, []*loadBalancer)
 	}{{
 		title: "only cluster local",
@@ -1361,6 +1363,37 @@ func TestMatchIngressesToLoadbalancers(t *testing.T) {
 				require.Equal(t, 1, len(lb.ingresses["foo"]))
 			}
 		},
+	}, {
+		title: "load balancer with invalid subnets",
+		ingresses: []*kubernetes.Ingress{{
+			Name: "foo-ingress",
+			Hostnames: []string{
+				"foo.org",
+				"bar.org",
+			},
+			LoadBalancerType: awsAdapter.LoadBalancerTypeNetwork,
+			Shared:           true,
+		}},
+		lbs: []*loadBalancer{{
+			loadBalancerType: awsAdapter.LoadBalancerTypeNetwork,
+			ingresses:        make(map[string][]*kubernetes.Ingress),
+			stack:            &aws.Stack{Subnets: []string{"a", "b", "c"}},
+		}},
+		validate: func(t *testing.T, lbs []*loadBalancer) {
+			require.Equal(t, 3, len(lbs))
+			for _, lb := range lbs {
+				if lb.clusterLocal {
+					continue
+				}
+
+				if lb.stack != nil && equalSlices[string](lb.stack.Subnets, []string{"a", "b", "c"}) {
+					require.Len(t, lb.ingresses, 0)
+				} else {
+					require.Len(t, lb.ingresses, 1)
+				}
+			}
+		},
+		subnets: []string{"x", "y", "z"},
 	}} {
 		t.Run(test.title, func(t *testing.T) {
 			var certs CertificatesFinder = defaultCerts
@@ -1373,7 +1406,11 @@ func TestMatchIngressesToLoadbalancers(t *testing.T) {
 				maxCertsPerLB = test.maxCertsPerLB
 			}
 
-			lbs := matchIngressesToLoadBalancers(test.lbs, certs, maxCertsPerLB, test.ingresses)
+			subnetsByScheme := func(scheme string) []string {
+				return test.subnets
+			}
+
+			lbs := matchIngressesToLoadBalancers(test.lbs, certs, maxCertsPerLB, test.ingresses, subnetsByScheme)
 			test.validate(t, lbs)
 		})
 	}
@@ -1403,6 +1440,7 @@ func TestBuildModel(t *testing.T) {
 		stacks        []*awsAdapter.Stack
 		alarms        awsAdapter.CloudWatchAlarmList
 		globalWAFACL  string
+		subnets       []string
 		validate      func(*testing.T, []*loadBalancer)
 	}{{
 		title: "no alarm, no waf",
@@ -1549,6 +1587,10 @@ func TestBuildModel(t *testing.T) {
 				maxCertsPerLB = test.maxCertsPerLB
 			}
 
+			subnetsByScheme := func(scheme string) []string {
+				return test.subnets
+			}
+
 			m := buildManagedModel(
 				certs,
 				maxCertsPerLB,
@@ -1557,6 +1599,7 @@ func TestBuildModel(t *testing.T) {
 				test.stacks,
 				test.alarms,
 				test.globalWAFACL,
+				subnetsByScheme,
 			)
 
 			test.validate(t, m)
