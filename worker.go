@@ -379,7 +379,7 @@ func (w *worker) doWork(ctx context.Context) (problems *problem.List) {
 	w.awsAdapter.UpdateTargetGroupsAndAutoScalingGroups(ctx, stacks, problems)
 
 	certs := NewCertificates(certificateSummaries)
-	model := buildManagedModel(certs, w.certsPerALB, w.certTTL, ingresses, stackELBs, cwAlarms, w.globalWAFACL)
+	model := buildManagedModel(certs, w.certsPerALB, w.certTTL, ingresses, stackELBs, cwAlarms, w.globalWAFACL, w.awsAdapter.FindLBSubnets)
 	log.Debugf("Have %d model(s)", len(model))
 	for _, loadBalancer := range model {
 		if loadBalancer.deletionBlocked() {
@@ -463,6 +463,7 @@ func matchIngressesToLoadBalancers(
 	certs CertificatesFinder,
 	certsPerALB int,
 	ingresses []*kubernetes.Ingress,
+	subnetsByScheme func(scheme string) []string,
 ) []*loadBalancer {
 	clusterLocalLB := &loadBalancer{
 		clusterLocal: true,
@@ -506,6 +507,15 @@ func matchIngressesToLoadBalancers(
 				continue
 			}
 
+			// Ignore NLBs with a wrong set of subnets
+			if lb.loadBalancerType == aws.LoadBalancerTypeNetwork {
+				subnets := subnetsByScheme(lb.scheme)
+
+				if !equalSlices[string](lb.stack.Subnets, subnets) {
+					continue
+				}
+			}
+
 			if lb.addIngress(certificateARNs, ingress, certsPerALB) {
 				added = true
 				break
@@ -523,18 +533,18 @@ func matchIngressesToLoadBalancers(
 			loadBalancers = append(
 				loadBalancers,
 				&loadBalancer{
-					ingresses:           i,
-					scheme:              ingress.Scheme,
-					shared:              ingress.Shared,
-					securityGroup:       ingress.SecurityGroup,
+					ingresses:            i,
+					scheme:               ingress.Scheme,
+					shared:               ingress.Shared,
+					securityGroup:        ingress.SecurityGroup,
 					sslPolicy:            ingress.SSLPolicy,
 					sslPolicyIsExplicit:  ingress.HasSSLPolicyAnnotation,
 					alpnPolicy:           ingress.ALPNPolicy,
 					alpnPolicyIsExplicit: ingress.HasALPNPolicyAnnotation,
 					ipAddressType:        ingress.IPAddressType,
-					loadBalancerType:    ingress.LoadBalancerType,
-					http2:               ingress.HTTP2,
-					wafWebACLID:         ingress.WAFWebACLID,
+					loadBalancerType:     ingress.LoadBalancerType,
+					http2:                ingress.HTTP2,
+					wafWebACLID:          ingress.WAFWebACLID,
 				},
 			)
 		}
@@ -597,12 +607,13 @@ func buildManagedModel(
 	stackLBStates []*aws.StackLBState,
 	cwAlarms aws.CloudWatchAlarmList,
 	globalWAFACL string,
+	subnetsByScheme func(scheme string) []string,
 ) []*loadBalancer {
 	sortStacks(stackLBStates)
 	attachGlobalWAFACL(ingresses, globalWAFACL)
 	model := getAllLoadBalancers(certs, certTTL, stackLBStates)
 	model = inUseFirst(model, ingresses)
-	model = matchIngressesToLoadBalancers(model, certs, certsPerALB, ingresses)
+	model = matchIngressesToLoadBalancers(model, certs, certsPerALB, ingresses, subnetsByScheme)
 	attachCloudWatchAlarms(model, cwAlarms)
 
 	return model
@@ -813,4 +824,26 @@ func cniEventHandler(ctx context.Context, targetCNIcfg *aws.TargetCNIconfig,
 			log.Error(err)
 		}
 	}
+}
+
+func equalSlices[T comparable](a, b []T) bool {
+	if len(a) != len(b) {
+		return false
+	}
+
+	for _, aElem := range a {
+		found := false
+		for _, bElem := range b {
+			if aElem == bElem {
+				found = true
+				break
+			}
+		}
+
+		if !found {
+			return false
+		}
+	}
+
+	return true
 }
