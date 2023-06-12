@@ -23,6 +23,7 @@ import (
 	"github.com/zalando-incubator/kube-ingress-aws-controller/certs"
 	"github.com/zalando-incubator/kube-ingress-aws-controller/kubernetes"
 	"github.com/zalando/skipper/dataclients/kubernetes/kubernetestest"
+	"golang.org/x/exp/slices"
 	"k8s.io/apimachinery/pkg/util/wait"
 
 	"github.com/zalando-incubator/kube-ingress-aws-controller/aws/fake"
@@ -1386,7 +1387,7 @@ func TestMatchIngressesToLoadbalancers(t *testing.T) {
 					continue
 				}
 
-				if lb.stack != nil && equalSlices[string](lb.stack.Subnets, []string{"a", "b", "c"}) {
+				if lb.stack != nil && slices.Equal[[]string](lb.stack.Subnets, []string{"a", "b", "c"}) {
 					require.Len(t, lb.ingresses, 0)
 				} else {
 					require.Len(t, lb.ingresses, 1)

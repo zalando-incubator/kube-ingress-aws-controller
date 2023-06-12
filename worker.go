@@ -19,6 +19,7 @@ import (
 	"github.com/zalando-incubator/kube-ingress-aws-controller/certs"
 	"github.com/zalando-incubator/kube-ingress-aws-controller/kubernetes"
 	"github.com/zalando-incubator/kube-ingress-aws-controller/problem"
+	"golang.org/x/exp/slices"
 )
 
 type loadBalancer struct {
@@ -455,8 +456,10 @@ func matchIngressesToLoadBalancers(
 			// Ignore NLBs with a wrong set of subnets
 			if lb.loadBalancerType == aws.LoadBalancerTypeNetwork {
 				subnets := subnetsByScheme(lb.scheme)
+				sort.Strings(subnets)
+				sort.Strings(lb.stack.Subnets)
 
-				if !equalSlices[string](lb.stack.Subnets, subnets) {
+				if !slices.Equal[[]string](lb.stack.Subnets, subnets) {
 					continue
 				}
 			}
@@ -720,26 +723,4 @@ func cniEventHandler(ctx context.Context, targetCNIcfg *aws.TargetCNIconfig,
 			log.Error(err)
 		}
 	}
-}
-
-func equalSlices[T comparable](a, b []T) bool {
-	if len(a) != len(b) {
-		return false
-	}
-
-	for _, aElem := range a {
-		found := false
-		for _, bElem := range b {
-			if aElem == bElem {
-				found = true
-				break
-			}
-		}
-
-		if !found {
-			return false
-		}
-	}
-
-	return true
 }
