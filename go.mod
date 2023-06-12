@@ -13,6 +13,7 @@ require (
 	github.com/sirupsen/logrus v1.9.3
 	github.com/stretchr/testify v1.8.4
 	github.com/zalando/skipper v0.17.32
+	golang.org/x/exp v0.0.0-20230510235704-dd950f8aeaea
 	gopkg.in/alecthomas/kingpin.v2 v2.2.6
 	k8s.io/api v0.24.17
 	k8s.io/apimachinery v0.24.17
