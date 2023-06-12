@@ -10,6 +10,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"reflect"
+	"slices"
 	"sort"
 	"sync"
 	"testing"
@@ -1933,7 +1934,7 @@ func TestMatchIngressesToLoadbalancers(t *testing.T) {
 					continue
 				}
 
-				if lb.stack != nil && equalSlices[string](lb.stack.Subnets, []string{"a", "b", "c"}) {
+				if lb.stack != nil && slices.Equal(lb.stack.Subnets, []string{"a", "b", "c"}) {
 					require.Len(t, lb.ingresses, 0)
 				} else {
 					require.Len(t, lb.ingresses, 1)
