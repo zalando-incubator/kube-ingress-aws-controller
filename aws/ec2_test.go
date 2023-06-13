@@ -269,9 +269,9 @@ func TestGetInstancesDetailsWithFilters(t *testing.T) {
 				fake.TestInstance{Id: "foo3", Tags: fake.Tags{"aaa": "zzz"}, PrivateIp: "1.2.3.6", VpcId: "1", State: 80},
 			)},
 			map[string]*instanceDetails{
-				"foo1": &instanceDetails{id: "foo1", tags: map[string]string{"bar": "baz"}, ip: "1.2.3.4", vpcID: "1", running: true},
-				"foo2": &instanceDetails{id: "foo2", tags: map[string]string{"bar": "baz"}, ip: "1.2.3.5", vpcID: "1", running: false},
-				"foo3": &instanceDetails{id: "foo3", tags: map[string]string{"aaa": "zzz"}, ip: "1.2.3.6", vpcID: "1", running: false},
+				"foo1": {id: "foo1", tags: map[string]string{"bar": "baz"}, ip: "1.2.3.4", vpcID: "1", running: true},
+				"foo2": {id: "foo2", tags: map[string]string{"bar": "baz"}, ip: "1.2.3.5", vpcID: "1", running: false},
+				"foo3": {id: "foo3", tags: map[string]string{"aaa": "zzz"}, ip: "1.2.3.6", vpcID: "1", running: false},
 			},
 			false,
 		},
@@ -284,8 +284,8 @@ func TestGetInstancesDetailsWithFilters(t *testing.T) {
 				fake.TestInstance{Id: "foo3", Tags: fake.Tags{"aaa": "zzz"}, PrivateIp: "1.2.3.6", VpcId: "1", State: 80},
 			)},
 			map[string]*instanceDetails{
-				"foo1": &instanceDetails{id: "foo1", tags: map[string]string{"bar": "baz"}, ip: "1.2.3.4", vpcID: "1", running: true},
-				"foo3": &instanceDetails{id: "foo3", tags: map[string]string{"aaa": "zzz"}, ip: "1.2.3.6", vpcID: "1", running: false},
+				"foo1": {id: "foo1", tags: map[string]string{"bar": "baz"}, ip: "1.2.3.4", vpcID: "1", running: true},
+				"foo3": {id: "foo3", tags: map[string]string{"aaa": "zzz"}, ip: "1.2.3.6", vpcID: "1", running: false},
 			},
 			false,
 		},

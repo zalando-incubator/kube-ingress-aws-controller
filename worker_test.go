@@ -412,7 +412,7 @@ func TestAddIngress(tt *testing.T) {
 			loadBalancer: &loadBalancer{
 				stack: &awsAdapter.Stack{},
 				ingresses: map[string][]*kubernetes.Ingress{
-					"foo": []*kubernetes.Ingress{
+					"foo": {
 						{
 							Shared: true,
 						},
@@ -431,7 +431,7 @@ func TestAddIngress(tt *testing.T) {
 			loadBalancer: &loadBalancer{
 				stack: &awsAdapter.Stack{},
 				ingresses: map[string][]*kubernetes.Ingress{
-					"foo": []*kubernetes.Ingress{
+					"foo": {
 						{
 							Shared: true,
 						},
@@ -538,11 +538,11 @@ func TestSortStacks(tt *testing.T) {
 		{
 			name: "two unsorted stacks",
 			stacks: []*awsAdapter.Stack{
-				&awsAdapter.Stack{
+				{
 					Name:            "foo",
 					CertificateARNs: map[string]time.Time{},
 				},
-				&awsAdapter.Stack{
+				{
 					Name: "bar",
 					CertificateARNs: map[string]time.Time{
 						"cert-arn": testTime,
@@ -550,13 +550,13 @@ func TestSortStacks(tt *testing.T) {
 				},
 			},
 			expectedStacks: []*awsAdapter.Stack{
-				&awsAdapter.Stack{
+				{
 					Name: "bar",
 					CertificateARNs: map[string]time.Time{
 						"cert-arn": testTime,
 					},
 				},
-				&awsAdapter.Stack{
+				{
 					Name:            "foo",
 					CertificateARNs: map[string]time.Time{},
 				},
@@ -565,13 +565,13 @@ func TestSortStacks(tt *testing.T) {
 		{
 			name: "two unsorted stacks with the same amount of certificates",
 			stacks: []*awsAdapter.Stack{
-				&awsAdapter.Stack{
+				{
 					Name: "foo",
 					CertificateARNs: map[string]time.Time{
 						"different-cert-arn": testTime,
 					},
 				},
-				&awsAdapter.Stack{
+				{
 					Name: "bar",
 					CertificateARNs: map[string]time.Time{
 						"cert-arn": testTime,
@@ -579,13 +579,13 @@ func TestSortStacks(tt *testing.T) {
 				},
 			},
 			expectedStacks: []*awsAdapter.Stack{
-				&awsAdapter.Stack{
+				{
 					Name: "bar",
 					CertificateARNs: map[string]time.Time{
 						"cert-arn": testTime,
 					},
 				},
-				&awsAdapter.Stack{
+				{
 					Name: "foo",
 					CertificateARNs: map[string]time.Time{
 						"different-cert-arn": testTime,
@@ -603,7 +603,7 @@ func TestSortStacks(tt *testing.T) {
 }
 
 func TestCertificateSummaries(t *testing.T) {
-	certificateSummaries := []*certs.CertificateSummary{&certs.CertificateSummary{}}
+	certificateSummaries := []*certs.CertificateSummary{{}}
 
 	certs := &Certificates{certificateSummaries: certificateSummaries}
 
@@ -850,14 +850,14 @@ func TestIsLBInSync(t *testing.T) {
 		title: "not matching certificates",
 		lb: &loadBalancer{
 			ingresses: map[string][]*kubernetes.Ingress{
-				"foo": []*kubernetes.Ingress{{}},
-				"bar": []*kubernetes.Ingress{{}},
-				"baz": []*kubernetes.Ingress{{}},
+				"foo": {{}},
+				"bar": {{}},
+				"baz": {{}},
 			},
 			stack: &awsAdapter.Stack{
 				CertificateARNs: map[string]time.Time{
-					"foo": time.Time{},
-					"bar": time.Time{},
+					"foo": {},
+					"bar": {},
 				},
 				CWAlarmConfigHash: awsAdapter.CloudWatchAlarmList{{}}.Hash(),
 				WAFWebACLID:       "foo-bar-baz",
@@ -869,15 +869,15 @@ func TestIsLBInSync(t *testing.T) {
 		title: "not matching alarm",
 		lb: &loadBalancer{
 			ingresses: map[string][]*kubernetes.Ingress{
-				"foo": []*kubernetes.Ingress{{}},
-				"bar": []*kubernetes.Ingress{{}},
-				"baz": []*kubernetes.Ingress{{}},
+				"foo": {{}},
+				"bar": {{}},
+				"baz": {{}},
 			},
 			stack: &awsAdapter.Stack{
 				CertificateARNs: map[string]time.Time{
-					"foo": time.Time{},
-					"bar": time.Time{},
-					"baz": time.Time{},
+					"foo": {},
+					"bar": {},
+					"baz": {},
 				},
 				CWAlarmConfigHash: awsAdapter.CloudWatchAlarmList{{}}.Hash(),
 				WAFWebACLID:       "foo-bar-baz",
@@ -889,15 +889,15 @@ func TestIsLBInSync(t *testing.T) {
 		title: "not matching WAF",
 		lb: &loadBalancer{
 			ingresses: map[string][]*kubernetes.Ingress{
-				"foo": []*kubernetes.Ingress{{}},
-				"bar": []*kubernetes.Ingress{{}},
-				"baz": []*kubernetes.Ingress{{}},
+				"foo": {{}},
+				"bar": {{}},
+				"baz": {{}},
 			},
 			stack: &awsAdapter.Stack{
 				CertificateARNs: map[string]time.Time{
-					"foo": time.Time{},
-					"bar": time.Time{},
-					"baz": time.Time{},
+					"foo": {},
+					"bar": {},
+					"baz": {},
 				},
 				CWAlarmConfigHash: awsAdapter.CloudWatchAlarmList{{}}.Hash(),
 				WAFWebACLID:       "foo-bar-baz",
@@ -909,15 +909,15 @@ func TestIsLBInSync(t *testing.T) {
 		title: "in sync",
 		lb: &loadBalancer{
 			ingresses: map[string][]*kubernetes.Ingress{
-				"foo": []*kubernetes.Ingress{{}},
-				"bar": []*kubernetes.Ingress{{}},
-				"baz": []*kubernetes.Ingress{{}},
+				"foo": {{}},
+				"bar": {{}},
+				"baz": {{}},
 			},
 			stack: &awsAdapter.Stack{
 				CertificateARNs: map[string]time.Time{
-					"foo": time.Time{},
-					"bar": time.Time{},
-					"baz": time.Time{},
+					"foo": {},
+					"bar": {},
+					"baz": {},
 				},
 				CWAlarmConfigHash: awsAdapter.CloudWatchAlarmList{{}}.Hash(),
 				WAFWebACLID:       "foo-bar-baz",
@@ -1383,11 +1383,11 @@ func Test_cniEventHandler(t *testing.T) {
 
 func TestCountByIngressType(t *testing.T) {
 	ingresses := []*kubernetes.Ingress{
-		&kubernetes.Ingress{ResourceType: kubernetes.TypeIngress},
-		&kubernetes.Ingress{ResourceType: kubernetes.TypeIngress},
-		&kubernetes.Ingress{ResourceType: kubernetes.TypeIngress},
-		&kubernetes.Ingress{ResourceType: kubernetes.TypeRouteGroup},
-		&kubernetes.Ingress{ResourceType: kubernetes.TypeRouteGroup},
+		{ResourceType: kubernetes.TypeIngress},
+		{ResourceType: kubernetes.TypeIngress},
+		{ResourceType: kubernetes.TypeIngress},
+		{ResourceType: kubernetes.TypeRouteGroup},
+		{ResourceType: kubernetes.TypeRouteGroup},
 	}
 
 	counts := countByIngressType(ingresses)
