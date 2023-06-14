@@ -639,17 +639,17 @@ func TestProcessChunked(t *testing.T) {
 		{
 			name:   "less than chunk size",
 			input:  []string{"1", "2", "3", "4"},
-			expect: [][]string{[]string{"1", "2", "3", "4"}},
+			expect: [][]string{{"1", "2", "3", "4"}},
 		},
 		{
 			name:   "equal to chunk size",
 			input:  []string{"1", "2", "3", "4", "5"},
-			expect: [][]string{[]string{"1", "2", "3", "4", "5"}},
+			expect: [][]string{{"1", "2", "3", "4", "5"}},
 		},
 		{
 			name:   "greater than chunk size",
 			input:  []string{"1", "2", "3", "4", "5", "6"},
-			expect: [][]string{[]string{"1", "2", "3", "4", "5"}, []string{"6"}},
+			expect: [][]string{{"1", "2", "3", "4", "5"}, {"6"}},
 		},
 		{
 			name:   "fail on first chunk",
@@ -662,7 +662,7 @@ func TestProcessChunked(t *testing.T) {
 			name:   "fail on second chunk",
 			input:  []string{"1", "2", "3", "4", "5", "6"},
 			failOn: 2,
-			expect: [][]string{[]string{"1", "2", "3", "4", "5"}},
+			expect: [][]string{{"1", "2", "3", "4", "5"}},
 			err:    true,
 		},
 	} {

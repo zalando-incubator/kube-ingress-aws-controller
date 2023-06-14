@@ -793,7 +793,7 @@ func TestParseFilterTagsDefault(t *testing.T) {
 			name:      "success-default-filter-asg",
 			clusterID: "mycluster",
 			want: map[string][]string{
-				clusterIDTagPrefix + "mycluster": []string{resourceLifecycleOwned},
+				clusterIDTagPrefix + "mycluster": {resourceLifecycleOwned},
 			},
 		},
 		{
@@ -801,8 +801,8 @@ func TestParseFilterTagsDefault(t *testing.T) {
 			clusterID:    "aws:12345678910:eu-central-1:mycluster",
 			customFilter: "tag:kubernetes.io/cluster/aws:12345678910:eu-central-1:mycluster=owned tag:node.kubernetes.io/role=worker",
 			want: map[string][]string{
-				clusterIDTagPrefix + "aws:12345678910:eu-central-1:mycluster": []string{resourceLifecycleOwned},
-				"node.kubernetes.io/role":                                     []string{"worker"},
+				clusterIDTagPrefix + "aws:12345678910:eu-central-1:mycluster": {resourceLifecycleOwned},
+				"node.kubernetes.io/role":                                     {"worker"},
 			},
 		},
 	} {
@@ -839,9 +839,9 @@ func TestParseFilterTagsCustom(t *testing.T) {
 			"mycluster",
 			"tag:kubernetes.io/cluster/mycluster=owned tag-key=k8s.io/role/node tag-key=custom.com/ingress",
 			map[string][]string{
-				"kubernetes.io/cluster/mycluster": []string{"owned"},
-				"k8s.io/role/node":                []string{},
-				"custom.com/ingress":              []string{},
+				"kubernetes.io/cluster/mycluster": {"owned"},
+				"k8s.io/role/node":                {},
+				"custom.com/ingress":              {},
 			},
 		},
 		{
@@ -849,9 +849,9 @@ func TestParseFilterTagsCustom(t *testing.T) {
 			"mycluster",
 			"tag:kubernetes.io/cluster/mycluster=owned tag-key=k8s.io/role/node tag:custom.com/ingress=owned,shared",
 			map[string][]string{
-				"kubernetes.io/cluster/mycluster": []string{"owned"},
-				"k8s.io/role/node":                []string{},
-				"custom.com/ingress":              []string{"owned", "shared"},
+				"kubernetes.io/cluster/mycluster": {"owned"},
+				"k8s.io/role/node":                {},
+				"custom.com/ingress":              {"owned", "shared"},
 			},
 		},
 		{
@@ -859,7 +859,7 @@ func TestParseFilterTagsCustom(t *testing.T) {
 			"mycluster",
 			"tag:goodtag=foo tag-key=alsogood thisisabadtag andthisonetoo",
 			map[string][]string{
-				clusterIDTagPrefix + "mycluster": []string{resourceLifecycleOwned},
+				clusterIDTagPrefix + "mycluster": {resourceLifecycleOwned},
 			},
 		},
 	} {

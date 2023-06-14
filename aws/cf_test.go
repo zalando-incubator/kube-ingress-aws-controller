@@ -27,8 +27,8 @@ func TestCreatingStack(t *testing.T) {
 				securityGroupID: "bar",
 				vpcID:           "baz",
 				certificateARNs: map[string]time.Time{
-					"arn-default": time.Time{},
-					"arn-second":  time.Time{},
+					"arn-default": {},
+					"arn-second":  {},
 				},
 			},
 			fake.CFOutputs{CreateStack: fake.R(fake.MockCSOutput("fake-stack-id"), nil)},
@@ -119,8 +119,8 @@ func TestUpdatingStack(t *testing.T) {
 				securityGroupID: "bar",
 				vpcID:           "baz",
 				certificateARNs: map[string]time.Time{
-					"arn-default": time.Time{},
-					"arn-second":  time.Time{},
+					"arn-default": {},
+					"arn-second":  {},
 				},
 			},
 			fake.CFOutputs{UpdateStack: fake.R(fake.MockUSOutput("fake-stack-id"), nil)},
@@ -475,7 +475,7 @@ func TestFindManagedStacks(t *testing.T) {
 					Name:    "managed-stack-not-ready",
 					DNSName: "example-notready.com",
 					CertificateARNs: map[string]time.Time{
-						"cert-arn": time.Time{},
+						"cert-arn": {},
 					},
 					TargetGroupARNs: []string{"tg-arn"},
 					tags: map[string]string{
@@ -490,7 +490,7 @@ func TestFindManagedStacks(t *testing.T) {
 					Name:    "managed-stack",
 					DNSName: "example.com",
 					CertificateARNs: map[string]time.Time{
-						"cert-arn": time.Time{},
+						"cert-arn": {},
 					},
 					TargetGroupARNs: []string{"tg-arn"},
 					tags: map[string]string{
@@ -505,7 +505,7 @@ func TestFindManagedStacks(t *testing.T) {
 					Name:    "managed-stack-http-arn",
 					DNSName: "example.com",
 					CertificateARNs: map[string]time.Time{
-						"cert-arn": time.Time{},
+						"cert-arn": {},
 					},
 					TargetGroupARNs: []string{"tg-arn", "http-tg-arn"},
 					tags: map[string]string{
@@ -657,7 +657,7 @@ func TestGetStack(t *testing.T) {
 				Name:    "managed-stack",
 				DNSName: "example.com",
 				CertificateARNs: map[string]time.Time{
-					"cert-arn": time.Time{},
+					"cert-arn": {},
 				},
 				TargetGroupARNs: []string{"tg-arn"},
 				tags: map[string]string{
@@ -697,7 +697,7 @@ func TestGetStack(t *testing.T) {
 				Name:    "managed-stack",
 				DNSName: "example.com",
 				CertificateARNs: map[string]time.Time{
-					"cert-arn": time.Time{},
+					"cert-arn": {},
 				},
 				TargetGroupARNs: []string{"tg-arn", "tg-http-arn"},
 				tags: map[string]string{
