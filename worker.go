@@ -454,7 +454,7 @@ func matchIngressesToLoadBalancers(
 			}
 
 			// Ignore NLBs with a wrong set of subnets
-			if lb.loadBalancerType == aws.LoadBalancerTypeNetwork {
+			if lb.loadBalancerType == aws.LoadBalancerTypeNetwork && lb.stack != nil {
 				subnets := subnetsByScheme(lb.scheme)
 				sort.Strings(subnets)
 				sort.Strings(lb.stack.Subnets)
