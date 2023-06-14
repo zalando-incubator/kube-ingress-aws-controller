@@ -35,7 +35,7 @@ func (m *CertificateProvider) GetCertificates() ([]*certs.CertificateSummary, er
 	m.ca.once.Do(func() {
 		caKey, err := rsa.GenerateKey(rand.Reader, 2048)
 		if err != nil {
-			m.ca.err = fmt.Errorf("unable to generate CA key: %v", err)
+			m.ca.err = fmt.Errorf("unable to generate CA key: %w", err)
 			return
 		}
 
@@ -54,12 +54,12 @@ func (m *CertificateProvider) GetCertificates() ([]*certs.CertificateSummary, er
 		}
 		caBody, err := x509.CreateCertificate(rand.Reader, &caCert, &caCert, caKey.Public(), caKey)
 		if err != nil {
-			m.ca.err = fmt.Errorf("unable to generate CA certificate: %v", err)
+			m.ca.err = fmt.Errorf("unable to generate CA certificate: %w", err)
 			return
 		}
 		caReparsed, err := x509.ParseCertificate(caBody)
 		if err != nil {
-			m.ca.err = fmt.Errorf("unable to parse CA certificate: %v", err)
+			m.ca.err = fmt.Errorf("unable to parse CA certificate: %w", err)
 			return
 		}
 		m.ca.roots = x509.NewCertPool()
@@ -67,7 +67,7 @@ func (m *CertificateProvider) GetCertificates() ([]*certs.CertificateSummary, er
 
 		chainKey, err := rsa.GenerateKey(rand.Reader, 2048)
 		if err != nil {
-			m.ca.err = fmt.Errorf("unable to generate sub-CA key: %v", err)
+			m.ca.err = fmt.Errorf("unable to generate sub-CA key: %w", err)
 			return
 		}
 		chainCert := x509.Certificate{
@@ -85,11 +85,11 @@ func (m *CertificateProvider) GetCertificates() ([]*certs.CertificateSummary, er
 		}
 		chainBody, err := x509.CreateCertificate(rand.Reader, &chainCert, caReparsed, chainKey.Public(), caKey)
 		if err != nil {
-			m.ca.err = fmt.Errorf("unable to generate sub-CA certificate: %v", err)
+			m.ca.err = fmt.Errorf("unable to generate sub-CA certificate: %w", err)
 		}
 		chainReparsed, err := x509.ParseCertificate(chainBody)
 		if err != nil {
-			m.ca.err = fmt.Errorf("unable to parse sub-CA certificate: %v", err)
+			m.ca.err = fmt.Errorf("unable to parse sub-CA certificate: %w", err)
 			return
 		}
 
@@ -99,7 +99,7 @@ func (m *CertificateProvider) GetCertificates() ([]*certs.CertificateSummary, er
 
 	certKey, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
-		return nil, fmt.Errorf("unable to generate certificate key: %v", err)
+		return nil, fmt.Errorf("unable to generate certificate key: %w", err)
 	}
 	cert := x509.Certificate{
 		SerialNumber: big.NewInt(3),
