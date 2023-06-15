@@ -124,3 +124,52 @@ func (m *CertificateProvider) GetCertificates() ([]*certs.CertificateSummary, er
 	c := certs.NewCertificate(arn, reparsed, []*x509.Certificate{m.ca.chainCert})
 	return []*certs.CertificateSummary{c.WithRoots(m.ca.roots)}, nil
 }
+
+// certmock implements CertificatesFinder for testing, without validating
+// a real certificate in x509.
+type Cert struct {
+	summaries []*certs.CertificateSummary
+}
+
+func NewCert(summaries []*certs.CertificateSummary) *Cert {
+	return &Cert{
+		summaries: summaries,
+	}
+}
+
+func (m *Cert) CertificateSummaries() []*certs.CertificateSummary {
+	return m.summaries
+}
+
+func (m *Cert) CertificateExists(certificateARN string) bool {
+	for _, c := range m.summaries {
+		if c.ID() == certificateARN {
+			return true
+		}
+	}
+
+	return false
+}
+
+func intersect(a, b []string) bool {
+	for _, ai := range a {
+		for _, bi := range b {
+			if ai == bi {
+				return true
+			}
+		}
+	}
+
+	return false
+}
+
+func (m *Cert) FindMatchingCertificateIDs(hostnames []string) []string {
+	var ids []string
+	for _, c := range m.summaries {
+		if intersect(c.DomainNames(), hostnames) {
+			ids = append(ids, c.ID())
+		}
+	}
+
+	return ids
+}
