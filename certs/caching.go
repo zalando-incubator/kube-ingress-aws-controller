@@ -32,7 +32,7 @@ func NewCachingProvider(certUpdateInterval time.Duration, blacklistedArnMap map[
 		certDetails:       make([]*CertificateSummary, 0),
 	}
 	if err := provider.updateCertCache(); err != nil {
-		return nil, fmt.Errorf("initial load of certificates failed: %v", err)
+		return nil, fmt.Errorf("initial load of certificates failed: %w", err)
 	}
 	provider.startBackgroundRefresh(certUpdateInterval)
 	return provider, nil

@@ -250,7 +250,7 @@ func loadSettings() error {
 	if cwAlarmConfigMap != "" {
 		loc, err := kubernetes.ParseResourceLocation(cwAlarmConfigMap)
 		if err != nil {
-			return fmt.Errorf("failed to parse cloudwatch alarm config map location: %v", err)
+			return fmt.Errorf("failed to parse cloudwatch alarm config map location: %w", err)
 		}
 
 		cwAlarmConfigMapLocation = loc

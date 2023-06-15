@@ -74,7 +74,7 @@ func InClusterConfig() (*Config, error) {
 	err := tokenProvider.Add(dir + serviceAccountTokenKey)
 
 	if err != nil {
-		return nil, fmt.Errorf("error when adding token file to token provider: %v", err)
+		return nil, fmt.Errorf("error when adding token file to token provider: %w", err)
 	}
 
 	rootCAFile := dir + serviceAccountRootCAKey

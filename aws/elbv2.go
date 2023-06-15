@@ -24,7 +24,7 @@ func registerTargetsOnTargetGroups(svc elbv2iface.ELBV2API, targetGroupARNs []st
 
 		_, err := svc.RegisterTargets(input)
 		if err != nil {
-			return fmt.Errorf("unable to register instances %q in target group %s: %v", instances, targetGroupARN, err)
+			return fmt.Errorf("unable to register instances %q in target group %s: %w", instances, targetGroupARN, err)
 		}
 	}
 	return nil
@@ -46,7 +46,7 @@ func deregisterTargetsOnTargetGroups(svc elbv2iface.ELBV2API, targetGroupARNs []
 
 		_, err := svc.DeregisterTargets(input)
 		if err != nil {
-			return fmt.Errorf("unable to deregister instances %q in target group %s: %v", instances, targetGroupARN, err)
+			return fmt.Errorf("unable to deregister instances %q in target group %s: %w", instances, targetGroupARN, err)
 		}
 	}
 	return nil
