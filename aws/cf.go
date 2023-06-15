@@ -512,7 +512,7 @@ func findManagedStacks(svc cloudformationiface.CloudFormationAPI, clusterID, con
 			return true
 		})
 	if err != nil {
-		return nil, fmt.Errorf("findManagedStacks failed to list stacks: %v", err)
+		return nil, fmt.Errorf("findManagedStacks failed to list stacks: %w", err)
 	}
 	return stacks, nil
 }
