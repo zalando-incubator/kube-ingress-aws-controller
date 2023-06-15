@@ -42,7 +42,6 @@ func TestResourceConversion(tt *testing.T) {
 		responsesELBv2 fake.ELBv2Outputs
 		responsesCF    fake.CFOutputs
 		typeLB         string
-		resourceType   []string
 	}{
 		{
 			name: "ingress_alb",
@@ -95,8 +94,7 @@ func TestResourceConversion(tt *testing.T) {
 				DescribeStacks:     fake.R(nil, nil),
 				CreateStack:        fake.R(fake.MockCSOutput("42"), nil),
 			},
-			typeLB:       awsAdapter.LoadBalancerTypeApplication,
-			resourceType: []string{"ing"},
+			typeLB: awsAdapter.LoadBalancerTypeApplication,
 		},
 		{
 			name: "ingress_nlb",
@@ -149,8 +147,7 @@ func TestResourceConversion(tt *testing.T) {
 				DescribeStacks:     fake.R(nil, nil),
 				CreateStack:        fake.R(fake.MockCSOutput("42"), nil),
 			},
-			typeLB:       awsAdapter.LoadBalancerTypeNetwork,
-			resourceType: []string{"ing"},
+			typeLB: awsAdapter.LoadBalancerTypeNetwork,
 		}, {
 			name: "rg_alb",
 			responsesEC2: fake.EC2Outputs{DescribeInstancesPages: fake.MockDescribeInstancesPagesOutput(
@@ -202,8 +199,7 @@ func TestResourceConversion(tt *testing.T) {
 				DescribeStacks:     fake.R(nil, nil),
 				CreateStack:        fake.R(fake.MockCSOutput("42"), nil),
 			},
-			typeLB:       awsAdapter.LoadBalancerTypeApplication,
-			resourceType: []string{"rg"},
+			typeLB: awsAdapter.LoadBalancerTypeApplication,
 		}, {
 			name: "rg_nlb",
 			responsesEC2: fake.EC2Outputs{DescribeInstancesPages: fake.MockDescribeInstancesPagesOutput(
@@ -255,8 +251,7 @@ func TestResourceConversion(tt *testing.T) {
 				DescribeStacks:     fake.R(nil, nil),
 				CreateStack:        fake.R(fake.MockCSOutput("42"), nil),
 			},
-			typeLB:       awsAdapter.LoadBalancerTypeNetwork,
-			resourceType: []string{"rg"},
+			typeLB: awsAdapter.LoadBalancerTypeNetwork,
 		}, {
 			name: "ingress_rg_notshared_alb",
 			responsesEC2: fake.EC2Outputs{DescribeInstancesPages: fake.MockDescribeInstancesPagesOutput(
@@ -308,8 +303,7 @@ func TestResourceConversion(tt *testing.T) {
 				DescribeStacks:     fake.R(nil, nil),
 				CreateStack:        fake.R(fake.MockCSOutput("42"), nil),
 			},
-			typeLB:       awsAdapter.LoadBalancerTypeApplication,
-			resourceType: []string{"rg", "ing"},
+			typeLB: awsAdapter.LoadBalancerTypeApplication,
 		}, {
 			name: "ingress_rg_shared_alb",
 			responsesEC2: fake.EC2Outputs{DescribeInstancesPages: fake.MockDescribeInstancesPagesOutput(
@@ -361,8 +355,7 @@ func TestResourceConversion(tt *testing.T) {
 				DescribeStacks:     fake.R(nil, nil),
 				CreateStack:        fake.R(fake.MockCSOutput("42"), nil),
 			},
-			typeLB:       awsAdapter.LoadBalancerTypeApplication,
-			resourceType: []string{"rg", "ing"},
+			typeLB: awsAdapter.LoadBalancerTypeApplication,
 		}, {
 			name: "ingress_rg_shared_nlb",
 			responsesEC2: fake.EC2Outputs{DescribeInstancesPages: fake.MockDescribeInstancesPagesOutput(
@@ -414,8 +407,7 @@ func TestResourceConversion(tt *testing.T) {
 				DescribeStacks:     fake.R(nil, nil),
 				CreateStack:        fake.R(fake.MockCSOutput("42"), nil),
 			},
-			typeLB:       awsAdapter.LoadBalancerTypeNetwork,
-			resourceType: []string{"rg", "ing"},
+			typeLB: awsAdapter.LoadBalancerTypeNetwork,
 		},
 	} {
 		tt.Run(scenario.name, func(t *testing.T) {
@@ -461,8 +453,16 @@ func TestResourceConversion(tt *testing.T) {
 			}
 
 			readers := make([]io.Reader, 0)
-			for _, resourceType := range scenario.resourceType {
-				f, err := os.Open("./testdata/" + scenario.name + "/" + resourceType + ".yaml")
+			files, err := os.ReadDir("./testdata/" + scenario.name)
+			require.NoError(t, err)
+
+			// numberOfFiles := len(files) - 1 , TODO: use to compare with metrics later.
+
+			for _, file := range files {
+				if file.Name() == "expected.cf" {
+					continue
+				}
+				f, err := os.Open("./testdata/" + scenario.name + "/" + file.Name())
 				require.NoError(t, err)
 				readers = append(readers, f)
 				defer f.Close()
