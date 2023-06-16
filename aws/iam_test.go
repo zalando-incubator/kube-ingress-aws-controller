@@ -1,42 +1,14 @@
 package aws
 
 import (
-	"os"
 	"testing"
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/iam"
-	"github.com/aws/aws-sdk-go/service/iam/iamiface"
 	"github.com/stretchr/testify/require"
+	"github.com/zalando-incubator/kube-ingress-aws-controller/aws/fake"
 )
-
-type mockedIAMClient struct {
-	iamiface.IAMAPI
-	list iam.ListServerCertificatesOutput
-	cert iam.GetServerCertificateOutput
-}
-
-func (m mockedIAMClient) ListServerCertificates(*iam.ListServerCertificatesInput) (*iam.ListServerCertificatesOutput, error) {
-	return &m.list, nil
-}
-
-func (m mockedIAMClient) ListServerCertificatesPages(input *iam.ListServerCertificatesInput, fn func(*iam.ListServerCertificatesOutput, bool) bool) error {
-	fn(&m.list, true)
-	return nil
-}
-
-func (m mockedIAMClient) GetServerCertificate(*iam.GetServerCertificateInput) (*iam.GetServerCertificateOutput, error) {
-	return &m.cert, nil
-}
-
-func mustRead(testFile string) string {
-	buf, err := os.ReadFile("testdata/" + testFile)
-	if err != nil {
-		panic(err)
-	}
-	return string(buf)
-}
 
 func TestIAM(t *testing.T) {
 	foobarNotBefore := time.Date(2017, 3, 29, 16, 11, 32, 0, time.UTC)
@@ -201,8 +173,8 @@ func TestIAM(t *testing.T) {
 
 func TestIAMParseError(t *testing.T) {
 	provider := iamCertificateProvider{
-		api: mockedIAMClient{
-			list: iam.ListServerCertificatesOutput{
+		api: fake.NewIAMClient(
+			iam.ListServerCertificatesOutput{
 				ServerCertificateMetadataList: []*iam.ServerCertificateMetadata{
 					{
 						Arn:                   aws.String("foobar-arn"),
@@ -211,12 +183,12 @@ func TestIAMParseError(t *testing.T) {
 					},
 				},
 			},
-			cert: iam.GetServerCertificateOutput{
+			iam.GetServerCertificateOutput{
 				ServerCertificate: &iam.ServerCertificate{
 					CertificateBody: aws.String("..."),
 				},
 			},
-		},
+		),
 	}
 	_, err := provider.GetCertificates()
 	require.Equal(t, ErrNoCertificates, err)

@@ -814,8 +814,8 @@ func TestIsLBInSync(t *testing.T) {
 
 func TestMatchIngressesToLoadbalancers(t *testing.T) {
 	defaultMaxCertsPerLB := 3
-	defaultCerts := &certmock{
-		summaries: []*certs.CertificateSummary{
+	defaultCerts := certsfake.NewCert(
+		[]*certs.CertificateSummary{
 			certs.NewCertificate(
 				"foo",
 				&x509.Certificate{
@@ -824,7 +824,7 @@ func TestMatchIngressesToLoadbalancers(t *testing.T) {
 				nil,
 			),
 		},
-	}
+	)
 
 	for _, test := range []struct {
 		title         string
@@ -1034,8 +1034,8 @@ func TestMatchIngressesToLoadbalancers(t *testing.T) {
 
 func TestBuildModel(t *testing.T) {
 	defaultMaxCertsPerLB := 3
-	defaultCerts := &certmock{
-		summaries: []*certs.CertificateSummary{
+	defaultCerts := certsfake.NewCert(
+		[]*certs.CertificateSummary{
 			certs.NewCertificate(
 				"foo",
 				&x509.Certificate{
@@ -1044,7 +1044,7 @@ func TestBuildModel(t *testing.T) {
 				nil,
 			),
 		},
-	}
+	)
 
 	const certTTL = time.Hour
 

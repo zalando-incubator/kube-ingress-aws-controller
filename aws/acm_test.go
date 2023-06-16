@@ -7,26 +7,8 @@ import (
 	"github.com/aws/aws-sdk-go/service/acm"
 	"github.com/aws/aws-sdk-go/service/acm/acmiface"
 	"github.com/stretchr/testify/require"
+	"github.com/zalando-incubator/kube-ingress-aws-controller/aws/fake"
 )
-
-type mockedACMClient struct {
-	acmiface.ACMAPI
-	output acm.ListCertificatesOutput
-	cert   acm.GetCertificateOutput
-}
-
-func (m mockedACMClient) ListCertificates(in *acm.ListCertificatesInput) (*acm.ListCertificatesOutput, error) {
-	return &m.output, nil
-}
-
-func (m mockedACMClient) ListCertificatesPages(input *acm.ListCertificatesInput, fn func(p *acm.ListCertificatesOutput, lastPage bool) (shouldContinue bool)) error {
-	fn(&m.output, true)
-	return nil
-}
-
-func (m mockedACMClient) GetCertificate(input *acm.GetCertificateInput) (*acm.GetCertificateOutput, error) {
-	return &m.cert, nil
-}
 
 type acmExpect struct {
 	ARN         string
@@ -46,8 +28,8 @@ func TestACM(t *testing.T) {
 	}{
 		{
 			msg: "Found ACM Cert foobar and a chain",
-			api: mockedACMClient{
-				output: acm.ListCertificatesOutput{
+			api: fake.NewACMClient(
+				acm.ListCertificatesOutput{
 					CertificateSummaryList: []*acm.CertificateSummary{
 						{
 							CertificateArn: aws.String("foobar"),
@@ -55,11 +37,11 @@ func TestACM(t *testing.T) {
 						},
 					},
 				},
-				cert: acm.GetCertificateOutput{
+				acm.GetCertificateOutput{
 					Certificate:      aws.String(cert),
 					CertificateChain: aws.String(chain),
 				},
-			},
+			),
 			expect: acmExpect{
 				ARN:         "foobar",
 				DomainNames: []string{"foobar.de"},
@@ -68,8 +50,8 @@ func TestACM(t *testing.T) {
 		},
 		{
 			msg: "Found ACM Cert foobar and no chain",
-			api: mockedACMClient{
-				output: acm.ListCertificatesOutput{
+			api: fake.NewACMClient(
+				acm.ListCertificatesOutput{
 					CertificateSummaryList: []*acm.CertificateSummary{
 						{
 							CertificateArn: aws.String("foobar"),
@@ -77,10 +59,10 @@ func TestACM(t *testing.T) {
 						},
 					},
 				},
-				cert: acm.GetCertificateOutput{
+				acm.GetCertificateOutput{
 					Certificate: aws.String(cert),
 				},
-			},
+			),
 			expect: acmExpect{
 				ARN:         "foobar",
 				DomainNames: []string{"foobar.de"},
