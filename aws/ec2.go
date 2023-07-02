@@ -283,25 +283,13 @@ func findSecurityGroupWithClusterID(svc ec2iface.EC2API, clusterID string, contr
 	params := &ec2.DescribeSecurityGroupsInput{
 		Filters: []*ec2.Filter{
 			{
-				Name: aws.String("tag-key"),
-				Values: []*string{
-					aws.String(clusterIDTagPrefix + clusterID),
-				},
-			},
-			{
-				Name: aws.String("tag-value"),
+				Name: aws.String("tag:" + clusterIDTagPrefix + clusterID),
 				Values: []*string{
 					aws.String(resourceLifecycleOwned),
 				},
 			},
 			{
-				Name: aws.String("tag-key"),
-				Values: []*string{
-					aws.String(kubernetesCreatorTag),
-				},
-			},
-			{
-				Name: aws.String("tag-value"),
+				Name: aws.String("tag:" + kubernetesCreatorTag),
 				Values: []*string{
 					aws.String(controllerID),
 				},
