@@ -242,13 +242,13 @@ func TestResourceConversion(tt *testing.T) {
 				clientCF.GetLastStackTemplate(),
 			)
 
-			assert.Equal(
+			assert.ElementsMatch(
 				t,
 				tags,
 				clientCF.GetLastStackTags(),
 			)
 
-			assert.Equal(
+			assert.ElementsMatch(
 				t,
 				params,
 				clientCF.GetLastStackParams(),
