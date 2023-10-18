@@ -16,7 +16,7 @@ import (
 	"github.com/zalando-incubator/kube-ingress-aws-controller/aws/fake"
 )
 
-func TesGenerateDefaultFilters(tt *testing.T) {
+func TestGenerateDefaultFilters(tt *testing.T) {
 	for _, test := range []struct {
 		name      string
 		clusterId string
