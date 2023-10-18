@@ -17,12 +17,22 @@ type CFOutputs struct {
 
 type CFClient struct {
 	cloudformationiface.CloudFormationAPI
-	lastGeneratedTemplate string
-	Outputs               CFOutputs
+	lastStackTemplate string
+	lastStackParams   []*cloudformation.Parameter
+	lastStackTags     []*cloudformation.Tag
+	Outputs           CFOutputs
 }
 
-func (m *CFClient) GetLastGeneratedTemplate() string {
-	return m.lastGeneratedTemplate
+func (m *CFClient) GetLastStackTemplate() string {
+	return m.lastStackTemplate
+}
+
+func (m *CFClient) GetLastStackParams() []*cloudformation.Parameter {
+	return m.lastStackParams
+}
+
+func (m *CFClient) GetLastStackTags() []*cloudformation.Tag {
+	return m.lastStackTags
 }
 
 func (m *CFClient) DescribeStacksPages(in *cloudformation.DescribeStacksInput, fn func(*cloudformation.DescribeStacksOutput, bool) bool) (err error) {
@@ -52,7 +62,10 @@ func (m *CFClient) DescribeStacks(in *cloudformation.DescribeStacksInput) (*clou
 }
 
 func (m *CFClient) CreateStack(params *cloudformation.CreateStackInput) (*cloudformation.CreateStackOutput, error) {
-	m.lastGeneratedTemplate = *params.TemplateBody
+	m.lastStackTags = params.Tags
+	m.lastStackParams = params.Parameters
+	m.lastStackTemplate = *params.TemplateBody
+
 	out, ok := m.Outputs.CreateStack.response.(*cloudformation.CreateStackOutput)
 	if !ok {
 		return nil, m.Outputs.CreateStack.err
@@ -67,7 +80,10 @@ func MockCSOutput(stackId string) *cloudformation.CreateStackOutput {
 }
 
 func (m *CFClient) UpdateStack(params *cloudformation.UpdateStackInput) (*cloudformation.UpdateStackOutput, error) {
-	m.lastGeneratedTemplate = *params.TemplateBody
+	m.lastStackTags = params.Tags
+	m.lastStackParams = params.Parameters
+	m.lastStackTemplate = *params.TemplateBody
+
 	out, ok := m.Outputs.UpdateStack.response.(*cloudformation.UpdateStackOutput)
 	if !ok {
 		return nil, m.Outputs.UpdateStack.err
