@@ -458,8 +458,6 @@ func TestResourceConversion(tt *testing.T) {
 				t.Fatal(err)
 			}
 
-			// numberOfFiles := len(files) - 1 , TODO: use to compare with metrics later.
-
 			for _, file := range files {
 				f, err := os.Open("./testdata/" + scenario.name + "/k8s/" + file.Name())
 			    if err != nil {
