@@ -453,23 +453,26 @@ func TestResourceConversion(tt *testing.T) {
 			}
 
 			readers := make([]io.Reader, 0)
-			files, err := os.ReadDir("./testdata/" + scenario.name)
-			require.NoError(t, err)
+			files, err := os.ReadDir("./testdata/" + scenario.name + "/k8s/")
+			if err != nil {
+				t.Fatal(err)
+			}
 
 			// numberOfFiles := len(files) - 1 , TODO: use to compare with metrics later.
 
 			for _, file := range files {
-				if file.Name() == "expected.cf" {
-					continue
-				}
-				f, err := os.Open("./testdata/" + scenario.name + "/" + file.Name())
-				require.NoError(t, err)
+				f, err := os.Open("./testdata/" + scenario.name + "/k8s/" + file.Name())
+			    if err != nil {
+			    	t.Fatal(err)
+			    }
 				readers = append(readers, f)
 				defer f.Close()
 			}
 
 			api, err := kubernetestest.NewAPI(kubernetestest.TestAPIOptions{}, readers...)
-			require.NoError(t, err)
+			if err != nil {
+				t.Fatal(err)
+			}
 
 			s := httptest.NewServer(api)
 			defer s.Close()
@@ -490,7 +493,9 @@ func TestResourceConversion(tt *testing.T) {
 				scenario.typeLB,
 				clusterLocalDomain,
 				true)
-			require.NoError(t, err)
+			if err != nil {
+				t.Fatal(err)
+			}
 
 			log.SetLevel(log.DebugLevel)
 			problems := doWork(&certsfake.CertificateProvider{}, 10, time.Hour, a, k, "")
