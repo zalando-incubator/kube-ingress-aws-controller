@@ -8,8 +8,5 @@
   },{
     "key": "ingress:certificate-arn/DUMMY",
     "value": "0001-01-01T00:00:00Z"
-  },{
-    "key": "ingress:owner",
-    "value": "/my-route-group"
   }
 ]

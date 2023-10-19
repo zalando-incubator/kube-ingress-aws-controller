@@ -3,7 +3,7 @@ kind: RouteGroup
 metadata:
   name: my-route-group
   annotations:
-    zalando.org/aws-load-balancer-shared: "false"
+    zalando.org/aws-load-balancer-shared: "true"
 spec:
   hosts:
     - foo.bar.org
