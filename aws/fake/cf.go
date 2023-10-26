@@ -17,22 +17,28 @@ type CFOutputs struct {
 
 type CFClient struct {
 	cloudformationiface.CloudFormationAPI
-	lastStackTemplate string
-	lastStackParams   []*cloudformation.Parameter
-	lastStackTags     []*cloudformation.Tag
-	Outputs           CFOutputs
+	templateCreationHistory []string
+	paramCreationHistory    [][]*cloudformation.Parameter
+	tagCreationHistory      [][]*cloudformation.Tag
+	Outputs                 CFOutputs
 }
 
-func (m *CFClient) GetLastStackTemplate() string {
-	return m.lastStackTemplate
+func (m *CFClient) GetTemplateCreationHistory() []string {
+	return m.templateCreationHistory
 }
 
-func (m *CFClient) GetLastStackParams() []*cloudformation.Parameter {
-	return m.lastStackParams
+func (m *CFClient) GetParamCreationHistory() [][]*cloudformation.Parameter {
+	return m.paramCreationHistory
 }
 
-func (m *CFClient) GetLastStackTags() []*cloudformation.Tag {
-	return m.lastStackTags
+func (m *CFClient) GetTagCreationHistory() [][]*cloudformation.Tag {
+	return m.tagCreationHistory
+}
+
+func (m *CFClient) CleanCreationHistory() {
+	m.paramCreationHistory = [][]*cloudformation.Parameter{}
+	m.tagCreationHistory = [][]*cloudformation.Tag{}
+	m.templateCreationHistory = []string{}
 }
 
 func (m *CFClient) DescribeStacksPages(in *cloudformation.DescribeStacksInput, fn func(*cloudformation.DescribeStacksOutput, bool) bool) (err error) {
@@ -62,9 +68,9 @@ func (m *CFClient) DescribeStacks(in *cloudformation.DescribeStacksInput) (*clou
 }
 
 func (m *CFClient) CreateStack(params *cloudformation.CreateStackInput) (*cloudformation.CreateStackOutput, error) {
-	m.lastStackTags = params.Tags
-	m.lastStackParams = params.Parameters
-	m.lastStackTemplate = *params.TemplateBody
+	m.tagCreationHistory = append(m.tagCreationHistory, params.Tags)
+	m.paramCreationHistory = append(m.paramCreationHistory, params.Parameters)
+	m.templateCreationHistory = append(m.templateCreationHistory, *params.TemplateBody)
 
 	out, ok := m.Outputs.CreateStack.response.(*cloudformation.CreateStackOutput)
 	if !ok {
@@ -80,9 +86,8 @@ func MockCSOutput(stackId string) *cloudformation.CreateStackOutput {
 }
 
 func (m *CFClient) UpdateStack(params *cloudformation.UpdateStackInput) (*cloudformation.UpdateStackOutput, error) {
-	m.lastStackTags = params.Tags
-	m.lastStackParams = params.Parameters
-	m.lastStackTemplate = *params.TemplateBody
+	// TODO: Update stack needs another logic to register state update, so createStack and updateStack don't
+	// mess with each other states.
 
 	out, ok := m.Outputs.UpdateStack.response.(*cloudformation.UpdateStackOutput)
 	if !ok {
