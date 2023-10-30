@@ -2,6 +2,8 @@ apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: myingress
+  annotations:
+    zalando.org/aws-load-balancer-shared: "true"
 spec:
   rules:
   - host: foo.bar.org

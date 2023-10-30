@@ -253,7 +253,7 @@ func TestResourceConversionOneToOne(tt *testing.T) {
 			},
 			typeLB: awsAdapter.LoadBalancerTypeNetwork,
 		}, {
-			name: "ingress_rg_notshared_alb",
+			name: "ing_shared_rg_notshared_alb",
 			responsesEC2: fake.EC2Outputs{DescribeInstancesPages: fake.MockDescribeInstancesPagesOutput(
 				nil,
 				fake.TestInstance{
