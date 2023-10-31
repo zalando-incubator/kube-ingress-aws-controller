@@ -86,8 +86,9 @@ func MockCSOutput(stackId string) *cloudformation.CreateStackOutput {
 }
 
 func (m *CFClient) UpdateStack(params *cloudformation.UpdateStackInput) (*cloudformation.UpdateStackOutput, error) {
-	// TODO: Update stack needs another logic to register state update, so createStack and updateStack don't
-	// mess with each other states.
+	// TODO: https://github.com/zalando-incubator/kube-ingress-aws-controller/issues/653
+    // Update stack needs to use different variable to register change history, 
+    // so createStack and updateStack mocks don't mess with each other states.
 
 	out, ok := m.Outputs.UpdateStack.response.(*cloudformation.UpdateStackOutput)
 	if !ok {
