@@ -1,0 +1,16 @@
+apiVersion: zalando.org/v1
+kind: RouteGroup
+metadata:
+  name: my-route-group
+spec:
+  hosts:
+    - foo.bar.org
+  backends:
+  - name: my-backend
+    type: service
+    serviceName: my-service
+    servicePort: 80
+  routes:
+    - pathSubtree: /
+      backends:
+        - backendName: my-backend
