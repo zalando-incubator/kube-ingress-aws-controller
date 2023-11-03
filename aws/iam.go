@@ -27,7 +27,7 @@ func (p *iamCertificateProvider) GetCertificates() ([]*certs.CertificateSummary,
 	}
 	list := make([]*certs.CertificateSummary, 0)
 	for _, o := range serverCertificatesMetadata {
-		if kv := strings.Split(p.filterTag, "="); len(kv) == 2 {
+		if kv := strings.Split(p.filterTag, "="); p.filterTag != "=" && len(kv) == 2 {
 			hasTag, err := certHasTag(p.api, *o.ServerCertificateName, kv[0], kv[1])
 			if err != nil {
 				return nil, err

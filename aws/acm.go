@@ -49,7 +49,7 @@ func getACMCertificateSummaries(api acmiface.ACMAPI, filterTag string) ([]*acm.C
 		return true
 	})
 
-	if tag := strings.Split(filterTag, "="); len(tag) == 2 {
+	if tag := strings.Split(filterTag, "="); filterTag != "=" && len(tag) == 2 {
 		return filterCertificatesByTag(api, acmSummaries, tag[0], tag[1])
 	}
 
