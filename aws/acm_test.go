@@ -99,7 +99,7 @@ func TestACM(t *testing.T) {
 			},
 		},
 		{
-			msg: "Found ACM Cert with incorrect filter tag",
+			msg: "ACM Cert with incorrect filter tag should not be found",
 			api: fake.NewACMClientWithTags(
 				acm.ListCertificatesOutput{
 					CertificateSummaryList: []*acm.CertificateSummary{
