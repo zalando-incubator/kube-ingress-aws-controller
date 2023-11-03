@@ -51,6 +51,7 @@ var (
 	disableSNISupport             bool
 	disableInstrumentedHttpClient bool
 	certTTL                       time.Duration
+	certFilterTag                 string
 	stackTerminationProtection    bool
 	additionalStackTags           = make(map[string]string)
 	idleConnectionTimeout         time.Duration
@@ -115,6 +116,9 @@ func loadSettings() error {
 		StringMapVar(&additionalStackTags)
 	kingpin.Flag("cert-ttl-timeout", "sets the timeout of how long a certificate is kept on an old ALB to be decommissioned.").
 		Default(defaultCertTTL).DurationVar(&certTTL)
+
+	kingpin.Flag("cert-filter-tag", "sets a tag so the ingress controller only consider ACM or IAM certificates that have this tag set when adding a certificate to a load balancer.").
+		Default("").StringVar(&certFilterTag)
 	kingpin.Flag("health-check-path", "sets the health check path for the created target groups").
 		Default(aws.DefaultHealthCheckPath).StringVar(&healthCheckPath)
 	kingpin.Flag("health-check-port", "sets the health check port for the created target groups").
@@ -256,6 +260,10 @@ func loadSettings() error {
 		cwAlarmConfigMapLocation = loc
 	}
 
+	if kv := strings.Split(certFilterTag, "="); len(kv) != 2 && certFilterTag != "" {
+		log.Errorf("Certificate filter tag should be in the format \"key=value\", instead it is set to: %s", certFilterTag)
+	}
+
 	if quietFlag && debugFlag {
 		log.Warn("--quiet and --debug flags are both set. Debug will be used as logging level.")
 	}
@@ -344,8 +352,8 @@ func main() {
 	certificatesProvider, err := certs.NewCachingProvider(
 		certPollingInterval,
 		blacklistCertArnMap,
-		awsAdapter.NewACMCertificateProvider(),
-		awsAdapter.NewIAMCertificateProvider(),
+		awsAdapter.NewACMCertificateProvider(certFilterTag),
+		awsAdapter.NewIAMCertificateProvider(certFilterTag),
 	)
 	if err != nil {
 		log.Fatal(err)

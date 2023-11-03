@@ -2,6 +2,7 @@ package aws
 
 import (
 	"crypto/x509"
+	"strings"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/iam"
@@ -10,11 +11,12 @@ import (
 )
 
 type iamCertificateProvider struct {
-	api iamiface.IAMAPI
+	api       iamiface.IAMAPI
+	filterTag string
 }
 
-func newIAMCertProvider(api iamiface.IAMAPI) certs.CertificatesProvider {
-	return &iamCertificateProvider{api: api}
+func newIAMCertProvider(api iamiface.IAMAPI, filterTag string) certs.CertificatesProvider {
+	return &iamCertificateProvider{api: api, filterTag: filterTag}
 }
 
 // GetCertificates returns a list of AWS IAM certificates
@@ -25,6 +27,17 @@ func (p *iamCertificateProvider) GetCertificates() ([]*certs.CertificateSummary,
 	}
 	list := make([]*certs.CertificateSummary, 0)
 	for _, o := range serverCertificatesMetadata {
+		if kv := strings.Split(p.filterTag, "="); len(kv) == 2 {
+			hasTag, err := certHasTag(p.api, *o.ServerCertificateName, kv[0], kv[1])
+			if err != nil {
+				return nil, err
+			}
+
+			if !hasTag {
+				continue
+			}
+		}
+
 		certDetail, err := getCertificateSummaryFromIAM(p.api, aws.StringValue(o.ServerCertificateName))
 		if err != nil {
 			return nil, err
@@ -32,6 +45,22 @@ func (p *iamCertificateProvider) GetCertificates() ([]*certs.CertificateSummary,
 		list = append(list, certDetail)
 	}
 	return list, nil
+}
+
+func certHasTag(api iamiface.IAMAPI, certName, key, value string) (bool, error) {
+	t, err := api.ListServerCertificateTags(&iam.ListServerCertificateTagsInput{
+		ServerCertificateName: &certName,
+	})
+	if err != nil {
+		return false, err
+	}
+	for _, tag := range t.Tags {
+		if *tag.Key == key && *tag.Value == value {
+			return true, nil
+		}
+	}
+
+	return false, nil
 }
 
 func getIAMServerCertificateMetadata(api iamiface.IAMAPI) ([]*iam.ServerCertificateMetadata, error) {

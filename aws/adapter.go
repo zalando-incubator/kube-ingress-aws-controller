@@ -273,12 +273,12 @@ func (a *Adapter) UpdateManifest(clusterID, vpcID string) (*Adapter, error) {
 	return a, err
 }
 
-func (a *Adapter) NewACMCertificateProvider() certs.CertificatesProvider {
-	return newACMCertProvider(a.acm)
+func (a *Adapter) NewACMCertificateProvider(certFilterTag string) certs.CertificatesProvider {
+	return newACMCertProvider(a.acm, certFilterTag)
 }
 
-func (a *Adapter) NewIAMCertificateProvider() certs.CertificatesProvider {
-	return newIAMCertProvider(a.iam)
+func (a *Adapter) NewIAMCertificateProvider(certFilterTag string) certs.CertificatesProvider {
+	return newIAMCertProvider(a.iam, certFilterTag)
 }
 
 // WithHealthCheckPath returns the receiver adapter after changing the health check path that will be used by
