@@ -39,9 +39,11 @@ func TestACM(t *testing.T) {
 						},
 					},
 				},
-				acm.GetCertificateOutput{
-					Certificate:      aws.String(cert),
-					CertificateChain: aws.String(chain),
+				map[string]*acm.GetCertificateOutput{
+					"foobar": {
+						Certificate:      aws.String(cert),
+						CertificateChain: aws.String(chain),
+					},
 				},
 			),
 			expect: acmExpect{
@@ -61,8 +63,10 @@ func TestACM(t *testing.T) {
 						},
 					},
 				},
-				acm.GetCertificateOutput{
-					Certificate: aws.String(cert),
+				map[string]*acm.GetCertificateOutput{
+					"foobar": {
+						Certificate: aws.String(cert),
+					},
 				},
 			),
 			expect: acmExpect{
@@ -72,7 +76,7 @@ func TestACM(t *testing.T) {
 			},
 		},
 		{
-			msg: "Found ACM Cert with correct filter tag",
+			msg: "Found one ACM Cert with correct filter tag",
 			api: fake.NewACMClientWithTags(
 				acm.ListCertificatesOutput{
 					CertificateSummaryList: []*acm.CertificateSummary{
@@ -80,14 +84,26 @@ func TestACM(t *testing.T) {
 							CertificateArn: aws.String("foobar"),
 							DomainName:     aws.String("foobar.de"),
 						},
+						{
+							CertificateArn: aws.String("foobaz"),
+							DomainName:     aws.String("foobar.de"),
+						},
 					},
 				},
-				acm.GetCertificateOutput{
-					Certificate: aws.String(cert),
+				map[string]*acm.GetCertificateOutput{
+					"foobar": {
+						Certificate: aws.String(cert),
+					},
+					"foobaz": {
+						Certificate: aws.String(cert),
+					},
 				},
 				map[string]*acm.ListTagsForCertificateOutput{
 					"foobar": {
 						Tags: []*acm.Tag{{Key: aws.String("production"), Value: aws.String("true")}},
+					},
+					"foobaz": {
+						Tags: []*acm.Tag{{Key: aws.String("production"), Value: aws.String("false")}},
 					},
 				},
 			),
@@ -109,8 +125,10 @@ func TestACM(t *testing.T) {
 						},
 					},
 				},
-				acm.GetCertificateOutput{
-					Certificate: aws.String(cert),
+				map[string]*acm.GetCertificateOutput{
+					"foobar": {
+						Certificate: aws.String(cert),
+					},
 				},
 				map[string]*acm.ListTagsForCertificateOutput{
 					"foobar": {

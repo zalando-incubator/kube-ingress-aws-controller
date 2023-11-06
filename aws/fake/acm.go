@@ -10,7 +10,7 @@ import (
 type ACMClient struct {
 	acmiface.ACMAPI
 	output acm.ListCertificatesOutput
-	cert   acm.GetCertificateOutput
+	cert   map[string]*acm.GetCertificateOutput
 	tags   map[string]*acm.ListTagsForCertificateOutput
 }
 
@@ -24,7 +24,7 @@ func (m ACMClient) ListCertificatesPages(input *acm.ListCertificatesInput, fn fu
 }
 
 func (m ACMClient) GetCertificate(input *acm.GetCertificateInput) (*acm.GetCertificateOutput, error) {
-	return &m.cert, nil
+	return m.cert[*input.CertificateArn], nil
 }
 
 func (m ACMClient) ListTagsForCertificate(in *acm.ListTagsForCertificateInput) (*acm.ListTagsForCertificateOutput, error) {
@@ -35,7 +35,7 @@ func (m ACMClient) ListTagsForCertificate(in *acm.ListTagsForCertificateInput) (
 	return m.tags[arn], nil
 }
 
-func NewACMClient(output acm.ListCertificatesOutput, cert acm.GetCertificateOutput) ACMClient {
+func NewACMClient(output acm.ListCertificatesOutput, cert map[string]*acm.GetCertificateOutput) ACMClient {
 	return ACMClient{
 		output: output,
 		cert:   cert,
@@ -44,7 +44,7 @@ func NewACMClient(output acm.ListCertificatesOutput, cert acm.GetCertificateOutp
 
 func NewACMClientWithTags(
 	output acm.ListCertificatesOutput,
-	cert acm.GetCertificateOutput,
+	cert map[string]*acm.GetCertificateOutput,
 	tags map[string]*acm.ListTagsForCertificateOutput,
 ) ACMClient {
 	return ACMClient{
