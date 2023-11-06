@@ -15,6 +15,7 @@ type acmExpect struct {
 	DomainNames []string
 	Chain       int
 	Error       error
+	EmptyList   bool
 }
 
 func TestACM(t *testing.T) {
@@ -22,9 +23,10 @@ func TestACM(t *testing.T) {
 	chain := mustRead("chain.txt")
 
 	for _, ti := range []struct {
-		msg    string
-		api    acmiface.ACMAPI
-		expect acmExpect
+		msg       string
+		api       acmiface.ACMAPI
+		filterTag string
+		expect    acmExpect
 	}{
 		{
 			msg: "Found ACM Cert foobar and a chain",
@@ -37,9 +39,11 @@ func TestACM(t *testing.T) {
 						},
 					},
 				},
-				acm.GetCertificateOutput{
-					Certificate:      aws.String(cert),
-					CertificateChain: aws.String(chain),
+				map[string]*acm.GetCertificateOutput{
+					"foobar": {
+						Certificate:      aws.String(cert),
+						CertificateChain: aws.String(chain),
+					},
 				},
 			),
 			expect: acmExpect{
@@ -59,8 +63,10 @@ func TestACM(t *testing.T) {
 						},
 					},
 				},
-				acm.GetCertificateOutput{
-					Certificate: aws.String(cert),
+				map[string]*acm.GetCertificateOutput{
+					"foobar": {
+						Certificate: aws.String(cert),
+					},
 				},
 			),
 			expect: acmExpect{
@@ -69,9 +75,78 @@ func TestACM(t *testing.T) {
 				Error:       nil,
 			},
 		},
+		{
+			msg: "Found one ACM Cert with correct filter tag",
+			api: fake.NewACMClientWithTags(
+				acm.ListCertificatesOutput{
+					CertificateSummaryList: []*acm.CertificateSummary{
+						{
+							CertificateArn: aws.String("foobar"),
+							DomainName:     aws.String("foobar.de"),
+						},
+						{
+							CertificateArn: aws.String("foobaz"),
+							DomainName:     aws.String("foobar.de"),
+						},
+					},
+				},
+				map[string]*acm.GetCertificateOutput{
+					"foobar": {
+						Certificate: aws.String(cert),
+					},
+					"foobaz": {
+						Certificate: aws.String(cert),
+					},
+				},
+				map[string]*acm.ListTagsForCertificateOutput{
+					"foobar": {
+						Tags: []*acm.Tag{{Key: aws.String("production"), Value: aws.String("true")}},
+					},
+					"foobaz": {
+						Tags: []*acm.Tag{{Key: aws.String("production"), Value: aws.String("false")}},
+					},
+				},
+			),
+			filterTag: "production=true",
+			expect: acmExpect{
+				ARN:         "foobar",
+				DomainNames: []string{"foobar.de"},
+				Error:       nil,
+			},
+		},
+		{
+			msg: "ACM Cert with incorrect filter tag should not be found",
+			api: fake.NewACMClientWithTags(
+				acm.ListCertificatesOutput{
+					CertificateSummaryList: []*acm.CertificateSummary{
+						{
+							CertificateArn: aws.String("foobar"),
+							DomainName:     aws.String("foobar.de"),
+						},
+					},
+				},
+				map[string]*acm.GetCertificateOutput{
+					"foobar": {
+						Certificate: aws.String(cert),
+					},
+				},
+				map[string]*acm.ListTagsForCertificateOutput{
+					"foobar": {
+						Tags: []*acm.Tag{{Key: aws.String("production"), Value: aws.String("false")}},
+					},
+				},
+			),
+			filterTag: "production=true",
+			expect: acmExpect{
+				EmptyList:   true,
+				ARN:         "foobar",
+				DomainNames: []string{"foobar.de"},
+				Error:       nil,
+			},
+		},
 	} {
 		t.Run(ti.msg, func(t *testing.T) {
-			provider := newACMCertProvider(ti.api)
+			provider := newACMCertProvider(ti.api, ti.filterTag)
 			list, err := provider.GetCertificates()
 
 			if ti.expect.Error != nil {
@@ -80,11 +155,16 @@ func TestACM(t *testing.T) {
 				require.NoError(t, err)
 			}
 
-			require.Equal(t, 1, len(list))
+			if ti.expect.EmptyList {
+				require.Equal(t, 0, len(list))
 
-			cert := list[0]
-			require.Equal(t, ti.expect.ARN, cert.ID())
-			require.Equal(t, ti.expect.DomainNames, cert.DomainNames())
+			} else {
+				require.Equal(t, 1, len(list))
+
+				cert := list[0]
+				require.Equal(t, ti.expect.ARN, cert.ID())
+				require.Equal(t, ti.expect.DomainNames, cert.DomainNames())
+			}
 		})
 	}
 }

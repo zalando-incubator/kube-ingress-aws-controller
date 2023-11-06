@@ -8,6 +8,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/iam"
 	"github.com/stretchr/testify/require"
 	"github.com/zalando-incubator/kube-ingress-aws-controller/aws/fake"
+	"github.com/zalando-incubator/kube-ingress-aws-controller/certs"
 )
 
 func TestIAM(t *testing.T) {
@@ -192,4 +193,88 @@ func TestIAMParseError(t *testing.T) {
 	}
 	_, err := provider.GetCertificates()
 	require.Equal(t, ErrNoCertificates, err)
+}
+
+func TestIAMTagFiltering(t *testing.T) {
+	foobarNotBefore := time.Date(2017, 3, 29, 16, 11, 32, 0, time.UTC)
+	foobarNotAfter := time.Date(2027, 3, 27, 16, 11, 32, 0, time.UTC)
+	foobarIAMCertificate := &iam.ServerCertificate{
+		CertificateBody: aws.String(mustRead("foo-iam.txt")),
+		ServerCertificateMetadata: &iam.ServerCertificateMetadata{
+			Arn:                   aws.String("foobar-arn"),
+			ServerCertificateName: aws.String("foobar"),
+		},
+	}
+
+	createProviderwithTag := func(key, value string) certs.CertificatesProvider {
+		api := fake.NewIAMClientWithTag(
+			iam.ListServerCertificatesOutput{
+				ServerCertificateMetadataList: []*iam.ServerCertificateMetadata{
+					{
+						Arn:                   aws.String("foobar-arn"),
+						Path:                  aws.String("/"),
+						ServerCertificateName: aws.String("foobar"),
+					},
+				},
+			},
+			iam.GetServerCertificateOutput{ServerCertificate: foobarIAMCertificate},
+			map[string]*iam.ListServerCertificateTagsOutput{
+				"foobar": {
+					Tags: []*iam.Tag{{Key: aws.String(key), Value: aws.String(value)}},
+				},
+			},
+		)
+		return newIAMCertProvider(api, "production=true")
+	}
+
+	type expectedValues struct {
+		EmptyList   bool
+		ARN         string
+		NotBefore   time.Time
+		NotAfter    time.Time
+		DomainNames []string
+	}
+
+	for _, ti := range []struct {
+		msg      string
+		provider certs.CertificatesProvider
+		expect   expectedValues
+	}{
+		{
+			msg:      "Certificate with correct key",
+			provider: createProviderwithTag("production", "true"),
+			expect: expectedValues{
+				EmptyList:   false,
+				ARN:         "foobar-arn",
+				NotBefore:   foobarNotBefore,
+				NotAfter:    foobarNotAfter,
+				DomainNames: []string{"foobar.de"},
+			},
+		},
+		{
+			msg:      "Certificate with incorrect key",
+			provider: createProviderwithTag("production", "false"),
+			expect: expectedValues{
+				EmptyList:   true,
+				ARN:         "foobar-arn",
+				NotBefore:   foobarNotBefore,
+				NotAfter:    foobarNotAfter,
+				DomainNames: []string{"foobar.de"},
+			},
+		},
+	} {
+		t.Run(ti.msg, func(tt *testing.T) {
+			list, err := ti.provider.GetCertificates()
+			if ti.expect.EmptyList {
+				require.Equal(tt, 0, len(list))
+			} else {
+				require.Equal(tt, 1, len(list))
+				require.NoError(tt, err)
+				require.Equal(tt, ti.expect.ARN, list[0].ID())
+				require.Equal(tt, ti.expect.DomainNames, list[0].DomainNames())
+				require.Equal(tt, ti.expect.NotBefore, list[0].NotBefore())
+				require.Equal(tt, ti.expect.NotAfter, list[0].NotAfter())
+			}
+		})
+	}
 }
