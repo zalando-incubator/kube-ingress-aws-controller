@@ -3,6 +3,7 @@ package aws
 import (
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -915,47 +916,42 @@ func (a *Adapter) FindLBSubnets(scheme string) []string {
 		internal = true
 	}
 
-	subnetsByAZ := make(map[string]*subnetDetails)
+	subnetsByAZ := make(map[string][]*subnetDetails)
 	for _, subnet := range a.manifest.subnets {
 		// ignore private subnet for public LB
 		if !internal && !subnet.public {
 			continue
 		}
-
-		existing, ok := subnetsByAZ[subnet.availabilityZone]
-		if !ok {
-			subnetsByAZ[subnet.availabilityZone] = subnet
-			continue
-		}
-
-		// prefer subnet with an elb role tag
-		var tagName string
-		if internal {
-			tagName = internalELBRoleTagName
-		} else {
-			tagName = elbRoleTagName
-		}
-
-		_, existingHasTag := existing.tags[tagName]
-		_, subnetHasTag := subnet.tags[tagName]
-
-		if existingHasTag != subnetHasTag {
-			if subnetHasTag {
-				subnetsByAZ[subnet.availabilityZone] = subnet
-			}
-			continue
-		}
-
-		// If we have two subnets for the same AZ we arbitrarily choose
-		// the one that is first lexicographically.
-		if strings.Compare(existing.id, subnet.id) > 0 {
-			subnetsByAZ[subnet.availabilityZone] = subnet
-		}
+		subnetsByAZ[subnet.availabilityZone] = append(subnetsByAZ[subnet.availabilityZone], subnet)
 	}
 
 	subnetIDs := make([]string, 0, len(subnetsByAZ))
-	for _, subnet := range subnetsByAZ {
-		subnetIDs = append(subnetIDs, subnet.id)
+	for az, subnets := range subnetsByAZ {
+		if len(subnets) > 1 {
+			sort.Slice(subnets, func(a, b int) bool {
+				subnetA, subnetB := subnets[a], subnets[b]
+
+				// prefer subnet with an elb role tag
+				tagName := elbRoleTagName
+				if internal {
+					tagName = internalELBRoleTagName
+				}
+
+				_, subnetAHasTag := subnetA.tags[tagName]
+				_, subnetBHasTag := subnetB.tags[tagName]
+
+				if subnetAHasTag != subnetBHasTag {
+					return subnetAHasTag
+				}
+
+				// prefer subnet id that is first lexicographically
+				return subnetA.id < subnetB.id
+			})
+
+			log.Warnf("Found multiple subnets %v for availability zone %s, using %s", subnets, az, subnets[0].id)
+		}
+
+		subnetIDs = append(subnetIDs, subnets[0].id)
 	}
 
 	return subnetIDs
