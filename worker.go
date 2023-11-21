@@ -432,7 +432,7 @@ func matchIngressesToLoadBalancers(
 		} else {
 			certificateARNs = certs.FindMatchingCertificateIDs(ingress.Hostnames)
 			if len(certificateARNs) == 0 {
-				log.Errorf("No certificates found for %v", ingress.Hostnames)
+				log.Errorf("No certificates found for hostnames %v of %s", ingress.Hostnames, ingress)
 				continue
 			}
 		}
