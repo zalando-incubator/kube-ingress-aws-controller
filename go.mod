@@ -6,7 +6,7 @@ require (
 	github.com/aws/aws-sdk-go v1.47.0
 	github.com/ghodss/yaml v1.0.0
 	github.com/google/go-cmp v0.6.0
-	github.com/google/uuid v1.3.1
+	github.com/google/uuid v1.4.0
 	github.com/linki/instrumented_http v0.3.0
 	github.com/mweagle/go-cloudformation v0.0.0-20211009163201-0a35d7d0fa70
 	github.com/prometheus/client_golang v1.17.0
