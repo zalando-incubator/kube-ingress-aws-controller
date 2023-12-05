@@ -29,7 +29,7 @@ func (a *Adapter) PodInformer(ctx context.Context, endpointChan chan<- []string)
 	informer := factory.Core().V1().Pods().Informer()
 	factory.Start(ctx.Done())
 	if !cache.WaitForCacheSync(ctx.Done(), informer.HasSynced) {
-		return fmt.Errorf("Timed out waiting for caches to sync")
+		return fmt.Errorf("timed out waiting for caches to sync")
 	}
 
 	// list warms the pod cache and verifies whether pods for given specs can be found, preventing to fail silently

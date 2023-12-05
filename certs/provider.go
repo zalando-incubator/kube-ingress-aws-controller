@@ -16,6 +16,7 @@ type CertificateSummary struct {
 	id          string
 	certificate *x509.Certificate
 	chain       *x509.CertPool
+	roots       *x509.CertPool
 	domainNames []string
 }
 
@@ -40,6 +41,13 @@ func NewCertificate(id string, certificate *x509.Certificate, chain []*x509.Cert
 		chain:       chainPool,
 		domainNames: domainNames,
 	}
+}
+
+// WithRoots enables you to override the root certificate pool.
+// This should be only used for test purposes.
+func (c *CertificateSummary) WithRoots(r *x509.CertPool) *CertificateSummary {
+	c.roots = r
+	return c
 }
 
 // ID returns the certificate ID for the underlying provider
@@ -70,7 +78,7 @@ func (c *CertificateSummary) Verify(hostname string) error {
 	opts := x509.VerifyOptions{
 		DNSName:       hostname,
 		KeyUsages:     []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
-		Roots:         roots,
+		Roots:         c.roots,
 		Intermediates: c.chain,
 		CurrentTime:   currentTime(),
 	}
@@ -80,6 +88,3 @@ func (c *CertificateSummary) Verify(hostname string) error {
 
 // For tests: allow overriding current time
 var currentTime = time.Now
-
-// For tests: allow overriding root certificate pool
-var roots *x509.CertPool

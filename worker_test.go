@@ -3,19 +3,568 @@ package main
 import (
 	"context"
 	"crypto/x509"
+	"encoding/json"
+	"io"
+	"net/http/httptest"
+	"os"
 	"reflect"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/aws/aws-sdk-go/service/autoscaling"
+	cf "github.com/aws/aws-sdk-go/service/cloudformation"
 	cloudformation "github.com/mweagle/go-cloudformation"
+	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/zalando-incubator/kube-ingress-aws-controller/aws"
+	awsAdapter "github.com/zalando-incubator/kube-ingress-aws-controller/aws"
 	"github.com/zalando-incubator/kube-ingress-aws-controller/certs"
 	"github.com/zalando-incubator/kube-ingress-aws-controller/kubernetes"
+	"github.com/zalando/skipper/dataclients/kubernetes/kubernetestest"
 	"k8s.io/apimachinery/pkg/util/wait"
+
+	"github.com/zalando-incubator/kube-ingress-aws-controller/aws/fake"
+	certsfake "github.com/zalando-incubator/kube-ingress-aws-controller/certs/fake"
 )
+
+func TestResourceConversionOneToOne(tt *testing.T) {
+	clusterIDTagPrefix := "kubernetes.io/cluster/"
+	clusterID := "aws:123:eu-central-1:kube-1"
+	vpcID := "1"
+	securityGroupID := "42"
+	running := int64(16) // See https://github.com/aws/aws-sdk-go/blob/master/service/ec2/api.go, type InstanceState
+
+	for _, scenario := range []struct {
+		name           string
+		responsesEC2   fake.EC2Outputs
+		responsesASG   fake.ASGOutputs
+		responsesELBv2 fake.ELBv2Outputs
+		responsesCF    fake.CFOutputs
+		typeLB         string
+	}{
+		{
+			name: "ingress_alb",
+			responsesEC2: fake.EC2Outputs{DescribeInstancesPages: fake.MockDescribeInstancesPagesOutput(
+				nil,
+				fake.TestInstance{
+					Id:        "i0",
+					Tags:      fake.Tags{"aws:autoscaling:groupName": "asg1", clusterIDTagPrefix + clusterID: "owned"},
+					PrivateIp: "1.2.3.3",
+					VpcId:     vpcID,
+					State:     running,
+				},
+				fake.TestInstance{
+					Id:        "i1",
+					Tags:      fake.Tags{"aws:autoscaling:groupName": "asg1", clusterIDTagPrefix + clusterID: "owned"},
+					PrivateIp: "1.2.3.4",
+					VpcId:     vpcID,
+					State:     running,
+				},
+				fake.TestInstance{
+					Id:        "i2",
+					Tags:      fake.Tags{"aws:autoscaling:groupName": "asg1", clusterIDTagPrefix + clusterID: "owned"},
+					PrivateIp: "1.2.3.5",
+					VpcId:     vpcID,
+					State:     running,
+				}),
+				DescribeSecurityGroups: fake.R(fake.MockDescribeSecurityGroupsOutput(map[string]string{"id": securityGroupID}), nil),
+				DescribeSubnets: fake.R(fake.MockDescribeSubnetsOutput(
+					fake.TestSubnet{Id: "foo1", Name: "bar1", Az: "baz1", Tags: map[string]string{"kubernetes.io/role/elb": ""}}), nil),
+				DescribeRouteTables: fake.R(fake.MockDescribeRouteTableOutput(
+					fake.TestRouteTable{SubnetID: "foo1", GatewayIds: []string{"igw-foo1"}},
+					fake.TestRouteTable{SubnetID: "mismatch", GatewayIds: []string{"igw-foo2"}, Main: true},
+				), nil),
+			},
+			responsesASG: fake.ASGOutputs{
+				DescribeAutoScalingGroups: fake.R(fake.MockDescribeAutoScalingGroupOutput(map[string]fake.ASGtags{"asg1": {
+					clusterIDTagPrefix + clusterID: "owned",
+				}}), nil),
+				DescribeLoadBalancerTargetGroups: fake.R(&autoscaling.DescribeLoadBalancerTargetGroupsOutput{
+					LoadBalancerTargetGroups: []*autoscaling.LoadBalancerTargetGroupState{},
+				}, nil),
+				AttachLoadBalancerTargetGroups: fake.R(nil, nil),
+			},
+			responsesELBv2: fake.ELBv2Outputs{
+				DescribeTargetGroups: fake.R(nil, nil),
+				DescribeTags:         fake.R(nil, nil),
+			},
+			responsesCF: fake.CFOutputs{
+				DescribeStackPages: fake.R(nil, nil),
+				DescribeStacks:     fake.R(nil, nil),
+				CreateStack:        fake.R(fake.MockCSOutput("42"), nil),
+			},
+			typeLB: awsAdapter.LoadBalancerTypeApplication,
+		},
+		{
+			name: "ingress_nlb",
+			responsesEC2: fake.EC2Outputs{DescribeInstancesPages: fake.MockDescribeInstancesPagesOutput(
+				nil,
+				fake.TestInstance{
+					Id:        "i0",
+					Tags:      fake.Tags{"aws:autoscaling:groupName": "asg1", clusterIDTagPrefix + clusterID: "owned"},
+					PrivateIp: "1.2.3.3",
+					VpcId:     vpcID,
+					State:     running,
+				},
+				fake.TestInstance{
+					Id:        "i1",
+					Tags:      fake.Tags{"aws:autoscaling:groupName": "asg1", clusterIDTagPrefix + clusterID: "owned"},
+					PrivateIp: "1.2.3.4",
+					VpcId:     vpcID,
+					State:     running,
+				},
+				fake.TestInstance{
+					Id:        "i2",
+					Tags:      fake.Tags{"aws:autoscaling:groupName": "asg1", clusterIDTagPrefix + clusterID: "owned"},
+					PrivateIp: "1.2.3.5",
+					VpcId:     vpcID,
+					State:     running,
+				}),
+				DescribeSecurityGroups: fake.R(fake.MockDescribeSecurityGroupsOutput(map[string]string{"id": securityGroupID}), nil),
+				DescribeSubnets: fake.R(fake.MockDescribeSubnetsOutput(
+					fake.TestSubnet{Id: "foo1", Name: "bar1", Az: "baz1", Tags: map[string]string{"kubernetes.io/role/elb": ""}}), nil),
+				DescribeRouteTables: fake.R(fake.MockDescribeRouteTableOutput(
+					fake.TestRouteTable{SubnetID: "foo1", GatewayIds: []string{"igw-foo1"}},
+					fake.TestRouteTable{SubnetID: "mismatch", GatewayIds: []string{"igw-foo2"}, Main: true},
+				), nil),
+			},
+			responsesASG: fake.ASGOutputs{
+				DescribeAutoScalingGroups: fake.R(fake.MockDescribeAutoScalingGroupOutput(map[string]fake.ASGtags{"asg1": {
+					clusterIDTagPrefix + clusterID: "owned",
+				}}), nil),
+				DescribeLoadBalancerTargetGroups: fake.R(&autoscaling.DescribeLoadBalancerTargetGroupsOutput{
+					LoadBalancerTargetGroups: []*autoscaling.LoadBalancerTargetGroupState{},
+				}, nil),
+				AttachLoadBalancerTargetGroups: fake.R(nil, nil),
+			},
+			responsesELBv2: fake.ELBv2Outputs{
+				DescribeTargetGroups: fake.R(nil, nil),
+				DescribeTags:         fake.R(nil, nil),
+			},
+			responsesCF: fake.CFOutputs{
+				DescribeStackPages: fake.R(nil, nil),
+				DescribeStacks:     fake.R(nil, nil),
+				CreateStack:        fake.R(fake.MockCSOutput("42"), nil),
+			},
+			typeLB: awsAdapter.LoadBalancerTypeNetwork,
+		}, {
+			name: "rg_alb",
+			responsesEC2: fake.EC2Outputs{DescribeInstancesPages: fake.MockDescribeInstancesPagesOutput(
+				nil,
+				fake.TestInstance{
+					Id:        "i0",
+					Tags:      fake.Tags{"aws:autoscaling:groupName": "asg1", clusterIDTagPrefix + clusterID: "owned"},
+					PrivateIp: "1.2.3.3",
+					VpcId:     vpcID,
+					State:     running,
+				},
+				fake.TestInstance{
+					Id:        "i1",
+					Tags:      fake.Tags{"aws:autoscaling:groupName": "asg1", clusterIDTagPrefix + clusterID: "owned"},
+					PrivateIp: "1.2.3.4",
+					VpcId:     vpcID,
+					State:     running,
+				},
+				fake.TestInstance{
+					Id:        "i2",
+					Tags:      fake.Tags{"aws:autoscaling:groupName": "asg1", clusterIDTagPrefix + clusterID: "owned"},
+					PrivateIp: "1.2.3.5",
+					VpcId:     vpcID,
+					State:     running,
+				}),
+				DescribeSecurityGroups: fake.R(fake.MockDescribeSecurityGroupsOutput(map[string]string{"id": securityGroupID}), nil),
+				DescribeSubnets: fake.R(fake.MockDescribeSubnetsOutput(
+					fake.TestSubnet{Id: "foo1", Name: "bar1", Az: "baz1", Tags: map[string]string{"kubernetes.io/role/elb": ""}}), nil),
+				DescribeRouteTables: fake.R(fake.MockDescribeRouteTableOutput(
+					fake.TestRouteTable{SubnetID: "foo1", GatewayIds: []string{"igw-foo1"}},
+					fake.TestRouteTable{SubnetID: "mismatch", GatewayIds: []string{"igw-foo2"}, Main: true},
+				), nil),
+			},
+			responsesASG: fake.ASGOutputs{
+				DescribeAutoScalingGroups: fake.R(fake.MockDescribeAutoScalingGroupOutput(map[string]fake.ASGtags{"asg1": {
+					clusterIDTagPrefix + clusterID: "owned",
+				}}), nil),
+				DescribeLoadBalancerTargetGroups: fake.R(&autoscaling.DescribeLoadBalancerTargetGroupsOutput{
+					LoadBalancerTargetGroups: []*autoscaling.LoadBalancerTargetGroupState{},
+				}, nil),
+				AttachLoadBalancerTargetGroups: fake.R(nil, nil),
+			},
+			responsesELBv2: fake.ELBv2Outputs{
+				DescribeTargetGroups: fake.R(nil, nil),
+				DescribeTags:         fake.R(nil, nil),
+			},
+			responsesCF: fake.CFOutputs{
+				DescribeStackPages: fake.R(nil, nil),
+				DescribeStacks:     fake.R(nil, nil),
+				CreateStack:        fake.R(fake.MockCSOutput("42"), nil),
+			},
+			typeLB: awsAdapter.LoadBalancerTypeApplication,
+		}, {
+			name: "rg_nlb",
+			responsesEC2: fake.EC2Outputs{DescribeInstancesPages: fake.MockDescribeInstancesPagesOutput(
+				nil,
+				fake.TestInstance{
+					Id:        "i0",
+					Tags:      fake.Tags{"aws:autoscaling:groupName": "asg1", clusterIDTagPrefix + clusterID: "owned"},
+					PrivateIp: "1.2.3.3",
+					VpcId:     vpcID,
+					State:     running,
+				},
+				fake.TestInstance{
+					Id:        "i1",
+					Tags:      fake.Tags{"aws:autoscaling:groupName": "asg1", clusterIDTagPrefix + clusterID: "owned"},
+					PrivateIp: "1.2.3.4",
+					VpcId:     vpcID,
+					State:     running,
+				},
+				fake.TestInstance{
+					Id:        "i2",
+					Tags:      fake.Tags{"aws:autoscaling:groupName": "asg1", clusterIDTagPrefix + clusterID: "owned"},
+					PrivateIp: "1.2.3.5",
+					VpcId:     vpcID,
+					State:     running,
+				}),
+				DescribeSecurityGroups: fake.R(fake.MockDescribeSecurityGroupsOutput(map[string]string{"id": securityGroupID}), nil),
+				DescribeSubnets: fake.R(fake.MockDescribeSubnetsOutput(
+					fake.TestSubnet{Id: "foo1", Name: "bar1", Az: "baz1", Tags: map[string]string{"kubernetes.io/role/elb": ""}}), nil),
+				DescribeRouteTables: fake.R(fake.MockDescribeRouteTableOutput(
+					fake.TestRouteTable{SubnetID: "foo1", GatewayIds: []string{"igw-foo1"}},
+					fake.TestRouteTable{SubnetID: "mismatch", GatewayIds: []string{"igw-foo2"}, Main: true},
+				), nil),
+			},
+			responsesASG: fake.ASGOutputs{
+				DescribeAutoScalingGroups: fake.R(fake.MockDescribeAutoScalingGroupOutput(map[string]fake.ASGtags{"asg1": {
+					clusterIDTagPrefix + clusterID: "owned",
+				}}), nil),
+				DescribeLoadBalancerTargetGroups: fake.R(&autoscaling.DescribeLoadBalancerTargetGroupsOutput{
+					LoadBalancerTargetGroups: []*autoscaling.LoadBalancerTargetGroupState{},
+				}, nil),
+				AttachLoadBalancerTargetGroups: fake.R(nil, nil),
+			},
+			responsesELBv2: fake.ELBv2Outputs{
+				DescribeTargetGroups: fake.R(nil, nil),
+				DescribeTags:         fake.R(nil, nil),
+			},
+			responsesCF: fake.CFOutputs{
+				DescribeStackPages: fake.R(nil, nil),
+				DescribeStacks:     fake.R(nil, nil),
+				CreateStack:        fake.R(fake.MockCSOutput("42"), nil),
+			},
+			typeLB: awsAdapter.LoadBalancerTypeNetwork,
+		}, {
+			name: "ing_shared_rg_notshared_alb",
+			responsesEC2: fake.EC2Outputs{DescribeInstancesPages: fake.MockDescribeInstancesPagesOutput(
+				nil,
+				fake.TestInstance{
+					Id:        "i0",
+					Tags:      fake.Tags{"aws:autoscaling:groupName": "asg1", clusterIDTagPrefix + clusterID: "owned"},
+					PrivateIp: "1.2.3.3",
+					VpcId:     vpcID,
+					State:     running,
+				},
+				fake.TestInstance{
+					Id:        "i1",
+					Tags:      fake.Tags{"aws:autoscaling:groupName": "asg1", clusterIDTagPrefix + clusterID: "owned"},
+					PrivateIp: "1.2.3.4",
+					VpcId:     vpcID,
+					State:     running,
+				},
+				fake.TestInstance{
+					Id:        "i2",
+					Tags:      fake.Tags{"aws:autoscaling:groupName": "asg1", clusterIDTagPrefix + clusterID: "owned"},
+					PrivateIp: "1.2.3.5",
+					VpcId:     vpcID,
+					State:     running,
+				}),
+				DescribeSecurityGroups: fake.R(fake.MockDescribeSecurityGroupsOutput(map[string]string{"id": securityGroupID}), nil),
+				DescribeSubnets: fake.R(fake.MockDescribeSubnetsOutput(
+					fake.TestSubnet{Id: "foo1", Name: "bar1", Az: "baz1", Tags: map[string]string{"kubernetes.io/role/elb": ""}}), nil),
+				DescribeRouteTables: fake.R(fake.MockDescribeRouteTableOutput(
+					fake.TestRouteTable{SubnetID: "foo1", GatewayIds: []string{"igw-foo1"}},
+					fake.TestRouteTable{SubnetID: "mismatch", GatewayIds: []string{"igw-foo2"}, Main: true},
+				), nil),
+			},
+			responsesASG: fake.ASGOutputs{
+				DescribeAutoScalingGroups: fake.R(fake.MockDescribeAutoScalingGroupOutput(map[string]fake.ASGtags{"asg1": {
+					clusterIDTagPrefix + clusterID: "owned",
+				}}), nil),
+				DescribeLoadBalancerTargetGroups: fake.R(&autoscaling.DescribeLoadBalancerTargetGroupsOutput{
+					LoadBalancerTargetGroups: []*autoscaling.LoadBalancerTargetGroupState{},
+				}, nil),
+				AttachLoadBalancerTargetGroups: fake.R(nil, nil),
+			},
+			responsesELBv2: fake.ELBv2Outputs{
+				DescribeTargetGroups: fake.R(nil, nil),
+				DescribeTags:         fake.R(nil, nil),
+			},
+			responsesCF: fake.CFOutputs{
+				DescribeStackPages: fake.R(nil, nil),
+				DescribeStacks:     fake.R(nil, nil),
+				CreateStack:        fake.R(fake.MockCSOutput("42"), nil),
+			},
+			typeLB: awsAdapter.LoadBalancerTypeApplication,
+		}, {
+			name: "ingress_rg_shared_alb",
+			responsesEC2: fake.EC2Outputs{DescribeInstancesPages: fake.MockDescribeInstancesPagesOutput(
+				nil,
+				fake.TestInstance{
+					Id:        "i0",
+					Tags:      fake.Tags{"aws:autoscaling:groupName": "asg1", clusterIDTagPrefix + clusterID: "owned"},
+					PrivateIp: "1.2.3.3",
+					VpcId:     vpcID,
+					State:     running,
+				},
+				fake.TestInstance{
+					Id:        "i1",
+					Tags:      fake.Tags{"aws:autoscaling:groupName": "asg1", clusterIDTagPrefix + clusterID: "owned"},
+					PrivateIp: "1.2.3.4",
+					VpcId:     vpcID,
+					State:     running,
+				},
+				fake.TestInstance{
+					Id:        "i2",
+					Tags:      fake.Tags{"aws:autoscaling:groupName": "asg1", clusterIDTagPrefix + clusterID: "owned"},
+					PrivateIp: "1.2.3.5",
+					VpcId:     vpcID,
+					State:     running,
+				}),
+				DescribeSecurityGroups: fake.R(fake.MockDescribeSecurityGroupsOutput(map[string]string{"id": securityGroupID}), nil),
+				DescribeSubnets: fake.R(fake.MockDescribeSubnetsOutput(
+					fake.TestSubnet{Id: "foo1", Name: "bar1", Az: "baz1", Tags: map[string]string{"kubernetes.io/role/elb": ""}}), nil),
+				DescribeRouteTables: fake.R(fake.MockDescribeRouteTableOutput(
+					fake.TestRouteTable{SubnetID: "foo1", GatewayIds: []string{"igw-foo1"}},
+					fake.TestRouteTable{SubnetID: "mismatch", GatewayIds: []string{"igw-foo2"}, Main: true},
+				), nil),
+			},
+			responsesASG: fake.ASGOutputs{
+				DescribeAutoScalingGroups: fake.R(fake.MockDescribeAutoScalingGroupOutput(map[string]fake.ASGtags{"asg1": {
+					clusterIDTagPrefix + clusterID: "owned",
+				}}), nil),
+				DescribeLoadBalancerTargetGroups: fake.R(&autoscaling.DescribeLoadBalancerTargetGroupsOutput{
+					LoadBalancerTargetGroups: []*autoscaling.LoadBalancerTargetGroupState{},
+				}, nil),
+				AttachLoadBalancerTargetGroups: fake.R(nil, nil),
+			},
+			responsesELBv2: fake.ELBv2Outputs{
+				DescribeTargetGroups: fake.R(nil, nil),
+				DescribeTags:         fake.R(nil, nil),
+			},
+			responsesCF: fake.CFOutputs{
+				DescribeStackPages: fake.R(nil, nil),
+				DescribeStacks:     fake.R(nil, nil),
+				CreateStack:        fake.R(fake.MockCSOutput("42"), nil),
+			},
+			typeLB: awsAdapter.LoadBalancerTypeApplication,
+		}, {
+			name: "ingress_rg_shared_nlb",
+			responsesEC2: fake.EC2Outputs{DescribeInstancesPages: fake.MockDescribeInstancesPagesOutput(
+				nil,
+				fake.TestInstance{
+					Id:        "i0",
+					Tags:      fake.Tags{"aws:autoscaling:groupName": "asg1", clusterIDTagPrefix + clusterID: "owned"},
+					PrivateIp: "1.2.3.3",
+					VpcId:     vpcID,
+					State:     running,
+				},
+				fake.TestInstance{
+					Id:        "i1",
+					Tags:      fake.Tags{"aws:autoscaling:groupName": "asg1", clusterIDTagPrefix + clusterID: "owned"},
+					PrivateIp: "1.2.3.4",
+					VpcId:     vpcID,
+					State:     running,
+				},
+				fake.TestInstance{
+					Id:        "i2",
+					Tags:      fake.Tags{"aws:autoscaling:groupName": "asg1", clusterIDTagPrefix + clusterID: "owned"},
+					PrivateIp: "1.2.3.5",
+					VpcId:     vpcID,
+					State:     running,
+				}),
+				DescribeSecurityGroups: fake.R(fake.MockDescribeSecurityGroupsOutput(map[string]string{"id": securityGroupID}), nil),
+				DescribeSubnets: fake.R(fake.MockDescribeSubnetsOutput(
+					fake.TestSubnet{Id: "foo1", Name: "bar1", Az: "baz1", Tags: map[string]string{"kubernetes.io/role/elb": ""}}), nil),
+				DescribeRouteTables: fake.R(fake.MockDescribeRouteTableOutput(
+					fake.TestRouteTable{SubnetID: "foo1", GatewayIds: []string{"igw-foo1"}},
+					fake.TestRouteTable{SubnetID: "mismatch", GatewayIds: []string{"igw-foo2"}, Main: true},
+				), nil),
+			},
+			responsesASG: fake.ASGOutputs{
+				DescribeAutoScalingGroups: fake.R(fake.MockDescribeAutoScalingGroupOutput(map[string]fake.ASGtags{"asg1": {
+					clusterIDTagPrefix + clusterID: "owned",
+				}}), nil),
+				DescribeLoadBalancerTargetGroups: fake.R(&autoscaling.DescribeLoadBalancerTargetGroupsOutput{
+					LoadBalancerTargetGroups: []*autoscaling.LoadBalancerTargetGroupState{},
+				}, nil),
+				AttachLoadBalancerTargetGroups: fake.R(nil, nil),
+			},
+			responsesELBv2: fake.ELBv2Outputs{
+				DescribeTargetGroups: fake.R(nil, nil),
+				DescribeTags:         fake.R(nil, nil),
+			},
+			responsesCF: fake.CFOutputs{
+				DescribeStackPages: fake.R(nil, nil),
+				DescribeStacks:     fake.R(nil, nil),
+				CreateStack:        fake.R(fake.MockCSOutput("42"), nil),
+			},
+			typeLB: awsAdapter.LoadBalancerTypeNetwork,
+		},
+	} {
+		tt.Run(scenario.name, func(t *testing.T) {
+			readFile := func(fileName string) []byte {
+				b, err := os.ReadFile("./testdata/" + scenario.name + "/output/" + fileName)
+				if err != nil {
+					t.Fatal(err)
+				}
+
+				return b
+			}
+
+			var templates []string
+			templateFiles, err := os.ReadDir("./testdata/" + scenario.name + "/output/templates/")
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			for _, file := range templateFiles {
+				templates = append(templates, string(readFile("templates/"+file.Name())))
+			}
+
+			paramFiles, err := os.ReadDir("./testdata/" + scenario.name + "/output/params/")
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			var params [][]*cf.Parameter
+			for _, file := range paramFiles {
+				var content []*cf.Parameter
+				err := json.Unmarshal(readFile("params/"+file.Name()), &content)
+				if err != nil {
+					t.Fatal(err)
+				}
+				params = append(params, content)
+			}
+
+			tagFiles, err := os.ReadDir("./testdata/" + scenario.name + "/output/tags/")
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			var tags [][]*cf.Tag
+			for _, file := range tagFiles {
+				var content []*cf.Tag
+				err := json.Unmarshal(readFile("tags/"+file.Name()), &content)
+				if err != nil {
+					t.Fatal(err)
+				}
+				tags = append(tags, content)
+			}
+
+			clientEC2 := &fake.EC2Client{Outputs: scenario.responsesEC2}
+			clientASG := &fake.ASGClient{Outputs: scenario.responsesASG}
+			clientELBv2 := &fake.ELBv2Client{Outputs: scenario.responsesELBv2}
+			clientCF := &fake.CFClient{Outputs: scenario.responsesCF}
+
+			a := &awsAdapter.Adapter{
+				TargetCNI: &awsAdapter.TargetCNIconfig{Enabled: false},
+			}
+			a = a.WithCustomAutoScalingClient(clientASG).
+				WithCustomEc2Client(clientEC2).
+				WithCustomElbv2Client(clientELBv2).
+				WithCustomCloudFormationClient(clientCF)
+
+			a, err = a.UpdateManifest(clusterID, vpcID)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			readers := make([]io.Reader, 0)
+			files, err := os.ReadDir("./testdata/" + scenario.name + "/input/k8s/")
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			for _, file := range files {
+				f, err := os.Open("./testdata/" + scenario.name + "/input/k8s/" + file.Name())
+				if err != nil {
+					t.Fatal(err)
+				}
+				readers = append(readers, f)
+				defer f.Close()
+			}
+
+			api, err := kubernetestest.NewAPI(kubernetestest.TestAPIOptions{}, readers...)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			s := httptest.NewServer(api)
+			defer s.Close()
+
+			kubeConfig := kubernetes.InsecureConfig(s.URL)
+			ingressClassFilterList := make([]string, 0)
+
+			sslPolicy := "ELBSecurityPolicy-2016-08"
+			clusterLocalDomain := ""
+			ingressAPIVersion := kubernetes.IngressAPIVersionNetworkingV1
+
+			k, err := kubernetes.NewAdapter(
+				kubeConfig,
+				ingressAPIVersion,
+				ingressClassFilterList,
+				securityGroupID,
+				sslPolicy,
+				scenario.typeLB,
+				clusterLocalDomain,
+				true)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			log.SetLevel(log.DebugLevel)
+			problems := doWork(&certsfake.CertificateProvider{}, 10, time.Hour, a, k, "")
+			if len(problems.Errors()) > 0 {
+				t.Error(problems.Errors())
+			}
+
+			assert.Equal(t, len(clientCF.GetTagCreationHistory()), len(tags))
+			assert.Equal(t, len(clientCF.GetParamCreationHistory()), len(params))
+			assert.Equal(t, len(clientCF.GetTemplateCreationHistory()), len(templates))
+
+			// This loop is necessary because assert.ElementsMatch only do set-style comparison
+			// for the first level of the array. So for nested arrays it would not behave like expected.
+			// The order is important when loading the files, because of this its necessary to use numbers
+			// before the file name to make them in the order you want.
+			for i := range templates {
+				// When a stack is created using cloud formation API the stack information is sent in a split way.
+				// There is a template with the description of the stack, but this template references parameters
+				// and tags that are not defined in this template. These parameters and tags are sent as different
+				// fields in the request.
+				// That is why when we validate the content of the template we also need to check the parameters
+				// and tags and this is why this check is split in three parts, we check the template,
+				// the parameters and tags generated by the ingress controller and not only the template.
+				assert.Equal(
+					t,
+					templates[i],
+					clientCF.GetTemplateCreationHistory()[i],
+				)
+
+				assert.ElementsMatch(
+					t,
+					tags[i],
+					clientCF.GetTagCreationHistory()[i],
+				)
+
+				assert.ElementsMatch(
+					t,
+					params[i],
+					clientCF.GetParamCreationHistory()[i],
+				)
+			}
+			clientCF.CleanCreationHistory()
+		})
+	}
+}
 
 func TestAddIngress(tt *testing.T) {
 	for _, test := range []struct {
@@ -49,17 +598,17 @@ func TestAddIngress(tt *testing.T) {
 		{
 			name: "ip address type not matching",
 			loadBalancer: &loadBalancer{
-				ipAddressType: aws.IPAddressTypeIPV4,
+				ipAddressType: awsAdapter.IPAddressTypeIPV4,
 			},
 			ingress: &kubernetes.Ingress{
-				IPAddressType: aws.IPAddressTypeDualstack,
+				IPAddressType: awsAdapter.IPAddressTypeDualstack,
 			},
 			added: false,
 		},
 		{
 			name: "don't add ingresses non-shared, non-owned load balancer",
 			loadBalancer: &loadBalancer{
-				stack: &aws.Stack{
+				stack: &awsAdapter.Stack{
 					OwnerIngress: "foo/bar",
 				},
 			},
@@ -73,7 +622,7 @@ func TestAddIngress(tt *testing.T) {
 		{
 			name: "don't add ingresses shared, to an owned load balancer",
 			loadBalancer: &loadBalancer{
-				stack: &aws.Stack{
+				stack: &awsAdapter.Stack{
 					OwnerIngress: "foo/bar",
 				},
 			},
@@ -87,9 +636,9 @@ func TestAddIngress(tt *testing.T) {
 		{
 			name: "add ingress to empty load balancer",
 			loadBalancer: &loadBalancer{
-				stack: &aws.Stack{},
+				stack: &awsAdapter.Stack{},
 				ingresses: map[string][]*kubernetes.Ingress{
-					"foo": []*kubernetes.Ingress{
+					"foo": {
 						{
 							Shared: true,
 						},
@@ -106,9 +655,9 @@ func TestAddIngress(tt *testing.T) {
 		{
 			name: "fail adding when too many certs",
 			loadBalancer: &loadBalancer{
-				stack: &aws.Stack{},
+				stack: &awsAdapter.Stack{},
 				ingresses: map[string][]*kubernetes.Ingress{
-					"foo": []*kubernetes.Ingress{
+					"foo": {
 						{
 							Shared: true,
 						},
@@ -169,12 +718,31 @@ func TestAddIngress(tt *testing.T) {
 			},
 			added: false,
 		},
+		{
+			name: "Adding/changing WAF, SG or TLS settings on non-shared LB should work",
+			loadBalancer: &loadBalancer{
+				ingresses: make(map[string][]*kubernetes.Ingress),
+				stack: &awsAdapter.Stack{
+					OwnerIngress: "foo/bar",
+				},
+				sslPolicy: "ELBSecurityPolicy-2016-08",
+			},
+			ingress: &kubernetes.Ingress{
+				Name:          "bar",
+				Namespace:     "foo",
+				WAFWebACLID:   "WAFZXX",
+				SecurityGroup: "bar",
+				SSLPolicy:     "ELBSecurityPolicy-FS-2018-06",
+				Shared:        false,
+			},
+			added: true,
+		},
 	} {
 		tt.Run(test.name, func(t *testing.T) {
 			assert.Equal(
 				t,
-				test.loadBalancer.addIngress(test.certificateARNs, test.ingress, test.maxCerts),
 				test.added,
+				test.loadBalancer.addIngress(test.certificateARNs, test.ingress, test.maxCerts),
 			)
 		})
 	}
@@ -185,36 +753,36 @@ func TestSortStacks(tt *testing.T) {
 
 	for _, test := range []struct {
 		name           string
-		stacks         []*aws.Stack
-		expectedStacks []*aws.Stack
+		stacks         []*awsAdapter.Stack
+		expectedStacks []*awsAdapter.Stack
 	}{
 		{
 			name:           "no stacks",
-			stacks:         []*aws.Stack{},
-			expectedStacks: []*aws.Stack{},
+			stacks:         []*awsAdapter.Stack{},
+			expectedStacks: []*awsAdapter.Stack{},
 		},
 		{
 			name: "two unsorted stacks",
-			stacks: []*aws.Stack{
-				&aws.Stack{
+			stacks: []*awsAdapter.Stack{
+				{
 					Name:            "foo",
 					CertificateARNs: map[string]time.Time{},
 				},
-				&aws.Stack{
+				{
 					Name: "bar",
 					CertificateARNs: map[string]time.Time{
 						"cert-arn": testTime,
 					},
 				},
 			},
-			expectedStacks: []*aws.Stack{
-				&aws.Stack{
+			expectedStacks: []*awsAdapter.Stack{
+				{
 					Name: "bar",
 					CertificateARNs: map[string]time.Time{
 						"cert-arn": testTime,
 					},
 				},
-				&aws.Stack{
+				{
 					Name:            "foo",
 					CertificateARNs: map[string]time.Time{},
 				},
@@ -222,28 +790,28 @@ func TestSortStacks(tt *testing.T) {
 		},
 		{
 			name: "two unsorted stacks with the same amount of certificates",
-			stacks: []*aws.Stack{
-				&aws.Stack{
+			stacks: []*awsAdapter.Stack{
+				{
 					Name: "foo",
 					CertificateARNs: map[string]time.Time{
 						"different-cert-arn": testTime,
 					},
 				},
-				&aws.Stack{
+				{
 					Name: "bar",
 					CertificateARNs: map[string]time.Time{
 						"cert-arn": testTime,
 					},
 				},
 			},
-			expectedStacks: []*aws.Stack{
-				&aws.Stack{
+			expectedStacks: []*awsAdapter.Stack{
+				{
 					Name: "bar",
 					CertificateARNs: map[string]time.Time{
 						"cert-arn": testTime,
 					},
 				},
-				&aws.Stack{
+				{
 					Name: "foo",
 					CertificateARNs: map[string]time.Time{
 						"different-cert-arn": testTime,
@@ -261,7 +829,7 @@ func TestSortStacks(tt *testing.T) {
 }
 
 func TestCertificateSummaries(t *testing.T) {
-	certificateSummaries := []*certs.CertificateSummary{&certs.CertificateSummary{}}
+	certificateSummaries := []*certs.CertificateSummary{{}}
 
 	certs := &Certificates{certificateSummaries: certificateSummaries}
 
@@ -313,13 +881,13 @@ func TestGetAllLoadBalancers(tt *testing.T) {
 
 	for _, test := range []struct {
 		name          string
-		stacks        []*aws.Stack
+		stacks        []*awsAdapter.Stack
 		certs         []*certs.CertificateSummary
 		loadBalancers []*loadBalancer
 	}{
 		{
 			name: "one stack",
-			stacks: []*aws.Stack{
+			stacks: []*awsAdapter.Stack{
 				{
 					Scheme:        "foo",
 					SecurityGroup: "sg-123456",
@@ -339,7 +907,7 @@ func TestGetAllLoadBalancers(tt *testing.T) {
 		},
 		{
 			name: "one stack with certificates",
-			stacks: []*aws.Stack{
+			stacks: []*awsAdapter.Stack{
 				{
 					Scheme:        "foo",
 					SecurityGroup: "sg-123456",
@@ -372,7 +940,7 @@ func TestGetAllLoadBalancers(tt *testing.T) {
 		},
 		{
 			name: "non existing certificate is not added to LB",
-			stacks: []*aws.Stack{
+			stacks: []*awsAdapter.Stack{
 				{
 					Scheme:        "foo",
 					SecurityGroup: "sg-123456",
@@ -408,12 +976,12 @@ func TestGetCloudWatchAlarmConfigFromConfigMap(t *testing.T) {
 	for _, test := range []struct {
 		name     string
 		cm       *kubernetes.ConfigMap
-		expected aws.CloudWatchAlarmList
+		expected awsAdapter.CloudWatchAlarmList
 	}{
 		{
 			name:     "empty config map",
 			cm:       &kubernetes.ConfigMap{},
-			expected: aws.CloudWatchAlarmList{},
+			expected: awsAdapter.CloudWatchAlarmList{},
 		},
 		{
 			name: "config map with one data key",
@@ -422,7 +990,7 @@ func TestGetCloudWatchAlarmConfigFromConfigMap(t *testing.T) {
 					"some-key": "- AlarmName: foo\n- AlarmName: bar\n",
 				},
 			},
-			expected: aws.CloudWatchAlarmList{
+			expected: awsAdapter.CloudWatchAlarmList{
 				{AlarmName: cloudformation.String("foo")},
 				{AlarmName: cloudformation.String("bar")},
 			},
@@ -435,7 +1003,7 @@ func TestGetCloudWatchAlarmConfigFromConfigMap(t *testing.T) {
 					"some-key":       "- AlarmName: foo\n- AlarmName: bar\n",
 				},
 			},
-			expected: aws.CloudWatchAlarmList{
+			expected: awsAdapter.CloudWatchAlarmList{
 				{AlarmName: cloudformation.String("foo")},
 				{AlarmName: cloudformation.String("bar")},
 				{AlarmName: cloudformation.String("baz")},
@@ -448,7 +1016,7 @@ func TestGetCloudWatchAlarmConfigFromConfigMap(t *testing.T) {
 					"some-key": "{",
 				},
 			},
-			expected: aws.CloudWatchAlarmList{},
+			expected: awsAdapter.CloudWatchAlarmList{},
 		},
 		{
 			name: "config map with partially invalid yaml data",
@@ -458,7 +1026,7 @@ func TestGetCloudWatchAlarmConfigFromConfigMap(t *testing.T) {
 					"some-other-key": "- AlarmName: baz\n",
 				},
 			},
-			expected: aws.CloudWatchAlarmList{
+			expected: awsAdapter.CloudWatchAlarmList{
 				{AlarmName: cloudformation.String("baz")},
 			},
 		},
@@ -480,7 +1048,7 @@ func TestAttachCloudWatchAlarmsCopy(t *testing.T) {
 		lbTwo,
 	}
 
-	alarms := aws.CloudWatchAlarmList{
+	alarms := awsAdapter.CloudWatchAlarmList{
 		{AlarmName: cloudformation.String("baz")},
 	}
 
@@ -508,79 +1076,79 @@ func TestIsLBInSync(t *testing.T) {
 		title: "not matching certificates",
 		lb: &loadBalancer{
 			ingresses: map[string][]*kubernetes.Ingress{
-				"foo": []*kubernetes.Ingress{{}},
-				"bar": []*kubernetes.Ingress{{}},
-				"baz": []*kubernetes.Ingress{{}},
+				"foo": {{}},
+				"bar": {{}},
+				"baz": {{}},
 			},
-			stack: &aws.Stack{
+			stack: &awsAdapter.Stack{
 				CertificateARNs: map[string]time.Time{
-					"foo": time.Time{},
-					"bar": time.Time{},
+					"foo": {},
+					"bar": {},
 				},
-				CWAlarmConfigHash: aws.CloudWatchAlarmList{{}}.Hash(),
+				CWAlarmConfigHash: awsAdapter.CloudWatchAlarmList{{}}.Hash(),
 				WAFWebACLID:       "foo-bar-baz",
 			},
-			cwAlarms:    aws.CloudWatchAlarmList{{}},
+			cwAlarms:    awsAdapter.CloudWatchAlarmList{{}},
 			wafWebACLID: "foo-bar-baz",
 		},
 	}, {
 		title: "not matching alarm",
 		lb: &loadBalancer{
 			ingresses: map[string][]*kubernetes.Ingress{
-				"foo": []*kubernetes.Ingress{{}},
-				"bar": []*kubernetes.Ingress{{}},
-				"baz": []*kubernetes.Ingress{{}},
+				"foo": {{}},
+				"bar": {{}},
+				"baz": {{}},
 			},
-			stack: &aws.Stack{
+			stack: &awsAdapter.Stack{
 				CertificateARNs: map[string]time.Time{
-					"foo": time.Time{},
-					"bar": time.Time{},
-					"baz": time.Time{},
+					"foo": {},
+					"bar": {},
+					"baz": {},
 				},
-				CWAlarmConfigHash: aws.CloudWatchAlarmList{{}}.Hash(),
+				CWAlarmConfigHash: awsAdapter.CloudWatchAlarmList{{}}.Hash(),
 				WAFWebACLID:       "foo-bar-baz",
 			},
-			cwAlarms:    aws.CloudWatchAlarmList{{}, {}},
+			cwAlarms:    awsAdapter.CloudWatchAlarmList{{}, {}},
 			wafWebACLID: "foo-bar-baz",
 		},
 	}, {
 		title: "not matching WAF",
 		lb: &loadBalancer{
 			ingresses: map[string][]*kubernetes.Ingress{
-				"foo": []*kubernetes.Ingress{{}},
-				"bar": []*kubernetes.Ingress{{}},
-				"baz": []*kubernetes.Ingress{{}},
+				"foo": {{}},
+				"bar": {{}},
+				"baz": {{}},
 			},
-			stack: &aws.Stack{
+			stack: &awsAdapter.Stack{
 				CertificateARNs: map[string]time.Time{
-					"foo": time.Time{},
-					"bar": time.Time{},
-					"baz": time.Time{},
+					"foo": {},
+					"bar": {},
+					"baz": {},
 				},
-				CWAlarmConfigHash: aws.CloudWatchAlarmList{{}}.Hash(),
+				CWAlarmConfigHash: awsAdapter.CloudWatchAlarmList{{}}.Hash(),
 				WAFWebACLID:       "foo-bar-baz",
 			},
-			cwAlarms:    aws.CloudWatchAlarmList{{}},
+			cwAlarms:    awsAdapter.CloudWatchAlarmList{{}},
 			wafWebACLID: "foo-bar",
 		},
 	}, {
 		title: "in sync",
 		lb: &loadBalancer{
 			ingresses: map[string][]*kubernetes.Ingress{
-				"foo": []*kubernetes.Ingress{{}},
-				"bar": []*kubernetes.Ingress{{}},
-				"baz": []*kubernetes.Ingress{{}},
+				"foo": {{}},
+				"bar": {{}},
+				"baz": {{}},
 			},
-			stack: &aws.Stack{
+			stack: &awsAdapter.Stack{
 				CertificateARNs: map[string]time.Time{
-					"foo": time.Time{},
-					"bar": time.Time{},
-					"baz": time.Time{},
+					"foo": {},
+					"bar": {},
+					"baz": {},
 				},
-				CWAlarmConfigHash: aws.CloudWatchAlarmList{{}}.Hash(),
+				CWAlarmConfigHash: awsAdapter.CloudWatchAlarmList{{}}.Hash(),
 				WAFWebACLID:       "foo-bar-baz",
 			},
-			cwAlarms:    aws.CloudWatchAlarmList{{}},
+			cwAlarms:    awsAdapter.CloudWatchAlarmList{{}},
 			wafWebACLID: "foo-bar-baz",
 		},
 		expect: true,
@@ -593,8 +1161,8 @@ func TestIsLBInSync(t *testing.T) {
 
 func TestMatchIngressesToLoadbalancers(t *testing.T) {
 	defaultMaxCertsPerLB := 3
-	defaultCerts := &certmock{
-		summaries: []*certs.CertificateSummary{
+	defaultCerts := certsfake.NewCert(
+		[]*certs.CertificateSummary{
 			certs.NewCertificate(
 				"foo",
 				&x509.Certificate{
@@ -603,7 +1171,7 @@ func TestMatchIngressesToLoadbalancers(t *testing.T) {
 				nil,
 			),
 		},
-	}
+	)
 
 	for _, test := range []struct {
 		title         string
@@ -639,11 +1207,11 @@ func TestMatchIngressesToLoadbalancers(t *testing.T) {
 				"foo.org",
 				"bar.org",
 			},
-			LoadBalancerType: aws.LoadBalancerTypeApplication,
+			LoadBalancerType: awsAdapter.LoadBalancerTypeApplication,
 			Shared:           true,
 		}},
 		lbs: []*loadBalancer{{
-			loadBalancerType: aws.LoadBalancerTypeApplication,
+			loadBalancerType: awsAdapter.LoadBalancerTypeApplication,
 			ingresses:        make(map[string][]*kubernetes.Ingress),
 		}},
 		validate: func(t *testing.T, lbs []*loadBalancer) {
@@ -663,7 +1231,7 @@ func TestMatchIngressesToLoadbalancers(t *testing.T) {
 		ingresses: []*kubernetes.Ingress{{
 			Name:             "foo-ingress",
 			CertificateARN:   "foo",
-			LoadBalancerType: aws.LoadBalancerTypeApplication,
+			LoadBalancerType: awsAdapter.LoadBalancerTypeApplication,
 			Shared:           true,
 		}},
 		validate: func(t *testing.T, lbs []*loadBalancer) {
@@ -683,7 +1251,7 @@ func TestMatchIngressesToLoadbalancers(t *testing.T) {
 		ingresses: []*kubernetes.Ingress{{
 			Name:             "foo-ingress",
 			CertificateARN:   "not-existing-arn",
-			LoadBalancerType: aws.LoadBalancerTypeApplication,
+			LoadBalancerType: awsAdapter.LoadBalancerTypeApplication,
 			Shared:           true,
 		}},
 		validate: func(t *testing.T, lbs []*loadBalancer) {
@@ -696,7 +1264,7 @@ func TestMatchIngressesToLoadbalancers(t *testing.T) {
 			Hostnames: []string{
 				"baz.org",
 			},
-			LoadBalancerType: aws.LoadBalancerTypeApplication,
+			LoadBalancerType: awsAdapter.LoadBalancerTypeApplication,
 			Shared:           true,
 		}},
 		validate: func(t *testing.T, lbs []*loadBalancer) {
@@ -706,7 +1274,7 @@ func TestMatchIngressesToLoadbalancers(t *testing.T) {
 		title: "multiple ingresses for the same LB",
 		ingresses: []*kubernetes.Ingress{{
 			Name:             "foo-ingress",
-			LoadBalancerType: aws.LoadBalancerTypeApplication,
+			LoadBalancerType: awsAdapter.LoadBalancerTypeApplication,
 			Shared:           true,
 			Hostnames: []string{
 				"foo.org",
@@ -714,7 +1282,7 @@ func TestMatchIngressesToLoadbalancers(t *testing.T) {
 			},
 		}, {
 			Name:             "bar-ingress",
-			LoadBalancerType: aws.LoadBalancerTypeApplication,
+			LoadBalancerType: awsAdapter.LoadBalancerTypeApplication,
 			Shared:           true,
 			Hostnames: []string{
 				"foo.org",
@@ -735,7 +1303,7 @@ func TestMatchIngressesToLoadbalancers(t *testing.T) {
 		title: "multiple ingresses for the same LB, with WAF ID",
 		ingresses: []*kubernetes.Ingress{{
 			Name:             "foo-ingress",
-			LoadBalancerType: aws.LoadBalancerTypeApplication,
+			LoadBalancerType: awsAdapter.LoadBalancerTypeApplication,
 			Shared:           true,
 			Hostnames: []string{
 				"foo.org",
@@ -744,7 +1312,7 @@ func TestMatchIngressesToLoadbalancers(t *testing.T) {
 			WAFWebACLID: "foo-bar-baz",
 		}, {
 			Name:             "bar-ingress",
-			LoadBalancerType: aws.LoadBalancerTypeApplication,
+			LoadBalancerType: awsAdapter.LoadBalancerTypeApplication,
 			Shared:           true,
 			Hostnames: []string{
 				"foo.org",
@@ -766,7 +1334,7 @@ func TestMatchIngressesToLoadbalancers(t *testing.T) {
 		title: "ingresses with different WAF IDs",
 		ingresses: []*kubernetes.Ingress{{
 			Name:             "foo-ingress",
-			LoadBalancerType: aws.LoadBalancerTypeApplication,
+			LoadBalancerType: awsAdapter.LoadBalancerTypeApplication,
 			Shared:           true,
 			Hostnames: []string{
 				"foo.org",
@@ -775,7 +1343,7 @@ func TestMatchIngressesToLoadbalancers(t *testing.T) {
 			WAFWebACLID: "foo-bar-baz",
 		}, {
 			Name:             "bar-ingress",
-			LoadBalancerType: aws.LoadBalancerTypeApplication,
+			LoadBalancerType: awsAdapter.LoadBalancerTypeApplication,
 			Shared:           true,
 			Hostnames: []string{
 				"foo.org",
@@ -813,8 +1381,8 @@ func TestMatchIngressesToLoadbalancers(t *testing.T) {
 
 func TestBuildModel(t *testing.T) {
 	defaultMaxCertsPerLB := 3
-	defaultCerts := &certmock{
-		summaries: []*certs.CertificateSummary{
+	defaultCerts := certsfake.NewCert(
+		[]*certs.CertificateSummary{
 			certs.NewCertificate(
 				"foo",
 				&x509.Certificate{
@@ -823,7 +1391,7 @@ func TestBuildModel(t *testing.T) {
 				nil,
 			),
 		},
-	}
+	)
 
 	const certTTL = time.Hour
 
@@ -832,15 +1400,15 @@ func TestBuildModel(t *testing.T) {
 		certs         CertificatesFinder
 		maxCertsPerLB int
 		ingresses     []*kubernetes.Ingress
-		stacks        []*aws.Stack
-		alarms        aws.CloudWatchAlarmList
+		stacks        []*awsAdapter.Stack
+		alarms        awsAdapter.CloudWatchAlarmList
 		globalWAFACL  string
 		validate      func(*testing.T, []*loadBalancer)
 	}{{
 		title: "no alarm, no waf",
 		ingresses: []*kubernetes.Ingress{{
 			Name:             "foo-ingress",
-			LoadBalancerType: aws.LoadBalancerTypeApplication,
+			LoadBalancerType: awsAdapter.LoadBalancerTypeApplication,
 			Shared:           true,
 			Hostnames: []string{
 				"foo.org",
@@ -862,14 +1430,14 @@ func TestBuildModel(t *testing.T) {
 		title: "with cloudwatch alarm",
 		ingresses: []*kubernetes.Ingress{{
 			Name:             "foo-ingress",
-			LoadBalancerType: aws.LoadBalancerTypeApplication,
+			LoadBalancerType: awsAdapter.LoadBalancerTypeApplication,
 			Shared:           true,
 			Hostnames: []string{
 				"foo.org",
 				"bar.org",
 			},
 		}},
-		alarms: aws.CloudWatchAlarmList{{}},
+		alarms: awsAdapter.CloudWatchAlarmList{{}},
 		validate: func(t *testing.T, lbs []*loadBalancer) {
 			require.Equal(t, 2, len(lbs))
 			for _, lb := range lbs {
@@ -885,7 +1453,7 @@ func TestBuildModel(t *testing.T) {
 		title: "with global WAF",
 		ingresses: []*kubernetes.Ingress{{
 			Name:             "foo-ingress",
-			LoadBalancerType: aws.LoadBalancerTypeApplication,
+			LoadBalancerType: awsAdapter.LoadBalancerTypeApplication,
 			Shared:           true,
 			Hostnames: []string{
 				"foo.org",
@@ -908,7 +1476,7 @@ func TestBuildModel(t *testing.T) {
 		title: "with ingress defined WAF",
 		ingresses: []*kubernetes.Ingress{{
 			Name:             "foo-ingress",
-			LoadBalancerType: aws.LoadBalancerTypeApplication,
+			LoadBalancerType: awsAdapter.LoadBalancerTypeApplication,
 			Shared:           true,
 			Hostnames: []string{
 				"foo.org",
@@ -931,7 +1499,7 @@ func TestBuildModel(t *testing.T) {
 		title: "with global and ingress defined WAF",
 		ingresses: []*kubernetes.Ingress{{
 			Name:             "foo-ingress",
-			LoadBalancerType: aws.LoadBalancerTypeApplication,
+			LoadBalancerType: awsAdapter.LoadBalancerTypeApplication,
 			Shared:           true,
 			Hostnames: []string{
 				"foo.org",
@@ -939,7 +1507,7 @@ func TestBuildModel(t *testing.T) {
 			},
 		}, {
 			Name:             "foo-ingress",
-			LoadBalancerType: aws.LoadBalancerTypeApplication,
+			LoadBalancerType: awsAdapter.LoadBalancerTypeApplication,
 			Shared:           true,
 			Hostnames: []string{
 				"foo.org",
@@ -1006,7 +1574,7 @@ func TestDoWorkPanicReturnsProblem(t *testing.T) {
 
 func Test_cniEventHandler(t *testing.T) {
 	t.Run("handles messages from channels and calls update functions", func(t *testing.T) {
-		targetCNIcfg := &aws.TargetCNIconfig{TargetGroupCh: make(chan []string, 10)}
+		targetCNIcfg := &awsAdapter.TargetCNIconfig{TargetGroupCh: make(chan []string, 10)}
 		targetCNIcfg.TargetGroupCh <- []string{"bar", "baz"}
 		targetCNIcfg.TargetGroupCh <- []string{"foo"} // flush
 		mutex := &sync.Mutex{}
@@ -1041,17 +1609,15 @@ func Test_cniEventHandler(t *testing.T) {
 
 func TestCountByIngressType(t *testing.T) {
 	ingresses := []*kubernetes.Ingress{
-		&kubernetes.Ingress{ResourceType: kubernetes.TypeIngress},
-		&kubernetes.Ingress{ResourceType: kubernetes.TypeIngress},
-		&kubernetes.Ingress{ResourceType: kubernetes.TypeIngress},
-		&kubernetes.Ingress{ResourceType: kubernetes.TypeRouteGroup},
-		&kubernetes.Ingress{ResourceType: kubernetes.TypeRouteGroup},
-		&kubernetes.Ingress{ResourceType: kubernetes.TypeFabricGateway},
+		{ResourceType: kubernetes.TypeIngress},
+		{ResourceType: kubernetes.TypeIngress},
+		{ResourceType: kubernetes.TypeIngress},
+		{ResourceType: kubernetes.TypeRouteGroup},
+		{ResourceType: kubernetes.TypeRouteGroup},
 	}
 
 	counts := countByIngressType(ingresses)
 
 	assert.Equal(t, 3, counts[kubernetes.TypeIngress])
 	assert.Equal(t, 2, counts[kubernetes.TypeRouteGroup])
-	assert.Equal(t, 1, counts[kubernetes.TypeFabricGateway])
 }

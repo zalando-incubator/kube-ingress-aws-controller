@@ -7,6 +7,8 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/ec2"
+
+	"github.com/zalando-incubator/kube-ingress-aws-controller/aws/fake"
 )
 
 func TestGetAutoScalingName(t *testing.T) {
@@ -31,29 +33,29 @@ func TestGetAutoScalingName(t *testing.T) {
 func TestFindingSecurityGroup(t *testing.T) {
 	for _, test := range []struct {
 		name      string
-		responses ec2MockOutputs
+		responses fake.EC2Outputs
 		want      *securityGroupDetails
 		wantError bool
 	}{
 		{
 			"success-find-sg",
-			ec2MockOutputs{
-				describeSecurityGroups: R(mockDSGOutput(map[string]string{"id": "foo"}), nil),
+			fake.EC2Outputs{
+				DescribeSecurityGroups: fake.R(fake.MockDescribeSecurityGroupsOutput(map[string]string{"id": "foo"}), nil),
 			},
 			&securityGroupDetails{id: "id", name: "foo"},
 			false,
 		},
 		{
 			"fail-no-security-groups",
-			ec2MockOutputs{describeSecurityGroups: R(mockDSGOutput(nil), nil)}, nil, true,
+			fake.EC2Outputs{DescribeSecurityGroups: fake.R(fake.MockDescribeSecurityGroupsOutput(nil), nil)}, nil, true,
 		},
 		{
 			"fail-with-aws-api-error",
-			ec2MockOutputs{describeSecurityGroups: R(nil, errDummy)}, nil, true,
+			fake.EC2Outputs{DescribeSecurityGroups: fake.R(nil, fake.ErrDummy)}, nil, true,
 		},
 	} {
 		t.Run(fmt.Sprintf("%v", test.name), func(t *testing.T) {
-			ec2 := &mockEc2Client{outputs: test.responses}
+			ec2 := &fake.EC2Client{Outputs: test.responses}
 			got, err := findSecurityGroupWithClusterID(ec2, "foo", "kube-ingress-aws-controller")
 			assertResultAndError(t, test.want, got, test.wantError, err)
 		})
@@ -119,45 +121,45 @@ func TestInstanceDetails(t *testing.T) {
 func TestGetInstanceDetails(t *testing.T) {
 	for _, test := range []struct {
 		name      string
-		responses ec2MockOutputs
+		responses fake.EC2Outputs
 		want      *instanceDetails
 		wantError bool
 	}{
 		{
 			"success-call",
-			ec2MockOutputs{describeInstances: R(mockDIOutput(
-				testInstance{id: "foo", tags: tags{"bar": "baz"}, state: runningState},
+			fake.EC2Outputs{DescribeInstances: fake.R(fake.MockDescribeInstancesOutput(
+				fake.TestInstance{Id: "foo", Tags: fake.Tags{"bar": "baz"}, State: runningState},
 			), nil)},
 			&instanceDetails{id: "foo", tags: map[string]string{"bar": "baz"}, running: true},
 			false,
 		},
 		{
 			"failed-state-match",
-			ec2MockOutputs{describeInstances: R(mockDIOutput(
-				testInstance{id: "foo1", tags: tags{"bar": "baz"}, state: 0},
-				testInstance{id: "foo2", tags: tags{"bar": "baz"}, state: 32}, // shutting-down
-				testInstance{id: "foo2", tags: tags{"bar": "baz"}, state: 48}, // terminated includes running?!?
-				testInstance{id: "foo2", tags: tags{"bar": "baz"}, state: 64}, // stopping
-				testInstance{id: "foo2", tags: tags{"bar": "baz"}, state: 80}, // stopped includes running?!?
+			fake.EC2Outputs{DescribeInstances: fake.R(fake.MockDescribeInstancesOutput(
+				fake.TestInstance{Id: "foo1", Tags: fake.Tags{"bar": "baz"}, State: 0},
+				fake.TestInstance{Id: "foo2", Tags: fake.Tags{"bar": "baz"}, State: 32}, // shutting-down
+				fake.TestInstance{Id: "foo2", Tags: fake.Tags{"bar": "baz"}, State: 48}, // terminated includes running?!?
+				fake.TestInstance{Id: "foo2", Tags: fake.Tags{"bar": "baz"}, State: 64}, // stopping
+				fake.TestInstance{Id: "foo2", Tags: fake.Tags{"bar": "baz"}, State: 80}, // stopped includes running?!?
 			), nil)},
 			nil,
 			true,
 		},
 		{
 			"nothing-returned-from-aws-api",
-			ec2MockOutputs{describeInstances: R(mockDIOutput(), nil)},
+			fake.EC2Outputs{DescribeInstances: fake.R(fake.MockDescribeInstancesOutput(), nil)},
 			nil,
 			true,
 		},
 		{
 			"aws-api-fail",
-			ec2MockOutputs{describeInstances: R(nil, errDummy)},
+			fake.EC2Outputs{DescribeInstances: fake.R(nil, fake.ErrDummy)},
 			nil,
 			true,
 		},
 	} {
 		t.Run(fmt.Sprintf("%v", test.name), func(t *testing.T) {
-			ec2 := &mockEc2Client{outputs: test.responses}
+			ec2 := &fake.EC2Client{Outputs: test.responses}
 			got, err := getInstanceDetails(ec2, "foo")
 			assertResultAndError(t, test.want, got, test.wantError, err)
 		})
@@ -167,20 +169,20 @@ func TestGetInstanceDetails(t *testing.T) {
 func TestGetSubnets(t *testing.T) {
 	for _, test := range []struct {
 		name      string
-		responses ec2MockOutputs
+		responses fake.EC2Outputs
 		want      []*subnetDetails
 		wantError bool
 	}{
 		{
 			"success-call-nofilter",
-			ec2MockOutputs{
-				describeSubnets: R(mockDSOutput(
-					testSubnet{id: "foo1", name: "bar1", az: "baz1", tags: map[string]string{elbRoleTagName: ""}},
-					testSubnet{id: "foo2", name: "bar2", az: "baz2"},
+			fake.EC2Outputs{
+				DescribeSubnets: fake.R(fake.MockDescribeSubnetsOutput(
+					fake.TestSubnet{Id: "foo1", Name: "bar1", Az: "baz1", Tags: map[string]string{elbRoleTagName: ""}},
+					fake.TestSubnet{Id: "foo2", Name: "bar2", Az: "baz2"},
 				), nil),
-				describeRouteTables: R(mockDRTOutput(
-					testRouteTable{subnetID: "foo1", gatewayIds: []string{"igw-foo1"}},
-					testRouteTable{subnetID: "mismatch", gatewayIds: []string{"igw-foo2"}, main: true},
+				DescribeRouteTables: fake.R(fake.MockDescribeRouteTableOutput(
+					fake.TestRouteTable{SubnetID: "foo1", GatewayIds: []string{"igw-foo1"}},
+					fake.TestRouteTable{SubnetID: "mismatch", GatewayIds: []string{"igw-foo2"}, Main: true},
 				), nil),
 			},
 			[]*subnetDetails{
@@ -191,14 +193,14 @@ func TestGetSubnets(t *testing.T) {
 		},
 		{
 			"success-call-filtered",
-			ec2MockOutputs{
-				describeSubnets: R(mockDSOutput(
-					testSubnet{id: "foo1", name: "bar1", az: "baz1", tags: map[string]string{elbRoleTagName: "", clusterIDTagPrefix + "bar": "shared"}},
-					testSubnet{id: "foo2", name: "bar2", az: "baz2", tags: map[string]string{clusterIDTagPrefix + "bar": "shared"}},
+			fake.EC2Outputs{
+				DescribeSubnets: fake.R(fake.MockDescribeSubnetsOutput(
+					fake.TestSubnet{Id: "foo1", Name: "bar1", Az: "baz1", Tags: map[string]string{elbRoleTagName: "", clusterIDTagPrefix + "bar": "shared"}},
+					fake.TestSubnet{Id: "foo2", Name: "bar2", Az: "baz2", Tags: map[string]string{clusterIDTagPrefix + "bar": "shared"}},
 				), nil),
-				describeRouteTables: R(mockDRTOutput(
-					testRouteTable{subnetID: "foo1", gatewayIds: []string{"igw-foo1"}},
-					testRouteTable{subnetID: "mismatch", gatewayIds: []string{"igw-foo2"}, main: true},
+				DescribeRouteTables: fake.R(fake.MockDescribeRouteTableOutput(
+					fake.TestRouteTable{SubnetID: "foo1", GatewayIds: []string{"igw-foo1"}},
+					fake.TestRouteTable{SubnetID: "mismatch", GatewayIds: []string{"igw-foo2"}, Main: true},
 				), nil),
 			},
 			[]*subnetDetails{
@@ -209,33 +211,33 @@ func TestGetSubnets(t *testing.T) {
 		},
 		{
 			"aws-sdk-failure-describing-subnets",
-			ec2MockOutputs{describeSubnets: R(nil, errDummy)}, nil, true,
+			fake.EC2Outputs{DescribeSubnets: fake.R(nil, fake.ErrDummy)}, nil, true,
 		},
 		{
 			"aws-sdk-failure-describing-route-tables",
-			ec2MockOutputs{
-				describeSubnets: R(mockDSOutput(
-					testSubnet{id: "foo1", name: "bar1", az: "baz1"},
-					testSubnet{id: "foo2", name: "bar2", az: "baz2"},
+			fake.EC2Outputs{
+				DescribeSubnets: fake.R(fake.MockDescribeSubnetsOutput(
+					fake.TestSubnet{Id: "foo1", Name: "bar1", Az: "baz1"},
+					fake.TestSubnet{Id: "foo2", Name: "bar2", Az: "baz2"},
 				), nil),
-				describeRouteTables: R(nil, errDummy),
+				DescribeRouteTables: fake.R(nil, fake.ErrDummy),
 			}, nil, true,
 		},
 		{
 			"failure-to-map-subnets",
-			ec2MockOutputs{
-				describeSubnets: R(mockDSOutput(
-					testSubnet{id: "foo1", name: "bar1", az: "baz1"},
+			fake.EC2Outputs{
+				DescribeSubnets: fake.R(fake.MockDescribeSubnetsOutput(
+					fake.TestSubnet{Id: "foo1", Name: "bar1", Az: "baz1"},
 				), nil),
-				describeRouteTables: R(mockDRTOutput(
-					testRouteTable{subnetID: "x", gatewayIds: []string{"y"}},
+				DescribeRouteTables: fake.R(fake.MockDescribeRouteTableOutput(
+					fake.TestRouteTable{SubnetID: "x", GatewayIds: []string{"y"}},
 				), nil),
 			},
 			nil, true,
 		},
 	} {
 		t.Run(fmt.Sprintf("%v", test.name), func(t *testing.T) {
-			ec2 := &mockEc2Client{outputs: test.responses}
+			ec2 := &fake.EC2Client{Outputs: test.responses}
 			got, err := getSubnets(ec2, "foo", "bar")
 			assertResultAndError(t, test.want, got, test.wantError, err)
 		})
@@ -246,7 +248,7 @@ func TestGetInstancesDetailsWithFilters(t *testing.T) {
 	for _, test := range []struct {
 		name      string
 		input     []*ec2.Filter
-		responses ec2MockOutputs
+		responses fake.EC2Outputs
 		want      map[string]*instanceDetails
 		wantError bool
 	}{
@@ -260,30 +262,30 @@ func TestGetInstancesDetailsWithFilters(t *testing.T) {
 					},
 				},
 			},
-			ec2MockOutputs{describeInstancesPages: mockDIPOutput(
+			fake.EC2Outputs{DescribeInstancesPages: fake.MockDescribeInstancesPagesOutput(
 				nil,
-				testInstance{id: "foo1", tags: tags{"bar": "baz"}, privateIp: "1.2.3.4", vpcId: "1", state: 16},
-				testInstance{id: "foo2", tags: tags{"bar": "baz"}, privateIp: "1.2.3.5", vpcId: "1", state: 32},
-				testInstance{id: "foo3", tags: tags{"aaa": "zzz"}, privateIp: "1.2.3.6", vpcId: "1", state: 80},
+				fake.TestInstance{Id: "foo1", Tags: fake.Tags{"bar": "baz"}, PrivateIp: "1.2.3.4", VpcId: "1", State: 16},
+				fake.TestInstance{Id: "foo2", Tags: fake.Tags{"bar": "baz"}, PrivateIp: "1.2.3.5", VpcId: "1", State: 32},
+				fake.TestInstance{Id: "foo3", Tags: fake.Tags{"aaa": "zzz"}, PrivateIp: "1.2.3.6", VpcId: "1", State: 80},
 			)},
 			map[string]*instanceDetails{
-				"foo1": &instanceDetails{id: "foo1", tags: map[string]string{"bar": "baz"}, ip: "1.2.3.4", vpcID: "1", running: true},
-				"foo2": &instanceDetails{id: "foo2", tags: map[string]string{"bar": "baz"}, ip: "1.2.3.5", vpcID: "1", running: false},
-				"foo3": &instanceDetails{id: "foo3", tags: map[string]string{"aaa": "zzz"}, ip: "1.2.3.6", vpcID: "1", running: false},
+				"foo1": {id: "foo1", tags: map[string]string{"bar": "baz"}, ip: "1.2.3.4", vpcID: "1", running: true},
+				"foo2": {id: "foo2", tags: map[string]string{"bar": "baz"}, ip: "1.2.3.5", vpcID: "1", running: false},
+				"foo3": {id: "foo3", tags: map[string]string{"aaa": "zzz"}, ip: "1.2.3.6", vpcID: "1", running: false},
 			},
 			false,
 		},
 		{
 			"success-empty-filters",
 			[]*ec2.Filter{},
-			ec2MockOutputs{describeInstancesPages: mockDIPOutput(
+			fake.EC2Outputs{DescribeInstancesPages: fake.MockDescribeInstancesPagesOutput(
 				nil,
-				testInstance{id: "foo1", tags: tags{"bar": "baz"}, privateIp: "1.2.3.4", vpcId: "1", state: 16},
-				testInstance{id: "foo3", tags: tags{"aaa": "zzz"}, privateIp: "1.2.3.6", vpcId: "1", state: 80},
+				fake.TestInstance{Id: "foo1", Tags: fake.Tags{"bar": "baz"}, PrivateIp: "1.2.3.4", VpcId: "1", State: 16},
+				fake.TestInstance{Id: "foo3", Tags: fake.Tags{"aaa": "zzz"}, PrivateIp: "1.2.3.6", VpcId: "1", State: 80},
 			)},
 			map[string]*instanceDetails{
-				"foo1": &instanceDetails{id: "foo1", tags: map[string]string{"bar": "baz"}, ip: "1.2.3.4", vpcID: "1", running: true},
-				"foo3": &instanceDetails{id: "foo3", tags: map[string]string{"aaa": "zzz"}, ip: "1.2.3.6", vpcID: "1", running: false},
+				"foo1": {id: "foo1", tags: map[string]string{"bar": "baz"}, ip: "1.2.3.4", vpcID: "1", running: true},
+				"foo3": {id: "foo3", tags: map[string]string{"aaa": "zzz"}, ip: "1.2.3.6", vpcID: "1", running: false},
 			},
 			false,
 		},
@@ -297,7 +299,7 @@ func TestGetInstancesDetailsWithFilters(t *testing.T) {
 					},
 				},
 			},
-			ec2MockOutputs{describeInstancesPages: mockDIPOutput(nil)},
+			fake.EC2Outputs{DescribeInstancesPages: fake.MockDescribeInstancesPagesOutput(nil)},
 			map[string]*instanceDetails{},
 			false,
 		},
@@ -311,13 +313,13 @@ func TestGetInstancesDetailsWithFilters(t *testing.T) {
 					},
 				},
 			},
-			ec2MockOutputs{describeInstancesPages: mockDIPOutput(errDummy, testInstance{})},
+			fake.EC2Outputs{DescribeInstancesPages: fake.MockDescribeInstancesPagesOutput(fake.ErrDummy, fake.TestInstance{})},
 			nil,
 			true,
 		},
 	} {
 		t.Run(fmt.Sprintf("%v", test.name), func(t *testing.T) {
-			ec2 := &mockEc2Client{outputs: test.responses}
+			ec2 := &fake.EC2Client{Outputs: test.responses}
 			got, err := getInstancesDetailsWithFilters(ec2, test.input)
 			assertResultAndError(t, test.want, got, test.wantError, err)
 		})

@@ -46,6 +46,7 @@ type Adapter struct {
 	albHealthyThresholdCount    uint
 	albUnhealthyThresholdCount  uint
 	nlbHealthyThresholdCount    uint
+	targetType                  string
 	targetPort                  uint
 	albHTTPTargetPort           uint
 	nlbHTTPTargetPort           uint
@@ -92,8 +93,6 @@ type manifest struct {
 	vpcID         string
 }
 
-type configProviderFunc func() client.ConfigProvider
-
 const (
 	DefaultHealthCheckPath            = "/kube-system/healthz"
 	DefaultHealthCheckPort            = 9999
@@ -135,8 +134,10 @@ const (
 	LoadBalancerTypeNetwork     = "network"
 	IPAddressTypeIPV4           = "ipv4"
 	IPAddressTypeDualstack      = "dualstack"
-	TargetAccessModeAWSCNI      = "AWSCNI"
-	TargetAccessModeHostPort    = "HostPort"
+
+	TargetAccessModeAWSCNI   = "AWSCNI"
+	TargetAccessModeHostPort = "HostPort"
+	TargetAccessModeLegacy   = "Legacy"
 )
 
 var (
@@ -157,17 +158,24 @@ var (
 	// SSLPolicies is a map of valid ALB SSL Policies
 	// https://docs.aws.amazon.com/elasticloadbalancing/latest/application/create-https-listener.html#describe-ssl-policies
 	SSLPolicies = map[string]bool{
-		"ELBSecurityPolicy-2016-08":             true,
-		"ELBSecurityPolicy-FS-2018-06":          true,
-		"ELBSecurityPolicy-TLS-1-2-2017-01":     true,
-		"ELBSecurityPolicy-TLS-1-2-Ext-2018-06": true,
-		"ELBSecurityPolicy-TLS-1-1-2017-01":     true,
-		"ELBSecurityPolicy-2015-05":             true,
-		"ELBSecurityPolicy-TLS-1-0-2015-04":     true,
-		"ELBSecurityPolicy-FS-1-1-2019-08":      true,
-		"ELBSecurityPolicy-FS-1-2-2019-08":      true,
-		"ELBSecurityPolicy-FS-1-2-Res-2019-08":  true,
-		"ELBSecurityPolicy-FS-1-2-Res-2020-10":  true,
+		"ELBSecurityPolicy-2016-08":                true,
+		"ELBSecurityPolicy-FS-2018-06":             true,
+		"ELBSecurityPolicy-TLS-1-2-2017-01":        true,
+		"ELBSecurityPolicy-TLS-1-2-Ext-2018-06":    true,
+		"ELBSecurityPolicy-TLS-1-1-2017-01":        true,
+		"ELBSecurityPolicy-2015-05":                true,
+		"ELBSecurityPolicy-TLS-1-0-2015-04":        true,
+		"ELBSecurityPolicy-FS-1-1-2019-08":         true,
+		"ELBSecurityPolicy-FS-1-2-2019-08":         true,
+		"ELBSecurityPolicy-FS-1-2-Res-2019-08":     true,
+		"ELBSecurityPolicy-FS-1-2-Res-2020-10":     true,
+		"ELBSecurityPolicy-TLS13-1-2-2021-06":      true,
+		"ELBSecurityPolicy-TLS13-1-2-Res-2021-06":  true,
+		"ELBSecurityPolicy-TLS13-1-2-Ext1-2021-06": true,
+		"ELBSecurityPolicy-TLS13-1-2-Ext2-2021-06": true,
+		"ELBSecurityPolicy-TLS13-1-1-2021-06":      true,
+		"ELBSecurityPolicy-TLS13-1-0-2021-06":      true,
+		"ELBSecurityPolicy-TLS13-1-3-2021-06":      true,
 	}
 	SSLPoliciesList = []string{
 		"ELBSecurityPolicy-2016-08",
@@ -181,6 +189,13 @@ var (
 		"ELBSecurityPolicy-FS-1-2-2019-08",
 		"ELBSecurityPolicy-FS-1-2-Res-2019-08",
 		"ELBSecurityPolicy-FS-1-2-Res-2020-10",
+		"ELBSecurityPolicy-TLS13-1-2-2021-06",
+		"ELBSecurityPolicy-TLS13-1-2-Res-2021-06",
+		"ELBSecurityPolicy-TLS13-1-2-Ext1-2021-06",
+		"ELBSecurityPolicy-TLS13-1-2-Ext2-2021-06",
+		"ELBSecurityPolicy-TLS13-1-1-2021-06",
+		"ELBSecurityPolicy-TLS13-1-0-2021-06",
+		"ELBSecurityPolicy-TLS13-1-3-2021-06",
 	}
 )
 
@@ -247,12 +262,23 @@ func NewAdapter(clusterID, newControllerID, vpcID string, debug, disableInstrume
 	return
 }
 
-func (a *Adapter) NewACMCertificateProvider() certs.CertificatesProvider {
-	return newACMCertProvider(a.acm)
+// UpdateManifest generates a manifest again based on cluster and VPC information.
+// This method is useful when using custom AWS clients.
+func (a *Adapter) UpdateManifest(clusterID, vpcID string) (*Adapter, error) {
+	m, err := buildManifest(a, clusterID, vpcID)
+	if err != nil {
+		return nil, err
+	}
+	a.manifest = m
+	return a, err
 }
 
-func (a *Adapter) NewIAMCertificateProvider() certs.CertificatesProvider {
-	return newIAMCertProvider(a.iam)
+func (a *Adapter) NewACMCertificateProvider(certFilterTag string) certs.CertificatesProvider {
+	return newACMCertProvider(a.acm, certFilterTag)
+}
+
+func (a *Adapter) NewIAMCertificateProvider(certFilterTag string) certs.CertificatesProvider {
+	return newIAMCertProvider(a.iam, certFilterTag)
 }
 
 // WithHealthCheckPath returns the receiver adapter after changing the health check path that will be used by
@@ -445,8 +471,17 @@ func (a *Adapter) WithInternalDomains(domains []string) *Adapter {
 }
 
 // WithTargetAccessMode returns the receiver adapter after defining the target access mode
-func (a *Adapter) WithTargetAccessMode(t string) *Adapter {
-	a.TargetCNI.Enabled = t == TargetAccessModeAWSCNI
+func (a *Adapter) WithTargetAccessMode(mode string) *Adapter {
+	a.TargetCNI.Enabled = mode == TargetAccessModeAWSCNI
+
+	switch mode {
+	case TargetAccessModeHostPort:
+		a.targetType = elbv2.TargetTypeEnumInstance
+	case TargetAccessModeAWSCNI:
+		a.targetType = elbv2.TargetTypeEnumIp
+	case TargetAccessModeLegacy:
+		a.targetType = ""
+	}
 	return a
 }
 
@@ -481,6 +516,34 @@ func (a *Adapter) WithInternalDomainsDenyResponseStatusCode(code int) *Adapter {
 // denyInternalDomains is set to true.
 func (a *Adapter) WithInternalDomainsDenyResponseContenType(contentType string) *Adapter {
 	a.denyInternalRespContentType = contentType
+	return a
+}
+
+// WithCustomEc2Client returns an Adapter that will use the provided
+// EC2 client, instead of the EC2 client provided by AWS.
+func (a *Adapter) WithCustomEc2Client(c ec2iface.EC2API) *Adapter {
+	a.ec2 = c
+	return a
+}
+
+// WithCustomAutoScalingClient returns an Adapter that will use the provided
+// Auto scaling client, instead of the Auto scaling client provided by AWS.
+func (a *Adapter) WithCustomAutoScalingClient(c autoscalingiface.AutoScalingAPI) *Adapter {
+	a.autoscaling = c
+	return a
+}
+
+// WithCustomElbv2Client returns an Adapter that will use the provided
+// ELBv2 client, instead of the ELBv2 client provided by AWS.
+func (a *Adapter) WithCustomElbv2Client(c elbv2iface.ELBV2API) *Adapter {
+	a.elbv2 = c
+	return a
+}
+
+// WithCustomCloudFormationClient returns an Adapter that will use the provided
+// CloudFormation client, instead of the CloudFormation client provided by AWS.
+func (a *Adapter) WithCustomCloudFormationClient(c cloudformationiface.CloudFormationAPI) *Adapter {
+	a.cloudformation = c
 	return a
 }
 
@@ -671,6 +734,7 @@ func (a *Adapter) CreateStack(certificateARNs []string, scheme, securityGroup, o
 		albHealthyThresholdCount:          a.albHealthyThresholdCount,
 		albUnhealthyThresholdCount:        a.albUnhealthyThresholdCount,
 		nlbHealthyThresholdCount:          a.nlbHealthyThresholdCount,
+		targetType:                        a.targetType,
 		targetPort:                        a.targetPort,
 		targetHTTPS:                       a.targetHTTPS,
 		httpDisabled:                      a.httpDisabled(loadBalancerType),
@@ -692,7 +756,6 @@ func (a *Adapter) CreateStack(certificateARNs []string, scheme, securityGroup, o
 		http2:                             http2,
 		tags:                              a.stackTags,
 		internalDomains:                   a.internalDomains,
-		targetAccessModeCNI:               a.TargetCNI.Enabled,
 		denyInternalDomains:               a.denyInternalDomains,
 		denyInternalDomainsResponse: denyResp{
 			body:        a.denyInternalRespBody,
@@ -727,6 +790,7 @@ func (a *Adapter) UpdateStack(stackName string, certificateARNs map[string]time.
 		albHealthyThresholdCount:          a.albHealthyThresholdCount,
 		albUnhealthyThresholdCount:        a.albUnhealthyThresholdCount,
 		nlbHealthyThresholdCount:          a.nlbHealthyThresholdCount,
+		targetType:                        a.targetType,
 		targetPort:                        a.targetPort,
 		targetHTTPS:                       a.targetHTTPS,
 		httpDisabled:                      a.httpDisabled(loadBalancerType),
@@ -748,7 +812,6 @@ func (a *Adapter) UpdateStack(stackName string, certificateARNs map[string]time.
 		http2:                             http2,
 		tags:                              a.stackTags,
 		internalDomains:                   a.internalDomains,
-		targetAccessModeCNI:               a.TargetCNI.Enabled,
 		denyInternalDomains:               a.denyInternalDomains,
 		denyInternalDomainsResponse: denyResp{
 			body:        a.denyInternalRespBody,

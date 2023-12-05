@@ -7,7 +7,7 @@ resources and orchestrate [AWS Load Balancers](https://aws.amazon.com/elasticloa
 [![Build Status](https://github.com/zalando-incubator/kube-ingress-aws-controller/workflows/ci/badge.svg)](https://github.com/zalando-incubator/kube-ingress-aws-controller/actions?query=branch:master)
 [![Coverage Status](https://coveralls.io/repos/github/zalando-incubator/kube-ingress-aws-controller/badge.svg?branch=master)](https://coveralls.io/github/zalando-incubator/kube-ingress-aws-controller?branch=master)
 [![GitHub release](https://img.shields.io/github/release/zalando-incubator/kube-ingress-aws-controller.svg)](https://github.com/zalando-incubator/kube-ingress-aws-controller/releases)
-[![go-doc](https://godoc.org/github.com/zalando-incubator/kube-ingress-aws-controller?status.svg)](https://godoc.org/github.com/zalando-incubator/kube-ingress-aws-controller)
+[![go-doc](https://pkg.go.dev/github.com/zalando-incubator/kube-ingress-aws-controller?status.svg)](https://pkg.go.dev/github.com/zalando-incubator/kube-ingress-aws-controller)
 
 
 This ingress controller uses the EC2 instance metadata of the worker node where it's currently running to find the
@@ -33,9 +33,21 @@ This information is used to manage AWS resources for each ingress objects of the
 - Support for AWS WAF and WAFv2
 - Support for AWS CNI pod direct access
 - Support for Kubernetes CRD [RouteGroup](https://opensource.zalando.com/skipper/kubernetes/routegroups/)
-- Support for Kubernetes CRD [FabricGateway](https://opensource.zalando.com/skipper/kubernetes/fabricgateways/)
 
 ## Upgrade
+
+### <v0.14.0 to >=v0.14.0
+
+Version `v0.14.0` makes `target-access-mode` flag required to make upgrading users aware of the [issue](https://github.com/zalando-incubator/kube-ingress-aws-controller/issues/507).
+
+New deployment of the controller should use `--target-access-mode=HostPort` or `--target-access-mode=AWSCNI`.
+
+To upgrade from `<v0.12.17` use `--target-access-mode=Legacy` - it is the same as `HostPort` but does not set target type and
+relies on CloudFormation to use `instance` as a default value.
+
+Note that changing later from `--target-access-mode=Legacy` will change target type in CloudFormation and trigger target group recreation and downtime.
+
+To upgrade from `>=v0.12.17` when `--target-access-mode` is not set use explicit `--target-access-mode=HostPort`.
 
 ### <v0.13.0 to >=0.13.0
 
@@ -43,11 +55,13 @@ Version `v0.13.0` use Ingress version v1 as default. You can downgrade
 ingress version to earlier versions via flag. You will also need to
 allow the access via RBAC, see more information in [<v0.11.0 to >=0.11.0](#v0110-to-0110) below.
 
-### <v0.12.17 to >=v0.12.17
+### <v0.12.17 to <v0.14.0
 
 Please see [release note](https://github.com/zalando-incubator/kube-ingress-aws-controller/releases/tag/v0.12.17)
 and [issue](https://github.com/zalando-incubator/kube-ingress-aws-controller/issues/507)
 this update can cause 30s downtime, if you don't use AWS CNI mode.
+
+Please upgrade to `>=v0.14.0`.
 
 ### <v0.12.0 to <=0.12.16
 
@@ -278,6 +292,31 @@ On startup, the controller discovers the AWS resources required for the controll
     `kubernetes.io/cluster/<cluster-id>`, which will be prioritized.
     If there are two possible subnets for a single Availability Zone then the
     first subnet, lexicographically sorted by ID, will be selected.
+
+#### Running outside of EC2
+
+The controller can run outside of EC2. In this mode it can't dicover `vpc-id`
+and `cluster-id` which needs to be passed via flags on startup:
+
+```sh
+./kube-ingress-aws-controller \
+  --cluster-id="<cluster-id>" \
+  --vpc-id="<vpc-id>"
+```
+
+You can get the VPC ID by listing VPCs in your AWS account:
+
+```sh
+aws ec2 describe-vpcs
+{
+    "Vpcs": [
+        {
+            "CidrBlock": "172.31.0.0/16",
+            "DhcpOptionsId": "....",
+            "State": "available",
+            "VpcId": "vpc-abcde",
+            ...
+```
 
 ### Creating Load Balancers
 
@@ -595,7 +634,7 @@ To [deploy](deploy/README.md) the ingress controller, use the
 [example YAML](deploy/ingress-controller.yaml.example) as the descriptor.
 You can customize the image used in the example YAML file.
 
-We provide `registry.opensource.zalan.do/teapot/kube-ingress-aws-controller:latest` as a publicly usable Docker image
+We provide `ghcr.io/zalando-incubator/kube-ingress-aws-controller:latest` as a publicly usable Docker image
 built from this codebase. You can deploy it with 2 easy steps:
 - Replace the placeholder for your region inside the example YAML, for ex., `eu-west-1`
 - Use kubectl to execute the command  `kubectl apply -f deploy/ingress-controller.yaml`
@@ -645,25 +684,30 @@ Those ports are now configured individually. If you relied on this behavior, ple
 
 ## AWS CNI Mode (experimental)
 
-The default operation mode of the controller (`target-access-mode=HostPort`) is to link the target groups to the autoscaling group. The target group type is `instance`, requiring the ingress pod to be accessible through a `HostNetwork` and `HostPort`.
+The common operation mode of the controller (`--target-access-mode=HostPort`) is to link the target groups to the autoscaling group.
+The target group type is `instance`, requiring the ingress pod to be accessible through a `HostNetwork` and `HostPort`.
 
-In *AWS CNI Mode* (`target-access-mode=AWSCNI`) the controller actively manages the target group members. Since AWS EKS cluster running AWS VPC CNI have their pods as first class members in the VPCs, they can receive the traffic directly, being managed through a target group type is `ip`, which means there is no necessity for the HostPort indirection.
+In *AWS CNI Mode* (`--target-access-mode=AWSCNI`) the controller actively manages the target group members.
+Since AWS EKS cluster running AWS VPC CNI have their pods as first class members in the VPCs, they can receive the traffic directly,
+being managed through a target group type is `ip`, which means there is no necessity for the HostPort indirection.
 
 ### Notes
 
 - For security reasons the HostPort requirement might be of concern
-- Direct management of the target group members is significantly faster compared to the AWS linked mode, but it requires a running controller for updates. As of now, the controller is not prepared for high availability replicated setup.
-- The registration and deregistration is synced with the pod lifecycle, hence a pod in terminating phase is deregistered from the target group before shut down.
+- Direct management of the target group members is significantly faster compared to the AWS linked mode, but it requires
+  a running controller for updates. As of now, the controller is not prepared for high availability replicated setup.
+- The registration and deregistration is synced with the pod lifecycle, hence a pod in terminating phase is deregistered
+  from the target group before shut down.
 - Ingress pods are not bound to nodes in CNI mode and the deployment can scale independently.
 
 ### Configuration options
 
-| access mode | HostNetwork | HostPort |                      Notes                      |
-| :---------: | :---------: | :------: | :---------------------------------------------: |
-| `HostPort`  |   `true`    |  `true`  | default setup                                   |
-| `AWSCNI`    |   `true`    |  `true`  | PodIP == HostIP: limited scaling and host bound |
-| `AWSCNI`    |   `false`   |  `true`  | PodIP != HostIP: limited scaling and host bound |
-| `AWSCNI`    |   `false`   | `false`  | free scaling, pod VPC CNI IP used               |
+| access mode | HostNetwork | HostPort |                      Notes                             |
+| :---------: | :---------: | :------: | :----------------------------------------------------: |
+| `HostPort`  |   `true`    |  `true`  | target group updated by ASG, see v0.14.0 release notes |
+| `AWSCNI`    |   `true`    |  `true`  | PodIP == HostIP: limited scaling and host bound        |
+| `AWSCNI`    |   `false`   |  `true`  | PodIP != HostIP: limited scaling and host bound        |
+| `AWSCNI`    |   `false`   | `false`  | free scaling, pod VPC CNI IP used                      |
 
 ## Trying it out
 

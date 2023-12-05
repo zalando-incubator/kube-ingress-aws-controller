@@ -22,6 +22,7 @@ type caInfra struct {
 	sync.Once
 	err       error
 	chainKey  *rsa.PrivateKey
+	roots     *x509.CertPool
 	chainCert *x509.Certificate
 }
 
@@ -56,7 +57,7 @@ func createDummyCertDetail(t *testing.T, arn string, altNames []string, notBefor
 	ca.Do(func() {
 		caKey, err := rsa.GenerateKey(rand.Reader, 2048)
 		if err != nil {
-			ca.err = fmt.Errorf("unable to generate CA key: %v", err)
+			ca.err = fmt.Errorf("unable to generate CA key: %w", err)
 			return
 		}
 
@@ -75,20 +76,20 @@ func createDummyCertDetail(t *testing.T, arn string, altNames []string, notBefor
 		}
 		caBody, err := x509.CreateCertificate(rand.Reader, &caCert, &caCert, caKey.Public(), caKey)
 		if err != nil {
-			ca.err = fmt.Errorf("unable to generate CA certificate: %v", err)
+			ca.err = fmt.Errorf("unable to generate CA certificate: %w", err)
 			return
 		}
 		caReparsed, err := x509.ParseCertificate(caBody)
 		if err != nil {
-			ca.err = fmt.Errorf("unable to parse CA certificate: %v", err)
+			ca.err = fmt.Errorf("unable to parse CA certificate: %w", err)
 			return
 		}
-		roots = x509.NewCertPool()
-		roots.AddCert(caReparsed)
+		ca.roots = x509.NewCertPool()
+		ca.roots.AddCert(caReparsed)
 
 		chainKey, err := rsa.GenerateKey(rand.Reader, 2048)
 		if err != nil {
-			ca.err = fmt.Errorf("unable to generate sub-CA key: %v", err)
+			ca.err = fmt.Errorf("unable to generate sub-CA key: %w", err)
 			return
 		}
 		chainCert := x509.Certificate{
@@ -106,12 +107,12 @@ func createDummyCertDetail(t *testing.T, arn string, altNames []string, notBefor
 		}
 		chainBody, err := x509.CreateCertificate(rand.Reader, &chainCert, caReparsed, chainKey.Public(), caKey)
 		if err != nil {
-			ca.err = fmt.Errorf("unable to generate sub-CA certificate: %v", err)
+			ca.err = fmt.Errorf("unable to generate sub-CA certificate: %w", err)
 			return
 		}
 		chainReparsed, err := x509.ParseCertificate(chainBody)
 		if err != nil {
-			ca.err = fmt.Errorf("unable to parse sub-CA certificate: %v", err)
+			ca.err = fmt.Errorf("unable to parse sub-CA certificate: %w", err)
 			return
 		}
 
@@ -143,7 +144,8 @@ func createDummyCertDetail(t *testing.T, arn string, altNames []string, notBefor
 		require.NoErrorf(t, err, "unable to parse certificate")
 	}
 
-	return NewCertificate(arn, reparsed, []*x509.Certificate{ca.chainCert})
+	c := NewCertificate(arn, reparsed, []*x509.Certificate{ca.chainCert})
+	return c.WithRoots(ca.roots)
 }
 
 type certCondition func(error, *CertificateSummary, *CertificateSummary) bool

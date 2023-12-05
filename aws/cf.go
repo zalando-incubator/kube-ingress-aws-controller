@@ -143,7 +143,6 @@ const (
 	parameterTargetGroupTargetPortParameter          = "TargetGroupTargetPortParameter"
 	parameterTargetGroupHTTPTargetPortParameter      = "TargetGroupHTTPTargetPortParameter"
 	parameterTargetGroupVPCIDParameter               = "TargetGroupVPCIDParameter"
-	parameterListenerCertificatesParameter           = "ListenerCertificatesParameter"
 	parameterListenerSslPolicyParameter              = "ListenerSslPolicyParameter"
 	parameterIpAddressTypeParameter                  = "IpAddressType"
 	parameterLoadBalancerTypeParameter               = "Type"
@@ -164,12 +163,12 @@ type stackSpec struct {
 	albHealthyThresholdCount          uint
 	albUnhealthyThresholdCount        uint
 	nlbHealthyThresholdCount          uint
+	targetType                        string
 	targetPort                        uint
 	targetHTTPS                       bool
 	httpDisabled                      bool
 	httpTargetPort                    uint
 	timeoutInMinutes                  uint
-	customTemplate                    string
 	stackTerminationProtection        bool
 	idleConnectionTimeoutSeconds      uint
 	deregistrationDelayTimeoutSeconds uint
@@ -188,7 +187,6 @@ type stackSpec struct {
 	denyInternalDomainsResponse       denyResp
 	internalDomains                   []string
 	tags                              map[string]string
-	targetAccessModeCNI               bool
 }
 
 type healthCheck struct {
@@ -514,7 +512,7 @@ func findManagedStacks(svc cloudformationiface.CloudFormationAPI, clusterID, con
 			return true
 		})
 	if err != nil {
-		return nil, fmt.Errorf("findManagedStacks failed to list stacks: %v", err)
+		return nil, fmt.Errorf("findManagedStacks failed to list stacks: %w", err)
 	}
 	return stacks, nil
 }

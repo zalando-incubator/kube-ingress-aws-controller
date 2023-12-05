@@ -46,8 +46,7 @@ const (
 )
 
 const (
-	maxTargetGroupSupported = 1000
-	cniEventRateLimit       = 5 * time.Second
+	cniEventRateLimit = 5 * time.Second
 )
 
 func (l *loadBalancer) Status() int {
@@ -89,16 +88,6 @@ func (l *loadBalancer) addIngress(certificateARNs []string, ingress *kubernetes.
 		return true
 	}
 
-	if l.ipAddressType != ingress.IPAddressType ||
-		l.scheme != ingress.Scheme ||
-		l.securityGroup != ingress.SecurityGroup ||
-		l.sslPolicy != ingress.SSLPolicy ||
-		l.loadBalancerType != ingress.LoadBalancerType ||
-		l.http2 != ingress.HTTP2 ||
-		l.wafWebACLID != ingress.WAFWebACLID {
-		return false
-	}
-
 	resourceName := fmt.Sprintf("%s/%s", ingress.Namespace, ingress.Name)
 
 	owner := ""
@@ -111,6 +100,23 @@ func (l *loadBalancer) addIngress(certificateARNs []string, ingress *kubernetes.
 	}
 
 	if !ingress.Shared && resourceName != owner {
+		return false
+	}
+
+	// settings that would require a new load balancer no matter if it's
+	// shared or not.
+	if l.ipAddressType != ingress.IPAddressType ||
+		l.scheme != ingress.Scheme ||
+		l.loadBalancerType != ingress.LoadBalancerType ||
+		l.http2 != ingress.HTTP2 {
+		return false
+	}
+
+	// settings that can be changed on an existing load balancer if it's
+	// NOT shared.
+	if ingress.Shared && (l.securityGroup != ingress.SecurityGroup ||
+		l.sslPolicy != ingress.SSLPolicy ||
+		l.wafWebACLID != ingress.WAFWebACLID) {
 		return false
 	}
 
@@ -264,7 +270,6 @@ func doWork(
 	globalWAFACL string,
 ) (problems *problem.List) {
 	problems = new(problem.List)
-
 	defer func() {
 		if r := recover(); r != nil {
 			debug.PrintStack()
@@ -307,7 +312,6 @@ func doWork(
 
 	metrics.ingressesTotal.Set(float64(counts[kubernetes.TypeIngress]))
 	metrics.routegroupsTotal.Set(float64(counts[kubernetes.TypeRouteGroup]))
-	metrics.fabricgatewaysTotal.Set(float64(counts[kubernetes.TypeFabricGateway]))
 	metrics.stacksTotal.Set(float64(len(stacks)))
 	metrics.ownedAutoscalingGroupsTotal.Set(float64(len(awsAdapter.OwnedAutoScalingGroups)))
 	metrics.targetedAutoscalingGroupsTotal.Set(float64(len(awsAdapter.TargetedAutoScalingGroups)))
@@ -318,7 +322,6 @@ func doWork(
 
 	log.Debugf("Found %d ingress(es)", counts[kubernetes.TypeIngress])
 	log.Debugf("Found %d route group(s)", counts[kubernetes.TypeRouteGroup])
-	log.Debugf("Found %d fabric gateway(s)", counts[kubernetes.TypeFabricGateway])
 	log.Debugf("Found %d stack(s)", len(stacks))
 	log.Debugf("Found %d owned auto scaling group(s)", len(awsAdapter.OwnedAutoScalingGroups))
 	log.Debugf("Found %d targeted auto scaling group(s)", len(awsAdapter.TargetedAutoScalingGroups))
@@ -429,7 +432,7 @@ func matchIngressesToLoadBalancers(
 		} else {
 			certificateARNs = certs.FindMatchingCertificateIDs(ingress.Hostnames)
 			if len(certificateARNs) == 0 {
-				log.Errorf("No certificates found for %v", ingress.Hostnames)
+				log.Errorf("No certificates found for hostnames %v of %s", ingress.Hostnames, ingress)
 				continue
 			}
 		}
@@ -673,7 +676,13 @@ func cniEventHandler(ctx context.Context, targetCNIcfg *aws.TargetCNIconfig,
 	defer rateLimiter.Stop()
 
 	endpointCh := make(chan []string, 10)
-	go informer(ctx, endpointCh)
+	go func() {
+		err := informer(ctx, endpointCh)
+		if err != nil {
+			log.Errorf("Informer failed: %v", err)
+			return
+		}
+	}()
 
 	var cniTargetGroupARNs, endpoints []string
 	for {

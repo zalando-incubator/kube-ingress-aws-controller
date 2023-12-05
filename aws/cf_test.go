@@ -8,13 +8,15 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/cloudformation"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/zalando-incubator/kube-ingress-aws-controller/aws/fake"
 )
 
 func TestCreatingStack(t *testing.T) {
 	for _, ti := range []struct {
 		name         string
 		givenSpec    stackSpec
-		givenOutputs cfMockOutputs
+		givenOutputs fake.CFOutputs
 		want         string
 		wantErr      bool
 	}{
@@ -25,25 +27,25 @@ func TestCreatingStack(t *testing.T) {
 				securityGroupID: "bar",
 				vpcID:           "baz",
 				certificateARNs: map[string]time.Time{
-					"arn-default": time.Time{},
-					"arn-second":  time.Time{},
+					"arn-default": {},
+					"arn-second":  {},
 				},
 			},
-			cfMockOutputs{createStack: R(mockCSOutput("fake-stack-id"), nil)},
+			fake.CFOutputs{CreateStack: fake.R(fake.MockCSOutput("fake-stack-id"), nil)},
 			"fake-stack-id",
 			false,
 		},
 		{
 			"successful-call",
 			stackSpec{name: "foo", securityGroupID: "bar", vpcID: "baz"},
-			cfMockOutputs{createStack: R(mockCSOutput("fake-stack-id"), nil)},
+			fake.CFOutputs{CreateStack: fake.R(fake.MockCSOutput("fake-stack-id"), nil)},
 			"fake-stack-id",
 			false,
 		},
 		{
 			"fail-call",
 			stackSpec{name: "foo", securityGroupID: "bar", vpcID: "baz"},
-			cfMockOutputs{createStack: R(nil, errDummy)},
+			fake.CFOutputs{CreateStack: fake.R(nil, fake.ErrDummy)},
 			"fake-stack-id",
 			true,
 		},
@@ -55,7 +57,7 @@ func TestCreatingStack(t *testing.T) {
 				vpcID:           "baz",
 				wafWebAclId:     "foo-bar-baz",
 			},
-			cfMockOutputs{createStack: R(mockCSOutput("fake-stack-id"), nil)},
+			fake.CFOutputs{CreateStack: fake.R(fake.MockCSOutput("fake-stack-id"), nil)},
 			"fake-stack-id",
 			false,
 		},
@@ -68,7 +70,7 @@ func TestCreatingStack(t *testing.T) {
 				loadbalancerType: LoadBalancerTypeApplication,
 				httpTargetPort:   7777,
 			},
-			cfMockOutputs{createStack: R(mockCSOutput("fake-stack-id"), nil)},
+			fake.CFOutputs{CreateStack: fake.R(fake.MockCSOutput("fake-stack-id"), nil)},
 			"fake-stack-id",
 			false,
 		},
@@ -81,13 +83,13 @@ func TestCreatingStack(t *testing.T) {
 				loadbalancerType: LoadBalancerTypeNetwork,
 				httpTargetPort:   8888,
 			},
-			cfMockOutputs{createStack: R(mockCSOutput("fake-stack-id"), nil)},
+			fake.CFOutputs{CreateStack: fake.R(fake.MockCSOutput("fake-stack-id"), nil)},
 			"fake-stack-id",
 			false,
 		},
 	} {
 		t.Run(ti.name, func(t *testing.T) {
-			c := &mockCloudFormationClient{outputs: ti.givenOutputs}
+			c := &fake.CFClient{Outputs: ti.givenOutputs}
 			got, err := createStack(c, &ti.givenSpec)
 			if ti.wantErr {
 				if !ti.wantErr {
@@ -106,7 +108,7 @@ func TestUpdatingStack(t *testing.T) {
 	for _, ti := range []struct {
 		name         string
 		givenSpec    stackSpec
-		givenOutputs cfMockOutputs
+		givenOutputs fake.CFOutputs
 		want         string
 		wantErr      bool
 	}{
@@ -117,25 +119,25 @@ func TestUpdatingStack(t *testing.T) {
 				securityGroupID: "bar",
 				vpcID:           "baz",
 				certificateARNs: map[string]time.Time{
-					"arn-default": time.Time{},
-					"arn-second":  time.Time{},
+					"arn-default": {},
+					"arn-second":  {},
 				},
 			},
-			cfMockOutputs{updateStack: R(mockUSOutput("fake-stack-id"), nil)},
+			fake.CFOutputs{UpdateStack: fake.R(fake.MockUSOutput("fake-stack-id"), nil)},
 			"fake-stack-id",
 			false,
 		},
 		{
 			"successful-call",
 			stackSpec{name: "foo", securityGroupID: "bar", vpcID: "baz"},
-			cfMockOutputs{updateStack: R(mockUSOutput("fake-stack-id"), nil)},
+			fake.CFOutputs{UpdateStack: fake.R(fake.MockUSOutput("fake-stack-id"), nil)},
 			"fake-stack-id",
 			false,
 		},
 		{
 			"fail-call",
 			stackSpec{name: "foo", securityGroupID: "bar", vpcID: "baz"},
-			cfMockOutputs{updateStack: R(nil, errDummy)},
+			fake.CFOutputs{UpdateStack: fake.R(nil, fake.ErrDummy)},
 			"fake-stack-id",
 			true,
 		},
@@ -147,7 +149,7 @@ func TestUpdatingStack(t *testing.T) {
 				vpcID:           "baz",
 				wafWebAclId:     "foo-bar-baz",
 			},
-			cfMockOutputs{updateStack: R(mockUSOutput("fake-stack-id"), nil)},
+			fake.CFOutputs{UpdateStack: fake.R(fake.MockUSOutput("fake-stack-id"), nil)},
 			"fake-stack-id",
 			false,
 		},
@@ -160,7 +162,7 @@ func TestUpdatingStack(t *testing.T) {
 				loadbalancerType: LoadBalancerTypeApplication,
 				httpTargetPort:   7777,
 			},
-			cfMockOutputs{updateStack: R(mockUSOutput("fake-stack-id"), nil)},
+			fake.CFOutputs{UpdateStack: fake.R(fake.MockUSOutput("fake-stack-id"), nil)},
 			"fake-stack-id",
 			false,
 		},
@@ -173,13 +175,13 @@ func TestUpdatingStack(t *testing.T) {
 				loadbalancerType: LoadBalancerTypeNetwork,
 				httpTargetPort:   8888,
 			},
-			cfMockOutputs{updateStack: R(mockUSOutput("fake-stack-id"), nil)},
+			fake.CFOutputs{UpdateStack: fake.R(fake.MockUSOutput("fake-stack-id"), nil)},
 			"fake-stack-id",
 			false,
 		},
 	} {
 		t.Run(ti.name, func(t *testing.T) {
-			c := &mockCloudFormationClient{outputs: ti.givenOutputs}
+			c := &fake.CFClient{Outputs: ti.givenOutputs}
 			got, err := updateStack(c, &ti.givenSpec)
 			if ti.wantErr {
 				if !ti.wantErr {
@@ -198,30 +200,30 @@ func TestDeleteStack(t *testing.T) {
 	for _, ti := range []struct {
 		msg          string
 		givenSpec    stackSpec
-		givenOutputs cfMockOutputs
+		givenOutputs fake.CFOutputs
 		wantErr      bool
 	}{
 		{
 			"delete-existing-stack",
 			stackSpec{name: "existing-stack-id"},
-			cfMockOutputs{
-				deleteStack:                 R(mockDeleteStackOutput("existing-stack-id"), nil),
-				updateTerminationProtection: R(nil, nil),
+			fake.CFOutputs{
+				DeleteStack:                 fake.R(fake.MockDeleteStackOutput("existing-stack-id"), nil),
+				UpdateTerminationProtection: fake.R(nil, nil),
 			},
 			false,
 		},
 		{
 			"delete-non-existing-stack",
 			stackSpec{name: "non-existing-stack-id"},
-			cfMockOutputs{
-				deleteStack:                 R(mockDeleteStackOutput("existing-stack-id"), nil),
-				updateTerminationProtection: R(nil, nil),
+			fake.CFOutputs{
+				DeleteStack:                 fake.R(fake.MockDeleteStackOutput("existing-stack-id"), nil),
+				UpdateTerminationProtection: fake.R(nil, nil),
 			},
 			false,
 		},
 	} {
 		t.Run(ti.msg, func(t *testing.T) {
-			c := &mockCloudFormationClient{outputs: ti.givenOutputs}
+			c := &fake.CFClient{Outputs: ti.givenOutputs}
 			err := deleteStack(c, ti.givenSpec.name)
 			haveErr := err != nil
 			if haveErr != ti.wantErr {
@@ -388,15 +390,15 @@ func TestConvertStackParameters(t *testing.T) {
 func TestFindManagedStacks(t *testing.T) {
 	for _, ti := range []struct {
 		name    string
-		given   cfMockOutputs
+		given   fake.CFOutputs
 		want    []*Stack
 		wantErr bool
 	}{
 		{
 			name: "successful-call",
-			given: cfMockOutputs{
-				describeStackPages: R(nil, nil),
-				describeStacks: R(&cloudformation.DescribeStacksOutput{
+			given: fake.CFOutputs{
+				DescribeStackPages: fake.R(nil, nil),
+				DescribeStacks: fake.R(&cloudformation.DescribeStacksOutput{
 					Stacks: []*cloudformation.Stack{
 						{
 							StackName:   aws.String("managed-stack-not-ready"),
@@ -473,7 +475,7 @@ func TestFindManagedStacks(t *testing.T) {
 					Name:    "managed-stack-not-ready",
 					DNSName: "example-notready.com",
 					CertificateARNs: map[string]time.Time{
-						"cert-arn": time.Time{},
+						"cert-arn": {},
 					},
 					TargetGroupARNs: []string{"tg-arn"},
 					tags: map[string]string{
@@ -488,7 +490,7 @@ func TestFindManagedStacks(t *testing.T) {
 					Name:    "managed-stack",
 					DNSName: "example.com",
 					CertificateARNs: map[string]time.Time{
-						"cert-arn": time.Time{},
+						"cert-arn": {},
 					},
 					TargetGroupARNs: []string{"tg-arn"},
 					tags: map[string]string{
@@ -503,7 +505,7 @@ func TestFindManagedStacks(t *testing.T) {
 					Name:    "managed-stack-http-arn",
 					DNSName: "example.com",
 					CertificateARNs: map[string]time.Time{
-						"cert-arn": time.Time{},
+						"cert-arn": {},
 					},
 					TargetGroupARNs: []string{"tg-arn", "http-tg-arn"},
 					tags: map[string]string{
@@ -529,9 +531,9 @@ func TestFindManagedStacks(t *testing.T) {
 		},
 		{
 			name: "no-ready-stacks",
-			given: cfMockOutputs{
-				describeStackPages: R(nil, nil),
-				describeStacks: R(&cloudformation.DescribeStacksOutput{
+			given: fake.CFOutputs{
+				DescribeStackPages: fake.R(nil, nil),
+				DescribeStacks: fake.R(&cloudformation.DescribeStacksOutput{
 					Stacks: []*cloudformation.Stack{
 						{
 							StackName:   aws.String("managed-stack-not-ready"),
@@ -590,24 +592,24 @@ func TestFindManagedStacks(t *testing.T) {
 		},
 		{
 			"failed-paging",
-			cfMockOutputs{
-				describeStackPages: R(nil, errDummy),
-				describeStacks:     R(&cloudformation.DescribeStacksOutput{}, nil),
+			fake.CFOutputs{
+				DescribeStackPages: fake.R(nil, fake.ErrDummy),
+				DescribeStacks:     fake.R(&cloudformation.DescribeStacksOutput{}, nil),
 			},
 			nil,
 			true,
 		},
 		{
 			"failed-describe-page",
-			cfMockOutputs{
-				describeStacks: R(nil, errDummy),
+			fake.CFOutputs{
+				DescribeStacks: fake.R(nil, fake.ErrDummy),
 			},
 			nil,
 			true,
 		},
 	} {
 		t.Run(ti.name, func(t *testing.T) {
-			c := &mockCloudFormationClient{outputs: ti.given}
+			c := &fake.CFClient{Outputs: ti.given}
 			got, err := findManagedStacks(c, "test-cluster", DefaultControllerID)
 			if err != nil {
 				if !ti.wantErr {
@@ -625,15 +627,15 @@ func TestFindManagedStacks(t *testing.T) {
 func TestGetStack(t *testing.T) {
 	for _, ti := range []struct {
 		name    string
-		given   cfMockOutputs
+		given   fake.CFOutputs
 		want    *Stack
 		wantErr bool
 	}{
 		{
 			name: "successful-call",
-			given: cfMockOutputs{
-				describeStackPages: R(nil, nil),
-				describeStacks: R(&cloudformation.DescribeStacksOutput{
+			given: fake.CFOutputs{
+				DescribeStackPages: fake.R(nil, nil),
+				DescribeStacks: fake.R(&cloudformation.DescribeStacksOutput{
 					Stacks: []*cloudformation.Stack{
 						{
 							StackName:   aws.String("managed-stack"),
@@ -655,7 +657,7 @@ func TestGetStack(t *testing.T) {
 				Name:    "managed-stack",
 				DNSName: "example.com",
 				CertificateARNs: map[string]time.Time{
-					"cert-arn": time.Time{},
+					"cert-arn": {},
 				},
 				TargetGroupARNs: []string{"tg-arn"},
 				tags: map[string]string{
@@ -670,9 +672,9 @@ func TestGetStack(t *testing.T) {
 		},
 		{
 			name: "successful-call-http-arn",
-			given: cfMockOutputs{
-				describeStackPages: R(nil, nil),
-				describeStacks: R(&cloudformation.DescribeStacksOutput{
+			given: fake.CFOutputs{
+				DescribeStackPages: fake.R(nil, nil),
+				DescribeStacks: fake.R(&cloudformation.DescribeStacksOutput{
 					Stacks: []*cloudformation.Stack{
 						{
 							StackName:   aws.String("managed-stack"),
@@ -695,7 +697,7 @@ func TestGetStack(t *testing.T) {
 				Name:    "managed-stack",
 				DNSName: "example.com",
 				CertificateARNs: map[string]time.Time{
-					"cert-arn": time.Time{},
+					"cert-arn": {},
 				},
 				TargetGroupARNs: []string{"tg-arn", "tg-http-arn"},
 				tags: map[string]string{
@@ -710,9 +712,9 @@ func TestGetStack(t *testing.T) {
 		},
 		{
 			name: "no-ready-stacks",
-			given: cfMockOutputs{
-				describeStackPages: R(nil, nil),
-				describeStacks: R(&cloudformation.DescribeStacksOutput{
+			given: fake.CFOutputs{
+				DescribeStackPages: fake.R(nil, nil),
+				DescribeStacks: fake.R(&cloudformation.DescribeStacksOutput{
 					Stacks: []*cloudformation.Stack{},
 				}, nil),
 			},
@@ -721,24 +723,24 @@ func TestGetStack(t *testing.T) {
 		},
 		{
 			"failed-paging",
-			cfMockOutputs{
-				describeStackPages: R(nil, errDummy),
-				describeStacks:     R(&cloudformation.DescribeStacksOutput{}, nil),
+			fake.CFOutputs{
+				DescribeStackPages: fake.R(nil, fake.ErrDummy),
+				DescribeStacks:     fake.R(&cloudformation.DescribeStacksOutput{}, nil),
 			},
 			nil,
 			true,
 		},
 		{
 			"failed-describe-page",
-			cfMockOutputs{
-				describeStacks: R(nil, errDummy),
+			fake.CFOutputs{
+				DescribeStacks: fake.R(nil, fake.ErrDummy),
 			},
 			nil,
 			true,
 		},
 	} {
 		t.Run(ti.name, func(t *testing.T) {
-			c := &mockCloudFormationClient{outputs: ti.given}
+			c := &fake.CFClient{Outputs: ti.given}
 			s, err := getStack(c, "dontcare")
 			if err != nil {
 				if !ti.wantErr {

@@ -51,6 +51,7 @@ var (
 	disableSNISupport             bool
 	disableInstrumentedHttpClient bool
 	certTTL                       time.Duration
+	certFilterTag                 string
 	stackTerminationProtection    bool
 	additionalStackTags           = make(map[string]string)
 	idleConnectionTimeout         time.Duration
@@ -115,6 +116,9 @@ func loadSettings() error {
 		StringMapVar(&additionalStackTags)
 	kingpin.Flag("cert-ttl-timeout", "sets the timeout of how long a certificate is kept on an old ALB to be decommissioned.").
 		Default(defaultCertTTL).DurationVar(&certTTL)
+
+	kingpin.Flag("cert-filter-tag", "sets a tag so the ingress controller only consider ACM or IAM certificates that have this tag set when adding a certificate to a load balancer.").
+		Default("").StringVar(&certFilterTag)
 	kingpin.Flag("health-check-path", "sets the health check path for the created target groups").
 		Default(aws.DefaultHealthCheckPath).StringVar(&healthCheckPath)
 	kingpin.Flag("health-check-port", "sets the health check port for the created target groups").
@@ -185,8 +189,12 @@ func loadSettings() error {
 		Default("text/plain").StringVar(&denyInternalRespContentType)
 	kingpin.Flag("deny-internal-domains-response-status-code", "Defines the response status code for a request identified as to an internal domain when -deny-internal-domains is set.").
 		Default("401").IntVar(&denyInternalRespStatusCode)
-	kingpin.Flag("target-access-mode", "Target group accessing Ingress via HostPort or AWS VPC CNI. Set to ASG for HostPort access or CNI for pod direct IP access.").
-		Default(aws.TargetAccessModeHostPort).EnumVar(&targetAccessMode, aws.TargetAccessModeHostPort, aws.TargetAccessModeAWSCNI)
+	kingpin.Flag("target-access-mode", "Defines target type of the target groups in CloudFormation and how loadbalancer targets are discovered. "+
+		"HostPort sets target type to 'instance' and discovers EC2 instances using AWS API and instance filters. "+
+		"AWSCNI sets target type to 'ip' and discovers target IPs using Kubernetes API and Pod label selector. "+
+		"Legacy is the same as HostPort but does not set target type and relies on CloudFormation to use 'instance' as a default value. "+
+		"Changing value from 'Legacy' to 'HostPort' will change target type in CloudFormation and trigger target group recreation and downtime.").
+		Required().EnumVar(&targetAccessMode, aws.TargetAccessModeHostPort, aws.TargetAccessModeAWSCNI, aws.TargetAccessModeLegacy)
 	kingpin.Flag("target-cni-namespace", "AWS VPC CNI only. Defines the namespace for ingress pods that should be linked to target group.").StringVar(&targetCNINamespace)
 	// LabelSelector semantics https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/#label-selectors
 	kingpin.Flag("target-cni-pod-labelselector", "AWS VPC CNI only. Defines the labelselector for ingress pods that should be linked to target group. Supports simple equality and multi value form (a=x,b=y) as well as complex forms (a IN (x,y,z).").StringVar(&targetCNIPodLabelSelector)
@@ -244,10 +252,14 @@ func loadSettings() error {
 	if cwAlarmConfigMap != "" {
 		loc, err := kubernetes.ParseResourceLocation(cwAlarmConfigMap)
 		if err != nil {
-			return fmt.Errorf("failed to parse cloudwatch alarm config map location: %v", err)
+			return fmt.Errorf("failed to parse cloudwatch alarm config map location: %w", err)
 		}
 
 		cwAlarmConfigMapLocation = loc
+	}
+
+	if kv := strings.Split(certFilterTag, "="); len(kv) != 2 && certFilterTag != "" {
+		log.Errorf("Certificate filter tag should be in the format \"key=value\", instead it is set to: %s", certFilterTag)
 	}
 
 	if quietFlag && debugFlag {
@@ -338,8 +350,8 @@ func main() {
 	certificatesProvider, err := certs.NewCachingProvider(
 		certPollingInterval,
 		blacklistCertArnMap,
-		awsAdapter.NewACMCertificateProvider(),
-		awsAdapter.NewIAMCertificateProvider(),
+		awsAdapter.NewACMCertificateProvider(certFilterTag),
+		awsAdapter.NewIAMCertificateProvider(certFilterTag),
 	)
 	if err != nil {
 		log.Fatal(err)

@@ -109,10 +109,7 @@ func testFilterTags(filterTags map[string][]string, asgTags map[string]string) b
 			return false
 		}
 	}
-	if len(filterTags) == len(matches) {
-		return true
-	}
-	return false
+	return len(filterTags) == len(matches)
 }
 
 func getOwnedAndTargetedAutoScalingGroups(service autoscalingiface.AutoScalingAPI, filterTags map[string][]string, ownedTags map[string]string) (map[string]*autoScalingGroupDetails, map[string]*autoScalingGroupDetails, error) {

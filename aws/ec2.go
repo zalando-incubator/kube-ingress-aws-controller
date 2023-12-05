@@ -96,12 +96,12 @@ func getInstanceDetails(ec2Service ec2iface.EC2API, instanceID string) (*instanc
 	}
 	resp, err := ec2Service.DescribeInstances(params)
 	if err != nil || resp == nil {
-		return nil, fmt.Errorf("unable to get details for instance %q: %v", instanceID, err)
+		return nil, fmt.Errorf("unable to get details for instance %q: %w", instanceID, err)
 	}
 
 	i, err := findFirstRunningInstance(resp)
 	if err != nil {
-		return nil, fmt.Errorf("unable to find instance %q: %v", instanceID, err)
+		return nil, fmt.Errorf("unable to find instance %q: %w", instanceID, err)
 	}
 
 	return &instanceDetails{
@@ -133,7 +133,7 @@ func getInstancesDetailsWithFilters(ec2Service ec2iface.EC2API, filters []*ec2.F
 		return true
 	})
 	if err != nil {
-		return nil, fmt.Errorf("failed getting instance list from EC2: %v", err)
+		return nil, fmt.Errorf("failed getting instance list from EC2: %w", err)
 	}
 
 	return result, nil
@@ -283,25 +283,13 @@ func findSecurityGroupWithClusterID(svc ec2iface.EC2API, clusterID string, contr
 	params := &ec2.DescribeSecurityGroupsInput{
 		Filters: []*ec2.Filter{
 			{
-				Name: aws.String("tag-key"),
-				Values: []*string{
-					aws.String(clusterIDTagPrefix + clusterID),
-				},
-			},
-			{
-				Name: aws.String("tag-value"),
+				Name: aws.String("tag:" + clusterIDTagPrefix + clusterID),
 				Values: []*string{
 					aws.String(resourceLifecycleOwned),
 				},
 			},
 			{
-				Name: aws.String("tag-key"),
-				Values: []*string{
-					aws.String(kubernetesCreatorTag),
-				},
-			},
-			{
-				Name: aws.String("tag-value"),
+				Name: aws.String("tag:" + kubernetesCreatorTag),
 				Values: []*string{
 					aws.String(controllerID),
 				},

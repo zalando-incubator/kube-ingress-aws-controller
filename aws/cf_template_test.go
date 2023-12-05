@@ -615,28 +615,42 @@ func TestGenerateTemplate(t *testing.T) {
 			},
 		},
 		{
-			name: "Default TG type is Instance",
+			name: "Default TG type is not set",
 			spec: &stackSpec{
 				loadbalancerType: LoadBalancerTypeApplication,
+				targetType:       "",
 			},
 			validate: func(t *testing.T, template *cloudformation.Template) {
 				require.NotNil(t, template.Resources, "TG")
-				tg, ok := template.Resources["TG"].Properties.(*cloudformation.ElasticLoadBalancingV2TargetGroup)
-				require.True(t, ok, "couldn't convert resource to ElasticLoadBalancingV2TargetGroup")
-				require.Equal(t, cloudformation.String("instance"), tg.TargetType)
+				tg := template.Resources["TG"].Properties.(*cloudformation.ElasticLoadBalancingV2TargetGroup)
+
+				assert.Nil(t, tg.TargetType)
 			},
 		},
 		{
-			name: "TG type is IP in in mode AWS CNI",
+			name: "Sets 'instance' TG type",
 			spec: &stackSpec{
-				loadbalancerType:    LoadBalancerTypeApplication,
-				targetAccessModeCNI: true,
+				loadbalancerType: LoadBalancerTypeApplication,
+				targetType:       "instance",
 			},
 			validate: func(t *testing.T, template *cloudformation.Template) {
 				require.NotNil(t, template.Resources, "TG")
-				tg, ok := template.Resources["TG"].Properties.(*cloudformation.ElasticLoadBalancingV2TargetGroup)
-				require.True(t, ok, "couldn't convert resource to ElasticLoadBalancingV2TargetGroup")
-				require.Equal(t, cloudformation.String("ip"), tg.TargetType)
+				tg := template.Resources["TG"].Properties.(*cloudformation.ElasticLoadBalancingV2TargetGroup)
+
+				assert.Equal(t, cloudformation.String("instance"), tg.TargetType)
+			},
+		},
+		{
+			name: "Sets 'ip' TG type",
+			spec: &stackSpec{
+				loadbalancerType: LoadBalancerTypeApplication,
+				targetType:       "ip",
+			},
+			validate: func(t *testing.T, template *cloudformation.Template) {
+				require.NotNil(t, template.Resources, "TG")
+				tg := template.Resources["TG"].Properties.(*cloudformation.ElasticLoadBalancingV2TargetGroup)
+
+				assert.Equal(t, cloudformation.String("ip"), tg.TargetType)
 			},
 		},
 	} {

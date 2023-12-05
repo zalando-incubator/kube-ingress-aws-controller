@@ -154,8 +154,12 @@ func (c *simpleClient) createRequest(method, resource string, body io.Reader) (*
 	if c.cfg.UserAgent != "" {
 		req.Header.Set("User-Agent", c.cfg.UserAgent)
 	}
-	if c.cfg.BearerToken != "" {
-		req.Header.Set("Authorization", "Bearer "+c.cfg.BearerToken)
+	if c.cfg.TokenProvider != nil {
+		token, ok := c.cfg.TokenProvider.GetSecret(serviceAccountDir + serviceAccountTokenKey)
+		if !ok {
+			return nil, fmt.Errorf("secret not found: %v", serviceAccountTokenKey)
+		}
+		req.Header.Set("Authorization", "Bearer "+string(token))
 	}
 	return req, nil
 }
@@ -163,7 +167,7 @@ func (c *simpleClient) createRequest(method, resource string, body io.Reader) (*
 func (a *Adapter) NewInclusterConfigClientset(ctx context.Context) error {
 	cfg, err := rest.InClusterConfig()
 	if err != nil {
-		return fmt.Errorf("Can't get in cluster config: %w", err)
+		return fmt.Errorf("can't get in cluster config: %w", err)
 	}
 	// cfg.Timeout = timeout
 	trCfg, err := cfg.TransportConfig()

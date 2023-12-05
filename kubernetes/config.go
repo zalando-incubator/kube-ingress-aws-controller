@@ -1,9 +1,12 @@
 package kubernetes
 
 import (
+	"fmt"
 	"net"
 	"os"
 	"time"
+
+	"github.com/zalando/skipper/secrets"
 )
 
 // Config holds the common attributes that can be passed to a
@@ -17,7 +20,7 @@ type Config struct {
 	// Server requires Bearer authentication. This client will not
 	// attempt to use refresh tokens for an OAuth2 flow.
 	// TODO: demonstrate an OAuth2 compatible client.
-	BearerToken string
+	TokenProvider secrets.SecretsProvider
 
 	// TLSClientConfig contains settings to enable transport layer
 	// security
@@ -67,10 +70,13 @@ func InClusterConfig() (*Config, error) {
 	}
 
 	dir := serviceAccountLocator()
-	token, err := os.ReadFile(dir + serviceAccountTokenKey)
+	tokenProvider := secrets.NewSecretPaths(time.Minute)
+	err := tokenProvider.Add(dir + serviceAccountTokenKey)
+
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error when adding token file to token provider: %w", err)
 	}
+
 	rootCAFile := dir + serviceAccountRootCAKey
 	if _, err := os.Stat(rootCAFile); os.IsNotExist(err) {
 		return nil, err
@@ -79,7 +85,7 @@ func InClusterConfig() (*Config, error) {
 	return &Config{
 		BaseURL:         "https://" + net.JoinHostPort(host, port),
 		UserAgent:       "kube-ingress-aws-controller",
-		BearerToken:     string(token),
+		TokenProvider:   tokenProvider,
 		Timeout:         10 * time.Second,
 		TLSClientConfig: TLSClientConfig{CAFile: rootCAFile},
 	}, nil

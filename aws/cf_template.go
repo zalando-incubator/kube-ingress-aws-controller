@@ -8,7 +8,6 @@ import (
 	"crypto/sha256"
 	"sort"
 
-	"github.com/aws/aws-sdk-go/service/elbv2"
 	cloudformation "github.com/mweagle/go-cloudformation"
 )
 
@@ -42,64 +41,64 @@ func generateTemplate(spec *stackSpec) (string, error) {
 	template := cloudformation.NewTemplate()
 	template.Description = "Load Balancer for Kubernetes Ingress"
 	template.Parameters = map[string]*cloudformation.Parameter{
-		parameterLoadBalancerSchemeParameter: &cloudformation.Parameter{
+		parameterLoadBalancerSchemeParameter: {
 			Type:        "String",
 			Description: "The Load Balancer scheme - 'internal' or 'internet-facing'",
 			Default:     "internet-facing",
 		},
-		parameterLoadBalancerSecurityGroupParameter: &cloudformation.Parameter{
+		parameterLoadBalancerSecurityGroupParameter: {
 			Type:        "List<AWS::EC2::SecurityGroup::Id>",
 			Description: "The security group ID for the Load Balancer",
 		},
-		parameterLoadBalancerSubnetsParameter: &cloudformation.Parameter{
+		parameterLoadBalancerSubnetsParameter: {
 			Type:        "List<AWS::EC2::Subnet::Id>",
 			Description: "The list of subnets IDs for the Load Balancer",
 		},
-		parameterTargetGroupHealthCheckPathParameter: &cloudformation.Parameter{
+		parameterTargetGroupHealthCheckPathParameter: {
 			Type:        "String",
 			Description: "The healthcheck path",
 			Default:     "/kube-system/healthz",
 		},
-		parameterTargetGroupHealthCheckPortParameter: &cloudformation.Parameter{
+		parameterTargetGroupHealthCheckPortParameter: {
 			Type:        "Number",
 			Description: "The healthcheck port",
 			Default:     "9999",
 		},
-		parameterTargetGroupTargetPortParameter: &cloudformation.Parameter{
+		parameterTargetGroupTargetPortParameter: {
 			Type:        "Number",
 			Description: "The target port",
 			Default:     "9999",
 		},
-		parameterTargetGroupHealthCheckIntervalParameter: &cloudformation.Parameter{
+		parameterTargetGroupHealthCheckIntervalParameter: {
 			Type:        "Number",
 			Description: "The healthcheck interval",
 			Default:     "10",
 		},
-		parameterTargetGroupHealthCheckTimeoutParameter: &cloudformation.Parameter{
+		parameterTargetGroupHealthCheckTimeoutParameter: {
 			Type:        "Number",
 			Description: "The healthcheck timeout",
 			Default:     "5",
 		},
-		parameterTargetGroupVPCIDParameter: &cloudformation.Parameter{
+		parameterTargetGroupVPCIDParameter: {
 			Type:        "AWS::EC2::VPC::Id",
 			Description: "The VPCID for the TargetGroup",
 		},
-		parameterListenerSslPolicyParameter: &cloudformation.Parameter{
+		parameterListenerSslPolicyParameter: {
 			Type:        "String",
 			Description: "The HTTPS SSL Security Policy Name",
 			Default:     "ELBSecurityPolicy-2016-08",
 		},
-		parameterIpAddressTypeParameter: &cloudformation.Parameter{
+		parameterIpAddressTypeParameter: {
 			Type:        "String",
 			Description: "IP Address Type, 'ipv4' or 'dualstack'",
 			Default:     IPAddressTypeIPV4,
 		},
-		parameterLoadBalancerTypeParameter: &cloudformation.Parameter{
+		parameterLoadBalancerTypeParameter: {
 			Type:        "String",
 			Description: "Loadbalancer Type, 'application' or 'network'",
 			Default:     LoadBalancerTypeApplication,
 		},
-		parameterHTTP2Parameter: &cloudformation.Parameter{
+		parameterHTTP2Parameter: {
 			Type:        "String",
 			Description: "H2 Enabled",
 			Default:     "true",
@@ -116,11 +115,11 @@ func generateTemplate(spec *stackSpec) (string, error) {
 	const httpsTargetGroupName = "TG"
 
 	template.Outputs = map[string]*cloudformation.Output{
-		outputLoadBalancerDNSName: &cloudformation.Output{
+		outputLoadBalancerDNSName: {
 			Description: "DNS name for the LoadBalancer",
 			Value:       cloudformation.GetAtt("LB", "DNSName").String(),
 		},
-		outputTargetGroupARN: &cloudformation.Output{
+		outputTargetGroupARN: {
 			Description: "The ARN of the TargetGroup",
 			Value:       cloudformation.Ref(httpsTargetGroupName).String(),
 		},
@@ -445,10 +444,11 @@ func generateDenyInternalTrafficRule(listenerName string, rulePriority int64, in
 }
 
 func newTargetGroup(spec *stackSpec, targetPortParameter string) *cloudformation.ElasticLoadBalancingV2TargetGroup {
-	targetType := elbv2.TargetTypeEnumInstance
-	if spec.targetAccessModeCNI {
-		targetType = elbv2.TargetTypeEnumIp
+	var targetType *cloudformation.StringExpr
+	if spec.targetType != "" {
+		targetType = cloudformation.String(spec.targetType)
 	}
+
 	protocol := "HTTP"
 	healthCheckProtocol := "HTTP"
 	healthyThresholdCount, unhealthyThresholdCount := spec.albHealthyThresholdCount, spec.albUnhealthyThresholdCount
@@ -477,7 +477,7 @@ func newTargetGroup(spec *stackSpec, targetPortParameter string) *cloudformation
 		UnhealthyThresholdCount:    cloudformation.Integer(int64(unhealthyThresholdCount)),
 		Port:                       cloudformation.Ref(targetPortParameter).Integer(),
 		Protocol:                   cloudformation.String(protocol),
-		TargetType:                 cloudformation.String(targetType),
+		TargetType:                 targetType,
 		VPCID:                      cloudformation.Ref(parameterTargetGroupVPCIDParameter).String(),
 	}
 

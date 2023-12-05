@@ -19,18 +19,26 @@ pipeline:
       git diff --exit-code || exit 1
   - desc: Push docker image
     cmd: |
-      if [[ $CDP_TARGET_BRANCH == master && ! $CDP_PULL_REQUEST_NUMBER ]]; then
-        IMAGE=registry-write.opensource.zalan.do/teapot/kube-ingress-aws-controller
-        VERSION=$(git describe --tags --always --dirty)
-      else
+      if [ -n "$CDP_PULL_REQUEST_NUMBER" ]; then
         IMAGE=registry-write.opensource.zalan.do/teapot/kube-ingress-aws-controller-test
         VERSION=$CDP_BUILD_VERSION
         IMAGE=$IMAGE VERSION=$VERSION make build.push
+
+        # multi-arch image
+        IMAGE=container-registry-test.zalando.net/teapot/kube-ingress-aws-controller
+
+        make build.linux.amd64 build.linux.arm64
+
+        docker buildx create --config /etc/cdp-buildkitd.toml --driver-opt network=host --bootstrap --use
+        docker buildx build --rm --build-arg BASE_IMAGE=container-registry.zalando.net/library/alpine-3:latest -t "${IMAGE}:${CDP_BUILD_VERSION}" --platform linux/amd64,linux/arm64 --push .
       fi
+
 - id: buildprod
   when:
     branch: master
-  overlay: ci/golang
+  vm_config:
+    type: linux
+    image: "cdp-runtime/go"
   type: script
   env:
     GOFLAGS: "-mod=readonly"
@@ -55,6 +63,14 @@ pipeline:
       IMAGE=$IMAGE VERSION=$VERSION make build.docker
       git diff --stat --exit-code
       IMAGE=$IMAGE VERSION=$VERSION make build.push
+
+      # multi-arch image (Zalando private)
+      make build.linux.amd64 build.linux.arm64
+      IMAGE=container-registry-test.zalando.net/teapot/kube-ingress-aws-controller
+      docker buildx create --config /etc/cdp-buildkitd.toml --driver-opt network=host --bootstrap --use
+      docker buildx build --rm --build-arg BASE_IMAGE=container-registry.zalando.net/library/alpine-3:latest -t "${IMAGE}:${VERSION}" --platform linux/amd64,linux/arm64 --push .
+      cdp-promote-image "${IMAGE}:${VERSION}"
+
       echo "create release page"
       tf=$(mktemp)
       echo -e "### Changes\n" >$tf
