@@ -11,14 +11,16 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/stretchr/testify/require"
 )
 
 func TestListIngresses(t *testing.T) {
 	testServer := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
-		f, _ := os.Open("testdata/fixture01.json")
+		f, _ := os.Open("testdata/fixture03.json")
 		defer f.Close()
 		rw.WriteHeader(http.StatusOK)
-		io.Copy(rw, f)
+		_, err := io.Copy(rw, f)
+		require.NoError(t, err)
 	}))
 	defer testServer.Close()
 	kubeClient, _ := newSimpleClient(&Config{BaseURL: testServer.URL}, false)
@@ -28,7 +30,6 @@ func TestListIngresses(t *testing.T) {
 		newIngress("fixture02", map[string]string{ingressClassAnnotation: "skipper"}, "", "skipper.example.org", "fixture02", IngressAPIVersionNetworking),
 		newIngress("fixture03", map[string]string{ingressClassAnnotation: "other"}, "", "other.example.org", "fixture03", IngressAPIVersionNetworking),
 		newIngress("fixture04", nil, "another", "another.example.org", "fixture04", IngressAPIVersionNetworking),
-		newIngress("fixture05", map[string]string{ingressClassAnnotation: "yet-another-ignored"}, "yet-another", "yet-another.example.org", "fixture05", IngressAPIVersionNetworking),
 	)
 	got, err := ingressClient.listIngress(kubeClient)
 	if err != nil {
