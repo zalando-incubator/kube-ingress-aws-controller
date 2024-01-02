@@ -12,6 +12,7 @@ type CFOutputs struct {
 	CreateStack                 *APIResponse
 	UpdateStack                 *APIResponse
 	DeleteStack                 *APIResponse
+	RollbackStack               *APIResponse
 	UpdateTerminationProtection *APIResponse
 }
 
@@ -121,4 +122,18 @@ func (m *CFClient) UpdateTerminationProtection(params *cloudformation.UpdateTerm
 		return nil, m.Outputs.UpdateTerminationProtection.err
 	}
 	return out, m.Outputs.UpdateTerminationProtection.err
+}
+
+func (m *CFClient) RollbackStack(params *cloudformation.RollbackStackInput) (*cloudformation.RollbackStackOutput, error) {
+	out, ok := m.Outputs.RollbackStack.response.(*cloudformation.RollbackStackOutput)
+	if !ok {
+		return nil, m.Outputs.RollbackStack.err
+	}
+	return out, m.Outputs.RollbackStack.err
+}
+
+func MockRollbackStackOutput(stackId string) *cloudformation.RollbackStackOutput {
+	return &cloudformation.RollbackStackOutput{
+		StackId: aws.String(stackId),
+	}
 }

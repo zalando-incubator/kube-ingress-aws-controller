@@ -530,6 +530,41 @@ func TestFindManagedStacks(t *testing.T) {
 			wantErr: false,
 		},
 		{
+			name: "successfull-call-with-rollback-status",
+			given: fake.CFOutputs{
+				DescribeStackPages: fake.R(nil, nil),
+				DescribeStacks: fake.R(&cloudformation.DescribeStacksOutput{
+					Stacks: []*cloudformation.Stack{
+						{
+							StackName:   aws.String("managed-stack-rolling-back"),
+							StackStatus: aws.String(cloudformation.StackStatusRollbackInProgress),
+							Tags: []*cloudformation.Tag{
+								cfTag(kubernetesCreatorTag, DefaultControllerID),
+								cfTag(clusterIDTagPrefix+"test-cluster", resourceLifecycleOwned),
+								cfTag(certificateARNTagPrefix+"cert-arn", time.Time{}.Format(time.RFC3339)),
+							},
+							Outputs: []*cloudformation.Output{},
+						},
+					},
+				}, nil),
+			},
+			want: []*Stack{
+				{
+					Name: "managed-stack-rolling-back",
+					CertificateARNs: map[string]time.Time{
+						"cert-arn": {},
+					},
+					tags: map[string]string{
+						kubernetesCreatorTag:                 DefaultControllerID,
+						clusterIDTagPrefix + "test-cluster":  resourceLifecycleOwned,
+						certificateARNTagPrefix + "cert-arn": time.Time{}.Format(time.RFC3339),
+					},
+					status: cloudformation.StackStatusRollbackInProgress,
+					HTTP2:  true,
+				},
+			},
+		},
+		{
 			name: "no-ready-stacks",
 			given: fake.CFOutputs{
 				DescribeStackPages: fake.R(nil, nil),
