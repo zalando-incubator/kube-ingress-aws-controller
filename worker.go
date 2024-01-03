@@ -36,6 +36,7 @@ type loadBalancer struct {
 	certTTL                      time.Duration
 	cwAlarms                     aws.CloudWatchAlarmList
 	loadBalancerType             string
+	extraListeners               []aws.ExtraListener
 }
 
 const (
@@ -384,6 +385,7 @@ func getAllLoadBalancers(certs CertificatesFinder, certTTL time.Duration, stacks
 			ipAddressType:                stack.IpAddressType,
 			loadBalancerType:             stack.LoadBalancerType,
 			http2:                        stack.HTTP2,
+			extraListeners:               stack.ExtraListeners,
 			wafWebACLID:                  stack.WAFWebACLID,
 			certTTL:                      certTTL,
 		}
@@ -477,6 +479,7 @@ func matchIngressesToLoadBalancers(
 					loadBalancerType: ingress.LoadBalancerType,
 					http2:            ingress.HTTP2,
 					wafWebACLID:      ingress.WAFWebACLID,
+					extraListeners:   ingress.ExtraListeners,
 				},
 			)
 		}
@@ -534,7 +537,7 @@ func createStack(awsAdapter *aws.Adapter, lb *loadBalancer, problems *problem.Li
 
 	log.Infof("Creating stack for certificates %q / ingress %q", certificates, lb.ingresses)
 
-	stackId, err := awsAdapter.CreateStack(certificates, lb.scheme, lb.securityGroup, lb.Owner(), lb.sslPolicy, lb.ipAddressType, lb.wafWebACLID, lb.cwAlarms, lb.loadBalancerType, lb.http2)
+	stackId, err := awsAdapter.CreateStack(certificates, lb.scheme, lb.securityGroup, lb.Owner(), lb.sslPolicy, lb.ipAddressType, lb.wafWebACLID, lb.cwAlarms, lb.loadBalancerType, lb.http2, lb.extraListeners)
 	if err != nil {
 		if isAlreadyExistsError(err) {
 			lb.stack, err = awsAdapter.GetStack(stackId)
@@ -554,7 +557,7 @@ func updateStack(awsAdapter *aws.Adapter, lb *loadBalancer, problems *problem.Li
 
 	log.Infof("Updating %q stack for %d certificates / %d ingresses", lb.scheme, len(certificates), len(lb.ingresses))
 
-	stackId, err := awsAdapter.UpdateStack(lb.stack.Name, certificates, lb.scheme, lb.securityGroup, lb.Owner(), lb.sslPolicy, lb.ipAddressType, lb.wafWebACLID, lb.cwAlarms, lb.loadBalancerType, lb.http2)
+	stackId, err := awsAdapter.UpdateStack(lb.stack.Name, certificates, lb.scheme, lb.securityGroup, lb.Owner(), lb.sslPolicy, lb.ipAddressType, lb.wafWebACLID, lb.cwAlarms, lb.loadBalancerType, lb.http2, lb.extraListeners)
 	if isNoUpdatesToBePerformedError(err) {
 		log.Debugf("Stack(%q) is already up to date", certificates)
 	} else if err != nil {
@@ -669,13 +672,13 @@ func getCloudWatchAlarmsFromConfigMap(configMap *kubernetes.ConfigMap) aws.Cloud
 // cniEventHandler syncronizes the events from kubernetes and the status updates from the load balancer controller.
 // Events updates a rate limited.
 func cniEventHandler(ctx context.Context, targetCNIcfg *aws.TargetCNIconfig,
-	targetSetter func([]string, []string) error, informer func(context.Context, chan<- []string) error) {
+	targetSetter func([]aws.CNIEndpoint, []aws.TargetGroupWithLabels) error, informer func(context.Context, chan<- []aws.CNIEndpoint) error) {
 	log.Infoln("Starting CNI event handler")
 
 	rateLimiter := time.NewTicker(cniEventRateLimit)
 	defer rateLimiter.Stop()
 
-	endpointCh := make(chan []string, 10)
+	endpointCh := make(chan []aws.CNIEndpoint, 10)
 	go func() {
 		err := informer(ctx, endpointCh)
 		if err != nil {
@@ -684,7 +687,8 @@ func cniEventHandler(ctx context.Context, targetCNIcfg *aws.TargetCNIconfig,
 		}
 	}()
 
-	var cniTargetGroupARNs, endpoints []string
+	var cniTargetGroupARNs []aws.TargetGroupWithLabels
+	var endpoints []aws.CNIEndpoint
 	for {
 		select {
 		case <-ctx.Done():

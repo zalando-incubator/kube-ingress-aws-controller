@@ -61,21 +61,22 @@ type ingressLoadBalancer struct {
 
 const (
 	// ingressALBIPAddressType is used in external-dns, https://github.com/kubernetes-incubator/external-dns/pull/1079
-	ingressALBIPAddressType           = "alb.ingress.kubernetes.io/ip-address-type"
-	IngressAPIVersionExtensions       = "extensions/v1beta1"
-	IngressAPIVersionNetworking       = "networking.k8s.io/v1beta1"
-	IngressAPIVersionNetworkingV1     = "networking.k8s.io/v1"
-	ingressListResource               = "/apis/%s/ingresses"
-	ingressPatchStatusResource        = "/apis/%s/namespaces/%s/ingresses/%s/status"
-	ingressCertificateARNAnnotation   = "zalando.org/aws-load-balancer-ssl-cert"
-	ingressSchemeAnnotation           = "zalando.org/aws-load-balancer-scheme"
-	ingressSharedAnnotation           = "zalando.org/aws-load-balancer-shared"
-	ingressSecurityGroupAnnotation    = "zalando.org/aws-load-balancer-security-group"
-	ingressSSLPolicyAnnotation        = "zalando.org/aws-load-balancer-ssl-policy"
-	ingressLoadBalancerTypeAnnotation = "zalando.org/aws-load-balancer-type"
-	ingressHTTP2Annotation            = "zalando.org/aws-load-balancer-http2"
-	ingressWAFWebACLIDAnnotation      = "zalando.org/aws-waf-web-acl-id"
-	ingressClassAnnotation            = "kubernetes.io/ingress.class"
+	ingressALBIPAddressType            = "alb.ingress.kubernetes.io/ip-address-type"
+	IngressAPIVersionExtensions        = "extensions/v1beta1"
+	IngressAPIVersionNetworking        = "networking.k8s.io/v1beta1"
+	IngressAPIVersionNetworkingV1      = "networking.k8s.io/v1"
+	ingressListResource                = "/apis/%s/ingresses"
+	ingressPatchStatusResource         = "/apis/%s/namespaces/%s/ingresses/%s/status"
+	ingressCertificateARNAnnotation    = "zalando.org/aws-load-balancer-ssl-cert"
+	ingressSchemeAnnotation            = "zalando.org/aws-load-balancer-scheme"
+	ingressSharedAnnotation            = "zalando.org/aws-load-balancer-shared"
+	ingressSecurityGroupAnnotation     = "zalando.org/aws-load-balancer-security-group"
+	ingressSSLPolicyAnnotation         = "zalando.org/aws-load-balancer-ssl-policy"
+	ingressLoadBalancerTypeAnnotation  = "zalando.org/aws-load-balancer-type"
+	ingressHTTP2Annotation             = "zalando.org/aws-load-balancer-http2"
+	ingressWAFWebACLIDAnnotation       = "zalando.org/aws-waf-web-acl-id"
+	ingressNLBExtraListenersAnnotation = "zalando.org/aws-nlb-extra-listeners"
+	ingressClassAnnotation             = "kubernetes.io/ingress.class"
 )
 
 func getAnnotationsString(annotations map[string]string, key string, defaultValue string) string {

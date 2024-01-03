@@ -66,6 +66,60 @@
         }
     },
     "Resources": {
+        "ExtraListener0": {
+            "Type": "AWS::ElasticLoadBalancingV2::Listener",
+            "Properties": {
+                "DefaultActions": [
+                    {
+                        "TargetGroupArn": {
+                            "Ref": "ExtraTG0"
+                        },
+                        "Type": "forward"
+                    }
+                ],
+                "LoadBalancerArn": {
+                    "Ref": "LB"
+                },
+                "Port": 22,
+                "Protocol": "TCP"
+            }
+        },
+        "ExtraTG0": {
+            "Type": "AWS::ElasticLoadBalancingV2::TargetGroup",
+            "Properties": {
+                "HealthCheckIntervalSeconds": {
+                    "Ref": "TargetGroupHealthCheckIntervalParameter"
+                },
+                "HealthCheckPath": {
+                    "Ref": "TargetGroupHealthCheckPathParameter"
+                },
+                "HealthCheckPort": "2222",
+                "HealthCheckProtocol": "TCP",
+                "HealthyThresholdCount": 0,
+                "Port": 2222,
+                "Protocol": "TCP",
+                "Tags": [
+                    {
+                        "Key": "ingress:podlabel",
+                        "Value": "application=ssh-service"
+                    },
+                    {
+                        "Key": "ingress:podnamespace",
+                        "Value": ""
+                    }
+                ],
+                "TargetGroupAttributes": [
+                    {
+                        "Key": "deregistration_delay.timeout_seconds",
+                        "Value": "0"
+                    }
+                ],
+                "UnhealthyThresholdCount": 0,
+                "VpcId": {
+                    "Ref": "TargetGroupVPCIDParameter"
+                }
+            }
+        },
         "HTTPSListener": {
             "Type": "AWS::ElasticLoadBalancingV2::Listener",
             "Properties": {
@@ -168,6 +222,12 @@
         }
     },
     "Outputs": {
+        "ExtraTG0TargetGroupARN": {
+            "Description": "The ARN of the ExtraTG0 TargetGroup",
+            "Value": {
+                "Ref": "ExtraTG0"
+            }
+        },
         "LoadBalancerARN": {
             "Description": "ARN of the LoadBalancer",
             "Value": {

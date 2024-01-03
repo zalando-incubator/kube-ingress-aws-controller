@@ -615,6 +615,16 @@ func TestGenerateTemplate(t *testing.T) {
 			},
 		},
 		{
+			name: "Nlbs with ExtraListeners should have an ExtraTG0",
+			spec: &stackSpec{
+				loadbalancerType: LoadBalancerTypeNetwork,
+				extraListeners:   []ExtraListener{{ListenProtocol: "TCP", ListenPort: 22, TargetPort: 2222, PodLabel: "app=test"}},
+			},
+			validate: func(t *testing.T, template *cloudformation.Template) {
+				validateTargetGroupListener(t, template, "ExtraTG0", "ExtraListener0", 22, "TCP")
+			},
+		},
+		{
 			name: "Default TG type is not set",
 			spec: &stackSpec{
 				loadbalancerType: LoadBalancerTypeApplication,

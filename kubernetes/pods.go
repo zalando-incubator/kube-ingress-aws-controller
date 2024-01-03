@@ -3,13 +3,12 @@ package kubernetes
 import (
 	"context"
 	"fmt"
-	"sort"
 	"sync"
 	"time"
 
 	log "github.com/sirupsen/logrus"
+	"github.com/zalando-incubator/kube-ingress-aws-controller/aws"
 	corev1 "k8s.io/api/core/v1"
-	apisv1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/tools/cache"
@@ -17,14 +16,29 @@ import (
 
 const resyncInterval = 1 * time.Minute
 
+func (a *Adapter) storeWatchedPods(pod *corev1.Pod, podEndpoints *sync.Map) {
+	for k, v := range pod.Labels {
+		selector := fmt.Sprintf("%s=%s", k, v)
+		if pod.Namespace == a.cniPodNamespace && selector == a.cniPodLabelSelector {
+			log.Infof("New discovered pod: %s IP: %s", pod.Name, pod.Status.PodIP)
+			podEndpoints.LoadOrStore(pod.Name, aws.CNIEndpoint{IPAddress: pod.Status.PodIP})
+		}
+		for _, endpoint := range a.extraCNIEndpoints {
+			if endpoint.Namespace == pod.Namespace && endpoint.Podlabel == selector {
+				log.Infof("New discovered pod: %s IP: %s", pod.Name, pod.Status.PodIP)
+				podEndpoints.LoadOrStore(pod.Name, aws.CNIEndpoint{IPAddress: pod.Status.PodIP, Namespace: pod.Namespace, Podlabel: selector})
+			}
+		}
+	}
+}
+
 // PodInformer is a event handler for Pod events registered to, that builds a local list of valid and relevant pods
 // and sends an event to the endpoint channel, triggering a resync of the targets.
-func (a *Adapter) PodInformer(ctx context.Context, endpointChan chan<- []string) (err error) {
+func (a *Adapter) PodInformer(ctx context.Context, endpointChan chan<- []aws.CNIEndpoint) (err error) {
 	podEndpoints := sync.Map{}
 
-	log.Infof("Watching for Pods with labelselector %s in namespace %s", a.cniPodLabelSelector, a.cniPodNamespace)
-	factory := informers.NewSharedInformerFactoryWithOptions(a.clientset, resyncInterval, informers.WithNamespace(a.cniPodNamespace),
-		informers.WithTweakListOptions(func(options *apisv1.ListOptions) { options.LabelSelector = a.cniPodLabelSelector }))
+	// log.Infof("Watching for Pods with labelselector %s in namespace %s", a.cniPodLabelSelector, a.cniPodNamespace)
+	factory := informers.NewSharedInformerFactoryWithOptions(a.clientset, resyncInterval)
 
 	informer := factory.Core().V1().Pods().Informer()
 	factory.Start(ctx.Done())
@@ -39,12 +53,12 @@ func (a *Adapter) PodInformer(ctx context.Context, endpointChan chan<- []string)
 		if err == nil && len(podList) > 0 {
 			break
 		}
-		log.Errorf("Error listing Pods with labelselector %s in namespace %s: %v", a.cniPodNamespace, a.cniPodLabelSelector, err)
+		log.Errorf("error listing Pods: %v", err)
 		time.Sleep(resyncInterval)
 	}
 	for _, pod := range podList {
 		if !isPodTerminating(pod) && isPodRunning(pod) {
-			podEndpoints.Store(pod.Name, pod.Status.PodIP)
+			a.storeWatchedPods(pod, &podEndpoints)
 		}
 	}
 	queueEndpoints(&podEndpoints, endpointChan)
@@ -68,11 +82,12 @@ func (a *Adapter) PodInformer(ctx context.Context, endpointChan chan<- []string)
 				queueEndpoints(&podEndpoints, endpointChan)
 
 			case isPodRunning(pod):
-				if _, isStored := podEndpoints.LoadOrStore(pod.Name, pod.Status.PodIP); isStored {
+				if _, isStored := podEndpoints.Load(pod.Name); isStored {
 					return
 				}
-				log.Infof("New discovered pod: %s IP: %s", pod.Name, pod.Status.PodIP)
+				a.storeWatchedPods(pod, &podEndpoints)
 				queueEndpoints(&podEndpoints, endpointChan)
+
 			}
 		},
 	})
@@ -80,13 +95,12 @@ func (a *Adapter) PodInformer(ctx context.Context, endpointChan chan<- []string)
 	return nil
 }
 
-func queueEndpoints(podEndpoints *sync.Map, endpointChan chan<- []string) {
-	podList := []string{}
+func queueEndpoints(podEndpoints *sync.Map, endpointChan chan<- []aws.CNIEndpoint) {
+	podList := []aws.CNIEndpoint{}
 	podEndpoints.Range(func(key, value interface{}) bool {
-		podList = append(podList, value.(string))
+		podList = append(podList, value.(aws.CNIEndpoint))
 		return true
 	})
-	sort.StringSlice(podList).Sort()
 	endpointChan <- podList
 }
 

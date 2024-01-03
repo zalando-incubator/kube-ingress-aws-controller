@@ -168,6 +168,12 @@
         }
     },
     "Outputs": {
+        "LoadBalancerARN": {
+            "Description": "ARN of the LoadBalancer",
+            "Value": {
+                "Ref": "LB"
+            }
+        },
         "LoadBalancerDNSName": {
             "Description": "DNS name for the LoadBalancer",
             "Value": {
@@ -178,7 +184,7 @@
             }
         },
         "TargetGroupARN": {
-            "Description": "The ARN of the TargetGroup",
+            "Description": "The ARN of the main TargetGroup",
             "Value": {
                 "Ref": "TG"
             }

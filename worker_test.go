@@ -200,7 +200,61 @@ func TestResourceConversionOneToOne(tt *testing.T) {
 				CreateStack:        fake.R(fake.MockCSOutput("42"), nil),
 			},
 			typeLB: awsAdapter.LoadBalancerTypeApplication,
-		}, {
+		},
+		{
+			name: "ingress_nlb_extra_listeners",
+			responsesEC2: fake.EC2Outputs{DescribeInstancesPages: fake.MockDescribeInstancesPagesOutput(
+				nil,
+				fake.TestInstance{
+					Id:        "i0",
+					Tags:      fake.Tags{"aws:autoscaling:groupName": "asg1", clusterIDTagPrefix + clusterID: "owned"},
+					PrivateIp: "1.2.3.3",
+					VpcId:     vpcID,
+					State:     running,
+				},
+				fake.TestInstance{
+					Id:        "i1",
+					Tags:      fake.Tags{"aws:autoscaling:groupName": "asg1", clusterIDTagPrefix + clusterID: "owned"},
+					PrivateIp: "1.2.3.4",
+					VpcId:     vpcID,
+					State:     running,
+				},
+				fake.TestInstance{
+					Id:        "i2",
+					Tags:      fake.Tags{"aws:autoscaling:groupName": "asg1", clusterIDTagPrefix + clusterID: "owned"},
+					PrivateIp: "1.2.3.5",
+					VpcId:     vpcID,
+					State:     running,
+				}),
+				DescribeSecurityGroups: fake.R(fake.MockDescribeSecurityGroupsOutput(map[string]string{"id": securityGroupID}), nil),
+				DescribeSubnets: fake.R(fake.MockDescribeSubnetsOutput(
+					fake.TestSubnet{Id: "foo1", Name: "bar1", Az: "baz1", Tags: map[string]string{"kubernetes.io/role/elb": ""}}), nil),
+				DescribeRouteTables: fake.R(fake.MockDescribeRouteTableOutput(
+					fake.TestRouteTable{SubnetID: "foo1", GatewayIds: []string{"igw-foo1"}},
+					fake.TestRouteTable{SubnetID: "mismatch", GatewayIds: []string{"igw-foo2"}, Main: true},
+				), nil),
+			},
+			responsesASG: fake.ASGOutputs{
+				DescribeAutoScalingGroups: fake.R(fake.MockDescribeAutoScalingGroupOutput(map[string]fake.ASGtags{"asg1": {
+					clusterIDTagPrefix + clusterID: "owned",
+				}}), nil),
+				DescribeLoadBalancerTargetGroups: fake.R(&autoscaling.DescribeLoadBalancerTargetGroupsOutput{
+					LoadBalancerTargetGroups: []*autoscaling.LoadBalancerTargetGroupState{},
+				}, nil),
+				AttachLoadBalancerTargetGroups: fake.R(nil, nil),
+			},
+			responsesELBv2: fake.ELBv2Outputs{
+				DescribeTargetGroups: fake.R(nil, nil),
+				DescribeTags:         fake.R(nil, nil),
+			},
+			responsesCF: fake.CFOutputs{
+				DescribeStackPages: fake.R(nil, nil),
+				DescribeStacks:     fake.R(nil, nil),
+				CreateStack:        fake.R(fake.MockCSOutput("42"), nil),
+			},
+			typeLB: awsAdapter.LoadBalancerTypeNetwork,
+		},
+		{
 			name: "rg_nlb",
 			responsesEC2: fake.EC2Outputs{DescribeInstancesPages: fake.MockDescribeInstancesPagesOutput(
 				nil,
@@ -1574,21 +1628,22 @@ func TestDoWorkPanicReturnsProblem(t *testing.T) {
 
 func Test_cniEventHandler(t *testing.T) {
 	t.Run("handles messages from channels and calls update functions", func(t *testing.T) {
-		targetCNIcfg := &awsAdapter.TargetCNIconfig{TargetGroupCh: make(chan []string, 10)}
-		targetCNIcfg.TargetGroupCh <- []string{"bar", "baz"}
-		targetCNIcfg.TargetGroupCh <- []string{"foo"} // flush
+		targetCNIcfg := &awsAdapter.TargetCNIconfig{TargetGroupCh: make(chan []awsAdapter.TargetGroupWithLabels, 10)}
+		targetCNIcfg.TargetGroupCh <- []awsAdapter.TargetGroupWithLabels{{ARN: "bar"}, {ARN: "baz"}}
+		targetCNIcfg.TargetGroupCh <- []awsAdapter.TargetGroupWithLabels{{ARN: "foo"}} // flush
 		mutex := &sync.Mutex{}
-		var targetSet, cniTGARNs []string
-		mockTargetSetter := func(endpoints, cniTargetGroupARNs []string) error {
+		var targetSet []awsAdapter.CNIEndpoint
+		var cniTGARNs []awsAdapter.TargetGroupWithLabels
+		mockTargetSetter := func(endpoints []awsAdapter.CNIEndpoint, cniTargetGroupARNs []awsAdapter.TargetGroupWithLabels) error {
 			mutex.Lock()
 			targetSet = endpoints
 			cniTGARNs = cniTargetGroupARNs
 			mutex.Unlock()
 			return nil
 		}
-		mockInformer := func(_ context.Context, c chan<- []string) error {
-			c <- []string{"4.3.2.1", "4.3.2.1"}
-			c <- []string{"1.2.3.4"} // flush
+		mockInformer := func(_ context.Context, c chan<- []awsAdapter.CNIEndpoint) error {
+			c <- []awsAdapter.CNIEndpoint{{IPAddress: "4.3.2.1"}, {IPAddress: "4.3.2.1"}}
+			c <- []awsAdapter.CNIEndpoint{{IPAddress: "1.2.3.4"}} // flush
 			return nil
 		}
 		ctx, cl := context.WithCancel(context.Background())
@@ -1598,11 +1653,11 @@ func Test_cniEventHandler(t *testing.T) {
 		require.Eventually(t, func() bool {
 			mutex.Lock()
 			defer mutex.Unlock()
-			return reflect.DeepEqual(targetSet, []string{"1.2.3.4"})
+			return reflect.DeepEqual(targetSet, []awsAdapter.CNIEndpoint{{IPAddress: "1.2.3.4"}})
 		}, wait.ForeverTestTimeout, time.Millisecond*100)
 
 		require.Eventually(t, func() bool {
-			return reflect.DeepEqual(cniTGARNs, []string{"foo"})
+			return reflect.DeepEqual(cniTGARNs, []awsAdapter.TargetGroupWithLabels{{ARN: "foo"}})
 		}, wait.ForeverTestTimeout, time.Millisecond*100)
 	})
 }

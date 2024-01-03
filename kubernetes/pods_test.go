@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+	"github.com/zalando-incubator/kube-ingress-aws-controller/aws"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -36,7 +37,7 @@ func TestAdapter_PodInformer(t *testing.T) {
 	client := fake.NewSimpleClientset()
 
 	a.clientset = client
-	pods := make(chan []string, 10)
+	pods := make(chan []aws.CNIEndpoint, 10)
 
 	t.Run("initial state of five ready pods, a terminating and pending one", func(t *testing.T) {
 		for i := 1; i <= 5; i++ {

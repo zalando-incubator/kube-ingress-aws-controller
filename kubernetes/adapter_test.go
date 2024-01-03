@@ -441,6 +441,114 @@ func TestNewIngressFromKube(tt *testing.T) {
 				},
 			},
 		},
+		{
+			msg:                     "test setting extra listeners annotation on an ALB raises an error",
+			defaultLoadBalancerType: aws.LoadBalancerTypeApplication,
+			ingressError:            true,
+			kubeIngress: &ingress{
+				Metadata: kubeItemMetadata{
+					Namespace: "default",
+					Name:      "foo",
+					Annotations: map[string]string{
+						ingressNLBExtraListenersAnnotation: `[{"protocol": "TCP", "listenport": 22, "targetport": 2222, "podlabel": "app=test"}]`,
+					},
+				},
+				Status: ingressStatus{
+					LoadBalancer: ingressLoadBalancerStatus{
+						Ingress: []ingressLoadBalancer{
+							{Hostname: "bar"},
+						},
+					},
+				},
+			},
+		},
+		{
+			msg:                     "test invalid extra listeners annotation raises an error",
+			defaultLoadBalancerType: aws.LoadBalancerTypeApplication,
+			ingressError:            true,
+			kubeIngress: &ingress{
+				Metadata: kubeItemMetadata{
+					Namespace: "default",
+					Name:      "foo",
+					Annotations: map[string]string{
+						ingressLoadBalancerTypeAnnotation:  loadBalancerTypeNLB,
+						ingressNLBExtraListenersAnnotation: "bad data",
+					},
+				},
+				Status: ingressStatus{
+					LoadBalancer: ingressLoadBalancerStatus{
+						Ingress: []ingressLoadBalancer{
+							{Hostname: "bar"},
+						},
+					},
+				},
+			},
+		},
+		{
+			msg:                     "test using an unsupported protocol raises an error",
+			defaultLoadBalancerType: aws.LoadBalancerTypeApplication,
+			ingressError:            true,
+			kubeIngress: &ingress{
+				Metadata: kubeItemMetadata{
+					Namespace: "default",
+					Name:      "foo",
+					Annotations: map[string]string{
+						ingressLoadBalancerTypeAnnotation:  loadBalancerTypeNLB,
+						ingressNLBExtraListenersAnnotation: `[{"protocol": "HTTP", "listenport": 22, "targetport": 2222, "podlabel": "app=test"}]`,
+					},
+				},
+				Status: ingressStatus{
+					LoadBalancer: ingressLoadBalancerStatus{
+						Ingress: []ingressLoadBalancer{
+							{Hostname: "bar"},
+						},
+					},
+				},
+			},
+		},
+		{
+			msg:                     "test extra listener with proper annotation does not raise an error",
+			defaultLoadBalancerType: aws.LoadBalancerTypeApplication,
+			ingressError:            false,
+			ingress: &Ingress{
+				Namespace:        "default",
+				Name:             "foo",
+				Hostname:         "bar",
+				Scheme:           "internet-facing",
+				Shared:           true,
+				HTTP2:            true,
+				SecurityGroup:    testIngressDefaultSecurityGroup,
+				ClusterLocal:     true,
+				SSLPolicy:        testSSLPolicy,
+				IPAddressType:    testIPAddressTypeDefault,
+				LoadBalancerType: aws.LoadBalancerTypeNetwork,
+				ResourceType:     TypeIngress,
+				ExtraListeners: []aws.ExtraListener{{
+					ListenProtocol: "TCP",
+					ListenPort:     22,
+					TargetPort:     2222,
+					PodLabel:       "app=test",
+					Namespace:      "default",
+				}},
+			},
+			kubeIngress: &ingress{
+				Metadata: kubeItemMetadata{
+					Namespace: "default",
+					Name:      "foo",
+					Annotations: map[string]string{
+						ingressLoadBalancerTypeAnnotation:  loadBalancerTypeNLB,
+						ingressNLBExtraListenersAnnotation: `[{"protocol": "TCP", "listenport": 22, "targetport": 2222, "podlabel": "app=test"}]`,
+					},
+				},
+				Status: ingressStatus{
+					LoadBalancer: ingressLoadBalancerStatus{
+						Ingress: []ingressLoadBalancer{
+							{Hostname: "bar"},
+						},
+					},
+				},
+			},
+		},
 	} {
 		tt.Run(tc.msg, func(t *testing.T) {
 			a, err := NewAdapter(testConfig, IngressAPIVersionNetworking, testIngressFilter, testIngressDefaultSecurityGroup, testSSLPolicy, tc.defaultLoadBalancerType, DefaultClusterLocalDomain, false)
