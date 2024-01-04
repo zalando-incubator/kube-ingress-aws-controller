@@ -481,20 +481,10 @@ func mapToManagedStack(stack *cloudformation.Stack) *Stack {
 		http2 = false
 	}
 
-	arns := outputs.targetGroupARNs()
-
-	// if *stack.StackStatus == cloudformation.StackStatusRollbackInProgress {
-	log.Warnf("stack %s is in rollback state", *stack.StackName)
-	for _, output := range stack.Outputs {
-		fmt.Printf("Output Key: %s, Value: %s\n", aws.StringValue(output.OutputKey), aws.StringValue(output.OutputValue))
-	}
-	// outputs = newStackOutput(stackOutputs.Stacks[0].Outputs)
-	// }
-
 	return &Stack{
 		Name:              aws.StringValue(stack.StackName),
 		DNSName:           outputs.dnsName(),
-		TargetGroupARNs:   arns,
+		TargetGroupARNs:   outputs.targetGroupARNs(),
 		Scheme:            parameters[parameterLoadBalancerSchemeParameter],
 		SecurityGroup:     parameters[parameterLoadBalancerSecurityGroupParameter],
 		SSLPolicy:         parameters[parameterListenerSslPolicyParameter],
@@ -524,8 +514,12 @@ func findManagedStacks(svc cloudformationiface.CloudFormationAPI, clusterID, con
 				if isManagedStack(s.Tags, clusterID, controllerID) {
 					stack := mapToManagedStack(s)
 					if len(stack.TargetGroupARNs) == 0 && stack.status == cloudformation.StackStatusRollbackInProgress {
-						log.Warnf("stack %s has no target groups in , falling back to last saved output", stack.Name)
-						stack.TargetGroupARNs = stacksLastTargetGroupARNs[stack.Name]
+						if _, ok := stacksLastTargetGroupARNs[stack.Name]; ok {
+							log.Warnf("stack %s is in rolling back state, falling back to last saved output", stack.Name)
+							stack.TargetGroupARNs = stacksLastTargetGroupARNs[stack.Name]
+						} else {
+							log.Warnf("stack %s has no saved target groups, skipping", stack.Name)
+						}
 					}
 					stacks = append(stacks, stack)
 				}
