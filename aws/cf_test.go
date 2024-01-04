@@ -660,7 +660,7 @@ func TestFindManagedStacks(t *testing.T) {
 	} {
 		t.Run(ti.name, func(t *testing.T) {
 			c := &fake.CFClient{Outputs: ti.given}
-			got, err := findManagedStacks(c, "test-cluster", DefaultControllerID)
+			got, err := findManagedStacks(c, "test-cluster", DefaultControllerID, map[string][]string{})
 			if err != nil {
 				if !ti.wantErr {
 					t.Error("unexpected error", err)

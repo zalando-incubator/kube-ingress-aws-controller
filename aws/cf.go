@@ -8,6 +8,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/cloudformation"
 	"github.com/aws/aws-sdk-go/service/cloudformation/cloudformationiface"
+	log "github.com/sirupsen/logrus"
 )
 
 const (
@@ -480,10 +481,20 @@ func mapToManagedStack(stack *cloudformation.Stack) *Stack {
 		http2 = false
 	}
 
+	arns := outputs.targetGroupARNs()
+
+	// if *stack.StackStatus == cloudformation.StackStatusRollbackInProgress {
+	log.Warnf("stack %s is in rollback state", *stack.StackName)
+	for _, output := range stack.Outputs {
+		fmt.Printf("Output Key: %s, Value: %s\n", aws.StringValue(output.OutputKey), aws.StringValue(output.OutputValue))
+	}
+	// outputs = newStackOutput(stackOutputs.Stacks[0].Outputs)
+	// }
+
 	return &Stack{
 		Name:              aws.StringValue(stack.StackName),
 		DNSName:           outputs.dnsName(),
-		TargetGroupARNs:   outputs.targetGroupARNs(),
+		TargetGroupARNs:   arns,
 		Scheme:            parameters[parameterLoadBalancerSchemeParameter],
 		SecurityGroup:     parameters[parameterLoadBalancerSecurityGroupParameter],
 		SSLPolicy:         parameters[parameterListenerSslPolicyParameter],
@@ -500,7 +511,7 @@ func mapToManagedStack(stack *cloudformation.Stack) *Stack {
 	}
 }
 
-func findManagedStacks(svc cloudformationiface.CloudFormationAPI, clusterID, controllerID string) ([]*Stack, error) {
+func findManagedStacks(svc cloudformationiface.CloudFormationAPI, clusterID, controllerID string, stacksLastTargetGroupARNs map[string][]string) ([]*Stack, error) {
 	stacks := make([]*Stack, 0)
 	err := svc.DescribeStacksPages(&cloudformation.DescribeStacksInput{},
 		func(page *cloudformation.DescribeStacksOutput, lastPage bool) bool {
@@ -511,7 +522,12 @@ func findManagedStacks(svc cloudformationiface.CloudFormationAPI, clusterID, con
 				}
 
 				if isManagedStack(s.Tags, clusterID, controllerID) {
-					stacks = append(stacks, mapToManagedStack(s))
+					stack := mapToManagedStack(s)
+					if len(stack.TargetGroupARNs) == 0 && stack.status == cloudformation.StackStatusRollbackInProgress {
+						log.Warnf("stack %s has no target groups in , falling back to last saved output", stack.Name)
+						stack.TargetGroupARNs = stacksLastTargetGroupARNs[stack.Name]
+					}
+					stacks = append(stacks, stack)
 				}
 			}
 			return true
