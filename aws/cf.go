@@ -506,11 +506,6 @@ func findManagedStacks(svc cloudformationiface.CloudFormationAPI, clusterID, con
 	err := svc.DescribeStacksPages(&cloudformation.DescribeStacksInput{},
 		func(page *cloudformation.DescribeStacksOutput, lastPage bool) bool {
 			for _, s := range page.Stacks {
-
-				if s.StackStatus != nil && *s.StackStatus == cloudformation.StackStatusRollbackInProgress {
-					continue
-				}
-
 				if isManagedStack(s.Tags, clusterID, controllerID) {
 					stack := mapToManagedStack(s)
 					if len(stack.TargetGroupARNs) == 0 && stack.status == cloudformation.StackStatusRollbackInProgress {
