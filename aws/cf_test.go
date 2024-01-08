@@ -482,6 +482,7 @@ func TestFindManagedStacks(t *testing.T) {
 						kubernetesCreatorTag:                 DefaultControllerID,
 						clusterIDTagPrefix + "test-cluster":  resourceLifecycleOwned,
 						certificateARNTagPrefix + "cert-arn": time.Time{}.Format(time.RFC3339),
+						targetGroupsArnsTag:                  "dGctYXJu", // "tg-arn"
 					},
 					status: cloudformation.StackStatusUpdateInProgress,
 					HTTP2:  true,
@@ -497,6 +498,7 @@ func TestFindManagedStacks(t *testing.T) {
 						kubernetesCreatorTag:                 DefaultControllerID,
 						clusterIDTagPrefix + "test-cluster":  resourceLifecycleOwned,
 						certificateARNTagPrefix + "cert-arn": time.Time{}.Format(time.RFC3339),
+						targetGroupsArnsTag:                  "dGctYXJu", // "tg-arn"
 					},
 					status: cloudformation.StackStatusCreateComplete,
 					HTTP2:  true,
@@ -512,6 +514,7 @@ func TestFindManagedStacks(t *testing.T) {
 						kubernetesCreatorTag:                 DefaultControllerID,
 						clusterIDTagPrefix + "test-cluster":  resourceLifecycleOwned,
 						certificateARNTagPrefix + "cert-arn": time.Time{}.Format(time.RFC3339),
+						targetGroupsArnsTag:                  "dGctYXJuLGh0dHAtdGctYXJu", // "tg-arn,http-tg-arn"
 					},
 					status: cloudformation.StackStatusCreateComplete,
 					HTTP2:  true,
@@ -542,6 +545,7 @@ func TestFindManagedStacks(t *testing.T) {
 								cfTag(kubernetesCreatorTag, DefaultControllerID),
 								cfTag(clusterIDTagPrefix+"test-cluster", resourceLifecycleOwned),
 								cfTag(certificateARNTagPrefix+"cert-arn", time.Time{}.Format(time.RFC3339)),
+								cfTag(targetGroupsArnsTag, "YXJuOmF3czpzbnM6dXMtZWFzdC0xOnRhcmdldGdyb3VwczpsYi10YXJnZXQtZ3JvdXBzMSxhcm46YXdzOnNuczp1cy1lYXN0LTE6dGFyZ2V0Z3JvdXBzOmxiLXRhcmdldC1ncm91cHMy"), // "arn:aws:sns:us-east-1:targetgroups:lb-target-groups1", "arn:aws:sns:us-east-1:targetgroups:lb-target-groups2"
 							},
 							Outputs: []*cloudformation.Output{},
 						},
@@ -558,9 +562,11 @@ func TestFindManagedStacks(t *testing.T) {
 						kubernetesCreatorTag:                 DefaultControllerID,
 						clusterIDTagPrefix + "test-cluster":  resourceLifecycleOwned,
 						certificateARNTagPrefix + "cert-arn": time.Time{}.Format(time.RFC3339),
+						targetGroupsArnsTag:                  "YXJuOmF3czpzbnM6dXMtZWFzdC0xOnRhcmdldGdyb3VwczpsYi10YXJnZXQtZ3JvdXBzMSxhcm46YXdzOnNuczp1cy1lYXN0LTE6dGFyZ2V0Z3JvdXBzOmxiLXRhcmdldC1ncm91cHMy", // "arn:aws:sns:us-east-1:targetgroups:lb-target-groups1", "arn:aws:sns:us-east-1:targetgroups:lb-target-groups2"
 					},
-					status: cloudformation.StackStatusRollbackInProgress,
-					HTTP2:  true,
+					TargetGroupARNs: []string{"arn:aws:sns:us-east-1:targetgroups:lb-target-groups1", "arn:aws:sns:us-east-1:targetgroups:lb-target-groups2"},
+					status:          cloudformation.StackStatusRollbackInProgress,
+					HTTP2:           true,
 				},
 			},
 		},
@@ -606,6 +612,7 @@ func TestFindManagedStacks(t *testing.T) {
 					tags: map[string]string{
 						kubernetesCreatorTag:                DefaultControllerID,
 						clusterIDTagPrefix + "test-cluster": resourceLifecycleOwned,
+						targetGroupsArnsTag:                 "dGctYXJu", // "tg-arn"
 					},
 					status: cloudformation.StackStatusReviewInProgress,
 					HTTP2:  true,
@@ -618,6 +625,7 @@ func TestFindManagedStacks(t *testing.T) {
 					tags: map[string]string{
 						kubernetesCreatorTag:                DefaultControllerID,
 						clusterIDTagPrefix + "test-cluster": resourceLifecycleOwned,
+						targetGroupsArnsTag:                 "dGctYXJu", // "tg-arn"
 					},
 					status: cloudformation.StackStatusRollbackComplete,
 					HTTP2:  true,
