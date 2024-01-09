@@ -707,6 +707,7 @@ func TestGetStack(t *testing.T) {
 					kubernetesCreatorTag:                 DefaultControllerID,
 					clusterIDTagPrefix + "test-cluster":  resourceLifecycleOwned,
 					certificateARNTagPrefix + "cert-arn": time.Time{}.Format(time.RFC3339),
+					targetGroupsArnsTag:                  "dGctYXJu", // "tg-arn"
 				},
 				status: cloudformation.StackStatusCreateComplete,
 				HTTP2:  true,
@@ -747,6 +748,7 @@ func TestGetStack(t *testing.T) {
 					kubernetesCreatorTag:                 DefaultControllerID,
 					clusterIDTagPrefix + "test-cluster":  resourceLifecycleOwned,
 					certificateARNTagPrefix + "cert-arn": time.Time{}.Format(time.RFC3339),
+					targetGroupsArnsTag:                  "dGctYXJuLHRnLWh0dHAtYXJu", // "tg-arn,tg-http-arn"
 				},
 				status: cloudformation.StackStatusCreateComplete,
 				HTTP2:  true,
