@@ -488,12 +488,12 @@ func mapToManagedStack(stack *cloudformation.Stack) *Stack {
 
 	// If the stack is in rollback state, the outputs are not available.
 	// We need to store target group ARNs in the tags.
+	// To restore the ARNs, and keep sending traffic to the right target groups.
 	if aws.StringValue(stack.StackStatus) == cloudformation.StackStatusRollbackInProgress && len(tgARNs) == 0 {
 		if tgARNsTag, ok := tags[targetGroupsArnsTag]; ok {
 			values, err := base64.StdEncoding.DecodeString(tgARNsTag)
 			if err != nil {
 				log.Errorf("failed to decode target group ARNs from tags: %v", err)
-				tgARNs = []string{}
 			} else {
 				tgARNs = strings.Split(string(values), ",")
 			}
