@@ -184,7 +184,7 @@ func (a *Adapter) NewInclusterConfigClientset(ctx context.Context) error {
 		IdleConnTimeout: idleConnTimeout,
 		Transport: &http.Transport{
 			Proxy:                 trCfg.Proxy,
-			DialContext:           trCfg.Dial,
+			DialContext:           cfg.Dial,
 			TLSClientConfig:       tlsCfg,
 			TLSHandshakeTimeout:   tlsHandshakeTimeout,
 			DisableKeepAlives:     false,
