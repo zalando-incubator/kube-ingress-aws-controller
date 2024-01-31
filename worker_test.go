@@ -506,7 +506,7 @@ func TestResourceConversionOneToOne(tt *testing.T) {
 
 			sslPolicy := "ELBSecurityPolicy-2016-08"
 			clusterLocalDomain := ""
-			ingressAPIVersion := kubernetes.IngressAPIVersionNetworkingV1
+			ingressAPIVersion := kubernetes.IngressAPIVersionNetworking
 
 			k, err := kubernetes.NewAdapter(
 				kubeConfig,

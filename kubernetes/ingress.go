@@ -63,8 +63,7 @@ const (
 	// ingressALBIPAddressType is used in external-dns, https://github.com/kubernetes-incubator/external-dns/pull/1079
 	ingressALBIPAddressType           = "alb.ingress.kubernetes.io/ip-address-type"
 	IngressAPIVersionExtensions       = "extensions/v1beta1"
-	IngressAPIVersionNetworking       = "networking.k8s.io/v1beta1"
-	IngressAPIVersionNetworkingV1     = "networking.k8s.io/v1"
+	IngressAPIVersionNetworking       = "networking.k8s.io/v1"
 	ingressListResource               = "/apis/%s/ingresses"
 	ingressPatchStatusResource        = "/apis/%s/namespaces/%s/ingresses/%s/status"
 	ingressCertificateARNAnnotation   = "zalando.org/aws-load-balancer-ssl-cert"

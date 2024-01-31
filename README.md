@@ -36,6 +36,11 @@ This information is used to manage AWS resources for each ingress objects of the
 
 ## Upgrade
 
+### <v0.15.0 to >=v0.15.0
+
+Version `v0.15.0` removes support for deprecated Ingress versions
+`extensions/v1beta1` and `networking.k8s.io/v1beta1`.
+
 ### <v0.14.0 to >=v0.14.0
 
 Version `v0.14.0` makes `target-access-mode` flag required to make upgrading users aware of the [issue](https://github.com/zalando-incubator/kube-ingress-aws-controller/issues/507).
