@@ -200,6 +200,9 @@ func loadSettings() error {
 	kingpin.Flag("target-cni-pod-labelselector", "AWS VPC CNI only. Defines the labelselector for ingress pods that should be linked to target group. Supports simple equality and multi value form (a=x,b=y) as well as complex forms (a IN (x,y,z).").StringVar(&targetCNIPodLabelSelector)
 	kingpin.Parse()
 
+	// We currently only support one Ingress API Version
+	ingressAPIVersion = kubernetes.IngressAPIVersionNetworking
+
 	blacklistCertArnMap = make(map[string]bool)
 	for _, s := range blacklistCertARNs {
 		blacklistCertArnMap[s] = true
