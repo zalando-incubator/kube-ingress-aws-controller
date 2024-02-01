@@ -91,6 +91,10 @@ func (m *CFClient) UpdateStack(params *cloudformation.UpdateStackInput) (*cloudf
 	// Update stack needs to use different variable to register change history,
 	// so createStack and updateStack mocks don't mess with each other states.
 
+	m.tagCreationHistory = append(m.tagCreationHistory, params.Tags)
+	m.paramCreationHistory = append(m.paramCreationHistory, params.Parameters)
+	m.templateCreationHistory = append(m.templateCreationHistory, *params.TemplateBody)
+
 	out, ok := m.Outputs.UpdateStack.response.(*cloudformation.UpdateStackOutput)
 	if !ok {
 		return nil, m.Outputs.UpdateStack.err

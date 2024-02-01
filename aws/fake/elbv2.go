@@ -13,13 +13,16 @@ type ELBv2Outputs struct {
 	DescribeTags         *APIResponse
 	DescribeTargetGroups *APIResponse
 	DescribeTargetHealth *APIResponse
+	CreateLoadBalancer   *APIResponse
+	DescribeLoadBalancer *APIResponse
 }
 
 type ELBv2Client struct {
 	elbv2iface.ELBV2API
-	Outputs  ELBv2Outputs
-	Rtinputs []*elbv2.RegisterTargetsInput
-	Dtinputs []*elbv2.DeregisterTargetsInput
+	Outputs   ELBv2Outputs
+	Rtinputs  []*elbv2.RegisterTargetsInput
+	Dtinputs  []*elbv2.DeregisterTargetsInput
+	LBinputes []*elbv2.CreateLoadBalancerInput
 }
 
 func (m *ELBv2Client) RegisterTargets(in *elbv2.RegisterTargetsInput) (*elbv2.RegisterTargetsOutput, error) {
@@ -65,6 +68,23 @@ func (m *ELBv2Client) DescribeTargetHealth(*elbv2.DescribeTargetHealthInput) (*e
 		return nil, m.Outputs.DescribeTargetHealth.err
 	}
 	return out, m.Outputs.DescribeTargetHealth.err
+}
+
+func (m *ELBv2Client) CreateLoadBalancer(in *elbv2.CreateLoadBalancerInput) (*elbv2.CreateLoadBalancerOutput, error) {
+	m.LBinputes = append(m.LBinputes, in)
+	out, ok := m.Outputs.CreateLoadBalancer.response.(*elbv2.CreateLoadBalancerOutput)
+	if !ok {
+		return nil, m.Outputs.CreateLoadBalancer.err
+	}
+	return out, m.Outputs.CreateLoadBalancer.err
+}
+
+func (m *ELBv2Client) DescribeLoadBalancers(in *elbv2.DescribeLoadBalancersInput) (*elbv2.DescribeLoadBalancersOutput, error) {
+	out, ok := m.Outputs.DescribeLoadBalancer.response.(*elbv2.DescribeLoadBalancersOutput)
+	if !ok {
+		return nil, m.Outputs.DescribeLoadBalancer.err
+	}
+	return out, m.Outputs.DescribeLoadBalancer.err
 }
 
 func MockDeregisterTargetsOutput() *elbv2.DeregisterTargetsOutput {
