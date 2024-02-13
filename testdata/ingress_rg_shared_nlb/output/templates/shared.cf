@@ -113,6 +113,10 @@
                 },
                 "LoadBalancerAttributes": [
                     {
+                        "Key": "load_balancing.cross_zone.enabled",
+                        "Value": "false"
+                    },
+                    {
                         "Key": "access_logs.s3.enabled",
                         "Value": "false"
                     }

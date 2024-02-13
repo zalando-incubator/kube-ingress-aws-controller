@@ -278,6 +278,20 @@ func TestGenerateTemplate(t *testing.T) {
 			},
 		},
 		{
+			name: "nlb cross zone load balancing can be disabled for Network load balancers",
+			spec: &stackSpec{
+				loadbalancerType: LoadBalancerTypeNetwork,
+				nlbCrossZone:     false,
+			},
+			validate: func(t *testing.T, template *cloudformation.Template) {
+				require.NotNil(t, template.Resources["LB"])
+				properties := template.Resources["LB"].Properties.(*cloudformation.ElasticLoadBalancingV2LoadBalancer)
+				attributes := []cloudformation.ElasticLoadBalancingV2LoadBalancerLoadBalancerAttribute(*properties.LoadBalancerAttributes)
+				require.Equal(t, attributes[0].Key.Literal, "load_balancing.cross_zone.enabled")
+				require.Equal(t, attributes[0].Value.Literal, "false")
+			},
+		},
+		{
 			name: "nlb HTTP listener should not be enabled when HTTP is disabled",
 			spec: &stackSpec{
 				loadbalancerType: LoadBalancerTypeNetwork,
