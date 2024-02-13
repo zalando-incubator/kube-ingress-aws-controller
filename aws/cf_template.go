@@ -300,11 +300,11 @@ func generateTemplate(spec *stackSpec) (string, error) {
 		)
 	}
 
-	if spec.nlbCrossZone && spec.loadbalancerType == LoadBalancerTypeNetwork {
+	if spec.loadbalancerType == LoadBalancerTypeNetwork {
 		lbAttrList = append(lbAttrList,
 			cloudformation.ElasticLoadBalancingV2LoadBalancerLoadBalancerAttribute{
 				Key:   cloudformation.String("load_balancing.cross_zone.enabled"),
-				Value: cloudformation.String("true"),
+				Value: cloudformation.String(fmt.Sprintf("%t", spec.nlbCrossZone)),
 			},
 		)
 	}
