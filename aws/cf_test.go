@@ -478,7 +478,7 @@ func TestFindManagedStacks(t *testing.T) {
 						"cert-arn": {},
 					},
 					TargetGroupARNs: []string{"tg-arn"},
-					tags: map[string]string{
+					Tags: map[string]string{
 						kubernetesCreatorTag:                 DefaultControllerID,
 						clusterIDTagPrefix + "test-cluster":  resourceLifecycleOwned,
 						certificateARNTagPrefix + "cert-arn": time.Time{}.Format(time.RFC3339),
@@ -494,7 +494,7 @@ func TestFindManagedStacks(t *testing.T) {
 						"cert-arn": {},
 					},
 					TargetGroupARNs: []string{"tg-arn"},
-					tags: map[string]string{
+					Tags: map[string]string{
 						kubernetesCreatorTag:                 DefaultControllerID,
 						clusterIDTagPrefix + "test-cluster":  resourceLifecycleOwned,
 						certificateARNTagPrefix + "cert-arn": time.Time{}.Format(time.RFC3339),
@@ -510,7 +510,7 @@ func TestFindManagedStacks(t *testing.T) {
 						"cert-arn": {},
 					},
 					TargetGroupARNs: []string{"tg-arn", "http-tg-arn"},
-					tags: map[string]string{
+					Tags: map[string]string{
 						kubernetesCreatorTag:                 DefaultControllerID,
 						clusterIDTagPrefix + "test-cluster":  resourceLifecycleOwned,
 						certificateARNTagPrefix + "cert-arn": time.Time{}.Format(time.RFC3339),
@@ -522,7 +522,7 @@ func TestFindManagedStacks(t *testing.T) {
 				{
 					Name:            "managed-stack-not-ready",
 					CertificateARNs: map[string]time.Time{},
-					tags: map[string]string{
+					Tags: map[string]string{
 						kubernetesCreatorTag:                DefaultControllerID,
 						clusterIDTagPrefix + "test-cluster": resourceLifecycleOwned,
 					},
@@ -558,7 +558,7 @@ func TestFindManagedStacks(t *testing.T) {
 					CertificateARNs: map[string]time.Time{
 						"cert-arn": {},
 					},
-					tags: map[string]string{
+					Tags: map[string]string{
 						kubernetesCreatorTag:                 DefaultControllerID,
 						clusterIDTagPrefix + "test-cluster":  resourceLifecycleOwned,
 						certificateARNTagPrefix + "cert-arn": time.Time{}.Format(time.RFC3339),
@@ -595,7 +595,7 @@ func TestFindManagedStacks(t *testing.T) {
 					CertificateARNs: map[string]time.Time{
 						"cert-arn": {},
 					},
-					tags: map[string]string{
+					Tags: map[string]string{
 						kubernetesCreatorTag:                 DefaultControllerID,
 						clusterIDTagPrefix + "test-cluster":  resourceLifecycleOwned,
 						certificateARNTagPrefix + "cert-arn": time.Time{}.Format(time.RFC3339),
@@ -644,7 +644,7 @@ func TestFindManagedStacks(t *testing.T) {
 					DNSName:         "example-notready.com",
 					TargetGroupARNs: []string{"tg-arn"},
 					CertificateARNs: map[string]time.Time{},
-					tags: map[string]string{
+					Tags: map[string]string{
 						kubernetesCreatorTag:                DefaultControllerID,
 						clusterIDTagPrefix + "test-cluster": resourceLifecycleOwned,
 						targetGroupsArnsTag:                 "dGctYXJu", // "tg-arn"
@@ -657,7 +657,7 @@ func TestFindManagedStacks(t *testing.T) {
 					DNSName:         "example.com",
 					TargetGroupARNs: []string{"tg-arn"},
 					CertificateARNs: map[string]time.Time{},
-					tags: map[string]string{
+					Tags: map[string]string{
 						kubernetesCreatorTag:                DefaultControllerID,
 						clusterIDTagPrefix + "test-cluster": resourceLifecycleOwned,
 						targetGroupsArnsTag:                 "dGctYXJu", // "tg-arn"
@@ -738,7 +738,7 @@ func TestGetStack(t *testing.T) {
 					"cert-arn": {},
 				},
 				TargetGroupARNs: []string{"tg-arn"},
-				tags: map[string]string{
+				Tags: map[string]string{
 					kubernetesCreatorTag:                 DefaultControllerID,
 					clusterIDTagPrefix + "test-cluster":  resourceLifecycleOwned,
 					certificateARNTagPrefix + "cert-arn": time.Time{}.Format(time.RFC3339),
@@ -779,7 +779,7 @@ func TestGetStack(t *testing.T) {
 					"cert-arn": {},
 				},
 				TargetGroupARNs: []string{"tg-arn", "tg-http-arn"},
-				tags: map[string]string{
+				Tags: map[string]string{
 					kubernetesCreatorTag:                 DefaultControllerID,
 					clusterIDTagPrefix + "test-cluster":  resourceLifecycleOwned,
 					certificateARNTagPrefix + "cert-arn": time.Time{}.Format(time.RFC3339),
