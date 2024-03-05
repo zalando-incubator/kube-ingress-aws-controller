@@ -257,12 +257,22 @@ Please also note that the worker nodes will need the right permission to describ
         "Effect": "Allow"
     },
     {
+        "Action": "acm:ListTagsForCertificate",
+        "Resource": "*",
+        "Effect": "Allow"
+    },
+    {
         "Action": "acm:DescribeCertificate",
         "Resource": "*",
         "Effect": "Allow"
     },
     {
         "Action": "iam:ListServerCertificates",
+        "Resource": "*",
+        "Effect": "Allow"
+    },
+    {
+        "Action": "iam:ListServerCertificateTags",
         "Resource": "*",
         "Effect": "Allow"
     },
