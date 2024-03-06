@@ -57,6 +57,7 @@ kube-ingress-aws-controller, which we will use:
   "Effect": "Allow",
   "Action": [
     "acm:ListCertificates",
+    "acm:ListTagsForCertificate",
     "acm:GetCertificate",
     "acm:DescribeCertificate",
     "autoscaling:DescribeAutoScalingGroups",
@@ -77,6 +78,7 @@ kube-ingress-aws-controller, which we will use:
     "ec2:DescribeInternetGateways",
     "iam:GetServerCertificate",
     "iam:ListServerCertificates",
+    "iam:ListServerCertificateTags",
     "iam:CreateServiceLinkedRole"
   ],
   "Resource": [
@@ -101,6 +103,7 @@ and add this to your node policy:
           "Effect": "Allow",
           "Action": [
             "acm:ListCertificates",
+            "acm:ListTagsForCertificate",
             "acm:GetCertificate",
             "acm:DescribeCertificate",
             "autoscaling:DescribeAutoScalingGroups",
@@ -121,6 +124,7 @@ and add this to your node policy:
             "ec2:DescribeVpcs",
             "iam:GetServerCertificate",
             "iam:CreateServiceLinkedRole",
+            "iam:ListServerCertificateTags",
             "iam:ListServerCertificates"
           ],
           "Resource": ["*"]
