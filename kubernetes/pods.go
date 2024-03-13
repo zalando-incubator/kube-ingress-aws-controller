@@ -50,7 +50,7 @@ func (a *Adapter) PodInformer(ctx context.Context, endpointChan chan<- []string)
 	queueEndpoints(&podEndpoints, endpointChan)
 
 	// delta triggered updates
-	informer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+	_, err = informer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		UpdateFunc: func(_, newResource interface{}) {
 			pod, ok := newResource.(*corev1.Pod)
 			if !ok {
@@ -76,6 +76,10 @@ func (a *Adapter) PodInformer(ctx context.Context, endpointChan chan<- []string)
 			}
 		},
 	})
+	if err != nil {
+		log.Errorf("Error adding event handler to informer: %v", err)
+	}
+
 	<-ctx.Done()
 	return nil
 }
