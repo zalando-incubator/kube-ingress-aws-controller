@@ -3,7 +3,6 @@ module github.com/zalando-incubator/kube-ingress-aws-controller
 go 1.22
 
 require (
-	github.com/alecthomas/kingpin/v2 v2.4.0
 	github.com/aws/aws-sdk-go v1.50.36
 	github.com/ghodss/yaml v1.0.0
 	github.com/google/go-cmp v0.6.0
@@ -14,6 +13,7 @@ require (
 	github.com/sirupsen/logrus v1.9.3
 	github.com/stretchr/testify v1.9.0
 	github.com/zalando/skipper v0.21.23
+	gopkg.in/alecthomas/kingpin.v2 v2.2.6
 	k8s.io/api v0.26.14
 	k8s.io/apimachinery v0.26.14
 	k8s.io/client-go v0.26.14
@@ -21,6 +21,7 @@ require (
 
 require (
 	github.com/Microsoft/hcsshim v0.12.0 // indirect
+	github.com/alecthomas/template v0.0.0-20190718012654-fb15b899a751 // indirect
 	github.com/alecthomas/units v0.0.0-20211218093645-b94a6e3cc137 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cenkalti/backoff v2.2.1+incompatible // indirect
@@ -65,7 +66,6 @@ require (
 	github.com/rcrowley/go-metrics v0.0.0-20201227073835-cf1acfcdf475 // indirect
 	github.com/redis/go-redis/v9 v9.5.1 // indirect
 	github.com/tidwall/pretty v1.2.1 // indirect
-	github.com/xhit/go-str2duration/v2 v2.1.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.49.0 // indirect
 	go.opentelemetry.io/otel/trace v1.24.0 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
