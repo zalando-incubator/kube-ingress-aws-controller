@@ -35,6 +35,7 @@ type Stack struct {
 	WAFWebACLID       string
 	CertificateARNs   map[string]time.Time
 	tags              map[string]string
+	Subnets           []string
 }
 
 // IsComplete returns true if the stack status is a complete state.
@@ -480,6 +481,11 @@ func mapToManagedStack(stack *cloudformation.Stack) *Stack {
 		http2 = false
 	}
 
+	var subnets []string
+	if parameters[parameterLoadBalancerSubnetsParameter] != "" {
+		subnets = strings.Split(parameters[parameterLoadBalancerSubnetsParameter], ",")
+	}
+
 	return &Stack{
 		Name:              aws.StringValue(stack.StackName),
 		DNSName:           outputs.dnsName(),
@@ -497,6 +503,7 @@ func mapToManagedStack(stack *cloudformation.Stack) *Stack {
 		statusReason:      aws.StringValue(stack.StackStatusReason),
 		CWAlarmConfigHash: tags[cwAlarmConfigHashTag],
 		WAFWebACLID:       parameters[parameterLoadBalancerWAFWebACLIDParameter],
+		Subnets:           subnets,
 	}
 }
 
