@@ -76,6 +76,7 @@ var (
 	cwAlarmConfigMap              string
 	cwAlarmConfigMapLocation      *kubernetes.ResourceLocation
 	loadBalancerType              string
+	nlbZoneAffinity               string
 	nlbCrossZone                  bool
 	nlbHTTPEnabled                bool
 	ingressAPIVersion             string
@@ -175,6 +176,8 @@ func loadSettings() error {
 		Default(defaultHTTPRedirectToHTTPS).BoolVar(&httpRedirectToHTTPS)
 	kingpin.Flag("load-balancer-type", "Sets default Load Balancer type (application or network).").
 		Default(aws.LoadBalancerTypeApplication).EnumVar(&loadBalancerType, aws.LoadBalancerTypeApplication, aws.LoadBalancerTypeNetwork)
+	kingpin.Flag("nlb-zone-affinity", "Specify whether Route53 should return zone aware Network Load Balancers IPs. It configures dns_record.client_routing_policy NLB configuration. This setting only apply to 'network' Load Balancers.").
+		Default(aws.DefaultZoneAffinity).StringVar(&nlbZoneAffinity)
 	kingpin.Flag("nlb-cross-zone", "Specify whether Network Load Balancers should balance cross availablity zones. This setting only apply to 'network' Load Balancers.").
 		Default("false").BoolVar(&nlbCrossZone)
 	kingpin.Flag("nlb-http-enabled", "Enable HTTP (port 80) for Network Load Balancers. By default this is disabled as NLB can't provide HTTP -> HTTPS redirect.").
@@ -339,6 +342,7 @@ func main() {
 		WithAlbLogsS3Prefix(albLogsS3Prefix).
 		WithHTTPRedirectToHTTPS(httpRedirectToHTTPS).
 		WithNLBCrossZone(nlbCrossZone).
+		WithNLBZoneAffinity(nlbZoneAffinity).
 		WithNLBHTTPEnabled(nlbHTTPEnabled).
 		WithCustomFilter(customFilter).
 		WithStackTags(additionalStackTags).
@@ -409,6 +413,8 @@ func main() {
 	log.Infof("CloudWatch Alarm ConfigMap: %s", cwAlarmConfigMapLocation)
 	log.Infof("Default LoadBalancer type: %s", loadBalancerType)
 	log.Infof("Target access mode: %s", targetAccessMode)
+	log.Infof("NLB Cross Zone: %t", nlbCrossZone)
+	log.Infof("NLB Zone Affinity: %s", nlbZoneAffinity)
 
 	go handleTerminationSignals(cancel, syscall.SIGTERM, syscall.SIGQUIT)
 	go serveMetrics(metricsAddress)

@@ -179,6 +179,7 @@ type stackSpec struct {
 	albLogsS3Bucket                   string
 	albLogsS3Prefix                   string
 	wafWebAclId                       string
+	nlbZoneAffinity                   string
 	cwAlarms                          CloudWatchAlarmList
 	httpRedirectToHTTPS               bool
 	nlbCrossZone                      bool
