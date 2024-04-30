@@ -33,7 +33,9 @@ This information is used to manage AWS resources for each ingress objects of the
 - Support for AWS WAF and WAFv2
 - Support for AWS CNI pod direct access
 - Support for Kubernetes CRD [RouteGroup](https://opensource.zalando.com/skipper/kubernetes/routegroups/)
-- Support for zone aware traffic (enable and disable cross zone traffic `--nlb-cross-zone`)
+- Support for zone aware traffic (defaults to cross zone traffic and no zone affinity)
+   - enable and disable cross zone traffic: `--nlb-cross-zone=false`
+   - set zone affinity to resolve DNS to same zone: `--nlb-zone-affinity=availability_zone_affinity`, see also [NLB attributes](https://docs.aws.amazon.com/elasticloadbalancing/latest/network/network-load-balancers.html\#load-balancer-attributes) and [NLB zonal DNS affinity](https://docs.aws.amazon.com/elasticloadbalancing/latest/network/network-load-balancers.html\#zonal-dns-affinity)
 - Support for explicitly enable certificates by using certificate Tags `--cert-filter-tag=key=value`
 
 ## Upgrade
@@ -170,17 +172,18 @@ The controller supports both [Application Load Balancers][alb] and [Network
 Load Balancers][nlb]. Below is an overview of which features can be used with
 the individual Load Balancer types.
 
-|Feature                 | Application Load Balancer | Network Load Balancer |
-|------------------------|------|------|
-| HTTPS                  | :heavy_check_mark: | :heavy_check_mark:  |
-| HTTP                   | :heavy_check_mark: | :heavy_check_mark: `--nlb-http-enabled` |
-| HTTP -> HTTPS redirect | :heavy_check_mark: `--redirect-http-to-https` | :heavy_multiplication_x: |
-| [Cross Zone Load Balancing][cross_zone] | :heavy_check_mark: (only option) | :heavy_check_mark: `--nlb-cross-zone` |
-| [Dualstack support][dualstack] | :heavy_check_mark: `--ip-addr-type=dualstack` | :heavy_multiplication_x: |
-| [Idle Timeout][idle_timeout] | :heavy_check_mark: `--idle-connection-timeout` | :heavy_multiplication_x: |
-| Custom Security Group | :heavy_check_mark: | :heavy_multiplication_x: |
-| Web Application Firewall (WAF) | :heavy_check_mark: | :heavy_multiplication_x: |
-| HTTP/2 Support | :white_check_mark: | (not relevant) |
+| Feature                                 | Application Load Balancer                      | Network Load Balancer                    |
+|-----------------------------------------|------------------------------------------------|------------------------------------------|
+| HTTPS                                   | :heavy_check_mark:                             | :heavy_check_mark:                       |
+| HTTP                                    | :heavy_check_mark:                             | :heavy_check_mark: `--nlb-http-enabled`  |
+| HTTP -> HTTPS redirect                  | :heavy_check_mark: `--redirect-http-to-https`  | :heavy_multiplication_x:                 |
+| [Cross Zone Load Balancing][cross_zone] | :heavy_check_mark: (only option)               | :heavy_check_mark: `--nlb-cross-zone`    |
+| [Zone Affinity][zone_affinity]          | :heavy_multiplication_x:                       | :heavy_check_mark: `--nlb-zone-affinity` |
+| [Dualstack support][dualstack]          | :heavy_check_mark: `--ip-addr-type=dualstack`  | :heavy_multiplication_x:                 |
+| [Idle Timeout][idle_timeout]            | :heavy_check_mark: `--idle-connection-timeout` | :heavy_multiplication_x:                 |
+| Custom Security Group                   | :heavy_check_mark:                             | :heavy_multiplication_x:                 |
+| Web Application Firewall (WAF)          | :heavy_check_mark:                             | :heavy_multiplication_x:                 |
+| HTTP/2 Support                          | :white_check_mark:                             | (not relevant)                           |
 
 To facilitate default load balancer type switch from Application to Network when the default load balancer type is Network
 (`--load-balancer-type="network"`) and Custom Security Group (`zalando.org/aws-load-balancer-security-group`) or
@@ -188,6 +191,7 @@ Web Application Firewall (`zalando.org/aws-waf-web-acl-id`) annotation is presen
 If `zalando.org/aws-load-balancer-type: nlb` annotation is also present then controller ignores the configuration and logs an error.
 
 [cross_zone]: https://docs.aws.amazon.com/elasticloadbalancing/latest/network/network-load-balancers.html#availability-zones
+[zone_affinity]: https://docs.aws.amazon.com/elasticloadbalancing/latest/network/network-load-balancers.html#zonal-dns-affinity
 [dualstack]: https://docs.aws.amazon.com/elasticloadbalancing/latest/application/application-load-balancers.html#ip-address-type
 [idle_timeout]: https://docs.aws.amazon.com/elasticloadbalancing/latest/application/application-load-balancers.html#load-balancer-attributes
 
@@ -688,6 +692,21 @@ By default, the controller will expose both HTTP and HTTPS ports on the load bal
 
 The controller used to have only the `--health-check-port` flag available, and would use the same port as health check and the target port.
 Those ports are now configured individually. If you relied on this behavior, please include the `--target-port` in your configuration.
+
+## Zone Aware Traffic
+
+If you want to have full zone aware traffic from client to the NLB target members, you can configure the controller by 2 configuration parameters:
+
+1. [Zone Affinity][zone_affinity] to resolve DNS via Route53 to the same zone NLB Listener `--nlb-zone-affinity=availability_zone_affinity`
+2. [Cross Zone Load Balancing][cross_zone] to disable cross zone balancing from NLB to member  `--nlb-cross-zone=false`
+
+[Zone Affinity][zone_affinity] has 3 options:
+
+1. `availability_zone_affinity`: 100% zonal affinity
+2. `partial_availability_zone_affinity`: 85% zonal affinity
+3. `any_availability_zone`: 0% zonal affinity
+
+The default is to run with cross zone traffic enabled and any zone affinity.
 
 ## AWS CNI Mode (experimental)
 
