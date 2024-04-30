@@ -413,6 +413,8 @@ func main() {
 	log.Infof("CloudWatch Alarm ConfigMap: %s", cwAlarmConfigMapLocation)
 	log.Infof("Default LoadBalancer type: %s", loadBalancerType)
 	log.Infof("Target access mode: %s", targetAccessMode)
+	log.Infof("NLB Cross Zone: %t", nlbCrossZone)
+	log.Infof("NLB Zone Affinity: %s", nlbZoneAffinity)
 
 	go handleTerminationSignals(cancel, syscall.SIGTERM, syscall.SIGQUIT)
 	go serveMetrics(metricsAddress)
