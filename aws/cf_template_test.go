@@ -292,6 +292,48 @@ func TestGenerateTemplate(t *testing.T) {
 			},
 		},
 		{
+			name: "nlb zone affinity Route53 can be configured to any_availability_zone for Network load balancers",
+			spec: &stackSpec{
+				loadbalancerType: LoadBalancerTypeNetwork,
+				nlbZoneAffinity:  "any_availability_zone",
+			},
+			validate: func(t *testing.T, template *cloudformation.Template) {
+				require.NotNil(t, template.Resources["LB"])
+				properties := template.Resources["LB"].Properties.(*cloudformation.ElasticLoadBalancingV2LoadBalancer)
+				attributes := []cloudformation.ElasticLoadBalancingV2LoadBalancerLoadBalancerAttribute(*properties.LoadBalancerAttributes)
+				require.Equal(t, attributes[1].Key.Literal, "dns_record.client_routing_policy")
+				require.Equal(t, attributes[1].Value.Literal, "any_availability_zone")
+			},
+		},
+		{
+			name: "nlb zone affinity Route53 can be configured to availability_zone_affinity for Network load balancers",
+			spec: &stackSpec{
+				loadbalancerType: LoadBalancerTypeNetwork,
+				nlbZoneAffinity:  "availability_zone_affinity",
+			},
+			validate: func(t *testing.T, template *cloudformation.Template) {
+				require.NotNil(t, template.Resources["LB"])
+				properties := template.Resources["LB"].Properties.(*cloudformation.ElasticLoadBalancingV2LoadBalancer)
+				attributes := []cloudformation.ElasticLoadBalancingV2LoadBalancerLoadBalancerAttribute(*properties.LoadBalancerAttributes)
+				require.Equal(t, attributes[1].Key.Literal, "dns_record.client_routing_policy")
+				require.Equal(t, attributes[1].Value.Literal, "availability_zone_affinity")
+			},
+		},
+		{
+			name: "nlb zone affinity Route53 can be configured to partial_availability_zone_affinity for Network load balancers",
+			spec: &stackSpec{
+				loadbalancerType: LoadBalancerTypeNetwork,
+				nlbZoneAffinity:  "partial_availability_zone_affinity",
+			},
+			validate: func(t *testing.T, template *cloudformation.Template) {
+				require.NotNil(t, template.Resources["LB"])
+				properties := template.Resources["LB"].Properties.(*cloudformation.ElasticLoadBalancingV2LoadBalancer)
+				attributes := []cloudformation.ElasticLoadBalancingV2LoadBalancerLoadBalancerAttribute(*properties.LoadBalancerAttributes)
+				require.Equal(t, attributes[1].Key.Literal, "dns_record.client_routing_policy")
+				require.Equal(t, attributes[1].Value.Literal, "partial_availability_zone_affinity")
+			},
+		},
+		{
 			name: "nlb HTTP listener should not be enabled when HTTP is disabled",
 			spec: &stackSpec{
 				loadbalancerType: LoadBalancerTypeNetwork,

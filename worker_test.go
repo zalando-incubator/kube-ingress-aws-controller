@@ -18,6 +18,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/zalando-incubator/kube-ingress-aws-controller/aws"
 	awsAdapter "github.com/zalando-incubator/kube-ingress-aws-controller/aws"
 	"github.com/zalando-incubator/kube-ingress-aws-controller/certs"
 	"github.com/zalando-incubator/kube-ingress-aws-controller/kubernetes"
@@ -471,7 +472,8 @@ func TestResourceConversionOneToOne(tt *testing.T) {
 			a = a.WithCustomAutoScalingClient(clientASG).
 				WithCustomEc2Client(clientEC2).
 				WithCustomElbv2Client(clientELBv2).
-				WithCustomCloudFormationClient(clientCF)
+				WithCustomCloudFormationClient(clientCF).
+				WithNLBZoneAffinity(aws.DefaultZoneAffinity)
 
 			a, err = a.UpdateManifest(clusterID, vpcID)
 			if err != nil {

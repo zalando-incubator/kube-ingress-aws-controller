@@ -282,7 +282,7 @@ func generateTemplate(spec *stackSpec) (string, error) {
 	}
 
 	// Build up the LoadBalancerAttributes list, as there is no way to make attributes conditional in the template
-	lbAttrList := make(cloudformation.ElasticLoadBalancingV2LoadBalancerLoadBalancerAttributeList, 0, 4)
+	lbAttrList := make(cloudformation.ElasticLoadBalancingV2LoadBalancerLoadBalancerAttributeList, 0, 5)
 
 	if spec.loadbalancerType == LoadBalancerTypeApplication {
 		lbAttrList = append(lbAttrList,
@@ -305,6 +305,19 @@ func generateTemplate(spec *stackSpec) (string, error) {
 			cloudformation.ElasticLoadBalancingV2LoadBalancerLoadBalancerAttribute{
 				Key:   cloudformation.String("load_balancing.cross_zone.enabled"),
 				Value: cloudformation.String(fmt.Sprintf("%t", spec.nlbCrossZone)),
+			},
+		)
+
+		println("HERE: ", spec.nlbZoneAffinity)
+		lbAttrList = append(lbAttrList,
+			cloudformation.ElasticLoadBalancingV2LoadBalancerLoadBalancerAttribute{
+				// https://docs.aws.amazon.com/elasticloadbalancing/latest/network/network-load-balancers.html#load-balancer-attributes
+				// https://docs.aws.amazon.com/elasticloadbalancing/latest/network/network-load-balancers.html#zonal-dns-affinity
+				Key: cloudformation.String("dns_record.client_routing_policy"),
+				// availability_zone_affinity 100%
+				// partial_availability_zone_affinity 85%
+				// any_availability_zone 0%
+				Value: cloudformation.String(spec.nlbZoneAffinity),
 			},
 		)
 	}

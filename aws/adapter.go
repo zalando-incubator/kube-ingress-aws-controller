@@ -66,6 +66,7 @@ type Adapter struct {
 	ipAddressType               string
 	albLogsS3Bucket             string
 	albLogsS3Prefix             string
+	nlbZoneAffinity             string
 	httpRedirectToHTTPS         bool
 	nlbCrossZone                bool
 	nlbHTTPEnabled              bool
@@ -124,6 +125,10 @@ const (
 	DefaultAlbS3LogsPrefix = ""
 
 	DefaultCustomFilter = ""
+
+	// DefaultZoneAffinity specifies dns_record.client_routing_policy, see also https://docs.aws.amazon.com/elasticloadbalancing/latest/network/network-load-balancers.html#load-balancer-attributes
+	DefaultZoneAffinity = "any_availability_zone"
+
 	// DefaultNLBCrossZone specifies the default configuration for cross
 	// zone load balancing: https://docs.aws.amazon.com/elasticloadbalancing/latest/network/network-load-balancers.html#load-balancer-attributes
 	DefaultNLBCrossZone   = false
@@ -246,6 +251,7 @@ func NewAdapter(clusterID, newControllerID, vpcID string, debug, disableInstrume
 		albLogsS3Bucket:            DefaultAlbS3LogsBucket,
 		albLogsS3Prefix:            DefaultAlbS3LogsPrefix,
 		nlbCrossZone:               DefaultNLBCrossZone,
+		nlbZoneAffinity:            DefaultZoneAffinity,
 		nlbHTTPEnabled:             DefaultNLBHTTPEnabled,
 		customFilter:               DefaultCustomFilter,
 		TargetCNI: &TargetCNIconfig{
@@ -443,6 +449,13 @@ func (a *Adapter) WithHTTPRedirectToHTTPS(httpRedirectToHTTPS bool) *Adapter {
 // config.
 func (a *Adapter) WithNLBCrossZone(nlbCrossZone bool) *Adapter {
 	a.nlbCrossZone = nlbCrossZone
+	return a
+}
+
+// WithNLBZoneAffinity returns the receiver adapter after setting the
+// nlbZoneAffinity config.
+func (a *Adapter) WithNLBZoneAffinity(nlbZoneAffinity string) *Adapter {
+	a.nlbZoneAffinity = nlbZoneAffinity
 	return a
 }
 
@@ -753,6 +766,7 @@ func (a *Adapter) CreateStack(certificateARNs []string, scheme, securityGroup, o
 		cwAlarms:                          cwAlarms,
 		httpRedirectToHTTPS:               a.httpRedirectToHTTPS,
 		nlbCrossZone:                      a.nlbCrossZone,
+		nlbZoneAffinity:                   a.nlbZoneAffinity,
 		http2:                             http2,
 		tags:                              a.stackTags,
 		internalDomains:                   a.internalDomains,
@@ -809,6 +823,7 @@ func (a *Adapter) UpdateStack(stackName string, certificateARNs map[string]time.
 		cwAlarms:                          cwAlarms,
 		httpRedirectToHTTPS:               a.httpRedirectToHTTPS,
 		nlbCrossZone:                      a.nlbCrossZone,
+		nlbZoneAffinity:                   a.nlbZoneAffinity,
 		http2:                             http2,
 		tags:                              a.stackTags,
 		internalDomains:                   a.internalDomains,
