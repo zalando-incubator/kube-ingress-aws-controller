@@ -308,7 +308,6 @@ func generateTemplate(spec *stackSpec) (string, error) {
 			},
 		)
 
-		println("HERE: ", spec.nlbZoneAffinity)
 		lbAttrList = append(lbAttrList,
 			cloudformation.ElasticLoadBalancingV2LoadBalancerLoadBalancerAttribute{
 				// https://docs.aws.amazon.com/elasticloadbalancing/latest/network/network-load-balancers.html#load-balancer-attributes
