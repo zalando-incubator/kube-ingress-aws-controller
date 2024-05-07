@@ -4,7 +4,7 @@ go 1.22
 
 require (
 	github.com/alecthomas/kingpin/v2 v2.4.0
-	github.com/aws/aws-sdk-go v1.51.22
+	github.com/aws/aws-sdk-go v1.51.32
 	github.com/ghodss/yaml v1.0.0
 	github.com/google/go-cmp v0.6.0
 	github.com/google/uuid v1.6.0
