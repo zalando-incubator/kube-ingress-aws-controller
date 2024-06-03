@@ -30,7 +30,7 @@ pipeline:
         make build.linux.amd64 build.linux.arm64
 
         docker buildx create --config /etc/cdp-buildkitd.toml --driver-opt network=host --bootstrap --use
-        docker buildx build --rm --build-arg BASE_IMAGE=container-registry.zalando.net/library/amazonlinux-2023:latest -t "${IMAGE}:${CDP_BUILD_VERSION}" --platform linux/amd64,linux/arm64 --push .
+        docker buildx build --rm --build-arg BASE_IMAGE=container-registry.zalando.net/library/static:latest -t "${IMAGE}:${CDP_BUILD_VERSION}" --platform linux/amd64,linux/arm64 --push .
       fi
 
 - id: buildprod
@@ -68,7 +68,7 @@ pipeline:
       make build.linux.amd64 build.linux.arm64
       IMAGE=container-registry-test.zalando.net/teapot/kube-ingress-aws-controller
       docker buildx create --config /etc/cdp-buildkitd.toml --driver-opt network=host --bootstrap --use
-      docker buildx build --rm --build-arg BASE_IMAGE=container-registry.zalando.net/library/amazonlinux-2023:latest -t "${IMAGE}:${VERSION}" --platform linux/amd64,linux/arm64 --push .
+      docker buildx build --rm --build-arg BASE_IMAGE=container-registry.zalando.net/library/static:latest -t "${IMAGE}:${VERSION}" --platform linux/amd64,linux/arm64 --push .
       cdp-promote-image "${IMAGE}:${VERSION}"
 
       echo "create release page"
