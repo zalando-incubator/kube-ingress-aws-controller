@@ -286,7 +286,7 @@ func loadSettings() error {
 }
 
 func main() {
-	log.Infof("starting %s %s", os.Args[0], version)
+	log.Infof("Starting %s %s", os.Args[0], version)
 	var (
 		awsAdapter  *aws.Adapter
 		kubeAdapter *kubernetes.Adapter

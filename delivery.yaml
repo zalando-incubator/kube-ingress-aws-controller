@@ -65,7 +65,7 @@ pipeline:
       IMAGE=$IMAGE VERSION=$VERSION make build.push
 
       # multi-arch image (Zalando private)
-      make build.linux.amd64 build.linux.arm64
+      VERSION=$VERSION make build.linux.amd64 build.linux.arm64
       IMAGE=container-registry-test.zalando.net/teapot/kube-ingress-aws-controller
       docker buildx create --config /etc/cdp-buildkitd.toml --driver-opt network=host --bootstrap --use
       docker buildx build --rm --build-arg BASE_IMAGE=container-registry.zalando.net/library/static:latest -t "${IMAGE}:${VERSION}" --platform linux/amd64,linux/arm64 --push .
