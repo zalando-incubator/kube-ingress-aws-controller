@@ -35,6 +35,7 @@ type Stack struct {
 	WAFWebACLID       string
 	CertificateARNs   map[string]time.Time
 	tags              map[string]string
+	Stickiness        bool
 }
 
 // IsComplete returns true if the stack status is a complete state.
@@ -148,6 +149,7 @@ const (
 	parameterLoadBalancerTypeParameter               = "Type"
 	parameterLoadBalancerWAFWebACLIDParameter        = "LoadBalancerWAFWebACLIDParameter"
 	parameterHTTP2Parameter                          = "HTTP2"
+	parameterStickinessParameter                     = "Stickiness"
 )
 
 type stackSpec struct {
@@ -188,6 +190,7 @@ type stackSpec struct {
 	denyInternalDomainsResponse       denyResp
 	internalDomains                   []string
 	tags                              map[string]string
+	stickiness                        bool
 }
 
 type healthCheck struct {
@@ -229,6 +232,7 @@ func createStack(svc cloudformationiface.CloudFormationAPI, spec *stackSpec) (st
 			cfParam(parameterIpAddressTypeParameter, spec.ipAddressType),
 			cfParam(parameterLoadBalancerTypeParameter, spec.loadbalancerType),
 			cfParam(parameterHTTP2Parameter, fmt.Sprintf("%t", spec.http2)),
+			cfParam(parameterStickinessParameter, spec.stickiness),
 		},
 		Tags:                        tagMapToCloudformationTags(tags),
 		TemplateBody:                aws.String(template),
@@ -304,6 +308,7 @@ func updateStack(svc cloudformationiface.CloudFormationAPI, spec *stackSpec) (st
 			cfParam(parameterIpAddressTypeParameter, spec.ipAddressType),
 			cfParam(parameterLoadBalancerTypeParameter, spec.loadbalancerType),
 			cfParam(parameterHTTP2Parameter, fmt.Sprintf("%t", spec.http2)),
+			cfParam(parameterStickinessParameter, spec.stickiness),
 		},
 		Tags:         tagMapToCloudformationTags(tags),
 		TemplateBody: aws.String(template),
@@ -481,6 +486,11 @@ func mapToManagedStack(stack *cloudformation.Stack) *Stack {
 		http2 = false
 	}
 
+	stickiness := false
+	if parameters[parameterStickinessParameter] == "true" {
+		stickiness = true
+	}
+
 	return &Stack{
 		Name:              aws.StringValue(stack.StackName),
 		DNSName:           outputs.dnsName(),
@@ -498,6 +508,7 @@ func mapToManagedStack(stack *cloudformation.Stack) *Stack {
 		statusReason:      aws.StringValue(stack.StackStatusReason),
 		CWAlarmConfigHash: tags[cwAlarmConfigHashTag],
 		WAFWebACLID:       parameters[parameterLoadBalancerWAFWebACLIDParameter],
+		Stickiness:        stickiness,
 	}
 }
 

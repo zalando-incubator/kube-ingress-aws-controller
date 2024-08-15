@@ -103,6 +103,11 @@ func generateTemplate(spec *stackSpec) (string, error) {
 			Description: "H2 Enabled",
 			Default:     "true",
 		},
+		parameterStickinessParameter: {
+			Type:        "String",
+			Description: "Enable Target Group Stickiness",
+			Default:     "false",
+		},
 	}
 
 	if spec.wafWebAclId != "" {
@@ -168,8 +173,12 @@ func generateTemplate(spec *stackSpec) (string, error) {
 				template.AddResource("HTTPListener", &cloudformation.ElasticLoadBalancingV2Listener{
 					DefaultActions: &cloudformation.ElasticLoadBalancingV2ListenerActionList{
 						{
-							Type:           cloudformation.String("forward"),
-							TargetGroupArn: cloudformation.Ref(httpTargetGroupName).String(),
+							Type:                        cloudformation.String("forward"),
+							TargetGroupArn:              cloudformation.Ref(httpTargetGroupName).String(),
+							TargetGroupStickinessConfig: &cloudformation.ElasticLoadBalancingV2ListenerTargetGroupStickinessConfig{
+								Enabled:         cloudformation.Ref(parameterStickinessParameter).String(),
+								DurationSeconds: cloudformation.Integer(3600)
+							},
 						},
 					},
 					LoadBalancerArn: cloudformation.Ref("LB").String(),

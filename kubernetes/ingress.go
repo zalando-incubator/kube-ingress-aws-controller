@@ -75,6 +75,7 @@ const (
 	ingressHTTP2Annotation            = "zalando.org/aws-load-balancer-http2"
 	ingressWAFWebACLIDAnnotation      = "zalando.org/aws-waf-web-acl-id"
 	ingressClassAnnotation            = "kubernetes.io/ingress.class"
+	ingressLoadBalancerStickiness     = "zalando.org/aws-load-balancer-stickiness"
 )
 
 func getAnnotationsString(annotations map[string]string, key string, defaultValue string) string {
