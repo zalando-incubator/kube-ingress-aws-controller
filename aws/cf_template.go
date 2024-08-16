@@ -175,9 +175,11 @@ func generateTemplate(spec *stackSpec) (string, error) {
 						{
 							Type:                        cloudformation.String("forward"),
 							TargetGroupArn:              cloudformation.Ref(httpTargetGroupName).String(),
-							TargetGroupStickinessConfig: &cloudformation.ElasticLoadBalancingV2ListenerTargetGroupStickinessConfig{
-								Enabled:         cloudformation.Ref(parameterStickinessParameter).String(),
-								DurationSeconds: cloudformation.Integer(3600)
+							ForwardConfig:               &cloudformation.ElasticLoadBalancingV2ListenerForwardConfig{
+								TargetGroupStickinessConfig: &cloudformation.ElasticLoadBalancingV2ListenerTargetGroupStickinessConfig{
+									Enabled:         cloudformation.Ref(parameterStickinessParameter).Bool(),
+									DurationSeconds: cloudformation.Integer(3600),
+								},
 							},
 						},
 					},
