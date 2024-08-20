@@ -30,11 +30,6 @@
             "Type": "List\u003cAWS::EC2::Subnet::Id\u003e",
             "Description": "The list of subnets IDs for the Load Balancer"
         },
-        "Stickiness": {
-            "Type": "String",
-            "Default": "false",
-            "Description": "Enable Target Group Stickiness"
-        },
         "TargetGroupHealthCheckIntervalParameter": {
             "Type": "Number",
             "Default": "10",

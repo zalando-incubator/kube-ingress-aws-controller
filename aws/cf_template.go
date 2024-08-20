@@ -103,11 +103,14 @@ func generateTemplate(spec *stackSpec) (string, error) {
 			Description: "H2 Enabled",
 			Default:     "true",
 		},
-		parameterStickinessParameter: {
+	}
+
+	if spec.stickiness {
+		template.Parameters[parameterStickinessParameter] = &cloudformation.Parameter{
 			Type:        "String",
 			Description: "Enable Target Group Stickiness",
 			Default:     "false",
-		},
+		}
 	}
 
 	if spec.wafWebAclId != "" {
@@ -170,23 +173,37 @@ func generateTemplate(spec *stackSpec) (string, error) {
 					Protocol:        cloudformation.String("HTTP"),
 				})
 			} else {
-				template.AddResource("HTTPListener", &cloudformation.ElasticLoadBalancingV2Listener{
-					DefaultActions: &cloudformation.ElasticLoadBalancingV2ListenerActionList{
-						{
-							Type:                        cloudformation.String("forward"),
-							TargetGroupArn:              cloudformation.Ref(httpTargetGroupName).String(),
-							ForwardConfig:               &cloudformation.ElasticLoadBalancingV2ListenerForwardConfig{
-								TargetGroupStickinessConfig: &cloudformation.ElasticLoadBalancingV2ListenerTargetGroupStickinessConfig{
-									Enabled:         cloudformation.Ref(parameterStickinessParameter).Bool(),
-									DurationSeconds: cloudformation.Integer(3600),
+				if spec.stickiness {
+					template.AddResource("HTTPListener", &cloudformation.ElasticLoadBalancingV2Listener{
+						DefaultActions: &cloudformation.ElasticLoadBalancingV2ListenerActionList{
+							{
+								Type:                        cloudformation.String("forward"),
+								TargetGroupArn:              cloudformation.Ref(httpTargetGroupName).String(),
+								ForwardConfig:               &cloudformation.ElasticLoadBalancingV2ListenerForwardConfig{
+									TargetGroupStickinessConfig: &cloudformation.ElasticLoadBalancingV2ListenerTargetGroupStickinessConfig{
+										Enabled:         cloudformation.Ref(parameterStickinessParameter).Bool(),
+										DurationSeconds: cloudformation.Integer(3600),
+									},
 								},
 							},
 						},
-					},
-					LoadBalancerArn: cloudformation.Ref("LB").String(),
-					Port:            cloudformation.Integer(80),
-					Protocol:        cloudformation.String("HTTP"),
-				})
+						LoadBalancerArn: cloudformation.Ref("LB").String(),
+						Port:            cloudformation.Integer(80),
+						Protocol:        cloudformation.String("HTTP"),
+					})
+				} else {
+					template.AddResource("HTTPListener", &cloudformation.ElasticLoadBalancingV2Listener{
+						DefaultActions: &cloudformation.ElasticLoadBalancingV2ListenerActionList{
+							{
+								Type:                        cloudformation.String("forward"),
+								TargetGroupArn:              cloudformation.Ref(httpTargetGroupName).String(),
+							},
+						},
+						LoadBalancerArn: cloudformation.Ref("LB").String(),
+						Port:            cloudformation.Integer(80),
+						Protocol:        cloudformation.String("HTTP"),
+					})
+				}
 				if spec.denyInternalDomains {
 					template.AddResource(
 						"HTTPRuleBlockInternalTraffic",
