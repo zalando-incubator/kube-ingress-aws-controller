@@ -36,7 +36,6 @@ type loadBalancer struct {
 	certTTL                      time.Duration
 	cwAlarms                     aws.CloudWatchAlarmList
 	loadBalancerType             string
-	stickiness                   bool
 }
 
 const (
