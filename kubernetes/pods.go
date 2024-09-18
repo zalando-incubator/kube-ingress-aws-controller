@@ -100,8 +100,7 @@ func isPodTerminating(p *corev1.Pod) bool {
 }
 
 func isPodRunning(p *corev1.Pod) bool {
-	return p.Status.ContainerStatuses != nil &&
-		len(p.Status.ContainerStatuses) > 0 &&
+	return len(p.Status.ContainerStatuses) > 0 &&
 		p.Status.ContainerStatuses[0].State.Running != nil &&
 		p.Status.PodIP != ""
 }
