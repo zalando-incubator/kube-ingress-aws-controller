@@ -69,6 +69,7 @@ func (m *CFClient) DescribeStacks(in *cloudformation.DescribeStacksInput) (*clou
 }
 
 func (m *CFClient) CreateStack(params *cloudformation.CreateStackInput) (*cloudformation.CreateStackOutput, error) {
+	print("\n ======== CreateStack ======== \n")
 	m.tagCreationHistory = append(m.tagCreationHistory, params.Tags)
 	m.paramCreationHistory = append(m.paramCreationHistory, params.Parameters)
 	m.templateCreationHistory = append(m.templateCreationHistory, *params.TemplateBody)
