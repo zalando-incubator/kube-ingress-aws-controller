@@ -260,8 +260,8 @@ github.com/yuin/gopher-lua v1.1.1 h1:kYKnWBjvbNP4XLT3+bPEwAXJx262OhaHDWDVOPjL46M
 github.com/yuin/gopher-lua v1.1.1/go.mod h1:GBR0iDaNXjAgGg9zfCvksxSRnQx76gclCIb7kdAd1Pw=
 github.com/yusufpapurcu/wmi v1.2.3 h1:E1ctvB7uKFMOJw3fdOW32DwGE9I7t++CRUEMKvFoFiw=
 github.com/yusufpapurcu/wmi v1.2.3/go.mod h1:SBZ9tNy3G9/m5Oi98Zks0QjeHVDvuK0qfxQmPyzfmi0=
-github.com/zalando/skipper v0.21.209 h1:swiSVbVdHPaT3TOrZtN2OZ3TUUGPj/1GqMMp4I2biJE=
-github.com/zalando/skipper v0.21.209/go.mod h1:JY1kyGPAVnzin2A4MjOvOEgNYVRX0+tCanl2snfOHK4=
+github.com/zalando/skipper v0.21.211 h1:kFVe2hW77DCtxuIqfPiHESuo9ccOgJO+Q2rk+f6rK7U=
+github.com/zalando/skipper v0.21.211/go.mod h1:JY1kyGPAVnzin2A4MjOvOEgNYVRX0+tCanl2snfOHK4=
 go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.55.0 h1:ZIg3ZT/aQ7AfKqdwp7ECpOK6vHqquXXuyTjIO8ZdmPs=
 go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.55.0/go.mod h1:DQAwmETtZV00skUwgD6+0U89g80NKsJE3DCKeLLPQMI=
 go.opentelemetry.io/otel v1.30.0 h1:F2t8sK4qf1fAmY9ua4ohFS/K+FUuOPemHUIXHtktrts=
