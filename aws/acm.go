@@ -44,16 +44,18 @@ func getACMCertificateSummaries(api acmiface.ACMAPI, filterTag string) ([]*acm.C
 	}
 	acmSummaries := make([]*acm.CertificateSummary, 0)
 
-	err := api.ListCertificatesPages(params, func(page *acm.ListCertificatesOutput, lastPage bool) bool {
+	if err := api.ListCertificatesPages(params, func(page *acm.ListCertificatesOutput, lastPage bool) bool {
 		acmSummaries = append(acmSummaries, page.CertificateSummaryList...)
 		return true
-	})
+	}); err != nil {
+		return nil, err
+	}
 
 	if tag := strings.Split(filterTag, "="); filterTag != "=" && len(tag) == 2 {
 		return filterCertificatesByTag(api, acmSummaries, tag[0], tag[1])
 	}
 
-	return acmSummaries, err
+	return acmSummaries, nil
 }
 
 func filterCertificatesByTag(api acmiface.ACMAPI, allSummaries []*acm.CertificateSummary, key, value string) ([]*acm.CertificateSummary, error) {
