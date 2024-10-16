@@ -1,6 +1,7 @@
 package aws
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -14,7 +15,7 @@ type acmExpect struct {
 	ARN         string
 	DomainNames []string
 	Chain       int
-	Error       error
+	Error       string
 	EmptyList   bool
 }
 
@@ -45,11 +46,11 @@ func TestACM(t *testing.T) {
 						CertificateChain: aws.String(chain),
 					},
 				},
+				nil,
 			),
 			expect: acmExpect{
 				ARN:         "foobar",
 				DomainNames: []string{"foobar.de"},
-				Error:       nil,
 			},
 		},
 		{
@@ -68,16 +69,16 @@ func TestACM(t *testing.T) {
 						Certificate: aws.String(cert),
 					},
 				},
+				nil,
 			),
 			expect: acmExpect{
 				ARN:         "foobar",
 				DomainNames: []string{"foobar.de"},
-				Error:       nil,
 			},
 		},
 		{
 			msg: "Found one ACM Cert with correct filter tag",
-			api: fake.NewACMClientWithTags(
+			api: fake.NewACMClient(
 				acm.ListCertificatesOutput{
 					CertificateSummaryList: []*acm.CertificateSummary{
 						{
@@ -111,12 +112,11 @@ func TestACM(t *testing.T) {
 			expect: acmExpect{
 				ARN:         "foobar",
 				DomainNames: []string{"foobar.de"},
-				Error:       nil,
 			},
 		},
 		{
 			msg: "ACM Cert with incorrect filter tag should not be found",
-			api: fake.NewACMClientWithTags(
+			api: fake.NewACMClient(
 				acm.ListCertificatesOutput{
 					CertificateSummaryList: []*acm.CertificateSummary{
 						{
@@ -141,7 +141,18 @@ func TestACM(t *testing.T) {
 				EmptyList:   true,
 				ARN:         "foobar",
 				DomainNames: []string{"foobar.de"},
-				Error:       nil,
+			},
+		},
+		{
+			msg: "Fail on ListCertificatesPages error",
+			api: fake.NewACMClient(
+				acm.ListCertificatesOutput{}, nil, nil,
+			).WithListCertificatesPages(func(input *acm.ListCertificatesInput, fn func(p *acm.ListCertificatesOutput, lastPage bool) (shouldContinue bool)) error {
+				return fmt.Errorf("ListCertificatesPages error")
+			}),
+			filterTag: "production=true",
+			expect: acmExpect{
+				Error: "ListCertificatesPages error",
 			},
 		},
 	} {
@@ -149,15 +160,15 @@ func TestACM(t *testing.T) {
 			provider := newACMCertProvider(ti.api, ti.filterTag)
 			list, err := provider.GetCertificates()
 
-			if ti.expect.Error != nil {
-				require.Equal(t, ti.expect.Error, err)
+			if ti.expect.Error != "" {
+				require.EqualError(t, err, ti.expect.Error)
+				return
 			} else {
 				require.NoError(t, err)
 			}
 
 			if ti.expect.EmptyList {
 				require.Equal(t, 0, len(list))
-
 			} else {
 				require.Equal(t, 1, len(list))
 

@@ -9,25 +9,21 @@ import (
 
 type ACMClient struct {
 	acmiface.ACMAPI
-	output acm.ListCertificatesOutput
-	cert   map[string]*acm.GetCertificateOutput
-	tags   map[string]*acm.ListTagsForCertificateOutput
+	cert map[string]*acm.GetCertificateOutput
+	tags map[string]*acm.ListTagsForCertificateOutput
+
+	listCertificatesPages func(input *acm.ListCertificatesInput, fn func(p *acm.ListCertificatesOutput, lastPage bool) (shouldContinue bool)) error
 }
 
-func (m ACMClient) ListCertificates(in *acm.ListCertificatesInput) (*acm.ListCertificatesOutput, error) {
-	return &m.output, nil
+func (m *ACMClient) ListCertificatesPages(input *acm.ListCertificatesInput, fn func(p *acm.ListCertificatesOutput, lastPage bool) (shouldContinue bool)) error {
+	return m.listCertificatesPages(input, fn)
 }
 
-func (m ACMClient) ListCertificatesPages(input *acm.ListCertificatesInput, fn func(p *acm.ListCertificatesOutput, lastPage bool) (shouldContinue bool)) error {
-	fn(&m.output, true)
-	return nil
-}
-
-func (m ACMClient) GetCertificate(input *acm.GetCertificateInput) (*acm.GetCertificateOutput, error) {
+func (m *ACMClient) GetCertificate(input *acm.GetCertificateInput) (*acm.GetCertificateOutput, error) {
 	return m.cert[*input.CertificateArn], nil
 }
 
-func (m ACMClient) ListTagsForCertificate(in *acm.ListTagsForCertificateInput) (*acm.ListTagsForCertificateOutput, error) {
+func (m *ACMClient) ListTagsForCertificate(in *acm.ListTagsForCertificateInput) (*acm.ListTagsForCertificateOutput, error) {
 	if in.CertificateArn == nil {
 		return nil, fmt.Errorf("expected a valid CertificateArn, got: nil")
 	}
@@ -35,21 +31,23 @@ func (m ACMClient) ListTagsForCertificate(in *acm.ListTagsForCertificateInput) (
 	return m.tags[arn], nil
 }
 
-func NewACMClient(output acm.ListCertificatesOutput, cert map[string]*acm.GetCertificateOutput) ACMClient {
-	return ACMClient{
-		output: output,
-		cert:   cert,
-	}
+func (m *ACMClient) WithListCertificatesPages(f func(input *acm.ListCertificatesInput, fn func(p *acm.ListCertificatesOutput, lastPage bool) (shouldContinue bool)) error) *ACMClient {
+	m.listCertificatesPages = f
+	return m
 }
 
-func NewACMClientWithTags(
+func NewACMClient(
 	output acm.ListCertificatesOutput,
 	cert map[string]*acm.GetCertificateOutput,
 	tags map[string]*acm.ListTagsForCertificateOutput,
-) ACMClient {
-	return ACMClient{
-		output: output,
-		cert:   cert,
-		tags:   tags,
+) *ACMClient {
+	c := &ACMClient{
+		cert: cert,
+		tags: tags,
 	}
+	c.WithListCertificatesPages(func(input *acm.ListCertificatesInput, fn func(p *acm.ListCertificatesOutput, lastPage bool) (shouldContinue bool)) error {
+		fn(&output, true)
+		return nil
+	})
+	return c
 }
