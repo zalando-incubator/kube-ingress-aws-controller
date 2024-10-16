@@ -19,7 +19,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/zalando-incubator/kube-ingress-aws-controller/aws"
-	awsAdapter "github.com/zalando-incubator/kube-ingress-aws-controller/aws"
 	"github.com/zalando-incubator/kube-ingress-aws-controller/certs"
 	"github.com/zalando-incubator/kube-ingress-aws-controller/kubernetes"
 	"github.com/zalando/skipper/dataclients/kubernetes/kubernetestest"
@@ -95,7 +94,7 @@ func TestResourceConversionOneToOne(tt *testing.T) {
 				DescribeStacks:     fake.R(nil, nil),
 				CreateStack:        fake.R(fake.MockCSOutput("42"), nil),
 			},
-			typeLB: awsAdapter.LoadBalancerTypeApplication,
+			typeLB: aws.LoadBalancerTypeApplication,
 		},
 		{
 			name: "ingress_nlb",
@@ -148,7 +147,7 @@ func TestResourceConversionOneToOne(tt *testing.T) {
 				DescribeStacks:     fake.R(nil, nil),
 				CreateStack:        fake.R(fake.MockCSOutput("42"), nil),
 			},
-			typeLB: awsAdapter.LoadBalancerTypeNetwork,
+			typeLB: aws.LoadBalancerTypeNetwork,
 		}, {
 			name: "rg_alb",
 			responsesEC2: fake.EC2Outputs{DescribeInstancesPages: fake.MockDescribeInstancesPagesOutput(
@@ -200,7 +199,7 @@ func TestResourceConversionOneToOne(tt *testing.T) {
 				DescribeStacks:     fake.R(nil, nil),
 				CreateStack:        fake.R(fake.MockCSOutput("42"), nil),
 			},
-			typeLB: awsAdapter.LoadBalancerTypeApplication,
+			typeLB: aws.LoadBalancerTypeApplication,
 		}, {
 			name: "rg_nlb",
 			responsesEC2: fake.EC2Outputs{DescribeInstancesPages: fake.MockDescribeInstancesPagesOutput(
@@ -252,7 +251,7 @@ func TestResourceConversionOneToOne(tt *testing.T) {
 				DescribeStacks:     fake.R(nil, nil),
 				CreateStack:        fake.R(fake.MockCSOutput("42"), nil),
 			},
-			typeLB: awsAdapter.LoadBalancerTypeNetwork,
+			typeLB: aws.LoadBalancerTypeNetwork,
 		}, {
 			name: "ing_shared_rg_notshared_alb",
 			responsesEC2: fake.EC2Outputs{DescribeInstancesPages: fake.MockDescribeInstancesPagesOutput(
@@ -304,7 +303,7 @@ func TestResourceConversionOneToOne(tt *testing.T) {
 				DescribeStacks:     fake.R(nil, nil),
 				CreateStack:        fake.R(fake.MockCSOutput("42"), nil),
 			},
-			typeLB: awsAdapter.LoadBalancerTypeApplication,
+			typeLB: aws.LoadBalancerTypeApplication,
 		}, {
 			name: "ingress_rg_shared_alb",
 			responsesEC2: fake.EC2Outputs{DescribeInstancesPages: fake.MockDescribeInstancesPagesOutput(
@@ -356,7 +355,7 @@ func TestResourceConversionOneToOne(tt *testing.T) {
 				DescribeStacks:     fake.R(nil, nil),
 				CreateStack:        fake.R(fake.MockCSOutput("42"), nil),
 			},
-			typeLB: awsAdapter.LoadBalancerTypeApplication,
+			typeLB: aws.LoadBalancerTypeApplication,
 		}, {
 			name: "ingress_rg_shared_nlb",
 			responsesEC2: fake.EC2Outputs{DescribeInstancesPages: fake.MockDescribeInstancesPagesOutput(
@@ -408,7 +407,7 @@ func TestResourceConversionOneToOne(tt *testing.T) {
 				DescribeStacks:     fake.R(nil, nil),
 				CreateStack:        fake.R(fake.MockCSOutput("42"), nil),
 			},
-			typeLB: awsAdapter.LoadBalancerTypeNetwork,
+			typeLB: aws.LoadBalancerTypeNetwork,
 		},
 	} {
 		tt.Run(scenario.name, func(t *testing.T) {
@@ -466,8 +465,8 @@ func TestResourceConversionOneToOne(tt *testing.T) {
 			clientELBv2 := &fake.ELBv2Client{Outputs: scenario.responsesELBv2}
 			clientCF := &fake.CFClient{Outputs: scenario.responsesCF}
 
-			a := &awsAdapter.Adapter{
-				TargetCNI: &awsAdapter.TargetCNIconfig{Enabled: false},
+			a := &aws.Adapter{
+				TargetCNI: &aws.TargetCNIconfig{Enabled: false},
 			}
 			a = a.WithCustomAutoScalingClient(clientASG).
 				WithCustomEc2Client(clientEC2).
@@ -600,17 +599,17 @@ func TestAddIngress(tt *testing.T) {
 		{
 			name: "ip address type not matching",
 			loadBalancer: &loadBalancer{
-				ipAddressType: awsAdapter.IPAddressTypeIPV4,
+				ipAddressType: aws.IPAddressTypeIPV4,
 			},
 			ingress: &kubernetes.Ingress{
-				IPAddressType: awsAdapter.IPAddressTypeDualstack,
+				IPAddressType: aws.IPAddressTypeDualstack,
 			},
 			added: false,
 		},
 		{
 			name: "don't add ingresses non-shared, non-owned load balancer",
 			loadBalancer: &loadBalancer{
-				stack: &awsAdapter.Stack{
+				stack: &aws.Stack{
 					OwnerIngress: "foo/bar",
 				},
 			},
@@ -624,7 +623,7 @@ func TestAddIngress(tt *testing.T) {
 		{
 			name: "don't add ingresses shared, to an owned load balancer",
 			loadBalancer: &loadBalancer{
-				stack: &awsAdapter.Stack{
+				stack: &aws.Stack{
 					OwnerIngress: "foo/bar",
 				},
 			},
@@ -638,7 +637,7 @@ func TestAddIngress(tt *testing.T) {
 		{
 			name: "add ingress to empty load balancer",
 			loadBalancer: &loadBalancer{
-				stack: &awsAdapter.Stack{},
+				stack: &aws.Stack{},
 				ingresses: map[string][]*kubernetes.Ingress{
 					"foo": {
 						{
@@ -657,7 +656,7 @@ func TestAddIngress(tt *testing.T) {
 		{
 			name: "fail adding when too many certs",
 			loadBalancer: &loadBalancer{
-				stack: &awsAdapter.Stack{},
+				stack: &aws.Stack{},
 				ingresses: map[string][]*kubernetes.Ingress{
 					"foo": {
 						{
@@ -724,7 +723,7 @@ func TestAddIngress(tt *testing.T) {
 			name: "Adding/changing WAF, SG or TLS settings on non-shared LB should work",
 			loadBalancer: &loadBalancer{
 				ingresses: make(map[string][]*kubernetes.Ingress),
-				stack: &awsAdapter.Stack{
+				stack: &aws.Stack{
 					OwnerIngress: "foo/bar",
 				},
 				sslPolicy: "ELBSecurityPolicy-2016-08",
@@ -755,17 +754,17 @@ func TestSortStacks(tt *testing.T) {
 
 	for _, test := range []struct {
 		name           string
-		stacks         []*awsAdapter.Stack
-		expectedStacks []*awsAdapter.Stack
+		stacks         []*aws.Stack
+		expectedStacks []*aws.Stack
 	}{
 		{
 			name:           "no stacks",
-			stacks:         []*awsAdapter.Stack{},
-			expectedStacks: []*awsAdapter.Stack{},
+			stacks:         []*aws.Stack{},
+			expectedStacks: []*aws.Stack{},
 		},
 		{
 			name: "two unsorted stacks",
-			stacks: []*awsAdapter.Stack{
+			stacks: []*aws.Stack{
 				{
 					Name:            "foo",
 					CertificateARNs: map[string]time.Time{},
@@ -777,7 +776,7 @@ func TestSortStacks(tt *testing.T) {
 					},
 				},
 			},
-			expectedStacks: []*awsAdapter.Stack{
+			expectedStacks: []*aws.Stack{
 				{
 					Name: "bar",
 					CertificateARNs: map[string]time.Time{
@@ -792,7 +791,7 @@ func TestSortStacks(tt *testing.T) {
 		},
 		{
 			name: "two unsorted stacks with the same amount of certificates",
-			stacks: []*awsAdapter.Stack{
+			stacks: []*aws.Stack{
 				{
 					Name: "foo",
 					CertificateARNs: map[string]time.Time{
@@ -806,7 +805,7 @@ func TestSortStacks(tt *testing.T) {
 					},
 				},
 			},
-			expectedStacks: []*awsAdapter.Stack{
+			expectedStacks: []*aws.Stack{
 				{
 					Name: "bar",
 					CertificateARNs: map[string]time.Time{
@@ -883,13 +882,13 @@ func TestGetAllLoadBalancers(tt *testing.T) {
 
 	for _, test := range []struct {
 		name          string
-		stacks        []*awsAdapter.Stack
+		stacks        []*aws.Stack
 		certs         []*certs.CertificateSummary
 		loadBalancers []*loadBalancer
 	}{
 		{
 			name: "one stack",
-			stacks: []*awsAdapter.Stack{
+			stacks: []*aws.Stack{
 				{
 					Scheme:        "foo",
 					SecurityGroup: "sg-123456",
@@ -909,7 +908,7 @@ func TestGetAllLoadBalancers(tt *testing.T) {
 		},
 		{
 			name: "one stack with certificates",
-			stacks: []*awsAdapter.Stack{
+			stacks: []*aws.Stack{
 				{
 					Scheme:        "foo",
 					SecurityGroup: "sg-123456",
@@ -942,7 +941,7 @@ func TestGetAllLoadBalancers(tt *testing.T) {
 		},
 		{
 			name: "non existing certificate is not added to LB",
-			stacks: []*awsAdapter.Stack{
+			stacks: []*aws.Stack{
 				{
 					Scheme:        "foo",
 					SecurityGroup: "sg-123456",
@@ -978,12 +977,12 @@ func TestGetCloudWatchAlarmConfigFromConfigMap(t *testing.T) {
 	for _, test := range []struct {
 		name     string
 		cm       *kubernetes.ConfigMap
-		expected awsAdapter.CloudWatchAlarmList
+		expected aws.CloudWatchAlarmList
 	}{
 		{
 			name:     "empty config map",
 			cm:       &kubernetes.ConfigMap{},
-			expected: awsAdapter.CloudWatchAlarmList{},
+			expected: aws.CloudWatchAlarmList{},
 		},
 		{
 			name: "config map with one data key",
@@ -992,7 +991,7 @@ func TestGetCloudWatchAlarmConfigFromConfigMap(t *testing.T) {
 					"some-key": "- AlarmName: foo\n- AlarmName: bar\n",
 				},
 			},
-			expected: awsAdapter.CloudWatchAlarmList{
+			expected: aws.CloudWatchAlarmList{
 				{AlarmName: cloudformation.String("foo")},
 				{AlarmName: cloudformation.String("bar")},
 			},
@@ -1005,7 +1004,7 @@ func TestGetCloudWatchAlarmConfigFromConfigMap(t *testing.T) {
 					"some-key":       "- AlarmName: foo\n- AlarmName: bar\n",
 				},
 			},
-			expected: awsAdapter.CloudWatchAlarmList{
+			expected: aws.CloudWatchAlarmList{
 				{AlarmName: cloudformation.String("foo")},
 				{AlarmName: cloudformation.String("bar")},
 				{AlarmName: cloudformation.String("baz")},
@@ -1018,7 +1017,7 @@ func TestGetCloudWatchAlarmConfigFromConfigMap(t *testing.T) {
 					"some-key": "{",
 				},
 			},
-			expected: awsAdapter.CloudWatchAlarmList{},
+			expected: aws.CloudWatchAlarmList{},
 		},
 		{
 			name: "config map with partially invalid yaml data",
@@ -1028,7 +1027,7 @@ func TestGetCloudWatchAlarmConfigFromConfigMap(t *testing.T) {
 					"some-other-key": "- AlarmName: baz\n",
 				},
 			},
-			expected: awsAdapter.CloudWatchAlarmList{
+			expected: aws.CloudWatchAlarmList{
 				{AlarmName: cloudformation.String("baz")},
 			},
 		},
@@ -1050,7 +1049,7 @@ func TestAttachCloudWatchAlarmsCopy(t *testing.T) {
 		lbTwo,
 	}
 
-	alarms := awsAdapter.CloudWatchAlarmList{
+	alarms := aws.CloudWatchAlarmList{
 		{AlarmName: cloudformation.String("baz")},
 	}
 
@@ -1082,15 +1081,15 @@ func TestIsLBInSync(t *testing.T) {
 				"bar": {{}},
 				"baz": {{}},
 			},
-			stack: &awsAdapter.Stack{
+			stack: &aws.Stack{
 				CertificateARNs: map[string]time.Time{
 					"foo": {},
 					"bar": {},
 				},
-				CWAlarmConfigHash: awsAdapter.CloudWatchAlarmList{{}}.Hash(),
+				CWAlarmConfigHash: aws.CloudWatchAlarmList{{}}.Hash(),
 				WAFWebACLID:       "foo-bar-baz",
 			},
-			cwAlarms:    awsAdapter.CloudWatchAlarmList{{}},
+			cwAlarms:    aws.CloudWatchAlarmList{{}},
 			wafWebACLID: "foo-bar-baz",
 		},
 	}, {
@@ -1101,16 +1100,16 @@ func TestIsLBInSync(t *testing.T) {
 				"bar": {{}},
 				"baz": {{}},
 			},
-			stack: &awsAdapter.Stack{
+			stack: &aws.Stack{
 				CertificateARNs: map[string]time.Time{
 					"foo": {},
 					"bar": {},
 					"baz": {},
 				},
-				CWAlarmConfigHash: awsAdapter.CloudWatchAlarmList{{}}.Hash(),
+				CWAlarmConfigHash: aws.CloudWatchAlarmList{{}}.Hash(),
 				WAFWebACLID:       "foo-bar-baz",
 			},
-			cwAlarms:    awsAdapter.CloudWatchAlarmList{{}, {}},
+			cwAlarms:    aws.CloudWatchAlarmList{{}, {}},
 			wafWebACLID: "foo-bar-baz",
 		},
 	}, {
@@ -1121,16 +1120,16 @@ func TestIsLBInSync(t *testing.T) {
 				"bar": {{}},
 				"baz": {{}},
 			},
-			stack: &awsAdapter.Stack{
+			stack: &aws.Stack{
 				CertificateARNs: map[string]time.Time{
 					"foo": {},
 					"bar": {},
 					"baz": {},
 				},
-				CWAlarmConfigHash: awsAdapter.CloudWatchAlarmList{{}}.Hash(),
+				CWAlarmConfigHash: aws.CloudWatchAlarmList{{}}.Hash(),
 				WAFWebACLID:       "foo-bar-baz",
 			},
-			cwAlarms:    awsAdapter.CloudWatchAlarmList{{}},
+			cwAlarms:    aws.CloudWatchAlarmList{{}},
 			wafWebACLID: "foo-bar",
 		},
 	}, {
@@ -1141,16 +1140,16 @@ func TestIsLBInSync(t *testing.T) {
 				"bar": {{}},
 				"baz": {{}},
 			},
-			stack: &awsAdapter.Stack{
+			stack: &aws.Stack{
 				CertificateARNs: map[string]time.Time{
 					"foo": {},
 					"bar": {},
 					"baz": {},
 				},
-				CWAlarmConfigHash: awsAdapter.CloudWatchAlarmList{{}}.Hash(),
+				CWAlarmConfigHash: aws.CloudWatchAlarmList{{}}.Hash(),
 				WAFWebACLID:       "foo-bar-baz",
 			},
-			cwAlarms:    awsAdapter.CloudWatchAlarmList{{}},
+			cwAlarms:    aws.CloudWatchAlarmList{{}},
 			wafWebACLID: "foo-bar-baz",
 		},
 		expect: true,
@@ -1209,11 +1208,11 @@ func TestMatchIngressesToLoadbalancers(t *testing.T) {
 				"foo.org",
 				"bar.org",
 			},
-			LoadBalancerType: awsAdapter.LoadBalancerTypeApplication,
+			LoadBalancerType: aws.LoadBalancerTypeApplication,
 			Shared:           true,
 		}},
 		lbs: []*loadBalancer{{
-			loadBalancerType: awsAdapter.LoadBalancerTypeApplication,
+			loadBalancerType: aws.LoadBalancerTypeApplication,
 			ingresses:        make(map[string][]*kubernetes.Ingress),
 		}},
 		validate: func(t *testing.T, lbs []*loadBalancer) {
@@ -1233,7 +1232,7 @@ func TestMatchIngressesToLoadbalancers(t *testing.T) {
 		ingresses: []*kubernetes.Ingress{{
 			Name:             "foo-ingress",
 			CertificateARN:   "foo",
-			LoadBalancerType: awsAdapter.LoadBalancerTypeApplication,
+			LoadBalancerType: aws.LoadBalancerTypeApplication,
 			Shared:           true,
 		}},
 		validate: func(t *testing.T, lbs []*loadBalancer) {
@@ -1253,7 +1252,7 @@ func TestMatchIngressesToLoadbalancers(t *testing.T) {
 		ingresses: []*kubernetes.Ingress{{
 			Name:             "foo-ingress",
 			CertificateARN:   "not-existing-arn",
-			LoadBalancerType: awsAdapter.LoadBalancerTypeApplication,
+			LoadBalancerType: aws.LoadBalancerTypeApplication,
 			Shared:           true,
 		}},
 		validate: func(t *testing.T, lbs []*loadBalancer) {
@@ -1266,7 +1265,7 @@ func TestMatchIngressesToLoadbalancers(t *testing.T) {
 			Hostnames: []string{
 				"baz.org",
 			},
-			LoadBalancerType: awsAdapter.LoadBalancerTypeApplication,
+			LoadBalancerType: aws.LoadBalancerTypeApplication,
 			Shared:           true,
 		}},
 		validate: func(t *testing.T, lbs []*loadBalancer) {
@@ -1276,7 +1275,7 @@ func TestMatchIngressesToLoadbalancers(t *testing.T) {
 		title: "multiple ingresses for the same LB",
 		ingresses: []*kubernetes.Ingress{{
 			Name:             "foo-ingress",
-			LoadBalancerType: awsAdapter.LoadBalancerTypeApplication,
+			LoadBalancerType: aws.LoadBalancerTypeApplication,
 			Shared:           true,
 			Hostnames: []string{
 				"foo.org",
@@ -1284,7 +1283,7 @@ func TestMatchIngressesToLoadbalancers(t *testing.T) {
 			},
 		}, {
 			Name:             "bar-ingress",
-			LoadBalancerType: awsAdapter.LoadBalancerTypeApplication,
+			LoadBalancerType: aws.LoadBalancerTypeApplication,
 			Shared:           true,
 			Hostnames: []string{
 				"foo.org",
@@ -1305,7 +1304,7 @@ func TestMatchIngressesToLoadbalancers(t *testing.T) {
 		title: "multiple ingresses for the same LB, with WAF ID",
 		ingresses: []*kubernetes.Ingress{{
 			Name:             "foo-ingress",
-			LoadBalancerType: awsAdapter.LoadBalancerTypeApplication,
+			LoadBalancerType: aws.LoadBalancerTypeApplication,
 			Shared:           true,
 			Hostnames: []string{
 				"foo.org",
@@ -1314,7 +1313,7 @@ func TestMatchIngressesToLoadbalancers(t *testing.T) {
 			WAFWebACLID: "foo-bar-baz",
 		}, {
 			Name:             "bar-ingress",
-			LoadBalancerType: awsAdapter.LoadBalancerTypeApplication,
+			LoadBalancerType: aws.LoadBalancerTypeApplication,
 			Shared:           true,
 			Hostnames: []string{
 				"foo.org",
@@ -1336,7 +1335,7 @@ func TestMatchIngressesToLoadbalancers(t *testing.T) {
 		title: "ingresses with different WAF IDs",
 		ingresses: []*kubernetes.Ingress{{
 			Name:             "foo-ingress",
-			LoadBalancerType: awsAdapter.LoadBalancerTypeApplication,
+			LoadBalancerType: aws.LoadBalancerTypeApplication,
 			Shared:           true,
 			Hostnames: []string{
 				"foo.org",
@@ -1345,7 +1344,7 @@ func TestMatchIngressesToLoadbalancers(t *testing.T) {
 			WAFWebACLID: "foo-bar-baz",
 		}, {
 			Name:             "bar-ingress",
-			LoadBalancerType: awsAdapter.LoadBalancerTypeApplication,
+			LoadBalancerType: aws.LoadBalancerTypeApplication,
 			Shared:           true,
 			Hostnames: []string{
 				"foo.org",
@@ -1402,15 +1401,15 @@ func TestBuildModel(t *testing.T) {
 		certs         CertificatesFinder
 		maxCertsPerLB int
 		ingresses     []*kubernetes.Ingress
-		stacks        []*awsAdapter.Stack
-		alarms        awsAdapter.CloudWatchAlarmList
+		stacks        []*aws.Stack
+		alarms        aws.CloudWatchAlarmList
 		globalWAFACL  string
 		validate      func(*testing.T, []*loadBalancer)
 	}{{
 		title: "no alarm, no waf",
 		ingresses: []*kubernetes.Ingress{{
 			Name:             "foo-ingress",
-			LoadBalancerType: awsAdapter.LoadBalancerTypeApplication,
+			LoadBalancerType: aws.LoadBalancerTypeApplication,
 			Shared:           true,
 			Hostnames: []string{
 				"foo.org",
@@ -1432,14 +1431,14 @@ func TestBuildModel(t *testing.T) {
 		title: "with cloudwatch alarm",
 		ingresses: []*kubernetes.Ingress{{
 			Name:             "foo-ingress",
-			LoadBalancerType: awsAdapter.LoadBalancerTypeApplication,
+			LoadBalancerType: aws.LoadBalancerTypeApplication,
 			Shared:           true,
 			Hostnames: []string{
 				"foo.org",
 				"bar.org",
 			},
 		}},
-		alarms: awsAdapter.CloudWatchAlarmList{{}},
+		alarms: aws.CloudWatchAlarmList{{}},
 		validate: func(t *testing.T, lbs []*loadBalancer) {
 			require.Equal(t, 2, len(lbs))
 			for _, lb := range lbs {
@@ -1455,7 +1454,7 @@ func TestBuildModel(t *testing.T) {
 		title: "with global WAF",
 		ingresses: []*kubernetes.Ingress{{
 			Name:             "foo-ingress",
-			LoadBalancerType: awsAdapter.LoadBalancerTypeApplication,
+			LoadBalancerType: aws.LoadBalancerTypeApplication,
 			Shared:           true,
 			Hostnames: []string{
 				"foo.org",
@@ -1478,7 +1477,7 @@ func TestBuildModel(t *testing.T) {
 		title: "with ingress defined WAF",
 		ingresses: []*kubernetes.Ingress{{
 			Name:             "foo-ingress",
-			LoadBalancerType: awsAdapter.LoadBalancerTypeApplication,
+			LoadBalancerType: aws.LoadBalancerTypeApplication,
 			Shared:           true,
 			Hostnames: []string{
 				"foo.org",
@@ -1501,7 +1500,7 @@ func TestBuildModel(t *testing.T) {
 		title: "with global and ingress defined WAF",
 		ingresses: []*kubernetes.Ingress{{
 			Name:             "foo-ingress",
-			LoadBalancerType: awsAdapter.LoadBalancerTypeApplication,
+			LoadBalancerType: aws.LoadBalancerTypeApplication,
 			Shared:           true,
 			Hostnames: []string{
 				"foo.org",
@@ -1509,7 +1508,7 @@ func TestBuildModel(t *testing.T) {
 			},
 		}, {
 			Name:             "foo-ingress",
-			LoadBalancerType: awsAdapter.LoadBalancerTypeApplication,
+			LoadBalancerType: aws.LoadBalancerTypeApplication,
 			Shared:           true,
 			Hostnames: []string{
 				"foo.org",
@@ -1576,7 +1575,7 @@ func TestDoWorkPanicReturnsProblem(t *testing.T) {
 
 func Test_cniEventHandler(t *testing.T) {
 	t.Run("handles messages from channels and calls update functions", func(t *testing.T) {
-		targetCNIcfg := &awsAdapter.TargetCNIconfig{TargetGroupCh: make(chan []string, 10)}
+		targetCNIcfg := &aws.TargetCNIconfig{TargetGroupCh: make(chan []string, 10)}
 		targetCNIcfg.TargetGroupCh <- []string{"bar", "baz"}
 		targetCNIcfg.TargetGroupCh <- []string{"foo"} // flush
 		mutex := &sync.Mutex{}
