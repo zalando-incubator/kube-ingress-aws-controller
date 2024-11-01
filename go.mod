@@ -10,10 +10,10 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/linki/instrumented_http v0.3.0
 	github.com/mweagle/go-cloudformation v0.0.0-20211009163201-0a35d7d0fa70
-	github.com/prometheus/client_golang v1.20.4
+	github.com/prometheus/client_golang v1.20.5
 	github.com/sirupsen/logrus v1.9.3
 	github.com/stretchr/testify v1.9.0
-	github.com/zalando/skipper v0.21.211
+	github.com/zalando/skipper v0.21.223
 	k8s.io/api v0.31.1
 	k8s.io/apimachinery v0.31.1
 	k8s.io/client-go v0.31.1
