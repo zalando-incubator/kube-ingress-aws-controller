@@ -716,7 +716,7 @@ func (a *Adapter) UpdateTargetGroupsAndAutoScalingGroups(stacks []*Stack, proble
 // All the required resources (listeners and target group) are created in a
 // transactional fashion.
 // Failure to create the stack causes it to be deleted automatically.
-func (a *Adapter) CreateStack(certificateARNs []string, scheme, securityGroup, owner, sslPolicy, ipAddressType, wafWebACLID string, cwAlarms CloudWatchAlarmList, loadBalancerType string, http2 bool) (string, error) {
+func (a *Adapter) CreateStack(certificateARNs []string, scheme, securityGroup, owner, sslPolicy, ipAddressType, wafWebACLID string, cwAlarms CloudWatchAlarmList, loadBalancerType string, http2 bool, stackTags map[string]string) (string, error) {
 	certARNs := make(map[string]time.Time, len(certificateARNs))
 	for _, arn := range certificateARNs {
 		certARNs[arn] = time.Time{}
@@ -769,7 +769,7 @@ func (a *Adapter) CreateStack(certificateARNs []string, scheme, securityGroup, o
 		nlbCrossZone:                      a.nlbCrossZone,
 		nlbZoneAffinity:                   a.nlbZoneAffinity,
 		http2:                             http2,
-		tags:                              a.stackTags,
+		tags:                              mergeTags(a.stackTags, stackTags),
 		internalDomains:                   a.internalDomains,
 		denyInternalDomains:               a.denyInternalDomains,
 		denyInternalDomainsResponse: denyResp{
@@ -782,7 +782,7 @@ func (a *Adapter) CreateStack(certificateARNs []string, scheme, securityGroup, o
 	return createStack(a.cloudformation, spec)
 }
 
-func (a *Adapter) UpdateStack(stackName string, certificateARNs map[string]time.Time, scheme, securityGroup, owner, sslPolicy, ipAddressType, wafWebACLID string, cwAlarms CloudWatchAlarmList, loadBalancerType string, http2 bool) (string, error) {
+func (a *Adapter) UpdateStack(stackName string, certificateARNs map[string]time.Time, scheme, securityGroup, owner, sslPolicy, ipAddressType, wafWebACLID string, cwAlarms CloudWatchAlarmList, loadBalancerType string, http2 bool, stackTags map[string]string) (string, error) {
 	if _, ok := SSLPolicies[sslPolicy]; !ok {
 		return "", fmt.Errorf("invalid SSLPolicy '%s' defined", sslPolicy)
 	}
@@ -826,7 +826,7 @@ func (a *Adapter) UpdateStack(stackName string, certificateARNs map[string]time.
 		nlbCrossZone:                      a.nlbCrossZone,
 		nlbZoneAffinity:                   a.nlbZoneAffinity,
 		http2:                             http2,
-		tags:                              a.stackTags,
+		tags:                              mergeTags(a.stackTags, stackTags),
 		internalDomains:                   a.internalDomains,
 		denyInternalDomains:               a.denyInternalDomains,
 		denyInternalDomainsResponse: denyResp{
