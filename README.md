@@ -163,6 +163,7 @@ Overview of configuration which can be set via Ingress annotations.
 |`zalando.org/aws-load-balancer-http2`| `true` \| `false`|`true`|
 |`zalando.org/aws-waf-web-acl-id` | `string` | N/A |
 |`kubernetes.io/ingress.class`|`string`|N/A|
+|`zalando.org/aws-load-balancer-stickiness`| `true` \| `false`|`false`|
 
 The defaults can also be configured globally via a flag on the controller.
 
