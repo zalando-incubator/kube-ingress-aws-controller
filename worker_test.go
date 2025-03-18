@@ -33,7 +33,14 @@ func TestResourceConversionOneToOne(tt *testing.T) {
 	clusterID := "aws:123:eu-central-1:kube-1"
 	vpcID := "1"
 	securityGroupID := "42"
-	running := int64(16) // See https://github.com/aws/aws-sdk-go/blob/master/service/ec2/api.go, type InstanceState
+	// See https://github.com/aws/aws-sdk-go/blob/master/service/ec2/api.go, type InstanceState
+	//    * 0 : pending
+	//    * 16 : running
+	//    * 32 : shutting-down
+	//    * 48 : terminated
+	//    * 64 : stopping
+	//    * 80 : stopped
+	running := int64(16)
 
 	for _, scenario := range []struct {
 		name           string
