@@ -1,6 +1,7 @@
 package aws
 
 import (
+	"encoding/base64"
 	"fmt"
 	"strings"
 	"time"
@@ -8,6 +9,8 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/cloudformation"
 	"github.com/aws/aws-sdk-go/service/cloudformation/cloudformationiface"
+
+	log "github.com/sirupsen/logrus"
 )
 
 const (
@@ -15,6 +18,7 @@ const (
 	certificateARNTagPrefix = "ingress:certificate-arn/"
 	ingressOwnerTag         = "ingress:owner"
 	cwAlarmConfigHashTag    = "cloudwatch:alarm-config-hash"
+	targetGroupsArnsTag     = "ingress:targetgroups"
 )
 
 // Stack is a simple wrapper around a CloudFormation Stack.
@@ -34,7 +38,7 @@ type Stack struct {
 	TargetGroupARNs   []string
 	WAFWebACLID       string
 	CertificateARNs   map[string]time.Time
-	tags              map[string]string
+	Tags              map[string]string
 }
 
 // IsComplete returns true if the stack status is a complete state.
@@ -481,10 +485,28 @@ func mapToManagedStack(stack *cloudformation.Stack) *Stack {
 		http2 = false
 	}
 
+	tgARNs := outputs.targetGroupARNs()
+
+	// If the stack is in rollback state, the outputs are not available.
+	// We need to store target group ARNs in the tags.
+	// To restore the ARNs, and keep sending traffic to the right target groups.
+	if aws.StringValue(stack.StackStatus) == cloudformation.StackStatusRollbackInProgress && len(tgARNs) == 0 {
+		if tgARNsTag, ok := tags[targetGroupsArnsTag]; ok {
+			values, err := base64.StdEncoding.DecodeString(tgARNsTag)
+			if err != nil {
+				log.Errorf("failed to decode target group ARNs from tags: %v", err)
+			} else {
+				tgARNs = strings.Split(string(values), ",")
+			}
+		}
+	} else if len(tgARNs) > 0 {
+		tags[targetGroupsArnsTag] = base64.StdEncoding.EncodeToString([]byte(strings.Join(tgARNs, ",")))
+	}
+
 	return &Stack{
 		Name:              aws.StringValue(stack.StackName),
 		DNSName:           outputs.dnsName(),
-		TargetGroupARNs:   outputs.targetGroupARNs(),
+		TargetGroupARNs:   tgARNs,
 		Scheme:            parameters[parameterLoadBalancerSchemeParameter],
 		SecurityGroup:     parameters[parameterLoadBalancerSecurityGroupParameter],
 		SSLPolicy:         parameters[parameterListenerSslPolicyParameter],
@@ -492,7 +514,7 @@ func mapToManagedStack(stack *cloudformation.Stack) *Stack {
 		LoadBalancerType:  parameters[parameterLoadBalancerTypeParameter],
 		HTTP2:             http2,
 		CertificateARNs:   certificateARNs,
-		tags:              tags,
+		Tags:              tags,
 		OwnerIngress:      ownerIngress,
 		status:            aws.StringValue(stack.StackStatus),
 		statusReason:      aws.StringValue(stack.StackStatusReason),

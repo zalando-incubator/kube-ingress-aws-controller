@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/x509"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http/httptest"
 	"os"
@@ -528,9 +529,9 @@ func TestResourceConversionOneToOne(tt *testing.T) {
 				t.Error(problems.Errors())
 			}
 
-			assert.Equal(t, len(clientCF.GetTagCreationHistory()), len(tags))
+			assert.Equal(t, len(clientCF.GetTagCreationHistory()), len(tags), fmt.Sprintf("got %v, expected %v", tags, clientCF.GetTagCreationHistory()))
 			assert.Equal(t, len(clientCF.GetParamCreationHistory()), len(params))
-			assert.Equal(t, len(clientCF.GetTemplateCreationHistory()), len(templates))
+			assert.Equal(t, len(clientCF.GetTemplateCreationHistory()), len(templates), fmt.Sprintf("got %v, expected %v", templates, clientCF.GetTemplateCreationHistory()))
 
 			// This loop is necessary because assert.ElementsMatch only do set-style comparison
 			// for the first level of the array. So for nested arrays it would not behave like expected.
