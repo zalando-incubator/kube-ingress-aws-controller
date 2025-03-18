@@ -705,6 +705,23 @@ func TestFindLBSubnets(tt *testing.T) {
 			expectedSubnets: []string{"1"},
 		},
 		{
+			name: "should select first lexicographically subnet when two match a single zone (regardless of details order)",
+			subnets: []*subnetDetails{
+				{
+					availabilityZone: "a",
+					public:           true,
+					id:               "1",
+				},
+				{
+					availabilityZone: "a",
+					public:           true,
+					id:               "2",
+				},
+			},
+			scheme:          elbv2.LoadBalancerSchemeEnumInternetFacing,
+			expectedSubnets: []string{"1"},
+		},
+		{
 			name: "should not use internal subnets for public LB",
 			subnets: []*subnetDetails{
 				{
@@ -728,6 +745,34 @@ func TestFindLBSubnets(tt *testing.T) {
 					availabilityZone: "a",
 					public:           true,
 					id:               "2",
+					tags: map[string]string{
+						elbRoleTagName: "",
+					},
+				},
+			},
+			scheme:          elbv2.LoadBalancerSchemeEnumInternetFacing,
+			expectedSubnets: []string{"2"},
+		},
+		{
+			name: "should prefer tagged subnet selected first lexicographically",
+			subnets: []*subnetDetails{
+				{
+					availabilityZone: "a",
+					public:           true,
+					id:               "1",
+				},
+				{
+					availabilityZone: "a",
+					public:           true,
+					id:               "2",
+					tags: map[string]string{
+						elbRoleTagName: "",
+					},
+				},
+				{
+					availabilityZone: "a",
+					public:           true,
+					id:               "3",
 					tags: map[string]string{
 						elbRoleTagName: "",
 					},
