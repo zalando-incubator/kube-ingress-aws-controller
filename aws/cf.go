@@ -8,6 +8,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/cloudformation"
 	"github.com/aws/aws-sdk-go/service/cloudformation/cloudformationiface"
+	log "github.com/sirupsen/logrus"
 )
 
 const (
@@ -501,13 +502,22 @@ func mapToManagedStack(stack *cloudformation.Stack) *Stack {
 	}
 }
 
-func findManagedStacks(svc cloudformationiface.CloudFormationAPI, clusterID, controllerID string) ([]*Stack, error) {
+func findManagedStacks(svc cloudformationiface.CloudFormationAPI, clusterID, controllerID string, stacksLastTargetGroupARNs map[string][]string) ([]*Stack, error) {
 	stacks := make([]*Stack, 0)
 	err := svc.DescribeStacksPages(&cloudformation.DescribeStacksInput{},
 		func(page *cloudformation.DescribeStacksOutput, lastPage bool) bool {
 			for _, s := range page.Stacks {
 				if isManagedStack(s.Tags, clusterID, controllerID) {
-					stacks = append(stacks, mapToManagedStack(s))
+					stack := mapToManagedStack(s)
+					if len(stack.TargetGroupARNs) == 0 && stack.status == cloudformation.StackStatusRollbackInProgress {
+						if _, ok := stacksLastTargetGroupARNs[stack.Name]; ok {
+							log.Warnf("stack %s is in rolling back state, falling back to last saved output", stack.Name)
+							stack.TargetGroupARNs = stacksLastTargetGroupARNs[stack.Name]
+						} else {
+							log.Warnf("stack %s has no saved target groups, skipping", stack.Name)
+						}
+					}
+					stacks = append(stacks, stack)
 				}
 			}
 			return true

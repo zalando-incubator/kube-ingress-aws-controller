@@ -287,9 +287,14 @@ func doWork(
 		return problems.Add("failed to list managed stacks: %w", err)
 	}
 
+	awsAdapter.CleanLastTargetGroupARNs()
+
 	for _, stack := range stacks {
 		if err := stack.Err(); err != nil {
 			problems.Add("stack %s error: %w", stack.Name, err)
+		}
+		if len(stack.TargetGroupARNs) > 0 {
+			awsAdapter.UpdateStackLastTargetGroupARNs(stack)
 		}
 	}
 

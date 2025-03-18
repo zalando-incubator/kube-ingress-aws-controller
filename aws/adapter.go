@@ -61,6 +61,7 @@ type Adapter struct {
 	obsoleteInstances           []string
 	stackTerminationProtection  bool
 	stackTags                   map[string]string
+	stackLastTargerGroupARNs    map[string][]string
 	controllerID                string
 	sslPolicy                   string
 	ipAddressType               string
@@ -255,6 +256,7 @@ func NewAdapter(clusterID, newControllerID, vpcID string, debug, disableInstrume
 		nlbZoneAffinity:            DefaultZoneAffinity,
 		nlbHTTPEnabled:             DefaultNLBHTTPEnabled,
 		customFilter:               DefaultCustomFilter,
+		stackLastTargerGroupARNs:   make(map[string][]string),
 		TargetCNI: &TargetCNIconfig{
 			Enabled:       false,
 			TargetGroupCh: make(chan []string, 10),
@@ -640,11 +642,27 @@ func (a *Adapter) SecurityGroupID() string {
 // FindManagedStacks returns all CloudFormation stacks containing the controller management tags
 // that match the current cluster and are ready to be used. The stack status is used to filter.
 func (a *Adapter) FindManagedStacks() ([]*Stack, error) {
-	stacks, err := findManagedStacks(a.cloudformation, a.ClusterID(), a.controllerID)
+	stacks, err := findManagedStacks(a.cloudformation, a.ClusterID(), a.controllerID, a.stackLastTargerGroupARNs)
 	if err != nil {
 		return nil, err
 	}
 	return stacks, nil
+}
+
+func (a *Adapter) UpdateStackLastTargetGroupARNs(stack *Stack) {
+	if _, ok := a.stackLastTargerGroupARNs[stack.Name]; !ok {
+		if len(stack.TargetGroupARNs) > 0 {
+			a.stackLastTargerGroupARNs[stack.Name] = stack.TargetGroupARNs
+		}
+	}
+}
+
+func (a *Adapter) GetStackLastTargetGroupARNs(stackName string) []string {
+	return a.stackLastTargerGroupARNs[stackName]
+}
+
+func (a *Adapter) CleanLastTargetGroupARNs() {
+	a.stackLastTargerGroupARNs = make(map[string][]string)
 }
 
 // UpdateTargetGroupsAndAutoScalingGroups updates Auto Scaling Groups

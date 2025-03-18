@@ -530,7 +530,7 @@ func TestFindManagedStacks(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name: "successfull-call-with-rollback-status",
+			name: "successfull-call-with-one-rollback-status",
 			given: fake.CFOutputs{
 				DescribeStackPages: fake.R(nil, nil),
 				DescribeStacks: fake.R(&cloudformation.DescribeStacksOutput{
@@ -545,21 +545,36 @@ func TestFindManagedStacks(t *testing.T) {
 							},
 							Outputs: []*cloudformation.Output{},
 						},
+						{
+							StackName:   aws.String("managed-stack"),
+							StackStatus: aws.String(cloudformation.StackStatusCreateComplete),
+							Tags: []*cloudformation.Tag{
+								cfTag(kubernetesCreatorTag, DefaultControllerID),
+								cfTag(clusterIDTagPrefix+"test-cluster", resourceLifecycleOwned),
+								cfTag(certificateARNTagPrefix+"cert-arn", time.Time{}.Format(time.RFC3339)),
+							},
+							Outputs: []*cloudformation.Output{
+								{OutputKey: aws.String(outputLoadBalancerDNSName), OutputValue: aws.String("example.com")},
+								{OutputKey: aws.String(outputTargetGroupARN), OutputValue: aws.String("tg-arn")},
+							},
+						},
 					},
 				}, nil),
 			},
 			want: []*Stack{
 				{
-					Name: "managed-stack-rolling-back",
+					Name:    "managed-stack",
+					DNSName: "example.com",
 					CertificateARNs: map[string]time.Time{
 						"cert-arn": {},
 					},
+					TargetGroupARNs: []string{"tg-arn"},
 					tags: map[string]string{
 						kubernetesCreatorTag:                 DefaultControllerID,
 						clusterIDTagPrefix + "test-cluster":  resourceLifecycleOwned,
 						certificateARNTagPrefix + "cert-arn": time.Time{}.Format(time.RFC3339),
 					},
-					status: cloudformation.StackStatusRollbackInProgress,
+					status: cloudformation.StackStatusCreateComplete,
 					HTTP2:  true,
 				},
 			},
@@ -645,7 +660,7 @@ func TestFindManagedStacks(t *testing.T) {
 	} {
 		t.Run(ti.name, func(t *testing.T) {
 			c := &fake.CFClient{Outputs: ti.given}
-			got, err := findManagedStacks(c, "test-cluster", DefaultControllerID)
+			got, err := findManagedStacks(c, "test-cluster", DefaultControllerID, map[string][]string{})
 			if err != nil {
 				if !ti.wantErr {
 					t.Error("unexpected error", err)
