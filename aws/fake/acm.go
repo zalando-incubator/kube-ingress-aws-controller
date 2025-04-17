@@ -1,14 +1,14 @@
 package fake
 
 import (
+	"context"
 	"fmt"
 
-	"github.com/aws/aws-sdk-go/service/acm"
-	"github.com/aws/aws-sdk-go/service/acm/acmiface"
+	"github.com/aws/aws-sdk-go-v2/service/acm"
+	"github.com/aws/aws-sdk-go-v2/service/acm/types"
 )
 
 type ACMClient struct {
-	acmiface.ACMAPI
 	cert map[string]*acm.GetCertificateOutput
 	tags map[string]*acm.ListTagsForCertificateOutput
 
@@ -19,11 +19,23 @@ func (m *ACMClient) ListCertificatesPages(input *acm.ListCertificatesInput, fn f
 	return m.listCertificatesPages(input, fn)
 }
 
-func (m *ACMClient) GetCertificate(input *acm.GetCertificateInput) (*acm.GetCertificateOutput, error) {
+func (m *ACMClient) ListCertificates(ctx context.Context, input *acm.ListCertificatesInput, fn ...func(*acm.Options)) (*acm.ListCertificatesOutput, error) {
+	output := &acm.ListCertificatesOutput{
+		CertificateSummaryList: make([]types.CertificateSummary, 0),
+	}
+	for _, cert := range m.cert {
+		output.CertificateSummaryList = append(output.CertificateSummaryList, types.CertificateSummary{
+			CertificateArn: cert.Certificate,
+		})
+	}
+	return output, nil
+}
+
+func (m *ACMClient) GetCertificate(ctx context.Context, input *acm.GetCertificateInput, fn ...func(*acm.Options)) (*acm.GetCertificateOutput, error) {
 	return m.cert[*input.CertificateArn], nil
 }
 
-func (m *ACMClient) ListTagsForCertificate(in *acm.ListTagsForCertificateInput) (*acm.ListTagsForCertificateOutput, error) {
+func (m *ACMClient) ListTagsForCertificate(ctx context.Context, in *acm.ListTagsForCertificateInput, fn ...func(*acm.Options)) (*acm.ListTagsForCertificateOutput, error) {
 	if in.CertificateArn == nil {
 		return nil, fmt.Errorf("expected a valid CertificateArn, got: nil")
 	}

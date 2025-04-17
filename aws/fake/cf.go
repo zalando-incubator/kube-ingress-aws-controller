@@ -1,9 +1,11 @@
 package fake
 
 import (
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/service/cloudformation"
-	"github.com/aws/aws-sdk-go/service/cloudformation/cloudformationiface"
+	"context"
+
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/cloudformation"
+	"github.com/aws/aws-sdk-go-v2/service/cloudformation/types"
 )
 
 type CFOutputs struct {
@@ -17,10 +19,9 @@ type CFOutputs struct {
 }
 
 type CFClient struct {
-	cloudformationiface.CloudFormationAPI
 	templateCreationHistory []string
-	paramCreationHistory    [][]*cloudformation.Parameter
-	tagCreationHistory      [][]*cloudformation.Tag
+	paramCreationHistory    [][]*types.Parameter
+	tagCreationHistory      [][]*types.Tag
 	Outputs                 CFOutputs
 }
 
@@ -28,17 +29,17 @@ func (m *CFClient) GetTemplateCreationHistory() []string {
 	return m.templateCreationHistory
 }
 
-func (m *CFClient) GetParamCreationHistory() [][]*cloudformation.Parameter {
+func (m *CFClient) GetParamCreationHistory() [][]*types.Parameter {
 	return m.paramCreationHistory
 }
 
-func (m *CFClient) GetTagCreationHistory() [][]*cloudformation.Tag {
+func (m *CFClient) GetTagCreationHistory() [][]*types.Tag {
 	return m.tagCreationHistory
 }
 
 func (m *CFClient) CleanCreationHistory() {
-	m.paramCreationHistory = [][]*cloudformation.Parameter{}
-	m.tagCreationHistory = [][]*cloudformation.Tag{}
+	m.paramCreationHistory = [][]*types.Parameter{}
+	m.tagCreationHistory = [][]*types.Tag{}
 	m.templateCreationHistory = []string{}
 }
 
@@ -60,7 +61,7 @@ func (m *CFClient) DescribeStacksPages(in *cloudformation.DescribeStacksInput, f
 	return
 }
 
-func (m *CFClient) DescribeStacks(in *cloudformation.DescribeStacksInput) (*cloudformation.DescribeStacksOutput, error) {
+func (m *CFClient) DescribeStacks(context.Context, *cloudformation.DescribeStacksInput, ...func(*cloudformation.Options)) (*cloudformation.DescribeStacksOutput, error) {
 	out, ok := m.Outputs.DescribeStacks.response.(*cloudformation.DescribeStacksOutput)
 	if !ok {
 		return nil, m.Outputs.DescribeStacks.err
@@ -68,9 +69,19 @@ func (m *CFClient) DescribeStacks(in *cloudformation.DescribeStacksInput) (*clou
 	return out, m.Outputs.DescribeStacks.err
 }
 
-func (m *CFClient) CreateStack(params *cloudformation.CreateStackInput) (*cloudformation.CreateStackOutput, error) {
-	m.tagCreationHistory = append(m.tagCreationHistory, params.Tags)
-	m.paramCreationHistory = append(m.paramCreationHistory, params.Parameters)
+func (m *CFClient) CreateStack(ctx context.Context, params *cloudformation.CreateStackInput, fn ...func(*cloudformation.Options)) (*cloudformation.CreateStackOutput, error) {
+	var tagPtrs []*types.Tag
+	for i := range params.Tags {
+		tagPtrs = append(tagPtrs, &params.Tags[i])
+	}
+	m.tagCreationHistory = append(m.tagCreationHistory, tagPtrs)
+
+	var paramPtrs []*types.Parameter
+	for i := range params.Parameters {
+		paramPtrs = append(paramPtrs, &params.Parameters[i])
+	}
+	m.paramCreationHistory = append(m.paramCreationHistory, paramPtrs)
+
 	m.templateCreationHistory = append(m.templateCreationHistory, *params.TemplateBody)
 
 	out, ok := m.Outputs.CreateStack.response.(*cloudformation.CreateStackOutput)
@@ -86,7 +97,7 @@ func MockCSOutput(stackId string) *cloudformation.CreateStackOutput {
 	}
 }
 
-func (m *CFClient) UpdateStack(params *cloudformation.UpdateStackInput) (*cloudformation.UpdateStackOutput, error) {
+func (m *CFClient) UpdateStack(context.Context, *cloudformation.UpdateStackInput, ...func(*cloudformation.Options)) (*cloudformation.UpdateStackOutput, error) {
 	// TODO: https://github.com/zalando-incubator/kube-ingress-aws-controller/issues/653
 	// Update stack needs to use different variable to register change history,
 	// so createStack and updateStack mocks don't mess with each other states.
@@ -104,7 +115,7 @@ func MockUSOutput(stackId string) *cloudformation.UpdateStackOutput {
 	}
 }
 
-func (m *CFClient) DeleteStack(params *cloudformation.DeleteStackInput) (*cloudformation.DeleteStackOutput, error) {
+func (m *CFClient) DeleteStack(context.Context, *cloudformation.DeleteStackInput, ...func(*cloudformation.Options)) (*cloudformation.DeleteStackOutput, error) {
 	out, ok := m.Outputs.DeleteStack.response.(*cloudformation.DeleteStackOutput)
 	if !ok {
 		return nil, m.Outputs.DeleteStack.err
@@ -116,7 +127,7 @@ func MockDeleteStackOutput(stackId string) *cloudformation.DeleteStackOutput {
 	return &cloudformation.DeleteStackOutput{}
 }
 
-func (m *CFClient) UpdateTerminationProtection(params *cloudformation.UpdateTerminationProtectionInput) (*cloudformation.UpdateTerminationProtectionOutput, error) {
+func (m *CFClient) UpdateTerminationProtection(context.Context, *cloudformation.UpdateTerminationProtectionInput, ...func(*cloudformation.Options)) (*cloudformation.UpdateTerminationProtectionOutput, error) {
 	out, ok := m.Outputs.UpdateTerminationProtection.response.(*cloudformation.UpdateTerminationProtectionOutput)
 	if !ok {
 		return nil, m.Outputs.UpdateTerminationProtection.err

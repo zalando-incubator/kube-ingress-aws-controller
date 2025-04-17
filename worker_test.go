@@ -12,8 +12,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aws/aws-sdk-go/service/autoscaling"
-	cf "github.com/aws/aws-sdk-go/service/cloudformation"
+	"github.com/aws/aws-sdk-go-v2/service/autoscaling"
+	"github.com/aws/aws-sdk-go-v2/service/autoscaling/types"
+	cftypes "github.com/aws/aws-sdk-go-v2/service/cloudformation/types"
 	cloudformation "github.com/mweagle/go-cloudformation"
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
@@ -33,7 +34,7 @@ func TestResourceConversionOneToOne(tt *testing.T) {
 	clusterID := "aws:123:eu-central-1:kube-1"
 	vpcID := "1"
 	securityGroupID := "42"
-	running := int64(16) // See https://github.com/aws/aws-sdk-go/blob/master/service/ec2/api.go, type InstanceState
+	running := int64(16) // See https://github.com/aws/aws-sdk-go-v2/blob/master/service/ec2/api.go, type InstanceState
 
 	for _, scenario := range []struct {
 		name           string
@@ -81,7 +82,7 @@ func TestResourceConversionOneToOne(tt *testing.T) {
 					clusterIDTagPrefix + clusterID: "owned",
 				}}), nil),
 				DescribeLoadBalancerTargetGroups: fake.R(&autoscaling.DescribeLoadBalancerTargetGroupsOutput{
-					LoadBalancerTargetGroups: []*autoscaling.LoadBalancerTargetGroupState{},
+					LoadBalancerTargetGroups: []types.LoadBalancerTargetGroupState{},
 				}, nil),
 				AttachLoadBalancerTargetGroups: fake.R(nil, nil),
 			},
@@ -134,7 +135,7 @@ func TestResourceConversionOneToOne(tt *testing.T) {
 					clusterIDTagPrefix + clusterID: "owned",
 				}}), nil),
 				DescribeLoadBalancerTargetGroups: fake.R(&autoscaling.DescribeLoadBalancerTargetGroupsOutput{
-					LoadBalancerTargetGroups: []*autoscaling.LoadBalancerTargetGroupState{},
+					LoadBalancerTargetGroups: []types.LoadBalancerTargetGroupState{},
 				}, nil),
 				AttachLoadBalancerTargetGroups: fake.R(nil, nil),
 			},
@@ -186,7 +187,7 @@ func TestResourceConversionOneToOne(tt *testing.T) {
 					clusterIDTagPrefix + clusterID: "owned",
 				}}), nil),
 				DescribeLoadBalancerTargetGroups: fake.R(&autoscaling.DescribeLoadBalancerTargetGroupsOutput{
-					LoadBalancerTargetGroups: []*autoscaling.LoadBalancerTargetGroupState{},
+					LoadBalancerTargetGroups: []types.LoadBalancerTargetGroupState{},
 				}, nil),
 				AttachLoadBalancerTargetGroups: fake.R(nil, nil),
 			},
@@ -238,7 +239,7 @@ func TestResourceConversionOneToOne(tt *testing.T) {
 					clusterIDTagPrefix + clusterID: "owned",
 				}}), nil),
 				DescribeLoadBalancerTargetGroups: fake.R(&autoscaling.DescribeLoadBalancerTargetGroupsOutput{
-					LoadBalancerTargetGroups: []*autoscaling.LoadBalancerTargetGroupState{},
+					LoadBalancerTargetGroups: []types.LoadBalancerTargetGroupState{},
 				}, nil),
 				AttachLoadBalancerTargetGroups: fake.R(nil, nil),
 			},
@@ -290,7 +291,7 @@ func TestResourceConversionOneToOne(tt *testing.T) {
 					clusterIDTagPrefix + clusterID: "owned",
 				}}), nil),
 				DescribeLoadBalancerTargetGroups: fake.R(&autoscaling.DescribeLoadBalancerTargetGroupsOutput{
-					LoadBalancerTargetGroups: []*autoscaling.LoadBalancerTargetGroupState{},
+					LoadBalancerTargetGroups: []types.LoadBalancerTargetGroupState{},
 				}, nil),
 				AttachLoadBalancerTargetGroups: fake.R(nil, nil),
 			},
@@ -342,7 +343,7 @@ func TestResourceConversionOneToOne(tt *testing.T) {
 					clusterIDTagPrefix + clusterID: "owned",
 				}}), nil),
 				DescribeLoadBalancerTargetGroups: fake.R(&autoscaling.DescribeLoadBalancerTargetGroupsOutput{
-					LoadBalancerTargetGroups: []*autoscaling.LoadBalancerTargetGroupState{},
+					LoadBalancerTargetGroups: []types.LoadBalancerTargetGroupState{},
 				}, nil),
 				AttachLoadBalancerTargetGroups: fake.R(nil, nil),
 			},
@@ -394,7 +395,7 @@ func TestResourceConversionOneToOne(tt *testing.T) {
 					clusterIDTagPrefix + clusterID: "owned",
 				}}), nil),
 				DescribeLoadBalancerTargetGroups: fake.R(&autoscaling.DescribeLoadBalancerTargetGroupsOutput{
-					LoadBalancerTargetGroups: []*autoscaling.LoadBalancerTargetGroupState{},
+					LoadBalancerTargetGroups: []types.LoadBalancerTargetGroupState{},
 				}, nil),
 				AttachLoadBalancerTargetGroups: fake.R(nil, nil),
 			},
@@ -435,9 +436,9 @@ func TestResourceConversionOneToOne(tt *testing.T) {
 				t.Fatal(err)
 			}
 
-			var params [][]*cf.Parameter
+			var params [][]*cftypes.Parameter
 			for _, file := range paramFiles {
-				var content []*cf.Parameter
+				var content []*cftypes.Parameter
 				err := json.Unmarshal(readFile("params/"+file.Name()), &content)
 				if err != nil {
 					t.Fatal(err)
@@ -450,9 +451,9 @@ func TestResourceConversionOneToOne(tt *testing.T) {
 				t.Fatal(err)
 			}
 
-			var tags [][]*cf.Tag
+			var tags [][]*cftypes.Tag
 			for _, file := range tagFiles {
-				var content []*cf.Tag
+				var content []*cftypes.Tag
 				err := json.Unmarshal(readFile("tags/"+file.Name()), &content)
 				if err != nil {
 					t.Fatal(err)

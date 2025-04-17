@@ -4,8 +4,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/service/iam"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/iam"
+	"github.com/aws/aws-sdk-go-v2/service/iam/types"
 	"github.com/stretchr/testify/require"
 	"github.com/zalando-incubator/kube-ingress-aws-controller/aws/fake"
 	"github.com/zalando-incubator/kube-ingress-aws-controller/certs"
@@ -14,18 +15,18 @@ import (
 func TestIAM(t *testing.T) {
 	foobarNotBefore := time.Date(2017, 3, 29, 16, 11, 32, 0, time.UTC)
 	foobarNotAfter := time.Date(2027, 3, 27, 16, 11, 32, 0, time.UTC)
-	foobarIAMCertificate := &iam.ServerCertificate{
+	foobarIAMCertificate := &types.ServerCertificate{
 		CertificateBody: aws.String(mustRead("foo-iam.txt")),
-		ServerCertificateMetadata: &iam.ServerCertificateMetadata{
+		ServerCertificateMetadata: &types.ServerCertificateMetadata{
 			Arn:                   aws.String("foobar-arn"),
 			ServerCertificateName: aws.String("foobar"),
 		},
 	}
 
-	foobarIAMCertificateWithChain := &iam.ServerCertificate{
+	foobarIAMCertificateWithChain := &types.ServerCertificate{
 		CertificateBody:  aws.String(mustRead("foo-iam.txt")),
 		CertificateChain: aws.String(mustRead("chain.txt")),
-		ServerCertificateMetadata: &iam.ServerCertificateMetadata{
+		ServerCertificateMetadata: &types.ServerCertificateMetadata{
 			Arn:                   aws.String("foobar-arn"),
 			ServerCertificateName: aws.String("foobar"),
 		},
@@ -33,9 +34,9 @@ func TestIAM(t *testing.T) {
 
 	zalandoNotBefore := time.Date(2016, 3, 17, 0, 0, 0, 0, time.UTC)
 	zalandoNotAfter := time.Date(2018, 3, 17, 23, 59, 59, 0, time.UTC)
-	zalandoIAMCertificate := &iam.ServerCertificate{
+	zalandoIAMCertificate := &types.ServerCertificate{
 		CertificateBody: aws.String(mustRead("zal-iam.txt")),
-		ServerCertificateMetadata: &iam.ServerCertificateMetadata{
+		ServerCertificateMetadata: &types.ServerCertificateMetadata{
 			Arn:                   aws.String("zalando-arn"),
 			ServerCertificateName: aws.String("zalando"),
 		},
@@ -43,7 +44,7 @@ func TestIAM(t *testing.T) {
 
 	for _, ti := range []struct {
 		msg               string
-		certificate       *iam.ServerCertificate
+		certificate       *types.ServerCertificate
 		expectARN         string
 		expectNotBefore   time.Time
 		expectNotAfter    time.Time
@@ -176,7 +177,7 @@ func TestIAMParseError(t *testing.T) {
 	provider := iamCertificateProvider{
 		api: fake.NewIAMClient(
 			iam.ListServerCertificatesOutput{
-				ServerCertificateMetadataList: []*iam.ServerCertificateMetadata{
+				ServerCertificateMetadataList: []types.ServerCertificateMetadata{
 					{
 						Arn:                   aws.String("foobar-arn"),
 						Path:                  aws.String("/"),
@@ -185,7 +186,7 @@ func TestIAMParseError(t *testing.T) {
 				},
 			},
 			iam.GetServerCertificateOutput{
-				ServerCertificate: &iam.ServerCertificate{
+				ServerCertificate: &types.ServerCertificate{
 					CertificateBody: aws.String("..."),
 				},
 			},
@@ -198,9 +199,9 @@ func TestIAMParseError(t *testing.T) {
 func TestIAMTagFiltering(t *testing.T) {
 	foobarNotBefore := time.Date(2017, 3, 29, 16, 11, 32, 0, time.UTC)
 	foobarNotAfter := time.Date(2027, 3, 27, 16, 11, 32, 0, time.UTC)
-	foobarIAMCertificate := &iam.ServerCertificate{
+	foobarIAMCertificate := &types.ServerCertificate{
 		CertificateBody: aws.String(mustRead("foo-iam.txt")),
-		ServerCertificateMetadata: &iam.ServerCertificateMetadata{
+		ServerCertificateMetadata: &types.ServerCertificateMetadata{
 			Arn:                   aws.String("foobar-arn"),
 			ServerCertificateName: aws.String("foobar"),
 		},
@@ -209,7 +210,7 @@ func TestIAMTagFiltering(t *testing.T) {
 	createProviderwithTag := func(key, value string) certs.CertificatesProvider {
 		api := fake.NewIAMClientWithTag(
 			iam.ListServerCertificatesOutput{
-				ServerCertificateMetadataList: []*iam.ServerCertificateMetadata{
+				ServerCertificateMetadataList: []types.ServerCertificateMetadata{
 					{
 						Arn:                   aws.String("foobar-arn"),
 						Path:                  aws.String("/"),
@@ -220,7 +221,7 @@ func TestIAMTagFiltering(t *testing.T) {
 			iam.GetServerCertificateOutput{ServerCertificate: foobarIAMCertificate},
 			map[string]*iam.ListServerCertificateTagsOutput{
 				"foobar": {
-					Tags: []*iam.Tag{{Key: aws.String(key), Value: aws.String(value)}},
+					Tags: []types.Tag{{Key: aws.String(key), Value: aws.String(value)}},
 				},
 			},
 		)

@@ -1,13 +1,14 @@
 package aws
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"time"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/service/cloudformation"
-	"github.com/aws/aws-sdk-go/service/cloudformation/cloudformationiface"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/cloudformation"
+	"github.com/aws/aws-sdk-go-v2/service/cloudformation/types"
 )
 
 const (
@@ -43,11 +44,11 @@ func (s *Stack) IsComplete() bool {
 		return false
 	}
 
-	switch s.status {
-	case cloudformation.StackStatusCreateComplete,
-		cloudformation.StackStatusUpdateComplete,
-		cloudformation.StackStatusRollbackComplete,
-		cloudformation.StackStatusUpdateRollbackComplete:
+	switch types.StackStatus(s.status) {
+	case types.StackStatusCreateComplete,
+		types.StackStatusUpdateComplete,
+		types.StackStatusRollbackComplete,
+		types.StackStatusUpdateRollbackComplete:
 		return true
 	}
 	return false
@@ -76,14 +77,14 @@ func (s *Stack) Err() error {
 		return nil
 	}
 
-	switch s.status {
-	case cloudformation.StackStatusCreateInProgress,
-		cloudformation.StackStatusCreateComplete,
-		cloudformation.StackStatusUpdateInProgress,
-		cloudformation.StackStatusUpdateComplete,
-		cloudformation.StackStatusUpdateCompleteCleanupInProgress,
-		cloudformation.StackStatusDeleteInProgress,
-		cloudformation.StackStatusDeleteComplete:
+	switch types.StackStatus(s.status) {
+	case types.StackStatusCreateInProgress,
+		types.StackStatusCreateComplete,
+		types.StackStatusUpdateInProgress,
+		types.StackStatusUpdateComplete,
+		types.StackStatusUpdateCompleteCleanupInProgress,
+		types.StackStatusDeleteInProgress,
+		types.StackStatusDeleteComplete:
 		return nil
 	}
 
@@ -95,10 +96,10 @@ func (s *Stack) Err() error {
 
 type stackOutput map[string]string
 
-func newStackOutput(outputs []*cloudformation.Output) stackOutput {
+func newStackOutput(outputs []types.Output) stackOutput {
 	result := make(stackOutput)
 	for _, o := range outputs {
-		result[aws.StringValue(o.OutputKey)] = aws.StringValue(o.OutputValue)
+		result[aws.ToString(o.OutputKey)] = aws.ToString(o.OutputValue)
 	}
 	return result
 }
@@ -119,10 +120,10 @@ func (o stackOutput) targetGroupARNs() (arns []string) {
 
 // convertStackParameters converts a list of cloudformation stack parameters to
 // a map.
-func convertStackParameters(parameters []*cloudformation.Parameter) map[string]string {
+func convertStackParameters(parameters []types.Parameter) map[string]string {
 	result := make(map[string]string)
 	for _, p := range parameters {
-		result[aws.StringValue(p.ParameterKey)] = aws.StringValue(p.ParameterValue)
+		result[aws.ToString(p.ParameterKey)] = aws.ToString(p.ParameterValue)
 	}
 	return result
 }
@@ -203,7 +204,15 @@ type denyResp struct {
 	body        string
 }
 
-func createStack(svc cloudformationiface.CloudFormationAPI, spec *stackSpec) (string, error) {
+type CloudFormationIFaceAPI interface {
+	CreateStack(context.Context, *cloudformation.CreateStackInput, ...func(*cloudformation.Options)) (*cloudformation.CreateStackOutput, error)
+	UpdateTerminationProtection(context.Context, *cloudformation.UpdateTerminationProtectionInput, ...func(*cloudformation.Options)) (*cloudformation.UpdateTerminationProtectionOutput, error)
+	UpdateStack(context.Context, *cloudformation.UpdateStackInput, ...func(*cloudformation.Options)) (*cloudformation.UpdateStackOutput, error)
+	DeleteStack(context.Context, *cloudformation.DeleteStackInput, ...func(*cloudformation.Options)) (*cloudformation.DeleteStackOutput, error)
+	DescribeStacks(context.Context, *cloudformation.DescribeStacksInput, ...func(*cloudformation.Options)) (*cloudformation.DescribeStacksOutput, error)
+}
+
+func createStack(ctx context.Context, svc CloudFormationIFaceAPI, spec *stackSpec) (string, error) {
 	template, err := generateTemplate(spec)
 	if err != nil {
 		return "", err
@@ -218,8 +227,8 @@ func createStack(svc cloudformationiface.CloudFormationAPI, spec *stackSpec) (st
 
 	params := &cloudformation.CreateStackInput{
 		StackName: aws.String(spec.name),
-		OnFailure: aws.String(cloudformation.OnFailureDelete),
-		Parameters: []*cloudformation.Parameter{
+		OnFailure: types.OnFailureDelete,
+		Parameters: []types.Parameter{
 			cfParam(parameterLoadBalancerSchemeParameter, spec.scheme),
 			cfParam(parameterLoadBalancerSecurityGroupParameter, spec.securityGroupID),
 			cfParam(parameterLoadBalancerSubnetsParameter, strings.Join(spec.subnets, ",")),
@@ -232,7 +241,7 @@ func createStack(svc cloudformationiface.CloudFormationAPI, spec *stackSpec) (st
 		},
 		Tags:                        tagMapToCloudformationTags(tags),
 		TemplateBody:                aws.String(template),
-		TimeoutInMinutes:            aws.Int64(int64(spec.timeoutInMinutes)),
+		TimeoutInMinutes:            aws.Int32(int32(spec.timeoutInMinutes)),
 		EnableTerminationProtection: aws.Bool(spec.stackTerminationProtection),
 	}
 
@@ -271,15 +280,15 @@ func createStack(svc cloudformationiface.CloudFormationAPI, spec *stackSpec) (st
 		params.Tags = append(params.Tags, cfTag(cwAlarmConfigHashTag, spec.cwAlarms.Hash()))
 	}
 
-	resp, err := svc.CreateStack(params)
+	resp, err := svc.CreateStack(ctx, params)
 	if err != nil {
 		return spec.name, err
 	}
 
-	return aws.StringValue(resp.StackId), nil
+	return aws.ToString(resp.StackId), nil
 }
 
-func updateStack(svc cloudformationiface.CloudFormationAPI, spec *stackSpec) (string, error) {
+func updateStack(ctx context.Context, svc CloudFormationIFaceAPI, spec *stackSpec) (string, error) {
 	template, err := generateTemplate(spec)
 	if err != nil {
 		return "", err
@@ -294,7 +303,7 @@ func updateStack(svc cloudformationiface.CloudFormationAPI, spec *stackSpec) (st
 
 	params := &cloudformation.UpdateStackInput{
 		StackName: aws.String(spec.name),
-		Parameters: []*cloudformation.Parameter{
+		Parameters: []types.Parameter{
 			cfParam(parameterLoadBalancerSchemeParameter, spec.scheme),
 			cfParam(parameterLoadBalancerSecurityGroupParameter, spec.securityGroupID),
 			cfParam(parameterLoadBalancerSubnetsParameter, strings.Join(spec.subnets, ",")),
@@ -350,18 +359,18 @@ func updateStack(svc cloudformationiface.CloudFormationAPI, spec *stackSpec) (st
 			EnableTerminationProtection: aws.Bool(spec.stackTerminationProtection),
 		}
 
-		_, err := svc.UpdateTerminationProtection(params)
+		_, err := svc.UpdateTerminationProtection(ctx, params)
 		if err != nil {
 			return spec.name, err
 		}
 	}
 
-	resp, err := svc.UpdateStack(params)
+	resp, err := svc.UpdateStack(ctx, params)
 	if err != nil {
 		return spec.name, err
 	}
 
-	return aws.StringValue(resp.StackId), nil
+	return aws.ToString(resp.StackId), nil
 }
 
 func mergeTags(tags ...map[string]string) map[string]string {
@@ -374,10 +383,10 @@ func mergeTags(tags ...map[string]string) map[string]string {
 	return mergedTags
 }
 
-func tagMapToCloudformationTags(tags map[string]string) []*cloudformation.Tag {
-	cfTags := make([]*cloudformation.Tag, 0, len(tags))
+func tagMapToCloudformationTags(tags map[string]string) []types.Tag {
+	cfTags := make([]types.Tag, 0, len(tags))
 	for k, v := range tags {
-		tag := &cloudformation.Tag{
+		tag := types.Tag{
 			Key:   aws.String(k),
 			Value: aws.String(v),
 		}
@@ -386,48 +395,48 @@ func tagMapToCloudformationTags(tags map[string]string) []*cloudformation.Tag {
 	return cfTags
 }
 
-func cfParam(key, value string) *cloudformation.Parameter {
-	return &cloudformation.Parameter{
+func cfParam(key, value string) types.Parameter {
+	return types.Parameter{
 		ParameterKey:   aws.String(key),
 		ParameterValue: aws.String(value),
 	}
 }
 
-func cfTag(key, value string) *cloudformation.Tag {
-	return &cloudformation.Tag{
+func cfTag(key, value string) types.Tag {
+	return types.Tag{
 		Key:   aws.String(key),
 		Value: aws.String(value),
 	}
 }
 
-func deleteStack(svc cloudformationiface.CloudFormationAPI, stackName string) error {
+func deleteStack(ctx context.Context, svc CloudFormationIFaceAPI, stackName string) error {
 	termParams := &cloudformation.UpdateTerminationProtectionInput{
 		StackName:                   aws.String(stackName),
 		EnableTerminationProtection: aws.Bool(false),
 	}
 
-	_, err := svc.UpdateTerminationProtection(termParams)
+	_, err := svc.UpdateTerminationProtection(ctx, termParams)
 	if err != nil {
 		return err
 	}
 
 	params := &cloudformation.DeleteStackInput{StackName: aws.String(stackName)}
-	_, err = svc.DeleteStack(params)
+	_, err = svc.DeleteStack(ctx, params)
 	return err
 }
 
-func getStack(svc cloudformationiface.CloudFormationAPI, stackName string) (*Stack, error) {
-	stack, err := getCFStackByName(svc, stackName)
+func getStack(ctx context.Context, svc CloudFormationIFaceAPI, stackName string) (*Stack, error) {
+	stack, err := getCFStackByName(ctx, svc, stackName)
 	if err != nil {
 		return nil, ErrLoadBalancerStackNotReady
 	}
 	return mapToManagedStack(stack), nil
 }
 
-func getCFStackByName(svc cloudformationiface.CloudFormationAPI, stackName string) (*cloudformation.Stack, error) {
+func getCFStackByName(ctx context.Context, svc CloudFormationIFaceAPI, stackName string) (*types.Stack, error) {
 	params := &cloudformation.DescribeStacksInput{StackName: aws.String(stackName)}
 
-	resp, err := svc.DescribeStacks(params)
+	resp, err := svc.DescribeStacks(ctx, params)
 	if err != nil {
 		return nil, err
 	}
@@ -436,9 +445,9 @@ func getCFStackByName(svc cloudformationiface.CloudFormationAPI, stackName strin
 		return nil, ErrLoadBalancerStackNotFound
 	}
 
-	var stack *cloudformation.Stack
+	var stack *types.Stack
 	for _, s := range resp.Stacks {
-		stack = s
+		stack = &s
 		break
 	}
 	if stack == nil {
@@ -448,7 +457,7 @@ func getCFStackByName(svc cloudformationiface.CloudFormationAPI, stackName strin
 	return stack, nil
 }
 
-func mapToManagedStack(stack *cloudformation.Stack) *Stack {
+func mapToManagedStack(stack *types.Stack) *Stack {
 	outputs := newStackOutput(stack.Outputs)
 	tags := convertCloudFormationTags(stack.Tags)
 	parameters := convertStackParameters(stack.Parameters)
@@ -482,7 +491,7 @@ func mapToManagedStack(stack *cloudformation.Stack) *Stack {
 	}
 
 	return &Stack{
-		Name:              aws.StringValue(stack.StackName),
+		Name:              aws.ToString(stack.StackName),
 		DNSName:           outputs.dnsName(),
 		TargetGroupARNs:   outputs.targetGroupARNs(),
 		Scheme:            parameters[parameterLoadBalancerSchemeParameter],
@@ -494,31 +503,31 @@ func mapToManagedStack(stack *cloudformation.Stack) *Stack {
 		CertificateARNs:   certificateARNs,
 		tags:              tags,
 		OwnerIngress:      ownerIngress,
-		status:            aws.StringValue(stack.StackStatus),
-		statusReason:      aws.StringValue(stack.StackStatusReason),
+		status:            string(stack.StackStatus),
+		statusReason:      aws.ToString(stack.StackStatusReason),
 		CWAlarmConfigHash: tags[cwAlarmConfigHashTag],
 		WAFWebACLID:       parameters[parameterLoadBalancerWAFWebACLIDParameter],
 	}
 }
 
-func findManagedStacks(svc cloudformationiface.CloudFormationAPI, clusterID, controllerID string) ([]*Stack, error) {
+func findManagedStacks(svc CloudFormationIFaceAPI, clusterID, controllerID string) ([]*Stack, error) {
 	stacks := make([]*Stack, 0)
-	err := svc.DescribeStacksPages(&cloudformation.DescribeStacksInput{},
-		func(page *cloudformation.DescribeStacksOutput, lastPage bool) bool {
-			for _, s := range page.Stacks {
-				if isManagedStack(s.Tags, clusterID, controllerID) {
-					stacks = append(stacks, mapToManagedStack(s))
-				}
+	paginator := cloudformation.NewDescribeStacksPaginator(svc, &cloudformation.DescribeStacksInput{})
+	for paginator.HasMorePages() {
+		page, err := paginator.NextPage(context.TODO())
+		if err != nil {
+			return nil, fmt.Errorf("findManagedStacks failed to list stacks: %w", err)
+		}
+		for _, s := range page.Stacks {
+			if isManagedStack(s.Tags, clusterID, controllerID) {
+				stacks = append(stacks, mapToManagedStack(&s))
 			}
-			return true
-		})
-	if err != nil {
-		return nil, fmt.Errorf("findManagedStacks failed to list stacks: %w", err)
+		}
 	}
 	return stacks, nil
 }
 
-func isManagedStack(cfTags []*cloudformation.Tag, clusterID string, controllerID string) bool {
+func isManagedStack(cfTags []types.Tag, clusterID string, controllerID string) bool {
 	tags := convertCloudFormationTags(cfTags)
 
 	if tags[kubernetesCreatorTag] != controllerID {
@@ -529,10 +538,10 @@ func isManagedStack(cfTags []*cloudformation.Tag, clusterID string, controllerID
 	return tags[clusterIDTagPrefix+clusterID] == resourceLifecycleOwned || tags[clusterIDTag] == clusterID
 }
 
-func convertCloudFormationTags(tags []*cloudformation.Tag) map[string]string {
+func convertCloudFormationTags(tags []types.Tag) map[string]string {
 	ret := make(map[string]string)
 	for _, tag := range tags {
-		ret[aws.StringValue(tag.Key)] = aws.StringValue(tag.Value)
+		ret[aws.ToString(tag.Key)] = aws.ToString(tag.Value)
 	}
 	return ret
 }

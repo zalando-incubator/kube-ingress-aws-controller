@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/service/acm"
-	"github.com/aws/aws-sdk-go/service/acm/acmiface"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/acm"
+	"github.com/aws/aws-sdk-go-v2/service/acm/types"
 	"github.com/stretchr/testify/require"
 	"github.com/zalando-incubator/kube-ingress-aws-controller/aws/fake"
 )
@@ -25,7 +25,7 @@ func TestACM(t *testing.T) {
 
 	for _, ti := range []struct {
 		msg       string
-		api       acmiface.ACMAPI
+		api       ACMIFaceAPI
 		filterTag string
 		expect    acmExpect
 	}{
@@ -33,7 +33,7 @@ func TestACM(t *testing.T) {
 			msg: "Found ACM Cert foobar and a chain",
 			api: fake.NewACMClient(
 				acm.ListCertificatesOutput{
-					CertificateSummaryList: []*acm.CertificateSummary{
+					CertificateSummaryList: []types.CertificateSummary{
 						{
 							CertificateArn: aws.String("foobar"),
 							DomainName:     aws.String("foobar.de"),
@@ -57,7 +57,7 @@ func TestACM(t *testing.T) {
 			msg: "Found ACM Cert foobar and no chain",
 			api: fake.NewACMClient(
 				acm.ListCertificatesOutput{
-					CertificateSummaryList: []*acm.CertificateSummary{
+					CertificateSummaryList: []types.CertificateSummary{
 						{
 							CertificateArn: aws.String("foobar"),
 							DomainName:     aws.String("foobar.de"),
@@ -80,7 +80,7 @@ func TestACM(t *testing.T) {
 			msg: "Found one ACM Cert with correct filter tag",
 			api: fake.NewACMClient(
 				acm.ListCertificatesOutput{
-					CertificateSummaryList: []*acm.CertificateSummary{
+					CertificateSummaryList: []types.CertificateSummary{
 						{
 							CertificateArn: aws.String("foobar"),
 							DomainName:     aws.String("foobar.de"),
@@ -101,10 +101,10 @@ func TestACM(t *testing.T) {
 				},
 				map[string]*acm.ListTagsForCertificateOutput{
 					"foobar": {
-						Tags: []*acm.Tag{{Key: aws.String("production"), Value: aws.String("true")}},
+						Tags: []types.Tag{{Key: aws.String("production"), Value: aws.String("true")}},
 					},
 					"foobaz": {
-						Tags: []*acm.Tag{{Key: aws.String("production"), Value: aws.String("false")}},
+						Tags: []types.Tag{{Key: aws.String("production"), Value: aws.String("false")}},
 					},
 				},
 			),
@@ -118,7 +118,7 @@ func TestACM(t *testing.T) {
 			msg: "ACM Cert with incorrect filter tag should not be found",
 			api: fake.NewACMClient(
 				acm.ListCertificatesOutput{
-					CertificateSummaryList: []*acm.CertificateSummary{
+					CertificateSummaryList: []types.CertificateSummary{
 						{
 							CertificateArn: aws.String("foobar"),
 							DomainName:     aws.String("foobar.de"),
@@ -132,7 +132,7 @@ func TestACM(t *testing.T) {
 				},
 				map[string]*acm.ListTagsForCertificateOutput{
 					"foobar": {
-						Tags: []*acm.Tag{{Key: aws.String("production"), Value: aws.String("false")}},
+						Tags: []types.Tag{{Key: aws.String("production"), Value: aws.String("false")}},
 					},
 				},
 			),

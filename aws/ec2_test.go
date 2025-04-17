@@ -1,12 +1,13 @@
 package aws
 
 import (
+	"context"
 	"fmt"
 	"reflect"
 	"testing"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/service/ec2"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/ec2/types"
 
 	"github.com/zalando-incubator/kube-ingress-aws-controller/aws/fake"
 )
@@ -56,7 +57,7 @@ func TestFindingSecurityGroup(t *testing.T) {
 	} {
 		t.Run(fmt.Sprintf("%v", test.name), func(t *testing.T) {
 			ec2 := &fake.EC2Client{Outputs: test.responses}
-			got, err := findSecurityGroupWithClusterID(ec2, "foo", "kube-ingress-aws-controller")
+			got, err := findSecurityGroupWithClusterID(context.TODO(), ec2, "foo", "kube-ingress-aws-controller")
 			assertResultAndError(t, test.want, got, test.wantError, err)
 		})
 	}
@@ -160,7 +161,7 @@ func TestGetInstanceDetails(t *testing.T) {
 	} {
 		t.Run(fmt.Sprintf("%v", test.name), func(t *testing.T) {
 			ec2 := &fake.EC2Client{Outputs: test.responses}
-			got, err := getInstanceDetails(ec2, "foo")
+			got, err := getInstanceDetails(context.TODO(), ec2, "foo")
 			assertResultAndError(t, test.want, got, test.wantError, err)
 		})
 	}
@@ -238,7 +239,7 @@ func TestGetSubnets(t *testing.T) {
 	} {
 		t.Run(fmt.Sprintf("%v", test.name), func(t *testing.T) {
 			ec2 := &fake.EC2Client{Outputs: test.responses}
-			got, err := getSubnets(ec2, "foo", "bar")
+			got, err := getSubnets(context.TODO(), ec2, "foo", "bar")
 			assertResultAndError(t, test.want, got, test.wantError, err)
 		})
 	}
@@ -247,18 +248,18 @@ func TestGetSubnets(t *testing.T) {
 func TestGetInstancesDetailsWithFilters(t *testing.T) {
 	for _, test := range []struct {
 		name      string
-		input     []*ec2.Filter
+		input     []types.Filter
 		responses fake.EC2Outputs
 		want      map[string]*instanceDetails
 		wantError bool
 	}{
 		{
 			"success-call",
-			[]*ec2.Filter{
+			[]types.Filter{
 				{
 					Name: aws.String("tag:KubernetesCluster"),
-					Values: []*string{
-						aws.String("kube1"),
+					Values: []string{
+						"kube1",
 					},
 				},
 			},
@@ -277,7 +278,7 @@ func TestGetInstancesDetailsWithFilters(t *testing.T) {
 		},
 		{
 			"success-empty-filters",
-			[]*ec2.Filter{},
+			[]types.Filter{},
 			fake.EC2Outputs{DescribeInstancesPages: fake.MockDescribeInstancesPagesOutput(
 				nil,
 				fake.TestInstance{Id: "foo1", Tags: fake.Tags{"bar": "baz"}, PrivateIp: "1.2.3.4", VpcId: "1", State: 16},
@@ -291,11 +292,11 @@ func TestGetInstancesDetailsWithFilters(t *testing.T) {
 		},
 		{
 			"success-empty-response",
-			[]*ec2.Filter{
+			[]types.Filter{
 				{
 					Name: aws.String("vpc-id"),
-					Values: []*string{
-						aws.String("some-vpc"),
+					Values: []string{
+						"some-vpc",
 					},
 				},
 			},
@@ -305,11 +306,11 @@ func TestGetInstancesDetailsWithFilters(t *testing.T) {
 		},
 		{
 			"aws-api-fail",
-			[]*ec2.Filter{
+			[]types.Filter{
 				{
 					Name: aws.String("tag-key"),
-					Values: []*string{
-						aws.String("key1"),
+					Values: []string{
+						"key1",
 					},
 				},
 			},
@@ -320,7 +321,7 @@ func TestGetInstancesDetailsWithFilters(t *testing.T) {
 	} {
 		t.Run(fmt.Sprintf("%v", test.name), func(t *testing.T) {
 			ec2 := &fake.EC2Client{Outputs: test.responses}
-			got, err := getInstancesDetailsWithFilters(ec2, test.input)
+			got, err := getInstancesDetailsWithFilters(context.TODO(), ec2, test.input)
 			assertResultAndError(t, test.want, got, test.wantError, err)
 		})
 	}

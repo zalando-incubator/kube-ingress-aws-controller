@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"math"
 	"reflect"
 	"sort"
@@ -12,8 +13,7 @@ import (
 	"runtime/debug"
 	"strings"
 
-	"github.com/aws/aws-sdk-go/aws/awserr"
-	"github.com/aws/aws-sdk-go/service/cloudformation"
+	"github.com/aws/aws-sdk-go-v2/service/cloudformation/types"
 	log "github.com/sirupsen/logrus"
 	"github.com/zalando-incubator/kube-ingress-aws-controller/aws"
 	"github.com/zalando-incubator/kube-ingress-aws-controller/certs"
@@ -566,17 +566,14 @@ func updateStack(awsAdapter *aws.Adapter, lb *loadBalancer, problems *problem.Li
 }
 
 func isAlreadyExistsError(err error) bool {
-	if awsErr, ok := err.(awserr.Error); ok {
-		return awsErr.Code() == cloudformation.ErrCodeAlreadyExistsException
+	if err != nil && errors.As(err, &types.AlreadyExistsException{}) {
+		return true
 	}
 	return false
 }
 
 func isNoUpdatesToBePerformedError(err error) bool {
-	if err == nil {
-		return false
-	}
-	if _, ok := err.(awserr.Error); ok {
+	if err != nil {
 		return strings.Contains(err.Error(), "No updates are to be performed")
 	}
 	return false
