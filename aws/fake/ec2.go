@@ -2,18 +2,16 @@ package fake
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	"github.com/aws/aws-sdk-go-v2/service/ec2/types"
 )
 
-const dipSplitSize = 2
-
 type EC2Outputs struct {
 	DescribeSecurityGroups *APIResponse
 	DescribeInstances      *APIResponse
-	DescribeInstancesPages []*APIResponse
 	DescribeSubnets        *APIResponse
 	DescribeRouteTables    *APIResponse
 }
@@ -31,23 +29,15 @@ func (m *EC2Client) DescribeSecurityGroups(context.Context, *ec2.DescribeSecurit
 }
 
 func (m *EC2Client) DescribeInstances(context.Context, *ec2.DescribeInstancesInput, ...func(*ec2.Options)) (*ec2.DescribeInstancesOutput, error) {
+	fmt.Printf("descirbe instances is nil %v \n", m.Outputs.DescribeInstances == nil)
+	if m.Outputs.DescribeInstances == nil {
+		return &ec2.DescribeInstancesOutput{}, nil
+	}
 	out, ok := m.Outputs.DescribeInstances.response.(*ec2.DescribeInstancesOutput)
 	if !ok {
 		return nil, m.Outputs.DescribeInstances.err
 	}
 	return out, m.Outputs.DescribeInstances.err
-}
-
-func (m *EC2Client) DescribeInstancesPages(ctx context.Context, params *ec2.DescribeInstancesInput, f func(*ec2.DescribeInstancesOutput, bool) bool) error {
-	for _, resp := range m.Outputs.DescribeInstancesPages {
-		if out, ok := resp.response.(*ec2.DescribeInstancesOutput); ok {
-			f(out, true)
-		}
-	}
-	if len(m.Outputs.DescribeInstancesPages) != 0 {
-		return m.Outputs.DescribeInstancesPages[0].err
-	}
-	return nil
 }
 
 func (m *EC2Client) DescribeSubnets(context.Context, *ec2.DescribeSubnetsInput, ...func(*ec2.Options)) (*ec2.DescribeSubnetsOutput, error) {
@@ -86,7 +76,7 @@ type TestInstance struct {
 	State     int32
 }
 
-func MockDescribeInstancesOutput(mockedInstances ...TestInstance) *ec2.DescribeInstancesOutput {
+func MockDescribeInstancesOutput(e error, mockedInstances ...TestInstance) *APIResponse {
 	instances := make([]types.Instance, 0, len(mockedInstances))
 	for _, i := range mockedInstances {
 		tags := make([]types.Tag, 0, len(i.Tags))
@@ -102,19 +92,8 @@ func MockDescribeInstancesOutput(mockedInstances ...TestInstance) *ec2.DescribeI
 		}
 		instances = append(instances, instance)
 	}
-	return &ec2.DescribeInstancesOutput{Reservations: []types.Reservation{{Instances: instances}}}
-}
-
-func MockDescribeInstancesPagesOutput(e error, mockedInstances ...TestInstance) []*APIResponse {
-	pages := len(mockedInstances) / dipSplitSize
-	result := make([]*APIResponse, pages, pages+1)
-	for i := 0; i < pages; i++ {
-		result[i] = R(MockDescribeInstancesOutput(mockedInstances[i*dipSplitSize:(i+1)*dipSplitSize]...), e)
-	}
-	if len(mockedInstances)%dipSplitSize != 0 {
-		result = append(result, R(MockDescribeInstancesOutput(mockedInstances[pages*dipSplitSize:]...), e))
-	}
-	return result
+	output := &ec2.DescribeInstancesOutput{Reservations: []types.Reservation{{Instances: instances}}}
+	return R(output, e)
 }
 
 type TestSubnet struct {

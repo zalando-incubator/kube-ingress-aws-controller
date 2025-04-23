@@ -46,7 +46,7 @@ func TestResourceConversionOneToOne(tt *testing.T) {
 	}{
 		{
 			name: "ingress_alb",
-			responsesEC2: fake.EC2Outputs{DescribeInstancesPages: fake.MockDescribeInstancesPagesOutput(
+			responsesEC2: fake.EC2Outputs{DescribeInstances: fake.MockDescribeInstancesOutput(
 				nil,
 				fake.TestInstance{
 					Id:        "i0",
@@ -91,15 +91,14 @@ func TestResourceConversionOneToOne(tt *testing.T) {
 				DescribeTags:         fake.R(nil, nil),
 			},
 			responsesCF: fake.CFOutputs{
-				DescribeStackPages: fake.R(nil, nil),
-				DescribeStacks:     fake.R(nil, nil),
-				CreateStack:        fake.R(fake.MockCSOutput("42"), nil),
+				DescribeStacks: fake.R(nil, nil),
+				CreateStack:    fake.R(fake.MockCSOutput("42"), nil),
 			},
 			typeLB: aws.LoadBalancerTypeApplication,
 		},
 		{
 			name: "ingress_nlb",
-			responsesEC2: fake.EC2Outputs{DescribeInstancesPages: fake.MockDescribeInstancesPagesOutput(
+			responsesEC2: fake.EC2Outputs{DescribeInstances: fake.MockDescribeInstancesOutput(
 				nil,
 				fake.TestInstance{
 					Id:        "i0",
@@ -144,14 +143,13 @@ func TestResourceConversionOneToOne(tt *testing.T) {
 				DescribeTags:         fake.R(nil, nil),
 			},
 			responsesCF: fake.CFOutputs{
-				DescribeStackPages: fake.R(nil, nil),
-				DescribeStacks:     fake.R(nil, nil),
-				CreateStack:        fake.R(fake.MockCSOutput("42"), nil),
+				DescribeStacks: fake.R(nil, nil),
+				CreateStack:    fake.R(fake.MockCSOutput("42"), nil),
 			},
 			typeLB: aws.LoadBalancerTypeNetwork,
 		}, {
 			name: "rg_alb",
-			responsesEC2: fake.EC2Outputs{DescribeInstancesPages: fake.MockDescribeInstancesPagesOutput(
+			responsesEC2: fake.EC2Outputs{DescribeInstances: fake.MockDescribeInstancesOutput(
 				nil,
 				fake.TestInstance{
 					Id:        "i0",
@@ -196,14 +194,13 @@ func TestResourceConversionOneToOne(tt *testing.T) {
 				DescribeTags:         fake.R(nil, nil),
 			},
 			responsesCF: fake.CFOutputs{
-				DescribeStackPages: fake.R(nil, nil),
-				DescribeStacks:     fake.R(nil, nil),
-				CreateStack:        fake.R(fake.MockCSOutput("42"), nil),
+				DescribeStacks: fake.R(nil, nil),
+				CreateStack:    fake.R(fake.MockCSOutput("42"), nil),
 			},
 			typeLB: aws.LoadBalancerTypeApplication,
 		}, {
 			name: "rg_nlb",
-			responsesEC2: fake.EC2Outputs{DescribeInstancesPages: fake.MockDescribeInstancesPagesOutput(
+			responsesEC2: fake.EC2Outputs{DescribeInstances: fake.MockDescribeInstancesOutput(
 				nil,
 				fake.TestInstance{
 					Id:        "i0",
@@ -248,14 +245,13 @@ func TestResourceConversionOneToOne(tt *testing.T) {
 				DescribeTags:         fake.R(nil, nil),
 			},
 			responsesCF: fake.CFOutputs{
-				DescribeStackPages: fake.R(nil, nil),
-				DescribeStacks:     fake.R(nil, nil),
-				CreateStack:        fake.R(fake.MockCSOutput("42"), nil),
+				DescribeStacks: fake.R(nil, nil),
+				CreateStack:    fake.R(fake.MockCSOutput("42"), nil),
 			},
 			typeLB: aws.LoadBalancerTypeNetwork,
 		}, {
 			name: "ing_shared_rg_notshared_alb",
-			responsesEC2: fake.EC2Outputs{DescribeInstancesPages: fake.MockDescribeInstancesPagesOutput(
+			responsesEC2: fake.EC2Outputs{DescribeInstances: fake.MockDescribeInstancesOutput(
 				nil,
 				fake.TestInstance{
 					Id:        "i0",
@@ -300,14 +296,13 @@ func TestResourceConversionOneToOne(tt *testing.T) {
 				DescribeTags:         fake.R(nil, nil),
 			},
 			responsesCF: fake.CFOutputs{
-				DescribeStackPages: fake.R(nil, nil),
-				DescribeStacks:     fake.R(nil, nil),
-				CreateStack:        fake.R(fake.MockCSOutput("42"), nil),
+				DescribeStacks: fake.R(nil, nil),
+				CreateStack:    fake.R(fake.MockCSOutput("42"), nil),
 			},
 			typeLB: aws.LoadBalancerTypeApplication,
 		}, {
 			name: "ingress_rg_shared_alb",
-			responsesEC2: fake.EC2Outputs{DescribeInstancesPages: fake.MockDescribeInstancesPagesOutput(
+			responsesEC2: fake.EC2Outputs{DescribeInstances: fake.MockDescribeInstancesOutput(
 				nil,
 				fake.TestInstance{
 					Id:        "i0",
@@ -352,14 +347,13 @@ func TestResourceConversionOneToOne(tt *testing.T) {
 				DescribeTags:         fake.R(nil, nil),
 			},
 			responsesCF: fake.CFOutputs{
-				DescribeStackPages: fake.R(nil, nil),
-				DescribeStacks:     fake.R(nil, nil),
-				CreateStack:        fake.R(fake.MockCSOutput("42"), nil),
+				DescribeStacks: fake.R(nil, nil),
+				CreateStack:    fake.R(fake.MockCSOutput("42"), nil),
 			},
 			typeLB: aws.LoadBalancerTypeApplication,
 		}, {
 			name: "ingress_rg_shared_nlb",
-			responsesEC2: fake.EC2Outputs{DescribeInstancesPages: fake.MockDescribeInstancesPagesOutput(
+			responsesEC2: fake.EC2Outputs{DescribeInstances: fake.MockDescribeInstancesOutput(
 				nil,
 				fake.TestInstance{
 					Id:        "i0",
@@ -404,9 +398,8 @@ func TestResourceConversionOneToOne(tt *testing.T) {
 				DescribeTags:         fake.R(nil, nil),
 			},
 			responsesCF: fake.CFOutputs{
-				DescribeStackPages: fake.R(nil, nil),
-				DescribeStacks:     fake.R(nil, nil),
-				CreateStack:        fake.R(fake.MockCSOutput("42"), nil),
+				DescribeStacks: fake.R(nil, nil),
+				CreateStack:    fake.R(fake.MockCSOutput("42"), nil),
 			},
 			typeLB: aws.LoadBalancerTypeNetwork,
 		},

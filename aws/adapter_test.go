@@ -72,13 +72,13 @@ func TestParseFilters(tt *testing.T) {
 		name            string
 		customFilter    *string
 		clusterId       string
-		expectedFilters []*types.Filter
+		expectedFilters []types.Filter
 	}{
 		{
 			"no-custom-filter",
 			nil,
 			"cluster",
-			[]*types.Filter{
+			[]types.Filter{
 				{
 					Name:   aws.String("tag:" + clusterIDTagPrefix + "cluster"),
 					Values: []string{resourceLifecycleOwned},
@@ -93,7 +93,7 @@ func TestParseFilters(tt *testing.T) {
 			"custom-filter1",
 			aws.String("tag:Test=test"),
 			"cluster",
-			[]*types.Filter{
+			[]types.Filter{
 				{
 					Name:   aws.String("tag:Test"),
 					Values: []string{"test"},
@@ -104,7 +104,7 @@ func TestParseFilters(tt *testing.T) {
 			"custom-filter2",
 			aws.String("tag:Test=test vpc-id=id1,id2"),
 			"cluster",
-			[]*types.Filter{
+			[]types.Filter{
 				{
 					Name:   aws.String("tag:Test"),
 					Values: []string{"test"},
@@ -119,7 +119,7 @@ func TestParseFilters(tt *testing.T) {
 			"custom-filter3",
 			aws.String("tag:Test=test tag:Test=test1,test2  tag-key=key1,key2,key3"),
 			"cluster",
-			[]*types.Filter{
+			[]types.Filter{
 				{
 					Name:   aws.String("tag:Test"),
 					Values: []string{"test"},
@@ -138,7 +138,7 @@ func TestParseFilters(tt *testing.T) {
 			"illegal1",
 			aws.String("test"),
 			"cluster",
-			[]*types.Filter{
+			[]types.Filter{
 				{
 					Name:   aws.String("tag:" + clusterIDTagPrefix + "cluster"),
 					Values: []string{resourceLifecycleOwned},
@@ -273,7 +273,7 @@ func TestUpdateAutoScalingGroupsAndInstances(tt *testing.T) {
 	}{
 		{
 			"initial",
-			fake.EC2Outputs{DescribeInstancesPages: fake.MockDescribeInstancesPagesOutput(
+			fake.EC2Outputs{DescribeInstances: fake.MockDescribeInstancesOutput(
 				nil,
 				fake.TestInstance{Id: "foo0", Tags: fake.Tags{"aws:autoscaling:groupName": "asg1"}, PrivateIp: "1.2.3.3", VpcId: "1", State: runningState},
 				fake.TestInstance{Id: "foo1", Tags: fake.Tags{"aws:autoscaling:groupName": "asg1"}, PrivateIp: "1.2.3.4", VpcId: "1", State: runningState},
@@ -293,7 +293,7 @@ func TestUpdateAutoScalingGroupsAndInstances(tt *testing.T) {
 		},
 		{
 			"add-node-same-asg",
-			fake.EC2Outputs{DescribeInstancesPages: fake.MockDescribeInstancesPagesOutput(
+			fake.EC2Outputs{DescribeInstances: fake.MockDescribeInstancesOutput(
 				nil,
 				fake.TestInstance{Id: "foo0", Tags: fake.Tags{"aws:autoscaling:groupName": "asg1"}, PrivateIp: "1.2.3.3", VpcId: "1", State: runningState},
 				fake.TestInstance{Id: "foo1", Tags: fake.Tags{"aws:autoscaling:groupName": "asg1"}, PrivateIp: "1.2.3.4", VpcId: "1", State: 0},
@@ -314,7 +314,7 @@ func TestUpdateAutoScalingGroupsAndInstances(tt *testing.T) {
 		},
 		{
 			"add-node-second-asg",
-			fake.EC2Outputs{DescribeInstancesPages: fake.MockDescribeInstancesPagesOutput(
+			fake.EC2Outputs{DescribeInstances: fake.MockDescribeInstancesOutput(
 				nil,
 				fake.TestInstance{Id: "foo0", Tags: fake.Tags{"aws:autoscaling:groupName": "asg1"}, PrivateIp: "1.2.3.3", VpcId: "1", State: runningState},
 				fake.TestInstance{Id: "foo1", Tags: fake.Tags{"aws:autoscaling:groupName": "asg1"}, PrivateIp: "1.2.3.4", VpcId: "1", State: runningState},
@@ -341,7 +341,7 @@ func TestUpdateAutoScalingGroupsAndInstances(tt *testing.T) {
 		},
 		{
 			"add-another-node-second-asg",
-			fake.EC2Outputs{DescribeInstancesPages: fake.MockDescribeInstancesPagesOutput(
+			fake.EC2Outputs{DescribeInstances: fake.MockDescribeInstancesOutput(
 				nil,
 				fake.TestInstance{Id: "foo0", Tags: fake.Tags{"aws:autoscaling:groupName": "asg1"}, PrivateIp: "1.2.3.3", VpcId: "1", State: runningState},
 				fake.TestInstance{Id: "foo1", Tags: fake.Tags{"aws:autoscaling:groupName": "asg1"}, PrivateIp: "1.2.3.4", VpcId: "1", State: runningState},
@@ -369,7 +369,7 @@ func TestUpdateAutoScalingGroupsAndInstances(tt *testing.T) {
 		},
 		{
 			"add-node-third-asg",
-			fake.EC2Outputs{DescribeInstancesPages: fake.MockDescribeInstancesPagesOutput(
+			fake.EC2Outputs{DescribeInstances: fake.MockDescribeInstancesOutput(
 				nil,
 				fake.TestInstance{Id: "foo0", Tags: fake.Tags{"aws:autoscaling:groupName": "asg1"}, PrivateIp: "1.2.3.3", VpcId: "1", State: runningState},
 				fake.TestInstance{Id: "foo1", Tags: fake.Tags{"aws:autoscaling:groupName": "asg1"}, PrivateIp: "1.2.3.4", VpcId: "1", State: runningState},
@@ -402,7 +402,7 @@ func TestUpdateAutoScalingGroupsAndInstances(tt *testing.T) {
 		},
 		{
 			"add-node-without-asg",
-			fake.EC2Outputs{DescribeInstancesPages: fake.MockDescribeInstancesPagesOutput(
+			fake.EC2Outputs{DescribeInstances: fake.MockDescribeInstancesOutput(
 				nil,
 				fake.TestInstance{Id: "foo0", Tags: fake.Tags{"aws:autoscaling:groupName": "asg1"}, PrivateIp: "1.2.3.3", VpcId: "1", State: runningState},
 				fake.TestInstance{Id: "foo1", Tags: fake.Tags{"aws:autoscaling:groupName": "asg1"}, PrivateIp: "1.2.3.4", VpcId: "1", State: runningState},
@@ -436,7 +436,7 @@ func TestUpdateAutoScalingGroupsAndInstances(tt *testing.T) {
 		},
 		{
 			"add-stopped-node-without-asg",
-			fake.EC2Outputs{DescribeInstancesPages: fake.MockDescribeInstancesPagesOutput(
+			fake.EC2Outputs{DescribeInstances: fake.MockDescribeInstancesOutput(
 				nil,
 				fake.TestInstance{Id: "foo0", Tags: fake.Tags{"aws:autoscaling:groupName": "asg1"}, PrivateIp: "1.2.3.3", VpcId: "1", State: runningState},
 				fake.TestInstance{Id: "foo1", Tags: fake.Tags{"aws:autoscaling:groupName": "asg1"}, PrivateIp: "1.2.3.4", VpcId: "1", State: runningState},
@@ -471,7 +471,7 @@ func TestUpdateAutoScalingGroupsAndInstances(tt *testing.T) {
 		},
 		{
 			"remove-third-asg-node-and-stopped-instance",
-			fake.EC2Outputs{DescribeInstancesPages: fake.MockDescribeInstancesPagesOutput(
+			fake.EC2Outputs{DescribeInstances: fake.MockDescribeInstancesOutput(
 				nil,
 				fake.TestInstance{Id: "foo0", Tags: fake.Tags{"aws:autoscaling:groupName": "asg1"}, PrivateIp: "1.2.3.3", VpcId: "1", State: runningState},
 				fake.TestInstance{Id: "foo1", Tags: fake.Tags{"aws:autoscaling:groupName": "asg1"}, PrivateIp: "1.2.3.4", VpcId: "1", State: runningState},
@@ -500,7 +500,7 @@ func TestUpdateAutoScalingGroupsAndInstances(tt *testing.T) {
 		},
 		{
 			"error-fetching-instance",
-			fake.EC2Outputs{DescribeInstancesPages: fake.MockDescribeInstancesPagesOutput(
+			fake.EC2Outputs{DescribeInstances: fake.MockDescribeInstancesOutput(
 				fake.ErrDummy,
 				fake.TestInstance{},
 			)},
@@ -514,7 +514,7 @@ func TestUpdateAutoScalingGroupsAndInstances(tt *testing.T) {
 		},
 		{
 			"error-fetching-asg",
-			fake.EC2Outputs{DescribeInstancesPages: fake.MockDescribeInstancesPagesOutput(
+			fake.EC2Outputs{DescribeInstances: fake.MockDescribeInstancesOutput(
 				nil,
 				fake.TestInstance{Id: "foo0", Tags: fake.Tags{"aws:autoscaling:groupName": "asg1"}, PrivateIp: "1.2.3.3", VpcId: "1", State: runningState},
 				fake.TestInstance{Id: "foo1", Tags: fake.Tags{"aws:autoscaling:groupName": "asg1"}, PrivateIp: "1.2.3.4", VpcId: "1", State: runningState},
@@ -544,7 +544,7 @@ func TestUpdateAutoScalingGroupsAndInstances(tt *testing.T) {
 		},
 		{
 			"add-back-third-asg",
-			fake.EC2Outputs{DescribeInstancesPages: fake.MockDescribeInstancesPagesOutput(
+			fake.EC2Outputs{DescribeInstances: fake.MockDescribeInstancesOutput(
 				nil,
 				fake.TestInstance{Id: "foo0", Tags: fake.Tags{"aws:autoscaling:groupName": "asg1"}, PrivateIp: "1.2.3.3", VpcId: "1", State: runningState},
 				fake.TestInstance{Id: "foo1", Tags: fake.Tags{"aws:autoscaling:groupName": "asg1"}, PrivateIp: "1.2.3.4", VpcId: "1", State: runningState},
@@ -578,7 +578,7 @@ func TestUpdateAutoScalingGroupsAndInstances(tt *testing.T) {
 		},
 		{
 			"remove-all-except-first-asg",
-			fake.EC2Outputs{DescribeInstancesPages: fake.MockDescribeInstancesPagesOutput(
+			fake.EC2Outputs{DescribeInstances: fake.MockDescribeInstancesOutput(
 				nil,
 				fake.TestInstance{Id: "foo0", Tags: fake.Tags{"aws:autoscaling:groupName": "asg1"}, PrivateIp: "1.2.3.3", VpcId: "1", State: runningState},
 				fake.TestInstance{Id: "foo1", Tags: fake.Tags{"aws:autoscaling:groupName": "asg1"}, PrivateIp: "1.2.3.4", VpcId: "1", State: runningState},
@@ -599,7 +599,7 @@ func TestUpdateAutoScalingGroupsAndInstances(tt *testing.T) {
 		},
 		{
 			"add-remove-simultaneously",
-			fake.EC2Outputs{DescribeInstancesPages: fake.MockDescribeInstancesPagesOutput(
+			fake.EC2Outputs{DescribeInstances: fake.MockDescribeInstancesOutput(
 				nil,
 				fake.TestInstance{Id: "foo0", Tags: fake.Tags{"aws:autoscaling:groupName": "asg1"}, PrivateIp: "1.2.3.3", VpcId: "1", State: runningState},
 				fake.TestInstance{Id: "sgl1", Tags: fake.Tags{"Name": "node1"}, PrivateIp: "0.1.1.1", VpcId: "1", State: runningState},
