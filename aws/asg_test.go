@@ -495,7 +495,7 @@ func TestAttach(t *testing.T) {
 			autoscalingInputs: fake.ASGInputs{
 				AttachLoadBalancerTargetGroups: func(t *testing.T, input *autoscaling.AttachLoadBalancerTargetGroupsInput) {
 					assert.Equal(t, aws.String("asg-name"), input.AutoScalingGroupName)
-					assert.Equal(t, aws.StringSlice([]string{"foo", "bar"}), input.TargetGroupARNs)
+					assert.Equal(t, []string{"foo", "bar"}, input.TargetGroupARNs)
 				},
 			},
 			ownerTags: map[string]string{"owner": "true"},

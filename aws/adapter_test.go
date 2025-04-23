@@ -981,7 +981,7 @@ func TestAdapter_SetTargetsOnCNITargetGroups(t *testing.T) {
 		m.Rtinputs, m.Dtinputs = nil, nil
 
 		require.NoError(t, a.SetTargetsOnCNITargetGroups([]string{"1.1.1.1", "2.2.2.2", "3.3.3.3"}, tgARNs))
-		require.Equal(t, []*elbv2Types.TargetDescription{
+		require.Equal(t, []elbv2Types.TargetDescription{
 			{Id: aws.String("2.2.2.2")},
 			{Id: aws.String("3.3.3.3")},
 		}, m.Rtinputs[0].Targets)
@@ -998,7 +998,7 @@ func TestAdapter_SetTargetsOnCNITargetGroups(t *testing.T) {
 
 		require.NoError(t, a.SetTargetsOnCNITargetGroups([]string{"1.1.1.1", "3.3.3.3"}, tgARNs))
 		require.Equal(t, []*elbv2.RegisterTargetsInput(nil), m.Rtinputs)
-		require.Equal(t, []*elbv2Types.TargetDescription{{Id: aws.String("2.2.2.2")}}, m.Dtinputs[0].Targets)
+		require.Equal(t, []elbv2Types.TargetDescription{{Id: aws.String("2.2.2.2")}}, m.Dtinputs[0].Targets)
 	})
 
 	t.Run("restoring desired State after external manipulation, adding and removing one", func(t *testing.T) {
@@ -1010,8 +1010,8 @@ func TestAdapter_SetTargetsOnCNITargetGroups(t *testing.T) {
 		m.Rtinputs, m.Dtinputs = nil, nil
 
 		require.NoError(t, a.SetTargetsOnCNITargetGroups([]string{"1.1.1.1", "2.2.2.2", "3.3.3.3"}, tgARNs))
-		require.Equal(t, []*elbv2Types.TargetDescription{{Id: aws.String("3.3.3.3")}}, m.Rtinputs[0].Targets)
-		require.Equal(t, []*elbv2Types.TargetDescription{{Id: aws.String("4.4.4.4")}}, m.Dtinputs[0].Targets)
+		require.Equal(t, []elbv2Types.TargetDescription{{Id: aws.String("3.3.3.3")}}, m.Rtinputs[0].Targets)
+		require.Equal(t, []elbv2Types.TargetDescription{{Id: aws.String("4.4.4.4")}}, m.Dtinputs[0].Targets)
 	})
 }
 
@@ -1020,14 +1020,14 @@ func TestWithTargetAccessMode(t *testing.T) {
 		a := &Adapter{TargetCNI: &TargetCNIconfig{Enabled: false}}
 		a = a.WithTargetAccessMode("AWSCNI")
 
-		assert.Equal(t, elbv2Types.TargetTypeEnumIp, a.targetType)
+		assert.Equal(t, string(elbv2Types.TargetTypeEnumIp), a.targetType)
 		assert.True(t, a.TargetCNI.Enabled)
 	})
 	t.Run("WithTargetAccessMode HostPort", func(t *testing.T) {
 		a := &Adapter{TargetCNI: &TargetCNIconfig{Enabled: true}}
 		a = a.WithTargetAccessMode("HostPort")
 
-		assert.Equal(t, elbv2Types.TargetTypeEnumInstance, a.targetType)
+		assert.Equal(t, string(elbv2Types.TargetTypeEnumInstance), a.targetType)
 		assert.False(t, a.TargetCNI.Enabled)
 	})
 	t.Run("WithTargetAccessMode Legacy", func(t *testing.T) {

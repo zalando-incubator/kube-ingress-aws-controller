@@ -2,7 +2,6 @@ package fake
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
@@ -29,7 +28,6 @@ func (m *EC2Client) DescribeSecurityGroups(context.Context, *ec2.DescribeSecurit
 }
 
 func (m *EC2Client) DescribeInstances(context.Context, *ec2.DescribeInstancesInput, ...func(*ec2.Options)) (*ec2.DescribeInstancesOutput, error) {
-	fmt.Printf("descirbe instances is nil %v \n", m.Outputs.DescribeInstances == nil)
 	if m.Outputs.DescribeInstances == nil {
 		return &ec2.DescribeInstancesOutput{}, nil
 	}

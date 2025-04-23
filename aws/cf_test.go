@@ -399,7 +399,6 @@ func TestFindManagedStacks(t *testing.T) {
 		{
 			name: "successful-call",
 			given: fake.CFOutputs{
-				DescribeStackPages: fake.R(nil, nil),
 				DescribeStacks: fake.R(&cloudformation.DescribeStacksOutput{
 					Stacks: []types.Stack{
 						{
@@ -534,7 +533,6 @@ func TestFindManagedStacks(t *testing.T) {
 		{
 			name: "successfull-call-with-rollback-status",
 			given: fake.CFOutputs{
-				DescribeStackPages: fake.R(nil, nil),
 				DescribeStacks: fake.R(&cloudformation.DescribeStacksOutput{
 					Stacks: []types.Stack{
 						{
@@ -569,7 +567,6 @@ func TestFindManagedStacks(t *testing.T) {
 		{
 			name: "no-ready-stacks",
 			given: fake.CFOutputs{
-				DescribeStackPages: fake.R(nil, nil),
 				DescribeStacks: fake.R(&cloudformation.DescribeStacksOutput{
 					Stacks: []types.Stack{
 						{
@@ -630,10 +627,9 @@ func TestFindManagedStacks(t *testing.T) {
 		{
 			"failed-paging",
 			fake.CFOutputs{
-				DescribeStackPages: fake.R(nil, fake.ErrDummy),
-				DescribeStacks:     fake.R(&cloudformation.DescribeStacksOutput{}, nil),
+				DescribeStacks: fake.R(&cloudformation.DescribeStacksOutput{}, nil),
 			},
-			nil,
+			[]*Stack{},
 			true,
 		},
 		{
@@ -671,7 +667,6 @@ func TestGetStack(t *testing.T) {
 		{
 			name: "successful-call",
 			given: fake.CFOutputs{
-				DescribeStackPages: fake.R(nil, nil),
 				DescribeStacks: fake.R(&cloudformation.DescribeStacksOutput{
 					Stacks: []types.Stack{
 						{
@@ -710,7 +705,6 @@ func TestGetStack(t *testing.T) {
 		{
 			name: "successful-call-http-arn",
 			given: fake.CFOutputs{
-				DescribeStackPages: fake.R(nil, nil),
 				DescribeStacks: fake.R(&cloudformation.DescribeStacksOutput{
 					Stacks: []types.Stack{
 						{
@@ -750,7 +744,6 @@ func TestGetStack(t *testing.T) {
 		{
 			name: "no-ready-stacks",
 			given: fake.CFOutputs{
-				DescribeStackPages: fake.R(nil, nil),
 				DescribeStacks: fake.R(&cloudformation.DescribeStacksOutput{
 					Stacks: []types.Stack{},
 				}, nil),
@@ -761,8 +754,7 @@ func TestGetStack(t *testing.T) {
 		{
 			"failed-paging",
 			fake.CFOutputs{
-				DescribeStackPages: fake.R(nil, fake.ErrDummy),
-				DescribeStacks:     fake.R(&cloudformation.DescribeStacksOutput{}, nil),
+				DescribeStacks: fake.R(&cloudformation.DescribeStacksOutput{}, nil),
 			},
 			nil,
 			true,

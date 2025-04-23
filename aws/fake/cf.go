@@ -9,7 +9,6 @@ import (
 )
 
 type CFOutputs struct {
-	DescribeStackPages          *APIResponse
 	DescribeStacks              *APIResponse
 	CreateStack                 *APIResponse
 	UpdateStack                 *APIResponse
