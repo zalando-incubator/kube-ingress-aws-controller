@@ -19,8 +19,8 @@ const (
 	resourceLifecycleOwned     = "owned"
 	kubernetesCreatorTag       = "kubernetes:application"
 	autoScalingGroupNameTag    = "aws:autoscaling:groupName"
-	runningState               = 16 // See https://github.com/aws/aws-sdk-go/blob/master/service/ec2/api.go, type InstanceState
-	stoppedState               = 80 // See https://github.com/aws/aws-sdk-go/blob/master/service/ec2/api.go, type InstanceState
+	runningState               = 16 // See https://github.com/aws/aws-sdk-go-v2/blob/main/service/ec2/types/types.go, type InstanceState
+	stoppedState               = 80 // See https://github.com/aws/aws-sdk-go-v2/blob/main/service/ec2/types/types.go, type InstanceState
 	elbRoleTagName             = "kubernetes.io/role/elb"
 	internalELBRoleTagName     = "kubernetes.io/role/internal-elb"
 	kubernetesNodeRoleTag      = "k8s.io/role/node"

@@ -36,7 +36,6 @@ func getAutoScalingGroupByName(ctx context.Context, service AutoScalingIFaceAPI,
 		},
 	}
 	resp, err := service.DescribeAutoScalingGroups(ctx, params)
-
 	if err != nil {
 		return nil, err
 	}
