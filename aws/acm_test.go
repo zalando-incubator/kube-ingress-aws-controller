@@ -31,14 +31,6 @@ func TestACM(t *testing.T) {
 		{
 			msg: "Found ACM Cert foobar and a chain",
 			api: fake.NewACMClient(
-				acm.ListCertificatesOutput{
-					CertificateSummaryList: []types.CertificateSummary{
-						{
-							CertificateArn: aws.String("foobar"),
-							DomainName:     aws.String("foobar.de"),
-						},
-					},
-				},
 				map[string]*acm.GetCertificateOutput{
 					"foobar": {
 						Certificate:      aws.String(cert),
@@ -55,14 +47,6 @@ func TestACM(t *testing.T) {
 		{
 			msg: "Found ACM Cert foobar and no chain",
 			api: fake.NewACMClient(
-				acm.ListCertificatesOutput{
-					CertificateSummaryList: []types.CertificateSummary{
-						{
-							CertificateArn: aws.String("foobar"),
-							DomainName:     aws.String("foobar.de"),
-						},
-					},
-				},
 				map[string]*acm.GetCertificateOutput{
 					"foobar": {
 						Certificate: aws.String(cert),
@@ -78,18 +62,6 @@ func TestACM(t *testing.T) {
 		{
 			msg: "Found one ACM Cert with correct filter tag",
 			api: fake.NewACMClient(
-				acm.ListCertificatesOutput{
-					CertificateSummaryList: []types.CertificateSummary{
-						{
-							CertificateArn: aws.String("foobar"),
-							DomainName:     aws.String("foobar.de"),
-						},
-						{
-							CertificateArn: aws.String("foobaz"),
-							DomainName:     aws.String("foobar.de"),
-						},
-					},
-				},
 				map[string]*acm.GetCertificateOutput{
 					"foobar": {
 						Certificate: aws.String(cert),
@@ -116,14 +88,6 @@ func TestACM(t *testing.T) {
 		{
 			msg: "ACM Cert with incorrect filter tag should not be found",
 			api: fake.NewACMClient(
-				acm.ListCertificatesOutput{
-					CertificateSummaryList: []types.CertificateSummary{
-						{
-							CertificateArn: aws.String("foobar"),
-							DomainName:     aws.String("foobar.de"),
-						},
-					},
-				},
 				map[string]*acm.GetCertificateOutput{
 					"foobar": {
 						Certificate: aws.String(cert),

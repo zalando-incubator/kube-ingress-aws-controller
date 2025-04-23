@@ -45,7 +45,6 @@ func (m *ACMClient) ListTagsForCertificate(ctx context.Context, in *acm.ListTags
 }
 
 func NewACMClient(
-	output acm.ListCertificatesOutput,
 	cert map[string]*acm.GetCertificateOutput,
 	tags map[string]*acm.ListTagsForCertificateOutput,
 ) *ACMClient {
