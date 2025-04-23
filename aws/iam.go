@@ -28,8 +28,8 @@ func newIAMCertProvider(api IAMIFaceAPI, filterTag string) certs.CertificatesPro
 
 // GetCertificates returns a list of AWS IAM certificates
 func (p *iamCertificateProvider) GetCertificates() ([]*certs.CertificateSummary, error) {
-	ctx := context.Background()
-	serverCertificatesMetadata, err := getIAMServerCertificateMetadata(p.api)
+	ctx := context.TODO()
+	serverCertificatesMetadata, err := getIAMServerCertificateMetadata(ctx, p.api)
 	if err != nil {
 		return nil, err
 	}
@@ -71,14 +71,14 @@ func certHasTag(ctx context.Context, api IAMIFaceAPI, certName, key, value strin
 	return false, nil
 }
 
-func getIAMServerCertificateMetadata(api IAMIFaceAPI) ([]*types.ServerCertificateMetadata, error) {
+func getIAMServerCertificateMetadata(ctx context.Context, api IAMIFaceAPI) ([]*types.ServerCertificateMetadata, error) {
 	params := &iam.ListServerCertificatesInput{
 		PathPrefix: aws.String("/"),
 	}
 	certList := make([]*types.ServerCertificateMetadata, 0)
 	paginator := iam.NewListServerCertificatesPaginator(api, params)
 	for paginator.HasMorePages() {
-		output, err := paginator.NextPage(context.TODO())
+		output, err := paginator.NextPage(ctx)
 		if err != nil {
 			return nil, err
 		}

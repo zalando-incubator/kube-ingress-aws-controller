@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	elbv2 "github.com/aws/aws-sdk-go-v2/service/elasticloadbalancingv2/types"
+	elbv2Types "github.com/aws/aws-sdk-go-v2/service/elasticloadbalancingv2/types"
 	log "github.com/sirupsen/logrus"
 	"github.com/zalando-incubator/kube-ingress-aws-controller/aws"
 	"k8s.io/client-go/kubernetes"
@@ -171,11 +171,11 @@ func (a *Adapter) newIngress(typ IngressType, metadata kubeItemMetadata, host st
 	var scheme string
 	// Set schema to default if annotation value is not valid
 	annotationValue := getAnnotationsString(annotations, ingressSchemeAnnotation, "")
-	switch elbv2.LoadBalancerSchemeEnum(annotationValue) {
-	case elbv2.LoadBalancerSchemeEnumInternal:
-		scheme = string(elbv2.LoadBalancerSchemeEnumInternal)
+	switch elbv2Types.LoadBalancerSchemeEnum(annotationValue) {
+	case elbv2Types.LoadBalancerSchemeEnumInternal:
+		scheme = string(elbv2Types.LoadBalancerSchemeEnumInternal)
 	default:
-		scheme = string(elbv2.LoadBalancerSchemeEnumInternetFacing)
+		scheme = string(elbv2Types.LoadBalancerSchemeEnumInternetFacing)
 	}
 
 	shared := true
@@ -197,7 +197,7 @@ func (a *Adapter) newIngress(typ IngressType, metadata kubeItemMetadata, host st
 	if !hasLB {
 		// internal load balancers should be ALB if user do not override the decision
 		// https://docs.aws.amazon.com/elasticloadbalancing/latest/network/load-balancer-troubleshooting.html#intermittent-connection-failure
-		if scheme == string(elbv2.LoadBalancerSchemeEnumInternal) {
+		if scheme == string(elbv2Types.LoadBalancerSchemeEnumInternal) {
 			loadBalancerType = loadBalancerTypeALB
 		} else {
 			loadBalancerType = a.ingressDefaultLoadBalancerType

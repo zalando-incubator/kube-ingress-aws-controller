@@ -8,7 +8,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/autoscaling"
 	"github.com/aws/aws-sdk-go-v2/service/autoscaling/types"
 	elbv2 "github.com/aws/aws-sdk-go-v2/service/elasticloadbalancingv2"
-	elbv2types "github.com/aws/aws-sdk-go-v2/service/elasticloadbalancingv2/types"
+	elbv2Types "github.com/aws/aws-sdk-go-v2/service/elasticloadbalancingv2/types"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -119,13 +119,13 @@ func testFilterTags(filterTags map[string][]string, asgTags map[string]string) b
 	return len(filterTags) == len(matches)
 }
 
-func getOwnedAndTargetedAutoScalingGroups(service AutoScalingIFaceAPI, filterTags map[string][]string, ownedTags map[string]string) (map[string]*autoScalingGroupDetails, map[string]*autoScalingGroupDetails, error) {
+func getOwnedAndTargetedAutoScalingGroups(ctx context.Context, service AutoScalingIFaceAPI, filterTags map[string][]string, ownedTags map[string]string) (map[string]*autoScalingGroupDetails, map[string]*autoScalingGroupDetails, error) {
 	params := &autoscaling.DescribeAutoScalingGroupsInput{}
 	targetedASGs := make(map[string]*autoScalingGroupDetails)
 	ownedASGs := make(map[string]*autoScalingGroupDetails)
 	paginator := autoscaling.NewDescribeAutoScalingGroupsPaginator(service, params)
 	for paginator.HasMorePages() {
-		page, err := paginator.NextPage(context.TODO())
+		page, err := paginator.NextPage(ctx)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -169,7 +169,7 @@ func updateTargetGroupsForAutoScalingGroup(ctx context.Context, svc AutoScalingI
 		return err
 	}
 
-	allTGs, err := describeTargetGroups(elbv2svc)
+	allTGs, err := describeTargetGroups(ctx, elbv2svc)
 	if err != nil {
 		return err
 	}
@@ -235,8 +235,8 @@ func updateTargetGroupsForAutoScalingGroup(ctx context.Context, svc AutoScalingI
 	return nil
 }
 
-func describeTags(ctx context.Context, svc ELBV2IFaceAPI, arns []string) ([]*elbv2types.TagDescription, error) {
-	descs := make([]*elbv2types.TagDescription, 0, len(arns))
+func describeTags(ctx context.Context, svc ELBV2IFaceAPI, arns []string) ([]*elbv2Types.TagDescription, error) {
+	descs := make([]*elbv2Types.TagDescription, 0, len(arns))
 	// You can specify up to 20 resources in a single call,
 	// see https://docs.aws.amazon.com/sdk-for-go/api/service/elasticloadbalancingv2/#DescribeTagsInput
 	err := processChunked(arns, 20, func(chunk []string) error {
@@ -253,11 +253,11 @@ func describeTags(ctx context.Context, svc ELBV2IFaceAPI, arns []string) ([]*elb
 	return descs, err
 }
 
-func describeTargetGroups(elbv2svc ELBV2IFaceAPI) (map[string]struct{}, error) {
+func describeTargetGroups(ctx context.Context, elbv2svc ELBV2IFaceAPI) (map[string]struct{}, error) {
 	targetGroups := make(map[string]struct{})
 	paginator := elbv2.NewDescribeTargetGroupsPaginator(elbv2svc, &elbv2.DescribeTargetGroupsInput{})
 	for paginator.HasMorePages() {
-		page, err := paginator.NextPage(context.TODO())
+		page, err := paginator.NextPage(ctx)
 		if err != nil {
 			return targetGroups, err
 		}
@@ -269,11 +269,11 @@ func describeTargetGroups(elbv2svc ELBV2IFaceAPI) (map[string]struct{}, error) {
 }
 
 // map the target group slice into specific types such as instance, ip, etc
-func categorizeTargetTypeInstance(elbv2svc ELBV2IFaceAPI, allTGARNs []string) (map[string][]string, error) {
+func categorizeTargetTypeInstance(ctx context.Context, elbv2svc ELBV2IFaceAPI, allTGARNs []string) (map[string][]string, error) {
 	targetTypes := make(map[string][]string)
 	paginator := elbv2.NewDescribeTargetGroupsPaginator(elbv2svc, &elbv2.DescribeTargetGroupsInput{})
 	for paginator.HasMorePages() {
-		page, err := paginator.NextPage(context.TODO())
+		page, err := paginator.NextPage(ctx)
 		if err != nil {
 			return targetTypes, err
 		}
@@ -291,7 +291,7 @@ func categorizeTargetTypeInstance(elbv2svc ELBV2IFaceAPI, allTGARNs []string) (m
 }
 
 // tgHasTags returns true if the specified resource has the expected tags.
-func tgHasTags(descs []*elbv2types.TagDescription, arn string, tags map[string]string) bool {
+func tgHasTags(descs []*elbv2Types.TagDescription, arn string, tags map[string]string) bool {
 	for _, desc := range descs {
 		if aws.ToString(desc.ResourceArn) == arn && hasTags(desc.Tags, tags) {
 			return true
@@ -301,7 +301,7 @@ func tgHasTags(descs []*elbv2types.TagDescription, arn string, tags map[string]s
 }
 
 // hasTags returns true if the expectedTags are found in the list of tags.
-func hasTags(tags []elbv2types.Tag, expectedTags map[string]string) bool {
+func hasTags(tags []elbv2Types.Tag, expectedTags map[string]string) bool {
 	for key, val := range expectedTags {
 		found := false
 		for _, tag := range tags {

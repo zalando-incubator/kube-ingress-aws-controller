@@ -17,11 +17,6 @@ func (m IAMClient) ListServerCertificates(context.Context, *iam.ListServerCertif
 	return &m.list, nil
 }
 
-func (m IAMClient) ListServerCertificatesPages(in *iam.ListServerCertificatesInput, fn func(*iam.ListServerCertificatesOutput, bool) bool) error {
-	fn(&m.list, true)
-	return nil
-}
-
 func (m IAMClient) ListServerCertificateTags(ctx context.Context, in *iam.ListServerCertificateTagsInput, fn ...func(*iam.Options)) (*iam.ListServerCertificateTagsOutput, error) {
 	if in.ServerCertificateName == nil {
 		return nil, fmt.Errorf("expected a valid CertificateArn, got: nil")

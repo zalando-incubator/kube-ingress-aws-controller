@@ -92,7 +92,7 @@ func TestCreatingStack(t *testing.T) {
 	} {
 		t.Run(ti.name, func(t *testing.T) {
 			c := &fake.CFClient{Outputs: ti.givenOutputs}
-			got, err := createStack(context.TODO(), c, &ti.givenSpec)
+			got, err := createStack(context.Background(), c, &ti.givenSpec)
 			if ti.wantErr {
 				if !ti.wantErr {
 					t.Error("unexpected error", err)
@@ -184,7 +184,7 @@ func TestUpdatingStack(t *testing.T) {
 	} {
 		t.Run(ti.name, func(t *testing.T) {
 			c := &fake.CFClient{Outputs: ti.givenOutputs}
-			got, err := updateStack(context.TODO(), c, &ti.givenSpec)
+			got, err := updateStack(context.Background(), c, &ti.givenSpec)
 			if ti.wantErr {
 				if !ti.wantErr {
 					t.Error("unexpected error", err)
@@ -226,7 +226,7 @@ func TestDeleteStack(t *testing.T) {
 	} {
 		t.Run(ti.msg, func(t *testing.T) {
 			c := &fake.CFClient{Outputs: ti.givenOutputs}
-			err := deleteStack(context.TODO(), c, ti.givenSpec.name)
+			err := deleteStack(context.Background(), c, ti.givenSpec.name)
 			haveErr := err != nil
 			if haveErr != ti.wantErr {
 				t.Errorf("unexpected result from %s. wanted error %v, got err: %+v", ti.msg, ti.wantErr, err)
@@ -647,7 +647,7 @@ func TestFindManagedStacks(t *testing.T) {
 	} {
 		t.Run(ti.name, func(t *testing.T) {
 			c := &fake.CFClient{Outputs: ti.given}
-			got, err := findManagedStacks(c, "test-cluster", DefaultControllerID)
+			got, err := findManagedStacks(context.Background(), c, "test-cluster", DefaultControllerID)
 			if err != nil {
 				if !ti.wantErr {
 					t.Error("unexpected error", err)
@@ -778,7 +778,7 @@ func TestGetStack(t *testing.T) {
 	} {
 		t.Run(ti.name, func(t *testing.T) {
 			c := &fake.CFClient{Outputs: ti.given}
-			s, err := getStack(context.TODO(), c, "dontcare")
+			s, err := getStack(context.Background(), c, "dontcare")
 			if err != nil {
 				if !ti.wantErr {
 					t.Error("unexpected error", err)

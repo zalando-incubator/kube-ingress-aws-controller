@@ -7,7 +7,7 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/acm"
-	acmtypes "github.com/aws/aws-sdk-go-v2/service/acm/types"
+	"github.com/aws/aws-sdk-go-v2/service/acm/types"
 	"github.com/zalando-incubator/kube-ingress-aws-controller/certs"
 )
 
@@ -28,7 +28,7 @@ func newACMCertProvider(api ACMIFaceAPI, certFilterTag string) certs.Certificate
 
 // GetCertificates returns a list of AWS ACM certificates
 func (p *acmCertificateProvider) GetCertificates() ([]*certs.CertificateSummary, error) {
-	ctx := context.Background()
+	ctx := context.TODO()
 	acmSummaries, err := getACMCertificateSummaries(ctx, p.api, p.filterTag)
 	if err != nil {
 		return nil, err
@@ -44,13 +44,13 @@ func (p *acmCertificateProvider) GetCertificates() ([]*certs.CertificateSummary,
 	return result, nil
 }
 
-func getACMCertificateSummaries(ctx context.Context, api ACMIFaceAPI, filterTag string) ([]*acmtypes.CertificateSummary, error) {
+func getACMCertificateSummaries(ctx context.Context, api ACMIFaceAPI, filterTag string) ([]*types.CertificateSummary, error) {
 	params := &acm.ListCertificatesInput{
-		CertificateStatuses: []acmtypes.CertificateStatus{
-			acmtypes.CertificateStatusIssued,
+		CertificateStatuses: []types.CertificateStatus{
+			types.CertificateStatusIssued,
 		},
 	}
-	acmSummaries := make([]*acmtypes.CertificateSummary, 0)
+	acmSummaries := make([]*types.CertificateSummary, 0)
 
 	paginator := acm.NewListCertificatesPaginator(api, params)
 	for paginator.HasMorePages() {
@@ -70,8 +70,8 @@ func getACMCertificateSummaries(ctx context.Context, api ACMIFaceAPI, filterTag 
 	return acmSummaries, nil
 }
 
-func filterCertificatesByTag(ctx context.Context, api ACMIFaceAPI, allSummaries []*acmtypes.CertificateSummary, key, value string) ([]*acmtypes.CertificateSummary, error) {
-	prodSummaries := make([]*acmtypes.CertificateSummary, 0)
+func filterCertificatesByTag(ctx context.Context, api ACMIFaceAPI, allSummaries []*types.CertificateSummary, key, value string) ([]*types.CertificateSummary, error) {
+	prodSummaries := make([]*types.CertificateSummary, 0)
 	for _, summary := range allSummaries {
 		in := &acm.ListTagsForCertificateInput{
 			CertificateArn: summary.CertificateArn,

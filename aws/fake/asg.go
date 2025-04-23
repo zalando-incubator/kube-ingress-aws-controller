@@ -36,13 +36,6 @@ func (m *ASGClient) DescribeAutoScalingGroups(context.Context, *autoscaling.Desc
 	return nil, m.Outputs.DescribeAutoScalingGroups.err
 }
 
-func (m *ASGClient) DescribeAutoScalingGroupsPages(_ *autoscaling.DescribeAutoScalingGroupsInput, fn func(*autoscaling.DescribeAutoScalingGroupsOutput, bool) bool) error {
-	if out, ok := m.Outputs.DescribeAutoScalingGroups.response.(*autoscaling.DescribeAutoScalingGroupsOutput); ok {
-		fn(out, true)
-	}
-	return m.Outputs.DescribeAutoScalingGroups.err
-}
-
 func (m *ASGClient) DescribeLoadBalancerTargetGroups(context.Context, *autoscaling.DescribeLoadBalancerTargetGroupsInput, ...func(*autoscaling.Options)) (*autoscaling.DescribeLoadBalancerTargetGroupsOutput, error) {
 	if out, ok := m.Outputs.DescribeLoadBalancerTargetGroups.response.(*autoscaling.DescribeLoadBalancerTargetGroupsOutput); ok {
 		return out, m.Outputs.DescribeLoadBalancerTargetGroups.err

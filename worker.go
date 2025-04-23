@@ -566,7 +566,8 @@ func updateStack(awsAdapter *aws.Adapter, lb *loadBalancer, problems *problem.Li
 }
 
 func isAlreadyExistsError(err error) bool {
-	if err != nil && errors.As(err, &types.AlreadyExistsException{}) {
+	var alreadyExistsErr *types.AlreadyExistsException
+	if err != nil && errors.As(err, &alreadyExistsErr) {
 		return true
 	}
 	return false

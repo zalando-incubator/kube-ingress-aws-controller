@@ -6,7 +6,7 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	elbv2 "github.com/aws/aws-sdk-go-v2/service/elasticloadbalancingv2"
-	elbv2types "github.com/aws/aws-sdk-go-v2/service/elasticloadbalancingv2/types"
+	elbv2Types "github.com/aws/aws-sdk-go-v2/service/elasticloadbalancingv2/types"
 )
 
 type ELBV2IFaceAPI interface {
@@ -18,9 +18,9 @@ type ELBV2IFaceAPI interface {
 }
 
 func registerTargetsOnTargetGroups(ctx context.Context, svc ELBV2IFaceAPI, targetGroupARNs []string, instances []string) error {
-	targets := make([]elbv2types.TargetDescription, len(instances))
+	targets := make([]elbv2Types.TargetDescription, len(instances))
 	for i, instance := range instances {
-		targets[i] = elbv2types.TargetDescription{
+		targets[i] = elbv2Types.TargetDescription{
 			Id: aws.String(instance),
 		}
 	}
@@ -40,9 +40,9 @@ func registerTargetsOnTargetGroups(ctx context.Context, svc ELBV2IFaceAPI, targe
 }
 
 func deregisterTargetsOnTargetGroups(ctx context.Context, svc ELBV2IFaceAPI, targetGroupARNs []string, instances []string) error {
-	targets := make([]elbv2types.TargetDescription, len(instances))
+	targets := make([]elbv2Types.TargetDescription, len(instances))
 	for i, instance := range instances {
-		targets[i] = elbv2types.TargetDescription{
+		targets[i] = elbv2Types.TargetDescription{
 			Id: aws.String(instance),
 		}
 	}

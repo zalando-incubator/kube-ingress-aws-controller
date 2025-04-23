@@ -57,7 +57,7 @@ func TestFindingSecurityGroup(t *testing.T) {
 	} {
 		t.Run(fmt.Sprintf("%v", test.name), func(t *testing.T) {
 			ec2 := &fake.EC2Client{Outputs: test.responses}
-			got, err := findSecurityGroupWithClusterID(context.TODO(), ec2, "foo", "kube-ingress-aws-controller")
+			got, err := findSecurityGroupWithClusterID(context.Background(), ec2, "foo", "kube-ingress-aws-controller")
 			assertResultAndError(t, test.want, got, test.wantError, err)
 		})
 	}
@@ -161,7 +161,7 @@ func TestGetInstanceDetails(t *testing.T) {
 	} {
 		t.Run(fmt.Sprintf("%v", test.name), func(t *testing.T) {
 			ec2 := &fake.EC2Client{Outputs: test.responses}
-			got, err := getInstanceDetails(context.TODO(), ec2, "foo")
+			got, err := getInstanceDetails(context.Background(), ec2, "foo")
 			assertResultAndError(t, test.want, got, test.wantError, err)
 		})
 	}
@@ -239,7 +239,7 @@ func TestGetSubnets(t *testing.T) {
 	} {
 		t.Run(fmt.Sprintf("%v", test.name), func(t *testing.T) {
 			ec2 := &fake.EC2Client{Outputs: test.responses}
-			got, err := getSubnets(context.TODO(), ec2, "foo", "bar")
+			got, err := getSubnets(context.Background(), ec2, "foo", "bar")
 			assertResultAndError(t, test.want, got, test.wantError, err)
 		})
 	}
@@ -321,7 +321,7 @@ func TestGetInstancesDetailsWithFilters(t *testing.T) {
 	} {
 		t.Run(fmt.Sprintf("%v", test.name), func(t *testing.T) {
 			ec2 := &fake.EC2Client{Outputs: test.responses}
-			got, err := getInstancesDetailsWithFilters(context.TODO(), ec2, test.input)
+			got, err := getInstancesDetailsWithFilters(context.Background(), ec2, test.input)
 			assertResultAndError(t, test.want, got, test.wantError, err)
 		})
 	}

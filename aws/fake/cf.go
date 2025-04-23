@@ -20,8 +20,8 @@ type CFOutputs struct {
 
 type CFClient struct {
 	templateCreationHistory []string
-	paramCreationHistory    [][]*types.Parameter
-	tagCreationHistory      [][]*types.Tag
+	paramCreationHistory    [][]types.Parameter
+	tagCreationHistory      [][]types.Tag
 	Outputs                 CFOutputs
 }
 
@@ -29,36 +29,18 @@ func (m *CFClient) GetTemplateCreationHistory() []string {
 	return m.templateCreationHistory
 }
 
-func (m *CFClient) GetParamCreationHistory() [][]*types.Parameter {
+func (m *CFClient) GetParamCreationHistory() [][]types.Parameter {
 	return m.paramCreationHistory
 }
 
-func (m *CFClient) GetTagCreationHistory() [][]*types.Tag {
+func (m *CFClient) GetTagCreationHistory() [][]types.Tag {
 	return m.tagCreationHistory
 }
 
 func (m *CFClient) CleanCreationHistory() {
-	m.paramCreationHistory = [][]*types.Parameter{}
-	m.tagCreationHistory = [][]*types.Tag{}
+	m.paramCreationHistory = [][]types.Parameter{}
+	m.tagCreationHistory = [][]types.Tag{}
 	m.templateCreationHistory = []string{}
-}
-
-func (m *CFClient) DescribeStacksPages(in *cloudformation.DescribeStacksInput, fn func(*cloudformation.DescribeStacksOutput, bool) bool) (err error) {
-	if m.Outputs.DescribeStackPages != nil {
-		err = m.Outputs.DescribeStackPages.err
-	}
-	if err != nil {
-		return
-	}
-
-	if out, ok := m.Outputs.DescribeStacks.response.(*cloudformation.DescribeStacksOutput); ok {
-		fn(out, true)
-	}
-	if m.Outputs.DescribeStacks != nil {
-		err = m.Outputs.DescribeStacks.err
-	}
-
-	return
 }
 
 func (m *CFClient) DescribeStacks(context.Context, *cloudformation.DescribeStacksInput, ...func(*cloudformation.Options)) (*cloudformation.DescribeStacksOutput, error) {
@@ -70,17 +52,8 @@ func (m *CFClient) DescribeStacks(context.Context, *cloudformation.DescribeStack
 }
 
 func (m *CFClient) CreateStack(ctx context.Context, params *cloudformation.CreateStackInput, fn ...func(*cloudformation.Options)) (*cloudformation.CreateStackOutput, error) {
-	var tagPtrs []*types.Tag
-	for i := range params.Tags {
-		tagPtrs = append(tagPtrs, &params.Tags[i])
-	}
-	m.tagCreationHistory = append(m.tagCreationHistory, tagPtrs)
-
-	var paramPtrs []*types.Parameter
-	for i := range params.Parameters {
-		paramPtrs = append(paramPtrs, &params.Parameters[i])
-	}
-	m.paramCreationHistory = append(m.paramCreationHistory, paramPtrs)
+	m.tagCreationHistory = append(m.tagCreationHistory, params.Tags)
+	m.paramCreationHistory = append(m.paramCreationHistory, params.Parameters)
 
 	m.templateCreationHistory = append(m.templateCreationHistory, *params.TemplateBody)
 

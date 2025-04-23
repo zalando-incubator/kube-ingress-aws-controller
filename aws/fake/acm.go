@@ -11,12 +11,6 @@ import (
 type ACMClient struct {
 	cert map[string]*acm.GetCertificateOutput
 	tags map[string]*acm.ListTagsForCertificateOutput
-
-	listCertificatesPages func(input *acm.ListCertificatesInput, fn func(p *acm.ListCertificatesOutput, lastPage bool) (shouldContinue bool)) error
-}
-
-func (m *ACMClient) ListCertificatesPages(input *acm.ListCertificatesInput, fn func(p *acm.ListCertificatesOutput, lastPage bool) (shouldContinue bool)) error {
-	return m.listCertificatesPages(input, fn)
 }
 
 func (m *ACMClient) ListCertificates(ctx context.Context, input *acm.ListCertificatesInput, fn ...func(*acm.Options)) (*acm.ListCertificatesOutput, error) {
@@ -43,11 +37,6 @@ func (m *ACMClient) ListTagsForCertificate(ctx context.Context, in *acm.ListTags
 	return m.tags[arn], nil
 }
 
-func (m *ACMClient) WithListCertificatesPages(f func(input *acm.ListCertificatesInput, fn func(p *acm.ListCertificatesOutput, lastPage bool) (shouldContinue bool)) error) *ACMClient {
-	m.listCertificatesPages = f
-	return m
-}
-
 func NewACMClient(
 	output acm.ListCertificatesOutput,
 	cert map[string]*acm.GetCertificateOutput,
@@ -57,9 +46,5 @@ func NewACMClient(
 		cert: cert,
 		tags: tags,
 	}
-	c.WithListCertificatesPages(func(input *acm.ListCertificatesInput, fn func(p *acm.ListCertificatesOutput, lastPage bool) (shouldContinue bool)) error {
-		fn(&output, true)
-		return nil
-	})
 	return c
 }

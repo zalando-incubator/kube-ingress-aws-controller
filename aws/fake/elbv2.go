@@ -50,13 +50,6 @@ func (m *ELBv2Client) DescribeTags(context.Context, *elbv2.DescribeTagsInput, ..
 	return out, m.Outputs.DescribeTags.err
 }
 
-func (m *ELBv2Client) DescribeTargetGroupsPagesWithContext(ctx context.Context, in *elbv2.DescribeTargetGroupsInput, f func(resp *elbv2.DescribeTargetGroupsOutput, lastPage bool) bool, opt ...elbv2.Options) error {
-	if out, ok := m.Outputs.DescribeTargetGroups.response.(*elbv2.DescribeTargetGroupsOutput); ok {
-		f(out, true)
-	}
-	return m.Outputs.DescribeTargetGroups.err
-}
-
 func (m *ELBv2Client) DescribeTargetHealth(context.Context, *elbv2.DescribeTargetHealthInput, ...func(*elbv2.Options)) (*elbv2.DescribeTargetHealthOutput, error) {
 	out, ok := m.Outputs.DescribeTargetHealth.response.(*elbv2.DescribeTargetHealthOutput)
 	if !ok {

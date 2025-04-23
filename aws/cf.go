@@ -510,11 +510,11 @@ func mapToManagedStack(stack *types.Stack) *Stack {
 	}
 }
 
-func findManagedStacks(svc CloudFormationIFaceAPI, clusterID, controllerID string) ([]*Stack, error) {
+func findManagedStacks(ctx context.Context, svc CloudFormationIFaceAPI, clusterID, controllerID string) ([]*Stack, error) {
 	stacks := make([]*Stack, 0)
 	paginator := cloudformation.NewDescribeStacksPaginator(svc, &cloudformation.DescribeStacksInput{})
 	for paginator.HasMorePages() {
-		page, err := paginator.NextPage(context.TODO())
+		page, err := paginator.NextPage(ctx)
 		if err != nil {
 			return nil, fmt.Errorf("findManagedStacks failed to list stacks: %w", err)
 		}

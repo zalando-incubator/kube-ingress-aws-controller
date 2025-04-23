@@ -311,7 +311,7 @@ func findSecurityGroupWithClusterID(ctx context.Context, svc EC2IFaceAPI, cluste
 	}
 
 	if len(resp.SecurityGroups) < 1 {
-		return nil, fmt.Errorf("could not find security group that matches: %s", params.Filters)
+		return nil, fmt.Errorf("could not find security group that matches: %v", params.Filters)
 	}
 
 	sg := resp.SecurityGroups[0]

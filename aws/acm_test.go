@@ -1,7 +1,6 @@
 package aws
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -141,18 +140,6 @@ func TestACM(t *testing.T) {
 				EmptyList:   true,
 				ARN:         "foobar",
 				DomainNames: []string{"foobar.de"},
-			},
-		},
-		{
-			msg: "Fail on ListCertificatesPages error",
-			api: fake.NewACMClient(
-				acm.ListCertificatesOutput{}, nil, nil,
-			).WithListCertificatesPages(func(input *acm.ListCertificatesInput, fn func(p *acm.ListCertificatesOutput, lastPage bool) (shouldContinue bool)) error {
-				return fmt.Errorf("ListCertificatesPages error")
-			}),
-			filterTag: "production=true",
-			expect: acmExpect{
-				Error: "ListCertificatesPages error",
 			},
 		},
 	} {

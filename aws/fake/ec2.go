@@ -83,7 +83,7 @@ type TestInstance struct {
 	Tags      Tags
 	PrivateIp string
 	VpcId     string
-	State     int64
+	State     int32
 }
 
 func MockDescribeInstancesOutput(mockedInstances ...TestInstance) *ec2.DescribeInstancesOutput {
@@ -96,7 +96,7 @@ func MockDescribeInstancesOutput(mockedInstances ...TestInstance) *ec2.DescribeI
 		instance := types.Instance{
 			InstanceId:       aws.String(i.Id),
 			Tags:             tags,
-			State:            &types.InstanceState{Code: aws.Int32(int32(i.State))},
+			State:            &types.InstanceState{Code: aws.Int32(i.State)},
 			PrivateIpAddress: aws.String(i.PrivateIp),
 			VpcId:            aws.String(i.VpcId),
 		}

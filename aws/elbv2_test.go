@@ -84,7 +84,7 @@ func TestRegisterTargetsOnTargetGroups(t *testing.T) {
 	} {
 		t.Run(fmt.Sprintf("%v", test.name), func(t *testing.T) {
 			svc := &fake.ELBv2Client{Outputs: test.outputs}
-			err := registerTargetsOnTargetGroups(context.TODO(), svc, test.input.targetGroupARNs, test.input.instances)
+			err := registerTargetsOnTargetGroups(context.Background(), svc, test.input.targetGroupARNs, test.input.instances)
 			if test.wantError && err == nil {
 				t.Fatalf("expected error, got nothing")
 			}
@@ -177,7 +177,7 @@ func TestDeregisterTargetsOnTargetGroups(t *testing.T) {
 	} {
 		t.Run(fmt.Sprintf("%v", test.name), func(t *testing.T) {
 			svc := &fake.ELBv2Client{Outputs: test.outputs}
-			err := deregisterTargetsOnTargetGroups(context.TODO(), svc, test.input.targetGroupARNs, test.input.instances)
+			err := deregisterTargetsOnTargetGroups(context.Background(), svc, test.input.targetGroupARNs, test.input.instances)
 			if test.wantError && err == nil {
 				t.Fatalf("expected error, got nothing")
 			}

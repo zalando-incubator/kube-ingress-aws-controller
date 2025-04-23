@@ -16,9 +16,9 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/autoscaling"
 	"github.com/aws/aws-sdk-go-v2/service/cloudformation"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
-	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
+	ec2Types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
 	elbv2 "github.com/aws/aws-sdk-go-v2/service/elasticloadbalancingv2"
-	elbv2types "github.com/aws/aws-sdk-go-v2/service/elasticloadbalancingv2/types"
+	elbv2Types "github.com/aws/aws-sdk-go-v2/service/elasticloadbalancingv2/types"
 	"github.com/aws/aws-sdk-go-v2/service/iam"
 	"github.com/linki/instrumented_http"
 	log "github.com/sirupsen/logrus"
@@ -86,7 +86,7 @@ type manifest struct {
 	securityGroup *securityGroupDetails
 	instance      *instanceDetails
 	subnets       []*subnetDetails
-	filters       []*ec2types.Filter
+	filters       []ec2Types.Filter
 	asgFilters    map[string][]string
 	clusterID     string
 	vpcID         string
@@ -210,9 +210,8 @@ func newConfigProvider(debug, disableInstrumentedHttpClient bool) aws.Config {
 	if debug {
 		optFns = append(optFns, config.WithClientLogMode(aws.LogRequestWithBody))
 	}
-	var cfg aws.Config
-	var err error
-	cfg, err = config.LoadDefaultConfig(context.TODO(), optFns...)
+
+	cfg, err := config.LoadDefaultConfig(context.TODO(), optFns...)
 	if err != nil {
 		panic(fmt.Sprintf("unable to load SDK config, %v", err))
 	}
@@ -221,10 +220,8 @@ func newConfigProvider(debug, disableInstrumentedHttpClient bool) aws.Config {
 		if !ok {
 			panic("cfg.HTTPClient is not of type *http.Client")
 		}
-		optFns = append(optFns, config.WithHTTPClient(instrumented_http.NewClient(httpClient, nil)))
-		cfg, err = config.LoadDefaultConfig(context.TODO(), optFns...)
+		cfg.HTTPClient = instrumented_http.NewClient(httpClient, nil)
 	}
-
 	return cfg
 }
 
@@ -500,9 +497,9 @@ func (a *Adapter) WithTargetAccessMode(mode string) *Adapter {
 
 	switch mode {
 	case TargetAccessModeHostPort:
-		a.targetType = string(elbv2types.TargetTypeEnumInstance)
+		a.targetType = string(elbv2Types.TargetTypeEnumInstance)
 	case TargetAccessModeAWSCNI:
-		a.targetType = string(elbv2types.TargetTypeEnumIp)
+		a.targetType = string(elbv2Types.TargetTypeEnumIp)
 	case TargetAccessModeLegacy:
 		a.targetType = ""
 	}
@@ -650,7 +647,8 @@ func (a *Adapter) SecurityGroupID() string {
 // FindManagedStacks returns all CloudFormation stacks containing the controller management tags
 // that match the current cluster and are ready to be used. The stack status is used to filter.
 func (a *Adapter) FindManagedStacks() ([]*Stack, error) {
-	stacks, err := findManagedStacks(a.cloudformation, a.ClusterID(), a.controllerID)
+	ctx := context.TODO()
+	stacks, err := findManagedStacks(ctx, a.cloudformation, a.ClusterID(), a.controllerID)
 	if err != nil {
 		return nil, err
 	}
@@ -669,7 +667,7 @@ func (a *Adapter) UpdateTargetGroupsAndAutoScalingGroups(stacks []*Stack, proble
 		}
 	}
 	// split the full list into TG types
-	targetTypesARNs, err := categorizeTargetTypeInstance(a.elbv2, allTargetGroupARNs)
+	targetTypesARNs, err := categorizeTargetTypeInstance(ctx, a.elbv2, allTargetGroupARNs)
 	if err != nil {
 		problems.Add("failed to categorize Target Type Instance: %w", err)
 		return
@@ -677,11 +675,11 @@ func (a *Adapter) UpdateTargetGroupsAndAutoScalingGroups(stacks []*Stack, proble
 
 	// update the CNI TG list
 	if a.TargetCNI.Enabled {
-		a.TargetCNI.TargetGroupCh <- targetTypesARNs[string(elbv2types.TargetTypeEnumIp)]
+		a.TargetCNI.TargetGroupCh <- targetTypesARNs[string(elbv2Types.TargetTypeEnumIp)]
 	}
 
 	// remove the IP TGs from the list keeping all other TGs including problematic #127 and nonexistent #436
-	targetGroupARNs := difference(allTargetGroupARNs, targetTypesARNs[string(elbv2types.TargetTypeEnumIp)])
+	targetGroupARNs := difference(allTargetGroupARNs, targetTypesARNs[string(elbv2Types.TargetTypeEnumIp)])
 
 	ownerTags := map[string]string{
 		clusterIDTagPrefix + a.ClusterID(): resourceLifecycleOwned,
@@ -949,7 +947,7 @@ func buildManifest(ctx context.Context, awsAdapter *Adapter, clusterID, vpcID st
 // https://github.com/kubernetes/kubernetes/blob/65efeee64f772e0f38037e91a677138a335a7570/pkg/cloudprovider/providers/aws/aws.go#L2949-L3027
 func (a *Adapter) FindLBSubnets(scheme string) []string {
 	var internal bool
-	if scheme == string(elbv2types.LoadBalancerSchemeEnumInternal) {
+	if scheme == string(elbv2Types.LoadBalancerSchemeEnumInternal) {
 		internal = true
 	}
 
@@ -1018,12 +1016,7 @@ func (a *Adapter) UpdateAutoScalingGroupsAndInstances() error {
 	var err error
 	ctx := context.TODO()
 
-	// Convert []*ec2types.Filter to []ec2types.Filter
-	filters := make([]ec2types.Filter, len(a.manifest.filters))
-	for i, f := range a.manifest.filters {
-		filters[i] = *f
-	}
-	a.ec2Details, err = getInstancesDetailsWithFilters(ctx, a.ec2, filters)
+	a.ec2Details, err = getInstancesDetailsWithFilters(ctx, a.ec2, a.manifest.filters)
 	if err != nil {
 		return err
 	}
@@ -1053,7 +1046,7 @@ func (a *Adapter) UpdateAutoScalingGroupsAndInstances() error {
 		clusterIDTagPrefix + a.ClusterID(): resourceLifecycleOwned,
 	}
 
-	targetedASGs, ownedASGs, err := getOwnedAndTargetedAutoScalingGroups(a.autoscaling, a.manifest.asgFilters, ownedTag)
+	targetedASGs, ownedASGs, err := getOwnedAndTargetedAutoScalingGroups(ctx, a.autoscaling, a.manifest.asgFilters, ownedTag)
 	if err != nil {
 		return err
 	}
@@ -1067,17 +1060,17 @@ func (a *Adapter) UpdateAutoScalingGroupsAndInstances() error {
 // later on each cycle. Filter is based on value of customTagFilterEnvVarName environment
 // veriable. If it is undefined or could not be parsed, default filter is returned which
 // filters on kubernetesClusterTag tag value and kubernetesNodeRoleTag existance.
-func (a *Adapter) parseFilters(clusterId string) []*ec2types.Filter {
+func (a *Adapter) parseFilters(clusterId string) []ec2Types.Filter {
 	if a.customFilter != "" {
 		terms := strings.Fields(a.customFilter)
-		filters := make([]*ec2types.Filter, len(terms))
+		filters := make([]ec2Types.Filter, len(terms))
 		for i, term := range terms {
 			parts := strings.Split(term, "=")
 			if len(parts) != 2 {
 				log.Errorf("Failed parsing %s, falling back to default", a.customFilter)
 				return generateDefaultFilters(clusterId)
 			}
-			filters[i] = &ec2types.Filter{
+			filters[i] = ec2Types.Filter{
 				Name:   aws.String(parts[0]),
 				Values: strings.Split(parts[1], ","),
 			}
@@ -1089,8 +1082,8 @@ func (a *Adapter) parseFilters(clusterId string) []*ec2types.Filter {
 
 // Generate default EC2 filter for usage with ECs DescribeInstances call based on EC2 tags
 // of instance where Ingress Controller pod was started.
-func generateDefaultFilters(clusterId string) []*ec2types.Filter {
-	return []*ec2types.Filter{
+func generateDefaultFilters(clusterId string) []ec2Types.Filter {
+	return []ec2Types.Filter{
 		{
 			Name:   aws.String("tag:" + clusterIDTagPrefix + clusterId),
 			Values: []string{resourceLifecycleOwned},

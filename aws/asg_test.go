@@ -85,7 +85,7 @@ func TestGetAutoScalingGroupByName(t *testing.T) {
 	} {
 		t.Run(fmt.Sprintf("%v", test.name), func(t *testing.T) {
 			mockSvc := &fake.ASGClient{Outputs: test.responses}
-			got, err := getAutoScalingGroupByName(context.TODO(), mockSvc, test.givenName)
+			got, err := getAutoScalingGroupByName(context.Background(), mockSvc, test.givenName)
 
 			if test.wantError {
 				if err == nil {
@@ -168,7 +168,7 @@ func TestGetAutoScalingGroupsByName(t *testing.T) {
 	} {
 		t.Run(fmt.Sprintf("%v", test.name), func(t *testing.T) {
 			mockSvc := &fake.ASGClient{Outputs: test.responses}
-			got, err := getAutoScalingGroupsByName(context.TODO(), mockSvc, test.givenNames)
+			got, err := getAutoScalingGroupsByName(context.Background(), mockSvc, test.givenNames)
 
 			if test.wantError {
 				if err == nil {
@@ -505,7 +505,7 @@ func TestAttach(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			mockSvc := &fake.ASGClient{Outputs: test.autoscalingOutputs, Inputs: test.autoscalingInputs, T: t}
 			mockElbv2Svc := &fake.ELBv2Client{Outputs: test.elbv2Response}
-			err := updateTargetGroupsForAutoScalingGroup(context.TODO(), mockSvc, mockElbv2Svc, test.targetGroups, "asg-name", test.ownerTags)
+			err := updateTargetGroupsForAutoScalingGroup(context.Background(), mockSvc, mockElbv2Svc, test.targetGroups, "asg-name", test.ownerTags)
 			if test.wantError {
 				if err == nil {
 					t.Error("wanted an error but call seemed to have succeeded")
@@ -532,7 +532,7 @@ func TestDetach(t *testing.T) {
 	} {
 		t.Run(fmt.Sprintf("%v", test.name), func(t *testing.T) {
 			mockSvc := &fake.ASGClient{Outputs: test.responses}
-			err := detachTargetGroupsFromAutoScalingGroup(context.TODO(), mockSvc, []string{"foo"}, "bar")
+			err := detachTargetGroupsFromAutoScalingGroup(context.Background(), mockSvc, []string{"foo"}, "bar")
 			if test.wantError {
 				if err == nil {
 					t.Error("wanted an error but call seemed to have succeeded")
@@ -722,7 +722,7 @@ func Test_categorizeTargetTypeInstance(t *testing.T) {
 			}
 
 			mockElbv2Svc := &fake.ELBv2Client{Outputs: fake.ELBv2Outputs{DescribeTargetGroups: fake.R(&elbv2.DescribeTargetGroupsOutput{TargetGroups: tgResponse}, nil)}}
-			got, err := categorizeTargetTypeInstance(mockElbv2Svc, tg)
+			got, err := categorizeTargetTypeInstance(context.Background(), mockElbv2Svc, tg)
 			assert.NoError(t, err)
 			for k, v := range test.targetGroups {
 				assert.Len(t, got[k], len(v))

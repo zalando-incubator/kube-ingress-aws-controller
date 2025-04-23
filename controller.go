@@ -12,7 +12,7 @@ import (
 	"time"
 
 	kingpin "github.com/alecthomas/kingpin/v2"
-	elbv2types "github.com/aws/aws-sdk-go-v2/service/elasticloadbalancingv2/types"
+	elbv2Types "github.com/aws/aws-sdk-go-v2/service/elasticloadbalancingv2/types"
 	log "github.com/sirupsen/logrus"
 	"github.com/zalando-incubator/kube-ingress-aws-controller/aws"
 	"github.com/zalando-incubator/kube-ingress-aws-controller/certs"
@@ -402,8 +402,8 @@ func main() {
 	log.Infof("VPC ID: %s", awsAdapter.VpcID())
 	log.Infof("Instance ID: %s", awsAdapter.InstanceID())
 	log.Infof("Security group ID: %s", awsAdapter.SecurityGroupID())
-	log.Infof("Internal subnet IDs: %s", awsAdapter.FindLBSubnets(string(elbv2types.LoadBalancerSchemeEnumInternal)))
-	log.Infof("Public subnet IDs: %s", awsAdapter.FindLBSubnets(string(elbv2types.LoadBalancerSchemeEnumInternetFacing)))
+	log.Infof("Internal subnet IDs: %s", awsAdapter.FindLBSubnets(string(elbv2Types.LoadBalancerSchemeEnumInternal)))
+	log.Infof("Public subnet IDs: %s", awsAdapter.FindLBSubnets(string(elbv2Types.LoadBalancerSchemeEnumInternetFacing)))
 	log.Infof("EC2 filters: %s", awsAdapter.FiltersString())
 	log.Infof("Certificates per ALB: %d (SNI: %t)", certificatesPerALB, certificatesPerALB > 1)
 	log.Infof("Blacklisted Certificate ARNs (%d): %s", len(blacklistCertARNs), strings.Join(blacklistCertARNs, ","))
