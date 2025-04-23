@@ -128,7 +128,7 @@ func TestGetInstanceDetails(t *testing.T) {
 	}{
 		{
 			"success-call",
-			fake.EC2Outputs{DescribeInstances: fake.R(fake.MockDescribeInstancesOutput(nil,
+			fake.EC2Outputs{DescribeInstances: fake.R(fake.MockDescribeInstancesOutput(
 				fake.TestInstance{Id: "foo", Tags: fake.Tags{"bar": "baz"}, State: runningState},
 			), nil)},
 			&instanceDetails{id: "foo", tags: map[string]string{"bar": "baz"}, running: true},
@@ -136,7 +136,7 @@ func TestGetInstanceDetails(t *testing.T) {
 		},
 		{
 			"failed-state-match",
-			fake.EC2Outputs{DescribeInstances: fake.R(fake.MockDescribeInstancesOutput(nil,
+			fake.EC2Outputs{DescribeInstances: fake.R(fake.MockDescribeInstancesOutput(
 				fake.TestInstance{Id: "foo1", Tags: fake.Tags{"bar": "baz"}, State: 0},
 				fake.TestInstance{Id: "foo2", Tags: fake.Tags{"bar": "baz"}, State: 32}, // shutting-down
 				fake.TestInstance{Id: "foo2", Tags: fake.Tags{"bar": "baz"}, State: 48}, // terminated includes running?!?
@@ -148,7 +148,7 @@ func TestGetInstanceDetails(t *testing.T) {
 		},
 		{
 			"nothing-returned-from-aws-api",
-			fake.EC2Outputs{DescribeInstances: fake.R(fake.MockDescribeInstancesOutput(nil), nil)},
+			fake.EC2Outputs{DescribeInstances: fake.R(fake.MockDescribeInstancesOutput(), nil)},
 			nil,
 			true,
 		},
@@ -263,12 +263,11 @@ func TestGetInstancesDetailsWithFilters(t *testing.T) {
 					},
 				},
 			},
-			fake.EC2Outputs{DescribeInstances: fake.MockDescribeInstancesOutput(
-				nil,
+			fake.EC2Outputs{DescribeInstances: fake.R(fake.MockDescribeInstancesOutput(
 				fake.TestInstance{Id: "foo1", Tags: fake.Tags{"bar": "baz"}, PrivateIp: "1.2.3.4", VpcId: "1", State: 16},
 				fake.TestInstance{Id: "foo2", Tags: fake.Tags{"bar": "baz"}, PrivateIp: "1.2.3.5", VpcId: "1", State: 32},
 				fake.TestInstance{Id: "foo3", Tags: fake.Tags{"aaa": "zzz"}, PrivateIp: "1.2.3.6", VpcId: "1", State: 80},
-			)},
+			), nil)},
 			map[string]*instanceDetails{
 				"foo1": {id: "foo1", tags: map[string]string{"bar": "baz"}, ip: "1.2.3.4", vpcID: "1", running: true},
 				"foo2": {id: "foo2", tags: map[string]string{"bar": "baz"}, ip: "1.2.3.5", vpcID: "1", running: false},
@@ -279,11 +278,10 @@ func TestGetInstancesDetailsWithFilters(t *testing.T) {
 		{
 			"success-empty-filters",
 			[]types.Filter{},
-			fake.EC2Outputs{DescribeInstances: fake.MockDescribeInstancesOutput(
-				nil,
+			fake.EC2Outputs{DescribeInstances: fake.R(fake.MockDescribeInstancesOutput(
 				fake.TestInstance{Id: "foo1", Tags: fake.Tags{"bar": "baz"}, PrivateIp: "1.2.3.4", VpcId: "1", State: 16},
 				fake.TestInstance{Id: "foo3", Tags: fake.Tags{"aaa": "zzz"}, PrivateIp: "1.2.3.6", VpcId: "1", State: 80},
-			)},
+			), nil)},
 			map[string]*instanceDetails{
 				"foo1": {id: "foo1", tags: map[string]string{"bar": "baz"}, ip: "1.2.3.4", vpcID: "1", running: true},
 				"foo3": {id: "foo3", tags: map[string]string{"aaa": "zzz"}, ip: "1.2.3.6", vpcID: "1", running: false},
@@ -300,7 +298,7 @@ func TestGetInstancesDetailsWithFilters(t *testing.T) {
 					},
 				},
 			},
-			fake.EC2Outputs{DescribeInstances: fake.MockDescribeInstancesOutput(nil)},
+			fake.EC2Outputs{DescribeInstances: fake.R(fake.MockDescribeInstancesOutput(), nil)},
 			map[string]*instanceDetails{},
 			false,
 		},
@@ -314,7 +312,7 @@ func TestGetInstancesDetailsWithFilters(t *testing.T) {
 					},
 				},
 			},
-			fake.EC2Outputs{DescribeInstances: fake.MockDescribeInstancesOutput(fake.ErrDummy, fake.TestInstance{})},
+			fake.EC2Outputs{DescribeInstances: fake.R(fake.MockDescribeInstancesOutput(fake.TestInstance{}), fake.ErrDummy)},
 			nil,
 			true,
 		},

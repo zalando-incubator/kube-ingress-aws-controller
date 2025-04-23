@@ -74,7 +74,7 @@ type TestInstance struct {
 	State     int32
 }
 
-func MockDescribeInstancesOutput(e error, mockedInstances ...TestInstance) *APIResponse {
+func MockDescribeInstancesOutput(mockedInstances ...TestInstance) *ec2.DescribeInstancesOutput {
 	instances := make([]types.Instance, 0, len(mockedInstances))
 	for _, i := range mockedInstances {
 		tags := make([]types.Tag, 0, len(i.Tags))
@@ -90,8 +90,7 @@ func MockDescribeInstancesOutput(e error, mockedInstances ...TestInstance) *APIR
 		}
 		instances = append(instances, instance)
 	}
-	output := &ec2.DescribeInstancesOutput{Reservations: []types.Reservation{{Instances: instances}}}
-	return R(output, e)
+	return &ec2.DescribeInstancesOutput{Reservations: []types.Reservation{{Instances: instances}}}
 }
 
 type TestSubnet struct {
