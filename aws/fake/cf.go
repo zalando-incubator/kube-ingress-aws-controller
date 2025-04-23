@@ -50,6 +50,21 @@ func (m *CFClient) DescribeStacks(context.Context, *cloudformation.DescribeStack
 	return out, m.Outputs.DescribeStacks.err
 }
 
+func MockDescribeStacksOutput(stackId *string) *cloudformation.DescribeStacksOutput {
+	if stackId == nil {
+		return &cloudformation.DescribeStacksOutput{
+			Stacks: []types.Stack{},
+		}
+	}
+	return &cloudformation.DescribeStacksOutput{
+		Stacks: []types.Stack{
+			{
+				StackId: stackId,
+			},
+		},
+	}
+}
+
 func (m *CFClient) CreateStack(ctx context.Context, params *cloudformation.CreateStackInput, fn ...func(*cloudformation.Options)) (*cloudformation.CreateStackOutput, error) {
 	m.tagCreationHistory = append(m.tagCreationHistory, params.Tags)
 	m.paramCreationHistory = append(m.paramCreationHistory, params.Parameters)

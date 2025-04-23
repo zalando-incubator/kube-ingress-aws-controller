@@ -66,6 +66,10 @@ func (m *ELBv2Client) DescribeTargetGroups(context.Context, *elbv2.DescribeTarge
 	return out, m.Outputs.DescribeTargetGroups.err
 }
 
+func MockDescribeTargetGroupsOutput() *elbv2.DescribeTargetGroupsOutput {
+	return &elbv2.DescribeTargetGroupsOutput{}
+}
+
 func MockDeregisterTargetsOutput() *elbv2.DeregisterTargetsOutput {
 	return &elbv2.DeregisterTargetsOutput{}
 }
