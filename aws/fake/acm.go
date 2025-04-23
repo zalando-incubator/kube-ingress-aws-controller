@@ -17,16 +17,23 @@ func (m *ACMClient) ListCertificates(ctx context.Context, input *acm.ListCertifi
 	output := &acm.ListCertificatesOutput{
 		CertificateSummaryList: make([]types.CertificateSummary, 0),
 	}
-	for _, cert := range m.cert {
+	for arn := range m.cert {
 		output.CertificateSummaryList = append(output.CertificateSummaryList, types.CertificateSummary{
-			CertificateArn: cert.Certificate,
+			CertificateArn: &arn,
 		})
 	}
 	return output, nil
 }
 
 func (m *ACMClient) GetCertificate(ctx context.Context, input *acm.GetCertificateInput, fn ...func(*acm.Options)) (*acm.GetCertificateOutput, error) {
-	return m.cert[*input.CertificateArn], nil
+	if input.CertificateArn == nil {
+		return nil, fmt.Errorf("expected a valid CertificateArn, got: nil")
+	}
+
+	if _, ok := m.cert[*input.CertificateArn]; ok {
+		return m.cert[*input.CertificateArn], nil
+	}
+	return nil, fmt.Errorf("cert not found: %s", *input.CertificateArn)
 }
 
 func (m *ACMClient) ListTagsForCertificate(ctx context.Context, in *acm.ListTagsForCertificateInput, fn ...func(*acm.Options)) (*acm.ListTagsForCertificateOutput, error) {

@@ -44,13 +44,13 @@ func (p *acmCertificateProvider) GetCertificates() ([]*certs.CertificateSummary,
 	return result, nil
 }
 
-func getACMCertificateSummaries(ctx context.Context, api ACMIFaceAPI, filterTag string) ([]*types.CertificateSummary, error) {
+func getACMCertificateSummaries(ctx context.Context, api ACMIFaceAPI, filterTag string) ([]types.CertificateSummary, error) {
 	params := &acm.ListCertificatesInput{
 		CertificateStatuses: []types.CertificateStatus{
 			types.CertificateStatusIssued,
 		},
 	}
-	acmSummaries := make([]*types.CertificateSummary, 0)
+	acmSummaries := make([]types.CertificateSummary, 0)
 
 	paginator := acm.NewListCertificatesPaginator(api, params)
 	for paginator.HasMorePages() {
@@ -58,9 +58,7 @@ func getACMCertificateSummaries(ctx context.Context, api ACMIFaceAPI, filterTag 
 		if err != nil {
 			return nil, err
 		}
-		for _, certificateSummary := range page.CertificateSummaryList {
-			acmSummaries = append(acmSummaries, &certificateSummary)
-		}
+		acmSummaries = append(acmSummaries, page.CertificateSummaryList...)
 	}
 
 	if tag := strings.Split(filterTag, "="); filterTag != "=" && len(tag) == 2 {
@@ -70,8 +68,8 @@ func getACMCertificateSummaries(ctx context.Context, api ACMIFaceAPI, filterTag 
 	return acmSummaries, nil
 }
 
-func filterCertificatesByTag(ctx context.Context, api ACMIFaceAPI, allSummaries []*types.CertificateSummary, key, value string) ([]*types.CertificateSummary, error) {
-	prodSummaries := make([]*types.CertificateSummary, 0)
+func filterCertificatesByTag(ctx context.Context, api ACMIFaceAPI, allSummaries []types.CertificateSummary, key, value string) ([]types.CertificateSummary, error) {
+	prodSummaries := make([]types.CertificateSummary, 0)
 	for _, summary := range allSummaries {
 		in := &acm.ListTagsForCertificateInput{
 			CertificateArn: summary.CertificateArn,
