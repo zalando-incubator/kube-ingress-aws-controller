@@ -340,3 +340,23 @@ func assertResultAndError(t *testing.T, want, got interface{}, wantError bool, e
 		}
 	}
 }
+
+func TestIsInstanceRunning(t *testing.T) {
+	for _, test := range []struct {
+		name  string
+		input *int32
+		want  bool
+	}{
+		{"running", aws.Int32(16), true},
+		{"stopped", aws.Int32(80), false},
+		{"shutting-down", aws.Int32(32), false},
+		{"terminated", aws.Int32(48), false},
+	} {
+		t.Run(fmt.Sprintf("%v", test.name), func(t *testing.T) {
+			got := isInstanceRunning(test.input)
+			if got != test.want {
+				t.Errorf("unexpected result. wanted %v, got %v", test.want, got)
+			}
+		})
+	}
+}

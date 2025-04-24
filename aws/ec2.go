@@ -91,6 +91,10 @@ func getAutoScalingGroupName(instanceTags map[string]string) (string, error) {
 	return asg, nil
 }
 
+func isInstanceRunning(code *int32) bool {
+	return aws.ToInt32(code)&0xff == runningState
+}
+
 func getInstanceDetails(ctx context.Context, ec2Service EC2IFaceAPI, instanceID string) (*instanceDetails, error) {
 	params := &ec2.DescribeInstancesInput{
 		Filters: []types.Filter{
@@ -117,7 +121,7 @@ func getInstanceDetails(ctx context.Context, ec2Service EC2IFaceAPI, instanceID 
 		ip:      aws.ToString(i.PrivateIpAddress),
 		vpcID:   aws.ToString(i.VpcId),
 		tags:    convertEc2Tags(i.Tags),
-		running: aws.ToInt32(i.State.Code)&0xff == runningState,
+		running: isInstanceRunning(i.State.Code),
 	}, nil
 }
 
@@ -139,7 +143,7 @@ func getInstancesDetailsWithFilters(ctx context.Context, ec2Service EC2IFaceAPI,
 					ip:      aws.ToString(instance.PrivateIpAddress),
 					vpcID:   aws.ToString(instance.VpcId),
 					tags:    convertEc2Tags(instance.Tags),
-					running: aws.ToInt32(instance.State.Code)&0xff == runningState,
+					running: isInstanceRunning(instance.State.Code),
 				}
 			}
 		}
@@ -152,7 +156,7 @@ func findFirstRunningInstance(resp *ec2.DescribeInstancesOutput) (*types.Instanc
 		for _, instance := range reservation.Instances {
 			// The low byte represents the state. The high byte is an opaque internal value
 			// and should be ignored.
-			if aws.ToInt32(instance.State.Code)&0xff == runningState {
+			if isInstanceRunning(instance.State.Code) {
 				return &instance, nil
 			}
 		}
