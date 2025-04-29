@@ -168,14 +168,14 @@ func (a *Adapter) newIngressFromRouteGroup(rg *routegroup) (*Ingress, error) {
 func (a *Adapter) newIngress(typ IngressType, metadata kubeItemMetadata, host string, hostnames []string) (*Ingress, error) {
 	annotations := metadata.Annotations
 
-	var scheme string
+	var scheme elbv2Types.LoadBalancerSchemeEnum
 	// Set schema to default if annotation value is not valid
 	annotationValue := getAnnotationsString(annotations, ingressSchemeAnnotation, "")
 	switch elbv2Types.LoadBalancerSchemeEnum(annotationValue) {
 	case elbv2Types.LoadBalancerSchemeEnumInternal:
-		scheme = string(elbv2Types.LoadBalancerSchemeEnumInternal)
+		scheme = elbv2Types.LoadBalancerSchemeEnumInternal
 	default:
-		scheme = string(elbv2Types.LoadBalancerSchemeEnumInternetFacing)
+		scheme = elbv2Types.LoadBalancerSchemeEnumInternetFacing
 	}
 
 	shared := true
@@ -197,7 +197,7 @@ func (a *Adapter) newIngress(typ IngressType, metadata kubeItemMetadata, host st
 	if !hasLB {
 		// internal load balancers should be ALB if user do not override the decision
 		// https://docs.aws.amazon.com/elasticloadbalancing/latest/network/load-balancer-troubleshooting.html#intermittent-connection-failure
-		if scheme == string(elbv2Types.LoadBalancerSchemeEnumInternal) {
+		if scheme == elbv2Types.LoadBalancerSchemeEnumInternal {
 			loadBalancerType = loadBalancerTypeALB
 		} else {
 			loadBalancerType = a.ingressDefaultLoadBalancerType
@@ -244,7 +244,7 @@ func (a *Adapter) newIngress(typ IngressType, metadata kubeItemMetadata, host st
 		Hostnames:        hostnames,
 		ClusterLocal:     len(hostnames) < 1,
 		CertificateARN:   getAnnotationsString(annotations, ingressCertificateARNAnnotation, ""),
-		Scheme:           scheme,
+		Scheme:           string(scheme),
 		Shared:           shared,
 		SecurityGroup:    securityGroup,
 		SSLPolicy:        sslPolicy,

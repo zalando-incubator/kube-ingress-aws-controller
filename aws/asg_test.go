@@ -773,19 +773,19 @@ func Test_categorizeTargetTypeInstance(t *testing.T) {
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			allARNs := []string{}
-			want := map[string][]string{}
+			want := map[elbv2types.TargetTypeEnum][]string{}
 			for _, tg := range test.targetGroups {
 				allARNs = append(allARNs, *tg.TargetGroupArn)
-				if _, ok := want[string(tg.TargetType)]; !ok {
-					want[string(tg.TargetType)] = []string{*tg.TargetGroupArn}
+				if _, ok := want[tg.TargetType]; !ok {
+					want[tg.TargetType] = []string{*tg.TargetGroupArn}
 				} else {
-					want[string(tg.TargetType)] = append(want[string(tg.TargetType)], *tg.TargetGroupArn)
+					want[tg.TargetType] = append(want[tg.TargetType], *tg.TargetGroupArn)
 				}
 			}
 			mockElbv2Svc := &fake.ELBv2Client{Outputs: fake.ELBv2Outputs{DescribeTargetGroups: fake.R(&elbv2.DescribeTargetGroupsOutput{TargetGroups: test.targetGroups}, nil)}}
 			got, err := categorizeTargetTypeInstance(context.Background(), mockElbv2Svc, allARNs)
 			assert.NoError(t, err)
-			assert.True(t, reflect.DeepEqual(got, want))
+			assert.Equal(t, want, got)
 		})
 	}
 }

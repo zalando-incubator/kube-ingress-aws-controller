@@ -1009,21 +1009,21 @@ func TestWithTargetAccessMode(t *testing.T) {
 		a := &Adapter{TargetCNI: &TargetCNIconfig{Enabled: false}}
 		a = a.WithTargetAccessMode("AWSCNI")
 
-		assert.Equal(t, string(elbv2Types.TargetTypeEnumIp), a.targetType)
+		assert.Equal(t, elbv2Types.TargetTypeEnumIp, a.targetType)
 		assert.True(t, a.TargetCNI.Enabled)
 	})
 	t.Run("WithTargetAccessMode HostPort", func(t *testing.T) {
 		a := &Adapter{TargetCNI: &TargetCNIconfig{Enabled: true}}
 		a = a.WithTargetAccessMode("HostPort")
 
-		assert.Equal(t, string(elbv2Types.TargetTypeEnumInstance), a.targetType)
+		assert.Equal(t, elbv2Types.TargetTypeEnumInstance, a.targetType)
 		assert.False(t, a.TargetCNI.Enabled)
 	})
 	t.Run("WithTargetAccessMode Legacy", func(t *testing.T) {
 		a := &Adapter{TargetCNI: &TargetCNIconfig{Enabled: true}}
 		a = a.WithTargetAccessMode("Legacy")
 
-		assert.Equal(t, "", a.targetType)
+		assert.Equal(t, elbv2Types.TargetTypeEnum(""), a.targetType)
 		assert.False(t, a.TargetCNI.Enabled)
 	})
 }

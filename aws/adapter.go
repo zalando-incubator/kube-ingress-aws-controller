@@ -208,7 +208,7 @@ func newConfigProvider(debug, disableInstrumentedHttpClient bool) (*aws.Config, 
 		config.WithRetryMaxAttempts(3),
 	}
 	if debug {
-		optFns = append(optFns, config.WithClientLogMode(aws.LogRequestWithBody))
+		optFns = append(optFns, config.WithClientLogMode(aws.LogRequest))
 	}
 
 	cfg, err := config.LoadDefaultConfig(context.TODO(), optFns...)
@@ -218,7 +218,7 @@ func newConfigProvider(debug, disableInstrumentedHttpClient bool) (*aws.Config, 
 	if !disableInstrumentedHttpClient {
 		httpClient, ok := cfg.HTTPClient.(*http.Client)
 		if !ok {
-			panic("cfg.HTTPClient is not of type *http.Client")
+			return nil, fmt.Errorf("cfg.HTTPClient is not of type *http.Client %v", cfg.HTTPClient)
 		}
 		cfg.HTTPClient = instrumented_http.NewClient(httpClient, nil)
 	}

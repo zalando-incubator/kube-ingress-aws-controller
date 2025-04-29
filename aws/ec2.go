@@ -20,7 +20,8 @@ const (
 	kubernetesCreatorTag       = "kubernetes:application"
 	autoScalingGroupNameTag    = "aws:autoscaling:groupName"
 	// [types.InstanceState]
-	runningState           = 16
+	runningState = 16
+	// [types.InstanceState]
 	stoppedState           = 80
 	elbRoleTagName         = "kubernetes.io/role/elb"
 	internalELBRoleTagName = "kubernetes.io/role/internal-elb"
@@ -93,6 +94,8 @@ func getAutoScalingGroupName(instanceTags map[string]string) (string, error) {
 }
 
 func isInstanceRunning(state *types.InstanceState) bool {
+	// The low byte represents the state. The high byte is
+	// an opaque internal value and should be ignored.
 	return aws.ToInt32(state.Code)&0xff == runningState
 }
 
@@ -155,8 +158,6 @@ func getInstancesDetailsWithFilters(ctx context.Context, ec2Service EC2API, filt
 func findFirstRunningInstance(resp *ec2.DescribeInstancesOutput) (*types.Instance, error) {
 	for _, reservation := range resp.Reservations {
 		for _, instance := range reservation.Instances {
-			// The low byte represents the state. The high byte is an opaque internal value
-			// and should be ignored.
 			if isInstanceRunning(instance.State) {
 				return &instance, nil
 			}
