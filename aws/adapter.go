@@ -29,12 +29,12 @@ import (
 // An Adapter can be used to orchestrate and obtain information from Amazon Web Services.
 type Adapter struct {
 	ec2metadata    *imds.Client
-	ec2            EC2IFaceAPI
-	elbv2          ELBV2IFaceAPI
-	autoscaling    AutoScalingIFaceAPI
-	acm            ACMIFaceAPI
-	iam            IAMIFaceAPI
-	cloudformation CloudFormationIFaceAPI
+	ec2            EC2API
+	elbv2          ELBV2API
+	autoscaling    AutoScalingAPI
+	acm            ACMAPI
+	iam            IAMAPI
+	cloudformation CloudFormationAPI
 
 	manifest                    *manifest
 	healthCheckPath             string
@@ -44,7 +44,7 @@ type Adapter struct {
 	albHealthyThresholdCount    uint
 	albUnhealthyThresholdCount  uint
 	nlbHealthyThresholdCount    uint
-	targetType                  string
+	targetType                  elbv2Types.TargetTypeEnum
 	targetPort                  uint
 	albHTTPTargetPort           uint
 	nlbHTTPTargetPort           uint
@@ -203,7 +203,7 @@ var (
 	}
 )
 
-func newConfigProvider(debug, disableInstrumentedHttpClient bool) aws.Config {
+func newConfigProvider(debug, disableInstrumentedHttpClient bool) (*aws.Config, error) {
 	optFns := []func(*config.LoadOptions) error{
 		config.WithRetryMaxAttempts(3),
 	}
@@ -213,7 +213,7 @@ func newConfigProvider(debug, disableInstrumentedHttpClient bool) aws.Config {
 
 	cfg, err := config.LoadDefaultConfig(context.TODO(), optFns...)
 	if err != nil {
-		panic(fmt.Sprintf("unable to load SDK config, %v", err))
+		return nil, fmt.Errorf("unable to load SDK config, %v", err)
 	}
 	if !disableInstrumentedHttpClient {
 		httpClient, ok := cfg.HTTPClient.(*http.Client)
@@ -222,7 +222,7 @@ func newConfigProvider(debug, disableInstrumentedHttpClient bool) aws.Config {
 		}
 		cfg.HTTPClient = instrumented_http.NewClient(httpClient, nil)
 	}
-	return cfg
+	return &cfg, nil
 }
 
 // NewAdapter returns a new Adapter that can be used to orchestrate and obtain information from Amazon Web Services.
@@ -231,15 +231,19 @@ func newConfigProvider(debug, disableInstrumentedHttpClient bool) aws.Config {
 // an appropriate error is returned.
 func NewAdapter(clusterID, newControllerID, vpcID string, debug, disableInstrumentedHttpClient bool) (adapter *Adapter, err error) {
 	ctx := context.TODO()
-	p := newConfigProvider(debug, disableInstrumentedHttpClient)
+	cfgptr, err := newConfigProvider(debug, disableInstrumentedHttpClient)
+	if err != nil {
+		return nil, err
+	}
+	cfg := *cfgptr
 	adapter = &Adapter{
-		ec2:                        ec2.NewFromConfig(p),
-		elbv2:                      elbv2.NewFromConfig(p),
-		ec2metadata:                imds.NewFromConfig(p),
-		autoscaling:                autoscaling.NewFromConfig(p),
-		acm:                        acm.NewFromConfig(p),
-		iam:                        iam.NewFromConfig(p),
-		cloudformation:             cloudformation.NewFromConfig(p),
+		ec2:                        ec2.NewFromConfig(cfg),
+		elbv2:                      elbv2.NewFromConfig(cfg),
+		ec2metadata:                imds.NewFromConfig(cfg),
+		autoscaling:                autoscaling.NewFromConfig(cfg),
+		acm:                        acm.NewFromConfig(cfg),
+		iam:                        iam.NewFromConfig(cfg),
+		cloudformation:             cloudformation.NewFromConfig(cfg),
 		healthCheckPath:            DefaultHealthCheckPath,
 		healthCheckPort:            DefaultHealthCheckPort,
 		targetPort:                 DefaultTargetPort,
@@ -497,9 +501,9 @@ func (a *Adapter) WithTargetAccessMode(mode string) *Adapter {
 
 	switch mode {
 	case TargetAccessModeHostPort:
-		a.targetType = string(elbv2Types.TargetTypeEnumInstance)
+		a.targetType = elbv2Types.TargetTypeEnumInstance
 	case TargetAccessModeAWSCNI:
-		a.targetType = string(elbv2Types.TargetTypeEnumIp)
+		a.targetType = elbv2Types.TargetTypeEnumIp
 	case TargetAccessModeLegacy:
 		a.targetType = ""
 	}
@@ -542,28 +546,28 @@ func (a *Adapter) WithInternalDomainsDenyResponseContenType(contentType string) 
 
 // WithCustomEc2Client returns an Adapter that will use the provided
 // EC2 client, instead of the EC2 client provided by AWS.
-func (a *Adapter) WithCustomEc2Client(c EC2IFaceAPI) *Adapter {
+func (a *Adapter) WithCustomEc2Client(c EC2API) *Adapter {
 	a.ec2 = c
 	return a
 }
 
 // WithCustomAutoScalingClient returns an Adapter that will use the provided
 // Auto scaling client, instead of the Auto scaling client provided by AWS.
-func (a *Adapter) WithCustomAutoScalingClient(c AutoScalingIFaceAPI) *Adapter {
+func (a *Adapter) WithCustomAutoScalingClient(c AutoScalingAPI) *Adapter {
 	a.autoscaling = c
 	return a
 }
 
 // WithCustomElbv2Client returns an Adapter that will use the provided
 // ELBv2 client, instead of the ELBv2 client provided by AWS.
-func (a *Adapter) WithCustomElbv2Client(c ELBV2IFaceAPI) *Adapter {
+func (a *Adapter) WithCustomElbv2Client(c ELBV2API) *Adapter {
 	a.elbv2 = c
 	return a
 }
 
 // WithCustomCloudFormationClient returns an Adapter that will use the provided
 // CloudFormation client, instead of the CloudFormation client provided by AWS.
-func (a *Adapter) WithCustomCloudFormationClient(c CloudFormationIFaceAPI) *Adapter {
+func (a *Adapter) WithCustomCloudFormationClient(c CloudFormationAPI) *Adapter {
 	a.cloudformation = c
 	return a
 }
@@ -675,11 +679,11 @@ func (a *Adapter) UpdateTargetGroupsAndAutoScalingGroups(stacks []*Stack, proble
 
 	// update the CNI TG list
 	if a.TargetCNI.Enabled {
-		a.TargetCNI.TargetGroupCh <- targetTypesARNs[string(elbv2Types.TargetTypeEnumIp)]
+		a.TargetCNI.TargetGroupCh <- targetTypesARNs[elbv2Types.TargetTypeEnumIp]
 	}
 
 	// remove the IP TGs from the list keeping all other TGs including problematic #127 and nonexistent #436
-	targetGroupARNs := difference(allTargetGroupARNs, targetTypesARNs[string(elbv2Types.TargetTypeEnumIp)])
+	targetGroupARNs := difference(allTargetGroupARNs, targetTypesARNs[elbv2Types.TargetTypeEnumIp])
 
 	ownerTags := map[string]string{
 		clusterIDTagPrefix + a.ClusterID(): resourceLifecycleOwned,
@@ -763,7 +767,7 @@ func (a *Adapter) CreateStack(certificateARNs []string, scheme, securityGroup, o
 		targetHTTPS:                       a.targetHTTPS,
 		httpDisabled:                      a.httpDisabled(loadBalancerType),
 		httpTargetPort:                    a.httpTargetPort(loadBalancerType),
-		timeoutInMinutes:                  uint(a.creationTimeout.Minutes()),
+		timeoutInMinutes:                  int32(a.creationTimeout.Minutes()),
 		stackTerminationProtection:        a.stackTerminationProtection,
 		idleConnectionTimeoutSeconds:      uint(a.idleConnectionTimeout.Seconds()),
 		deregistrationDelayTimeoutSeconds: uint(a.deregistrationDelayTimeout.Seconds()),
@@ -821,7 +825,7 @@ func (a *Adapter) UpdateStack(stackName string, certificateARNs map[string]time.
 		targetHTTPS:                       a.targetHTTPS,
 		httpDisabled:                      a.httpDisabled(loadBalancerType),
 		httpTargetPort:                    a.httpTargetPort(loadBalancerType),
-		timeoutInMinutes:                  uint(a.creationTimeout.Minutes()),
+		timeoutInMinutes:                  int32(a.creationTimeout.Minutes()),
 		stackTerminationProtection:        a.stackTerminationProtection,
 		idleConnectionTimeoutSeconds:      uint(a.idleConnectionTimeout.Seconds()),
 		deregistrationDelayTimeoutSeconds: uint(a.deregistrationDelayTimeout.Seconds()),
@@ -903,7 +907,7 @@ func buildManifest(ctx context.Context, awsAdapter *Adapter, clusterID, vpcID st
 		log.Debug("aws.getInstanceDetails")
 		content, err := io.ReadAll(myID.Content)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to read metadata content: %w", err)
 		}
 		defer myID.Content.Close()
 		instanceDetails, err = getInstanceDetails(ctx, awsAdapter.ec2, string(content))

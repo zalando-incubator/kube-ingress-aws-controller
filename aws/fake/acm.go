@@ -30,10 +30,11 @@ func (m *ACMClient) GetCertificate(ctx context.Context, input *acm.GetCertificat
 		return nil, fmt.Errorf("expected a valid CertificateArn, got: nil")
 	}
 
-	if _, ok := m.cert[*input.CertificateArn]; ok {
-		return m.cert[*input.CertificateArn], nil
+	arn := *input.CertificateArn
+	if _, ok := m.cert[arn]; ok {
+		return m.cert[arn], nil
 	}
-	return nil, fmt.Errorf("cert not found: %s", *input.CertificateArn)
+	return nil, fmt.Errorf("cert not found: %s", arn)
 }
 
 func (m *ACMClient) ListTagsForCertificate(ctx context.Context, in *acm.ListTagsForCertificateInput, fn ...func(*acm.Options)) (*acm.ListTagsForCertificateOutput, error) {

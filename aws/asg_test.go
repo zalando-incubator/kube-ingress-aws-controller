@@ -20,7 +20,7 @@ import (
 func mockAutoScalingGroupDetails(name string, tags map[string]string) *autoScalingGroupDetails {
 	return &autoScalingGroupDetails{
 		name:         name,
-		targetGroups: make([]string, 0),
+		targetGroups: []string{},
 		tags:         tags,
 	}
 }
@@ -685,49 +685,107 @@ func TestProcessChunked(t *testing.T) {
 func Test_categorizeTargetTypeInstance(t *testing.T) {
 	for _, test := range []struct {
 		name         string
-		targetGroups map[string][]string
+		targetGroups []elbv2types.TargetGroup
 	}{
 		{
 			name: "one from any type",
-			targetGroups: map[string][]string{
-				string(elbv2types.TargetTypeEnumInstance): {"instancy"},
-				string(elbv2types.TargetTypeEnumAlb):      {"albly"},
-				string(elbv2types.TargetTypeEnumIp):       {"ipvy"},
-				string(elbv2types.TargetTypeEnumLambda):   {"lambada"},
+			targetGroups: []elbv2types.TargetGroup{
+				{
+					TargetGroupArn: aws.String("instancy"),
+					TargetType:     elbv2types.TargetTypeEnumInstance,
+				},
+				{
+					TargetGroupArn: aws.String("albly"),
+					TargetType:     elbv2types.TargetTypeEnumAlb,
+				},
+				{
+					TargetGroupArn: aws.String("ipvy"),
+					TargetType:     elbv2types.TargetTypeEnumIp,
+				},
+				{
+					TargetGroupArn: aws.String("lambada"),
+					TargetType:     elbv2types.TargetTypeEnumLambda,
+				},
 			},
 		},
 		{
 			name: "one type many target groups",
-			targetGroups: map[string][]string{
-				string(elbv2types.TargetTypeEnumInstance): {"instancy", "foo", "void", "bar", "blank"},
+			targetGroups: []elbv2types.TargetGroup{
+				{
+					TargetGroupArn: aws.String("instancy"),
+					TargetType:     elbv2types.TargetTypeEnumInstance,
+				},
+				{
+					TargetGroupArn: aws.String("foo"),
+					TargetType:     elbv2types.TargetTypeEnumInstance,
+				},
+				{
+					TargetGroupArn: aws.String("void"),
+					TargetType:     elbv2types.TargetTypeEnumInstance,
+				},
+				{
+					TargetGroupArn: aws.String("bar"),
+					TargetType:     elbv2types.TargetTypeEnumInstance,
+				},
+				{
+					TargetGroupArn: aws.String("blank"),
+					TargetType:     elbv2types.TargetTypeEnumInstance,
+				},
 			},
 		},
 		{
 			name: "several types many target groups",
-			targetGroups: map[string][]string{
-				string(elbv2types.TargetTypeEnumInstance): {"instancy", "foo", "void", "bar", "blank"},
-				string(elbv2types.TargetTypeEnumAlb):      {"albly", "alblily"},
-				string(elbv2types.TargetTypeEnumIp):       {"ipvy"},
+			targetGroups: []elbv2types.TargetGroup{
+				{
+					TargetGroupArn: aws.String("instancy"),
+					TargetType:     elbv2types.TargetTypeEnumInstance,
+				},
+				{
+					TargetGroupArn: aws.String("foo"),
+					TargetType:     elbv2types.TargetTypeEnumInstance,
+				},
+				{
+					TargetGroupArn: aws.String("void"),
+					TargetType:     elbv2types.TargetTypeEnumInstance,
+				},
+				{
+					TargetGroupArn: aws.String("bar"),
+					TargetType:     elbv2types.TargetTypeEnumInstance,
+				},
+				{
+					TargetGroupArn: aws.String("blank"),
+					TargetType:     elbv2types.TargetTypeEnumInstance,
+				},
+				{
+					TargetGroupArn: aws.String("albly"),
+					TargetType:     elbv2types.TargetTypeEnumAlb,
+				},
+				{
+					TargetGroupArn: aws.String("alblily"),
+					TargetType:     elbv2types.TargetTypeEnumAlb,
+				},
+				{
+					TargetGroupArn: aws.String("ipvy"),
+					TargetType:     elbv2types.TargetTypeEnumIp,
+				},
 			},
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			tg := []string{}
-			tgResponse := []elbv2types.TargetGroup{}
-			for k, v := range test.targetGroups {
-				for _, i := range v {
-					tg = append(tg, i)
-					tgResponse = append(tgResponse, elbv2types.TargetGroup{TargetGroupArn: aws.String(i), TargetType: elbv2types.TargetTypeEnum(k)})
+			allARNs := []string{}
+			want := map[string][]string{}
+			for _, tg := range test.targetGroups {
+				allARNs = append(allARNs, *tg.TargetGroupArn)
+				if _, ok := want[string(tg.TargetType)]; !ok {
+					want[string(tg.TargetType)] = []string{*tg.TargetGroupArn}
+				} else {
+					want[string(tg.TargetType)] = append(want[string(tg.TargetType)], *tg.TargetGroupArn)
 				}
 			}
-
-			mockElbv2Svc := &fake.ELBv2Client{Outputs: fake.ELBv2Outputs{DescribeTargetGroups: fake.R(&elbv2.DescribeTargetGroupsOutput{TargetGroups: tgResponse}, nil)}}
-			got, err := categorizeTargetTypeInstance(context.Background(), mockElbv2Svc, tg)
+			mockElbv2Svc := &fake.ELBv2Client{Outputs: fake.ELBv2Outputs{DescribeTargetGroups: fake.R(&elbv2.DescribeTargetGroupsOutput{TargetGroups: test.targetGroups}, nil)}}
+			got, err := categorizeTargetTypeInstance(context.Background(), mockElbv2Svc, allARNs)
 			assert.NoError(t, err)
-			for k, v := range test.targetGroups {
-				assert.Len(t, got[k], len(v))
-				assert.Equal(t, got[k], v)
-			}
+			assert.True(t, reflect.DeepEqual(got, want))
 		})
 	}
 }

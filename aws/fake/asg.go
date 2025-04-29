@@ -68,7 +68,7 @@ func MockDescribeAutoScalingGroupOutput(asgs ...map[string]ASGtags) *autoscaling
 			g := types.AutoScalingGroup{
 				AutoScalingGroupName: aws.String(name),
 				Tags:                 t,
-				TargetGroupARNs:      make([]string, 0),
+				TargetGroupARNs:      []string{},
 			}
 			groups = append(groups, g)
 		}

@@ -3,6 +3,7 @@ package aws
 import (
 	"context"
 	"crypto/x509"
+	"fmt"
 	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -11,18 +12,18 @@ import (
 	"github.com/zalando-incubator/kube-ingress-aws-controller/certs"
 )
 
-type ACMIFaceAPI interface {
-	ListCertificates(context.Context, *acm.ListCertificatesInput, ...func(*acm.Options)) (*acm.ListCertificatesOutput, error)
+type ACMAPI interface {
+	acm.ListCertificatesAPIClient
 	ListTagsForCertificate(context.Context, *acm.ListTagsForCertificateInput, ...func(*acm.Options)) (*acm.ListTagsForCertificateOutput, error)
 	GetCertificate(context.Context, *acm.GetCertificateInput, ...func(*acm.Options)) (*acm.GetCertificateOutput, error)
 }
 
 type acmCertificateProvider struct {
-	api       ACMIFaceAPI
+	api       ACMAPI
 	filterTag string
 }
 
-func newACMCertProvider(api ACMIFaceAPI, certFilterTag string) certs.CertificatesProvider {
+func newACMCertProvider(api ACMAPI, certFilterTag string) certs.CertificatesProvider {
 	return &acmCertificateProvider{api: api, filterTag: certFilterTag}
 }
 
@@ -44,7 +45,7 @@ func (p *acmCertificateProvider) GetCertificates() ([]*certs.CertificateSummary,
 	return result, nil
 }
 
-func getACMCertificateSummaries(ctx context.Context, api ACMIFaceAPI, filterTag string) ([]types.CertificateSummary, error) {
+func getACMCertificateSummaries(ctx context.Context, api ACMAPI, filterTag string) ([]types.CertificateSummary, error) {
 	params := &acm.ListCertificatesInput{
 		CertificateStatuses: []types.CertificateStatus{
 			types.CertificateStatusIssued,
@@ -56,7 +57,7 @@ func getACMCertificateSummaries(ctx context.Context, api ACMIFaceAPI, filterTag 
 	for paginator.HasMorePages() {
 		page, err := paginator.NextPage(ctx)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to list certificates page: %w", err)
 		}
 		acmSummaries = append(acmSummaries, page.CertificateSummaryList...)
 	}
@@ -68,7 +69,7 @@ func getACMCertificateSummaries(ctx context.Context, api ACMIFaceAPI, filterTag 
 	return acmSummaries, nil
 }
 
-func filterCertificatesByTag(ctx context.Context, api ACMIFaceAPI, allSummaries []types.CertificateSummary, key, value string) ([]types.CertificateSummary, error) {
+func filterCertificatesByTag(ctx context.Context, api ACMAPI, allSummaries []types.CertificateSummary, key, value string) ([]types.CertificateSummary, error) {
 	prodSummaries := make([]types.CertificateSummary, 0)
 	for _, summary := range allSummaries {
 		in := &acm.ListTagsForCertificateInput{
@@ -89,7 +90,7 @@ func filterCertificatesByTag(ctx context.Context, api ACMIFaceAPI, allSummaries 
 	return prodSummaries, nil
 }
 
-func getCertificateSummaryFromACM(ctx context.Context, api ACMIFaceAPI, arn *string) (*certs.CertificateSummary, error) {
+func getCertificateSummaryFromACM(ctx context.Context, api ACMAPI, arn *string) (*certs.CertificateSummary, error) {
 	params := &acm.GetCertificateInput{CertificateArn: arn}
 	resp, err := api.GetCertificate(ctx, params)
 	if err != nil {

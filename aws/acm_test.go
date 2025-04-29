@@ -24,7 +24,7 @@ func TestACM(t *testing.T) {
 
 	for _, ti := range []struct {
 		msg       string
-		api       ACMIFaceAPI
+		api       ACMAPI
 		filterTag string
 		expect    acmExpect
 	}{

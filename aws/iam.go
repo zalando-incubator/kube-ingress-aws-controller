@@ -3,6 +3,7 @@ package aws
 import (
 	"context"
 	"crypto/x509"
+	"fmt"
 	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -11,18 +12,18 @@ import (
 	"github.com/zalando-incubator/kube-ingress-aws-controller/certs"
 )
 
-type IAMIFaceAPI interface {
+type IAMAPI interface {
 	GetServerCertificate(context.Context, *iam.GetServerCertificateInput, ...func(*iam.Options)) (*iam.GetServerCertificateOutput, error)
 	ListServerCertificateTags(context.Context, *iam.ListServerCertificateTagsInput, ...func(*iam.Options)) (*iam.ListServerCertificateTagsOutput, error)
 	ListServerCertificates(context.Context, *iam.ListServerCertificatesInput, ...func(*iam.Options)) (*iam.ListServerCertificatesOutput, error)
 }
 
 type iamCertificateProvider struct {
-	api       IAMIFaceAPI
+	api       IAMAPI
 	filterTag string
 }
 
-func newIAMCertProvider(api IAMIFaceAPI, filterTag string) certs.CertificatesProvider {
+func newIAMCertProvider(api IAMAPI, filterTag string) certs.CertificatesProvider {
 	return &iamCertificateProvider{api: api, filterTag: filterTag}
 }
 
@@ -55,7 +56,7 @@ func (p *iamCertificateProvider) GetCertificates() ([]*certs.CertificateSummary,
 	return list, nil
 }
 
-func certHasTag(ctx context.Context, api IAMIFaceAPI, certName, key, value string) (bool, error) {
+func certHasTag(ctx context.Context, api IAMAPI, certName, key, value string) (bool, error) {
 	t, err := api.ListServerCertificateTags(ctx, &iam.ListServerCertificateTagsInput{
 		ServerCertificateName: &certName,
 	})
@@ -71,7 +72,7 @@ func certHasTag(ctx context.Context, api IAMIFaceAPI, certName, key, value strin
 	return false, nil
 }
 
-func getIAMServerCertificateMetadata(ctx context.Context, api IAMIFaceAPI) ([]*types.ServerCertificateMetadata, error) {
+func getIAMServerCertificateMetadata(ctx context.Context, api IAMAPI) ([]*types.ServerCertificateMetadata, error) {
 	params := &iam.ListServerCertificatesInput{
 		PathPrefix: aws.String("/"),
 	}
@@ -80,16 +81,17 @@ func getIAMServerCertificateMetadata(ctx context.Context, api IAMIFaceAPI) ([]*t
 	for paginator.HasMorePages() {
 		output, err := paginator.NextPage(ctx)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to list server certificates page: %w", err)
 		}
 		for _, serverCertificateMetadata := range output.ServerCertificateMetadataList {
 			certList = append(certList, &serverCertificateMetadata)
 		}
 	}
 	return certList, nil
+
 }
 
-func getCertificateSummaryFromIAM(ctx context.Context, api IAMIFaceAPI, name string) (*certs.CertificateSummary, error) {
+func getCertificateSummaryFromIAM(ctx context.Context, api IAMAPI, name string) (*certs.CertificateSummary, error) {
 	params := &iam.GetServerCertificateInput{ServerCertificateName: aws.String(name)}
 	resp, err := api.GetServerCertificate(ctx, params)
 	if err != nil {

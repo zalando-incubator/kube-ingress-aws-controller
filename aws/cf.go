@@ -9,6 +9,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/cloudformation"
 	"github.com/aws/aws-sdk-go-v2/service/cloudformation/types"
+	elbv2Types "github.com/aws/aws-sdk-go-v2/service/elasticloadbalancingv2/types"
 )
 
 const (
@@ -21,7 +22,7 @@ const (
 // Stack is a simple wrapper around a CloudFormation Stack.
 type Stack struct {
 	Name              string
-	status            string
+	status            types.StackStatus
 	statusReason      string
 	DNSName           string
 	Scheme            string
@@ -77,7 +78,7 @@ func (s *Stack) Err() error {
 		return nil
 	}
 
-	switch types.StackStatus(s.status) {
+	switch s.status {
 	case types.StackStatusCreateInProgress,
 		types.StackStatusCreateComplete,
 		types.StackStatusUpdateInProgress,
@@ -164,12 +165,12 @@ type stackSpec struct {
 	albHealthyThresholdCount          uint
 	albUnhealthyThresholdCount        uint
 	nlbHealthyThresholdCount          uint
-	targetType                        string
+	targetType                        elbv2Types.TargetTypeEnum
 	targetPort                        uint
 	targetHTTPS                       bool
 	httpDisabled                      bool
 	httpTargetPort                    uint
-	timeoutInMinutes                  uint
+	timeoutInMinutes                  int32
 	stackTerminationProtection        bool
 	idleConnectionTimeoutSeconds      uint
 	deregistrationDelayTimeoutSeconds uint
@@ -204,15 +205,15 @@ type denyResp struct {
 	body        string
 }
 
-type CloudFormationIFaceAPI interface {
+type CloudFormationAPI interface {
+	cloudformation.DescribeStacksAPIClient
 	CreateStack(context.Context, *cloudformation.CreateStackInput, ...func(*cloudformation.Options)) (*cloudformation.CreateStackOutput, error)
 	UpdateTerminationProtection(context.Context, *cloudformation.UpdateTerminationProtectionInput, ...func(*cloudformation.Options)) (*cloudformation.UpdateTerminationProtectionOutput, error)
 	UpdateStack(context.Context, *cloudformation.UpdateStackInput, ...func(*cloudformation.Options)) (*cloudformation.UpdateStackOutput, error)
 	DeleteStack(context.Context, *cloudformation.DeleteStackInput, ...func(*cloudformation.Options)) (*cloudformation.DeleteStackOutput, error)
-	DescribeStacks(context.Context, *cloudformation.DescribeStacksInput, ...func(*cloudformation.Options)) (*cloudformation.DescribeStacksOutput, error)
 }
 
-func createStack(ctx context.Context, svc CloudFormationIFaceAPI, spec *stackSpec) (string, error) {
+func createStack(ctx context.Context, svc CloudFormationAPI, spec *stackSpec) (string, error) {
 	template, err := generateTemplate(spec)
 	if err != nil {
 		return "", err
@@ -288,7 +289,7 @@ func createStack(ctx context.Context, svc CloudFormationIFaceAPI, spec *stackSpe
 	return aws.ToString(resp.StackId), nil
 }
 
-func updateStack(ctx context.Context, svc CloudFormationIFaceAPI, spec *stackSpec) (string, error) {
+func updateStack(ctx context.Context, svc CloudFormationAPI, spec *stackSpec) (string, error) {
 	template, err := generateTemplate(spec)
 	if err != nil {
 		return "", err
@@ -409,7 +410,7 @@ func cfTag(key, value string) types.Tag {
 	}
 }
 
-func deleteStack(ctx context.Context, svc CloudFormationIFaceAPI, stackName string) error {
+func deleteStack(ctx context.Context, svc CloudFormationAPI, stackName string) error {
 	termParams := &cloudformation.UpdateTerminationProtectionInput{
 		StackName:                   aws.String(stackName),
 		EnableTerminationProtection: aws.Bool(false),
@@ -425,7 +426,7 @@ func deleteStack(ctx context.Context, svc CloudFormationIFaceAPI, stackName stri
 	return err
 }
 
-func getStack(ctx context.Context, svc CloudFormationIFaceAPI, stackName string) (*Stack, error) {
+func getStack(ctx context.Context, svc CloudFormationAPI, stackName string) (*Stack, error) {
 	stack, err := getCFStackByName(ctx, svc, stackName)
 	if err != nil {
 		return nil, ErrLoadBalancerStackNotReady
@@ -433,7 +434,7 @@ func getStack(ctx context.Context, svc CloudFormationIFaceAPI, stackName string)
 	return mapToManagedStack(stack), nil
 }
 
-func getCFStackByName(ctx context.Context, svc CloudFormationIFaceAPI, stackName string) (*types.Stack, error) {
+func getCFStackByName(ctx context.Context, svc CloudFormationAPI, stackName string) (*types.Stack, error) {
 	params := &cloudformation.DescribeStacksInput{StackName: aws.String(stackName)}
 
 	resp, err := svc.DescribeStacks(ctx, params)
@@ -445,16 +446,9 @@ func getCFStackByName(ctx context.Context, svc CloudFormationIFaceAPI, stackName
 		return nil, ErrLoadBalancerStackNotFound
 	}
 
-	var stack *types.Stack
-	for _, s := range resp.Stacks {
-		stack = &s
-		break
-	}
-	if stack == nil {
-		return nil, ErrLoadBalancerStackNotReady
-	}
+	// TODO: log/error on multiple stacks
 
-	return stack, nil
+	return &resp.Stacks[0], nil
 }
 
 func mapToManagedStack(stack *types.Stack) *Stack {
@@ -503,14 +497,14 @@ func mapToManagedStack(stack *types.Stack) *Stack {
 		CertificateARNs:   certificateARNs,
 		tags:              tags,
 		OwnerIngress:      ownerIngress,
-		status:            string(stack.StackStatus),
+		status:            stack.StackStatus,
 		statusReason:      aws.ToString(stack.StackStatusReason),
 		CWAlarmConfigHash: tags[cwAlarmConfigHashTag],
 		WAFWebACLID:       parameters[parameterLoadBalancerWAFWebACLIDParameter],
 	}
 }
 
-func findManagedStacks(ctx context.Context, svc CloudFormationIFaceAPI, clusterID, controllerID string) ([]*Stack, error) {
+func findManagedStacks(ctx context.Context, svc CloudFormationAPI, clusterID, controllerID string) ([]*Stack, error) {
 	stacks := make([]*Stack, 0)
 	paginator := cloudformation.NewDescribeStacksPaginator(svc, &cloudformation.DescribeStacksInput{})
 	for paginator.HasMorePages() {

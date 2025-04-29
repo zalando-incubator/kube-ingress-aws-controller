@@ -19,18 +19,19 @@ const (
 	resourceLifecycleOwned     = "owned"
 	kubernetesCreatorTag       = "kubernetes:application"
 	autoScalingGroupNameTag    = "aws:autoscaling:groupName"
-	runningState               = 16 // See https://github.com/aws/aws-sdk-go-v2/blob/main/service/ec2/types/types.go, type InstanceState
-	stoppedState               = 80 // See https://github.com/aws/aws-sdk-go-v2/blob/main/service/ec2/types/types.go, type InstanceState
-	elbRoleTagName             = "kubernetes.io/role/elb"
-	internalELBRoleTagName     = "kubernetes.io/role/internal-elb"
-	kubernetesNodeRoleTag      = "k8s.io/role/node"
+	// [types.InstanceState]
+	runningState           = 16
+	stoppedState           = 80
+	elbRoleTagName         = "kubernetes.io/role/elb"
+	internalELBRoleTagName = "kubernetes.io/role/internal-elb"
+	kubernetesNodeRoleTag  = "k8s.io/role/node"
 )
 
-type EC2IFaceAPI interface {
-	DescribeInstances(context.Context, *ec2.DescribeInstancesInput, ...func(*ec2.Options)) (*ec2.DescribeInstancesOutput, error)
-	DescribeSubnets(context.Context, *ec2.DescribeSubnetsInput, ...func(*ec2.Options)) (*ec2.DescribeSubnetsOutput, error)
-	DescribeRouteTables(context.Context, *ec2.DescribeRouteTablesInput, ...func(*ec2.Options)) (*ec2.DescribeRouteTablesOutput, error)
-	DescribeSecurityGroups(context.Context, *ec2.DescribeSecurityGroupsInput, ...func(*ec2.Options)) (*ec2.DescribeSecurityGroupsOutput, error)
+type EC2API interface {
+	ec2.DescribeInstancesAPIClient
+	ec2.DescribeSubnetsAPIClient
+	ec2.DescribeRouteTablesAPIClient
+	ec2.DescribeSecurityGroupsAPIClient
 }
 
 type securityGroupDetails struct {
@@ -91,11 +92,11 @@ func getAutoScalingGroupName(instanceTags map[string]string) (string, error) {
 	return asg, nil
 }
 
-func isInstanceRunning(code *int32) bool {
-	return aws.ToInt32(code)&0xff == runningState
+func isInstanceRunning(state *types.InstanceState) bool {
+	return aws.ToInt32(state.Code)&0xff == runningState
 }
 
-func getInstanceDetails(ctx context.Context, ec2Service EC2IFaceAPI, instanceID string) (*instanceDetails, error) {
+func getInstanceDetails(ctx context.Context, ec2Service EC2API, instanceID string) (*instanceDetails, error) {
 	params := &ec2.DescribeInstancesInput{
 		Filters: []types.Filter{
 			{
@@ -121,11 +122,11 @@ func getInstanceDetails(ctx context.Context, ec2Service EC2IFaceAPI, instanceID 
 		ip:      aws.ToString(i.PrivateIpAddress),
 		vpcID:   aws.ToString(i.VpcId),
 		tags:    convertEc2Tags(i.Tags),
-		running: isInstanceRunning(i.State.Code),
+		running: isInstanceRunning(i.State),
 	}, nil
 }
 
-func getInstancesDetailsWithFilters(ctx context.Context, ec2Service EC2IFaceAPI, filters []types.Filter) (map[string]*instanceDetails, error) {
+func getInstancesDetailsWithFilters(ctx context.Context, ec2Service EC2API, filters []types.Filter) (map[string]*instanceDetails, error) {
 	params := &ec2.DescribeInstancesInput{
 		Filters: filters,
 	}
@@ -143,7 +144,7 @@ func getInstancesDetailsWithFilters(ctx context.Context, ec2Service EC2IFaceAPI,
 					ip:      aws.ToString(instance.PrivateIpAddress),
 					vpcID:   aws.ToString(instance.VpcId),
 					tags:    convertEc2Tags(instance.Tags),
-					running: isInstanceRunning(instance.State.Code),
+					running: isInstanceRunning(instance.State),
 				}
 			}
 		}
@@ -156,7 +157,7 @@ func findFirstRunningInstance(resp *ec2.DescribeInstancesOutput) (*types.Instanc
 		for _, instance := range reservation.Instances {
 			// The low byte represents the state. The high byte is an opaque internal value
 			// and should be ignored.
-			if isInstanceRunning(instance.State.Code) {
+			if isInstanceRunning(instance.State) {
 				return &instance, nil
 			}
 		}
@@ -164,7 +165,7 @@ func findFirstRunningInstance(resp *ec2.DescribeInstancesOutput) (*types.Instanc
 	return nil, ErrNoRunningInstances
 }
 
-func getSubnets(ctx context.Context, svc EC2IFaceAPI, vpcID, clusterID string) ([]*subnetDetails, error) {
+func getSubnets(ctx context.Context, svc EC2API, vpcID, clusterID string) ([]*subnetDetails, error) {
 	params := &ec2.DescribeSubnetsInput{
 		Filters: []types.Filter{
 			{
@@ -228,7 +229,7 @@ func convertEc2Tags(instanceTags []types.Tag) map[string]string {
 	return tags
 }
 
-func getRouteTables(ctx context.Context, svc EC2IFaceAPI, vpcID string) ([]types.RouteTable, error) {
+func getRouteTables(ctx context.Context, svc EC2API, vpcID string) ([]types.RouteTable, error) {
 	params := &ec2.DescribeRouteTablesInput{
 		Filters: []types.Filter{
 			{
@@ -291,7 +292,7 @@ func isSubnetPublic(rt []types.RouteTable, subnetID string) (bool, error) {
 	return false, nil
 }
 
-func findSecurityGroupWithClusterID(ctx context.Context, svc EC2IFaceAPI, clusterID string, controllerID string) (*securityGroupDetails, error) {
+func findSecurityGroupWithClusterID(ctx context.Context, svc EC2API, clusterID string, controllerID string) (*securityGroupDetails, error) {
 	params := &ec2.DescribeSecurityGroupsInput{
 		Filters: []types.Filter{
 			{

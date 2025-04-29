@@ -251,7 +251,7 @@ func TestUpdateAutoScalingGroupsAndInstances(tt *testing.T) {
 	a := Adapter{
 		ec2Details:        map[string]*instanceDetails{},
 		singleInstances:   make(map[string]*instanceDetails),
-		obsoleteInstances: make([]string, 0),
+		obsoleteInstances: []string{},
 		manifest: &manifest{
 			instance: &instanceDetails{
 				tags: map[string]string{

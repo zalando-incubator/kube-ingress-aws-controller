@@ -458,7 +458,7 @@ func generateDenyInternalTrafficRule(listenerName string, rulePriority int64, in
 func newTargetGroup(spec *stackSpec, targetPortParameter string) *cloudformation.ElasticLoadBalancingV2TargetGroup {
 	var targetType *cloudformation.StringExpr
 	if spec.targetType != "" {
-		targetType = cloudformation.String(spec.targetType)
+		targetType = cloudformation.String(string(spec.targetType))
 	}
 
 	protocol := "HTTP"
