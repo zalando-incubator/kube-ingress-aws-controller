@@ -216,11 +216,15 @@ func newConfigProvider(debug, disableInstrumentedHttpClient bool) (*aws.Config, 
 		return nil, fmt.Errorf("unable to load SDK config, %v", err)
 	}
 	if !disableInstrumentedHttpClient {
-		httpClient, ok := cfg.HTTPClient.(*http.Client)
-		if !ok {
-			return nil, fmt.Errorf("cfg.HTTPClient is not of type *http.Client %v", cfg.HTTPClient)
+		if cfg.HTTPClient != nil {
+			httpClient, ok := cfg.HTTPClient.(*http.Client)
+			if !ok {
+				return nil, fmt.Errorf("cfg.HTTPClient is not of type *http.Client %v", cfg.HTTPClient)
+			}
+			cfg.HTTPClient = instrumented_http.NewClient(httpClient, nil)
+		} else {
+			cfg.HTTPClient = instrumented_http.NewClient(nil, nil)
 		}
-		cfg.HTTPClient = instrumented_http.NewClient(httpClient, nil)
 	}
 	return &cfg, nil
 }
