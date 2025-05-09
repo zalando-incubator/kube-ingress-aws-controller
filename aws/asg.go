@@ -237,7 +237,7 @@ func updateTargetGroupsForAutoScalingGroup(ctx context.Context, svc AutoScalingA
 func describeTags(ctx context.Context, svc ELBV2API, arns []string) ([]elbv2Types.TagDescription, error) {
 	descs := make([]elbv2Types.TagDescription, 0, len(arns))
 	// You can specify up to 20 resources in a single call,
-	// see https://pkg.go.dev/github.com/aws/aws-sdk-go-v2/service/elasticloadbalancingv2#DescribeTagsInput
+	// see [elasticloadbalancingv2.DescribeTagsInput]
 	err := processChunked(arns, 20, func(chunk []string) error {
 		tgResp, err := svc.DescribeTags(ctx, &elbv2.DescribeTagsInput{
 			ResourceArns: chunk,
@@ -335,7 +335,7 @@ func hasTagsASG(tags []types.TagDescription, expectedTags map[string]string) boo
 
 func attachTargetGroupsToAutoScalingGroup(ctx context.Context, svc AutoScalingAPI, targetGroupARNs []string, autoScalingGroupName string) error {
 	// You can specify up to 10 target groups,
-	// see https://pkg.go.dev/github.com/aws/aws-sdk-go-v2/service/autoscaling#AttachLoadBalancerTargetGroupsInput
+	// see [autoscaling.AttachLoadBalancerTargetGroupsInput]
 	return processChunked(targetGroupARNs, 10, func(chunk []string) error {
 		_, err := svc.AttachLoadBalancerTargetGroups(ctx, &autoscaling.AttachLoadBalancerTargetGroupsInput{
 			AutoScalingGroupName: aws.String(autoScalingGroupName),
@@ -347,7 +347,7 @@ func attachTargetGroupsToAutoScalingGroup(ctx context.Context, svc AutoScalingAP
 
 func detachTargetGroupsFromAutoScalingGroup(ctx context.Context, svc AutoScalingAPI, targetGroupARNs []string, autoScalingGroupName string) error {
 	// You can specify up to 10 target groups,
-	// see https://pkg.go.dev/github.com/aws/aws-sdk-go-v2/service/autoscaling#DetachLoadBalancerTargetGroupsInput
+	// see [autoscaling.AttachLoadBalancerTargetGroupsInput]
 	return processChunked(targetGroupARNs, 10, func(chunk []string) error {
 		_, err := svc.DetachLoadBalancerTargetGroups(ctx, &autoscaling.DetachLoadBalancerTargetGroupsInput{
 			AutoScalingGroupName: aws.String(autoScalingGroupName),
