@@ -1,6 +1,7 @@
 package aws
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -37,7 +38,7 @@ func TestACM(t *testing.T) {
 						CertificateChain: aws.String(chain),
 					},
 				},
-				nil,
+				nil, nil,
 			),
 			expect: acmExpect{
 				ARN:         "foobar",
@@ -52,7 +53,7 @@ func TestACM(t *testing.T) {
 						Certificate: aws.String(cert),
 					},
 				},
-				nil,
+				nil, nil,
 			),
 			expect: acmExpect{
 				ARN:         "foobar",
@@ -78,6 +79,7 @@ func TestACM(t *testing.T) {
 						Tags: []types.Tag{{Key: aws.String("production"), Value: aws.String("false")}},
 					},
 				},
+				nil,
 			),
 			filterTag: "production=true",
 			expect: acmExpect{
@@ -98,12 +100,26 @@ func TestACM(t *testing.T) {
 						Tags: []types.Tag{{Key: aws.String("production"), Value: aws.String("false")}},
 					},
 				},
+				nil,
 			),
 			filterTag: "production=true",
 			expect: acmExpect{
 				EmptyList:   true,
 				ARN:         "foobar",
 				DomainNames: []string{"foobar.de"},
+			},
+		},
+		{
+			msg: "Fail on ListCertificates error",
+			api: fake.NewACMClient(
+				nil, nil,
+				map[string]error{
+					"ListCertificates": fmt.Errorf("ListCertificates error"),
+				},
+			),
+			filterTag: "production=true",
+			expect: acmExpect{
+				Error: "failed to list certificates page: ListCertificates error",
 			},
 		},
 	} {
