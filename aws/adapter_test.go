@@ -1,6 +1,7 @@
 package aws
 
 import (
+	"context"
 	"fmt"
 	"reflect"
 	"sort"
@@ -610,7 +611,7 @@ func TestUpdateAutoScalingGroupsAndInstances(tt *testing.T) {
 		tt.Run(fmt.Sprintf("%v", test.name), func(t *testing.T) {
 			a.ec2 = &fake.EC2Client{Outputs: test.ec2responses}
 			a.autoscaling = &fake.ASGClient{Outputs: test.asgresponses}
-			err := a.UpdateAutoScalingGroupsAndInstances()
+			err := a.UpdateAutoScalingGroupsAndInstances(context.Background())
 			if test.wantError && err == nil {
 				t.Errorf("expected error, got nothing")
 			}
@@ -955,7 +956,7 @@ func TestAdapter_SetTargetsOnCNITargetGroups(t *testing.T) {
 	a := &Adapter{elbv2: m, TargetCNI: &TargetCNIconfig{}}
 
 	t.Run("adding a new endpoint", func(t *testing.T) {
-		require.NoError(t, a.SetTargetsOnCNITargetGroups([]string{"1.1.1.1"}, tgARNs))
+		require.NoError(t, a.SetTargetsOnCNITargetGroups(context.Background(), []string{"1.1.1.1"}, tgARNs))
 		require.Equal(t, []*elbv2.RegisterTargetsInput{{
 			TargetGroupArn: aws.String("asg1"),
 			Targets:        []elbv2Types.TargetDescription{{Id: aws.String("1.1.1.1")}},
@@ -969,7 +970,7 @@ func TestAdapter_SetTargetsOnCNITargetGroups(t *testing.T) {
 		}
 		m.Rtinputs, m.Dtinputs = nil, nil
 
-		require.NoError(t, a.SetTargetsOnCNITargetGroups([]string{"1.1.1.1", "2.2.2.2", "3.3.3.3"}, tgARNs))
+		require.NoError(t, a.SetTargetsOnCNITargetGroups(context.Background(), []string{"1.1.1.1", "2.2.2.2", "3.3.3.3"}, tgARNs))
 		require.Equal(t, []elbv2Types.TargetDescription{
 			{Id: aws.String("2.2.2.2")},
 			{Id: aws.String("3.3.3.3")},
@@ -985,7 +986,7 @@ func TestAdapter_SetTargetsOnCNITargetGroups(t *testing.T) {
 		}}
 		m.Rtinputs, m.Dtinputs = nil, nil
 
-		require.NoError(t, a.SetTargetsOnCNITargetGroups([]string{"1.1.1.1", "3.3.3.3"}, tgARNs))
+		require.NoError(t, a.SetTargetsOnCNITargetGroups(context.Background(), []string{"1.1.1.1", "3.3.3.3"}, tgARNs))
 		require.Equal(t, []*elbv2.RegisterTargetsInput(nil), m.Rtinputs)
 		require.Equal(t, []elbv2Types.TargetDescription{{Id: aws.String("2.2.2.2")}}, m.Dtinputs[0].Targets)
 	})
@@ -998,7 +999,7 @@ func TestAdapter_SetTargetsOnCNITargetGroups(t *testing.T) {
 		}}
 		m.Rtinputs, m.Dtinputs = nil, nil
 
-		require.NoError(t, a.SetTargetsOnCNITargetGroups([]string{"1.1.1.1", "2.2.2.2", "3.3.3.3"}, tgARNs))
+		require.NoError(t, a.SetTargetsOnCNITargetGroups(context.Background(), []string{"1.1.1.1", "2.2.2.2", "3.3.3.3"}, tgARNs))
 		require.Equal(t, []elbv2Types.TargetDescription{{Id: aws.String("3.3.3.3")}}, m.Rtinputs[0].Targets)
 		require.Equal(t, []elbv2Types.TargetDescription{{Id: aws.String("4.4.4.4")}}, m.Dtinputs[0].Targets)
 	})

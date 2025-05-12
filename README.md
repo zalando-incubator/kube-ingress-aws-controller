@@ -40,6 +40,10 @@ This information is used to manage AWS resources for each ingress objects of the
 
 ## Upgrade
 
+### <v0.17.0 to >=v0.17.0
+
+Version `v0.17.0` uses the controller context in the AWS Adapter API's, so as to pass context to the AWS SDK Go v2.
+
 ### <v0.16.0 to >=v0.16.0
 
 Version `v0.16.0` migrates to use the AWS SDK Go v2 as the version v1's End of life

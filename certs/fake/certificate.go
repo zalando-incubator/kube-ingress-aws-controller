@@ -1,6 +1,7 @@
 package fake
 
 import (
+	"context"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
@@ -25,7 +26,7 @@ type CertificateProvider struct {
 	ca caSingleton
 }
 
-func (m *CertificateProvider) GetCertificates() ([]*certs.CertificateSummary, error) {
+func (m *CertificateProvider) GetCertificates(ctx context.Context) ([]*certs.CertificateSummary, error) {
 	tenYears := time.Hour * 24 * 365 * 10
 	altNames := []string{"foo.bar.org"}
 	arn := "DUMMY"

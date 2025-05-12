@@ -28,8 +28,7 @@ func newACMCertProvider(api ACMAPI, certFilterTag string) certs.CertificatesProv
 }
 
 // GetCertificates returns a list of AWS ACM certificates
-func (p *acmCertificateProvider) GetCertificates() ([]*certs.CertificateSummary, error) {
-	ctx := context.TODO()
+func (p *acmCertificateProvider) GetCertificates(ctx context.Context) ([]*certs.CertificateSummary, error) {
 	acmSummaries, err := getACMCertificateSummaries(ctx, p.api, p.filterTag)
 	if err != nil {
 		return nil, err

@@ -43,7 +43,7 @@ func TestAdapter_PodInformer(t *testing.T) {
 			newPod := p.DeepCopy()
 			newPod.Name = fmt.Sprintf("skipper-%d", i)
 			newPod.Status.PodIP = fmt.Sprintf("1.1.1.%d", i)
-			_, err := client.CoreV1().Pods("kube-system").Create(context.TODO(), newPod, metav1.CreateOptions{})
+			_, err := client.CoreV1().Pods("kube-system").Create(context.Background(), newPod, metav1.CreateOptions{})
 			require.NoError(t, err)
 		}
 
@@ -51,18 +51,18 @@ func TestAdapter_PodInformer(t *testing.T) {
 		termPod.Name = "skipper-terminating"
 		termPod.Status.PodIP = "9.9.9.9"
 		termPod.DeletionTimestamp = &metav1.Time{}
-		_, err := client.CoreV1().Pods("kube-system").Create(context.TODO(), termPod, metav1.CreateOptions{})
+		_, err := client.CoreV1().Pods("kube-system").Create(context.Background(), termPod, metav1.CreateOptions{})
 		require.NoError(t, err)
 
 		pendingPod := p.DeepCopy()
 		pendingPod.Name = "skipper-pending"
 		pendingPod.Status.PodIP = ""
-		_, err = client.CoreV1().Pods("kube-system").Create(context.TODO(), pendingPod, metav1.CreateOptions{})
+		_, err = client.CoreV1().Pods("kube-system").Create(context.Background(), pendingPod, metav1.CreateOptions{})
 		require.NoError(t, err)
 	})
 
 	go func() {
-		err := a.PodInformer(context.TODO(), pods)
+		err := a.PodInformer(context.Background(), pods)
 		require.NoError(t, err)
 	}()
 
@@ -85,14 +85,14 @@ func TestAdapter_PodInformer(t *testing.T) {
 	})
 
 	t.Run("deleting one pod triggers updated list", func(t *testing.T) {
-		p, err := client.CoreV1().Pods("kube-system").Get(context.TODO(), "skipper-3", metav1.GetOptions{})
+		p, err := client.CoreV1().Pods("kube-system").Get(context.Background(), "skipper-3", metav1.GetOptions{})
 		require.NoError(t, err)
 		delPod := p.DeepCopy()
 		delPod.DeletionTimestamp = &metav1.Time{}
 		// fake client doesn't implement the full delete flow, mocking the status change
-		_, err = client.CoreV1().Pods("kube-system").UpdateStatus(context.TODO(), delPod, metav1.UpdateOptions{})
+		_, err = client.CoreV1().Pods("kube-system").UpdateStatus(context.Background(), delPod, metav1.UpdateOptions{})
 		require.NoError(t, err)
-		require.NoError(t, client.CoreV1().Pods("kube-system").Delete(context.TODO(), "skipper-3", metav1.DeleteOptions{}))
+		require.NoError(t, client.CoreV1().Pods("kube-system").Delete(context.Background(), "skipper-3", metav1.DeleteOptions{}))
 	})
 
 	t.Run("receiving the update event of only 4 pod list", func(t *testing.T) {
@@ -111,9 +111,9 @@ func TestAdapter_PodInformer(t *testing.T) {
 			newPod := p.DeepCopy()
 			newPod.Name = fmt.Sprintf("skipper-%d", i)
 			newPod.Status.PodIP = fmt.Sprintf("1.1.1.%d", i)
-			_, err := client.CoreV1().Pods("kube-system").Create(context.TODO(), newPod, metav1.CreateOptions{})
+			_, err := client.CoreV1().Pods("kube-system").Create(context.Background(), newPod, metav1.CreateOptions{})
 			require.NoError(t, err)
-			_, err = client.CoreV1().Pods("kube-system").UpdateStatus(context.TODO(), newPod, metav1.UpdateOptions{})
+			_, err = client.CoreV1().Pods("kube-system").UpdateStatus(context.Background(), newPod, metav1.UpdateOptions{})
 			require.NoError(t, err)
 		}
 
@@ -121,13 +121,13 @@ func TestAdapter_PodInformer(t *testing.T) {
 		termPod.Name = "skipper-4"
 		termPod.Status.PodIP = "1.1.1.4"
 		termPod.DeletionTimestamp = &metav1.Time{}
-		_, err := client.CoreV1().Pods("kube-system").UpdateStatus(context.TODO(), termPod, metav1.UpdateOptions{})
+		_, err := client.CoreV1().Pods("kube-system").UpdateStatus(context.Background(), termPod, metav1.UpdateOptions{})
 		require.NoError(t, err)
 
 		pendingPod := p.DeepCopy()
 		pendingPod.Name = "skipper-pending"
 		pendingPod.Status.PodIP = ""
-		_, err = client.CoreV1().Pods("kube-system").UpdateStatus(context.TODO(), pendingPod, metav1.UpdateOptions{})
+		_, err = client.CoreV1().Pods("kube-system").UpdateStatus(context.Background(), pendingPod, metav1.UpdateOptions{})
 		require.NoError(t, err)
 	})
 

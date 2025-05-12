@@ -203,7 +203,7 @@ var (
 	}
 )
 
-func newConfigProvider(debug, disableInstrumentedHttpClient bool) (*aws.Config, error) {
+func newConfigProvider(ctx context.Context, debug, disableInstrumentedHttpClient bool) (*aws.Config, error) {
 	optFns := []func(*config.LoadOptions) error{
 		config.WithRetryMaxAttempts(3),
 	}
@@ -211,7 +211,7 @@ func newConfigProvider(debug, disableInstrumentedHttpClient bool) (*aws.Config, 
 		optFns = append(optFns, config.WithClientLogMode(aws.LogRequest))
 	}
 
-	cfg, err := config.LoadDefaultConfig(context.TODO(), optFns...)
+	cfg, err := config.LoadDefaultConfig(ctx, optFns...)
 	if err != nil {
 		return nil, fmt.Errorf("unable to load SDK config, %v", err)
 	}
@@ -233,9 +233,8 @@ func newConfigProvider(debug, disableInstrumentedHttpClient bool) (*aws.Config, 
 // Before returning there is a discovery process for VPC and EC2 details. It tries to find the Auto Scaling Group and
 // Security Group that should be used for newly created Load Balancers. If any of those critical steps fail
 // an appropriate error is returned.
-func NewAdapter(clusterID, newControllerID, vpcID string, debug, disableInstrumentedHttpClient bool) (adapter *Adapter, err error) {
-	ctx := context.TODO()
-	cfgptr, err := newConfigProvider(debug, disableInstrumentedHttpClient)
+func NewAdapter(ctx context.Context, clusterID, newControllerID, vpcID string, debug, disableInstrumentedHttpClient bool) (adapter *Adapter, err error) {
+	cfgptr, err := newConfigProvider(ctx, debug, disableInstrumentedHttpClient)
 	if err != nil {
 		return nil, err
 	}
@@ -285,8 +284,7 @@ func NewAdapter(clusterID, newControllerID, vpcID string, debug, disableInstrume
 
 // UpdateManifest generates a manifest again based on cluster and VPC information.
 // This method is useful when using custom AWS clients.
-func (a *Adapter) UpdateManifest(clusterID, vpcID string) (*Adapter, error) {
-	ctx := context.TODO()
+func (a *Adapter) UpdateManifest(ctx context.Context, clusterID, vpcID string) (*Adapter, error) {
 	m, err := buildManifest(ctx, a, clusterID, vpcID)
 	if err != nil {
 		return nil, err
@@ -654,8 +652,7 @@ func (a *Adapter) SecurityGroupID() string {
 
 // FindManagedStacks returns all CloudFormation stacks containing the controller management tags
 // that match the current cluster and are ready to be used. The stack status is used to filter.
-func (a *Adapter) FindManagedStacks() ([]*Stack, error) {
-	ctx := context.TODO()
+func (a *Adapter) FindManagedStacks(ctx context.Context) ([]*Stack, error) {
 	stacks, err := findManagedStacks(ctx, a.cloudformation, a.ClusterID(), a.controllerID)
 	if err != nil {
 		return nil, err
@@ -666,8 +663,7 @@ func (a *Adapter) FindManagedStacks() ([]*Stack, error) {
 // UpdateTargetGroupsAndAutoScalingGroups updates Auto Scaling Groups
 // config to have relevant Target Groups and registers/deregisters single
 // instances (that do not belong to ASG) in relevant Target Groups.
-func (a *Adapter) UpdateTargetGroupsAndAutoScalingGroups(stacks []*Stack, problems *problem.List) {
-	ctx := context.TODO()
+func (a *Adapter) UpdateTargetGroupsAndAutoScalingGroups(ctx context.Context, stacks []*Stack, problems *problem.List) {
 	allTargetGroupARNs := make([]string, 0, len(stacks))
 	for _, stack := range stacks {
 		if len(stack.TargetGroupARNs) > 0 {
@@ -733,8 +729,7 @@ func (a *Adapter) UpdateTargetGroupsAndAutoScalingGroups(stacks []*Stack, proble
 // All the required resources (listeners and target group) are created in a
 // transactional fashion.
 // Failure to create the stack causes it to be deleted automatically.
-func (a *Adapter) CreateStack(certificateARNs []string, scheme, securityGroup, owner, sslPolicy, ipAddressType, wafWebACLID string, cwAlarms CloudWatchAlarmList, loadBalancerType string, http2 bool) (string, error) {
-	ctx := context.TODO()
+func (a *Adapter) CreateStack(ctx context.Context, certificateARNs []string, scheme, securityGroup, owner, sslPolicy, ipAddressType, wafWebACLID string, cwAlarms CloudWatchAlarmList, loadBalancerType string, http2 bool) (string, error) {
 	certARNs := make(map[string]time.Time, len(certificateARNs))
 	for _, arn := range certificateARNs {
 		certARNs[arn] = time.Time{}
@@ -800,8 +795,7 @@ func (a *Adapter) CreateStack(certificateARNs []string, scheme, securityGroup, o
 	return createStack(ctx, a.cloudformation, spec)
 }
 
-func (a *Adapter) UpdateStack(stackName string, certificateARNs map[string]time.Time, scheme, securityGroup, owner, sslPolicy, ipAddressType, wafWebACLID string, cwAlarms CloudWatchAlarmList, loadBalancerType string, http2 bool) (string, error) {
-	ctx := context.TODO()
+func (a *Adapter) UpdateStack(ctx context.Context, stackName string, certificateARNs map[string]time.Time, scheme, securityGroup, owner, sslPolicy, ipAddressType, wafWebACLID string, cwAlarms CloudWatchAlarmList, loadBalancerType string, http2 bool) (string, error) {
 	if _, ok := SSLPolicies[sslPolicy]; !ok {
 		return "", fmt.Errorf("invalid SSLPolicy '%s' defined", sslPolicy)
 	}
@@ -879,14 +873,12 @@ func (a *Adapter) stackName() string {
 }
 
 // GetStack returns the CloudFormation stack details with the name or ID from the argument
-func (a *Adapter) GetStack(stackID string) (*Stack, error) {
-	ctx := context.TODO()
+func (a *Adapter) GetStack(ctx context.Context, stackID string) (*Stack, error) {
 	return getStack(ctx, a.cloudformation, stackID)
 }
 
 // DeleteStack deletes the CloudFormation stack with the given name
-func (a *Adapter) DeleteStack(stack *Stack) error {
-	ctx := context.TODO()
+func (a *Adapter) DeleteStack(ctx context.Context, stack *Stack) error {
 	for _, asg := range a.TargetedAutoScalingGroups {
 		if err := detachTargetGroupsFromAutoScalingGroup(ctx, a.autoscaling, stack.TargetGroupARNs, asg.name); err != nil {
 			return fmt.Errorf("failed to detach target groups from autoscaling group %q: %w", asg.name, err)
@@ -1020,9 +1012,8 @@ func getTag(tags map[string]string, tagName string) (string, error) {
 }
 
 // UpdateAutoScalingGroupsAndInstances updates list of known ASGs and EC2 instances.
-func (a *Adapter) UpdateAutoScalingGroupsAndInstances() error {
+func (a *Adapter) UpdateAutoScalingGroupsAndInstances(ctx context.Context) error {
 	var err error
-	ctx := context.TODO()
 
 	a.ec2Details, err = getInstancesDetailsWithFilters(ctx, a.ec2, a.manifest.filters)
 	if err != nil {
@@ -1150,8 +1141,7 @@ func nonTargetedASGs(ownedASGs, targetedASGs map[string]*autoScalingGroupDetails
 
 // SetTargetsOnCNITargetGroups implements desired state for CNI target groups
 // by polling the current list of targets thus creating a diff of what needs to be added and removed.
-func (a *Adapter) SetTargetsOnCNITargetGroups(endpoints, cniTargetGroupARNs []string) error {
-	ctx := context.TODO()
+func (a *Adapter) SetTargetsOnCNITargetGroups(ctx context.Context, endpoints, cniTargetGroupARNs []string) error {
 	log.Debugf("setting targets on CNI target groups: '%v'", cniTargetGroupARNs)
 	for _, targetGroupARN := range cniTargetGroupARNs {
 		tgh, err := a.elbv2.DescribeTargetHealth(ctx, &elbv2.DescribeTargetHealthInput{TargetGroupArn: &targetGroupARN})

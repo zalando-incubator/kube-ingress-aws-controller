@@ -1,6 +1,7 @@
 package certs
 
 import (
+	"context"
 	"crypto/x509"
 	"time"
 )
@@ -8,7 +9,7 @@ import (
 // CertificatesProvider interface for Certificate Provider like local,
 // AWS IAM or AWS ACM
 type CertificatesProvider interface {
-	GetCertificates() ([]*CertificateSummary, error)
+	GetCertificates(ctx context.Context) ([]*CertificateSummary, error)
 }
 
 // CertificateSummary is the business object for Certificates

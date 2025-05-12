@@ -399,6 +399,7 @@ func TestResourceConversionOneToOne(tt *testing.T) {
 		},
 	} {
 		tt.Run(scenario.name, func(t *testing.T) {
+			ctx := context.Background()
 			readFile := func(fileName string) []byte {
 				b, err := os.ReadFile("./testdata/" + scenario.name + "/output/" + fileName)
 				if err != nil {
@@ -462,7 +463,7 @@ func TestResourceConversionOneToOne(tt *testing.T) {
 				WithCustomCloudFormationClient(clientCF).
 				WithNLBZoneAffinity(aws.DefaultZoneAffinity)
 
-			a, err = a.UpdateManifest(clusterID, vpcID)
+			a, err = a.UpdateManifest(ctx, clusterID, vpcID)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -511,7 +512,7 @@ func TestResourceConversionOneToOne(tt *testing.T) {
 			}
 
 			log.SetLevel(log.DebugLevel)
-			problems := doWork(&certsfake.CertificateProvider{}, 10, time.Hour, a, k, "")
+			problems := doWork(ctx, &certsfake.CertificateProvider{}, 10, time.Hour, a, k, "")
 			if len(problems.Errors()) > 0 {
 				t.Error(problems.Errors())
 			}
@@ -1554,7 +1555,7 @@ func TestBuildModel(t *testing.T) {
 }
 
 func TestDoWorkPanicReturnsProblem(t *testing.T) {
-	problem := doWork(nil, 0, 0, nil, nil, "")
+	problem := doWork(context.Background(), nil, 0, 0, nil, nil, "")
 
 	require.NotNil(t, problem, "expected problem")
 	require.Len(t, problem.Errors(), 1)
@@ -1568,7 +1569,7 @@ func Test_cniEventHandler(t *testing.T) {
 		targetCNIcfg.TargetGroupCh <- []string{"foo"} // flush
 		mutex := &sync.Mutex{}
 		var targetSet, cniTGARNs []string
-		mockTargetSetter := func(endpoints, cniTargetGroupARNs []string) error {
+		mockTargetSetter := func(_ context.Context, endpoints, cniTargetGroupARNs []string) error {
 			mutex.Lock()
 			targetSet = endpoints
 			cniTGARNs = cniTargetGroupARNs
