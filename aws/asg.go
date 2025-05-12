@@ -4,14 +4,21 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/service/autoscaling"
-	"github.com/aws/aws-sdk-go/service/autoscaling/autoscalingiface"
-	"github.com/aws/aws-sdk-go/service/elbv2"
-	"github.com/aws/aws-sdk-go/service/elbv2/elbv2iface"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/autoscaling"
+	"github.com/aws/aws-sdk-go-v2/service/autoscaling/types"
+	elbv2 "github.com/aws/aws-sdk-go-v2/service/elasticloadbalancingv2"
+	elbv2Types "github.com/aws/aws-sdk-go-v2/service/elasticloadbalancingv2/types"
 
 	log "github.com/sirupsen/logrus"
 )
+
+type AutoScalingAPI interface {
+	autoscaling.DescribeAutoScalingGroupsAPIClient
+	autoscaling.DescribeLoadBalancerTargetGroupsAPIClient
+	AttachLoadBalancerTargetGroups(context.Context, *autoscaling.AttachLoadBalancerTargetGroupsInput, ...func(*autoscaling.Options)) (*autoscaling.AttachLoadBalancerTargetGroupsOutput, error)
+	DetachLoadBalancerTargetGroups(context.Context, *autoscaling.DetachLoadBalancerTargetGroupsInput, ...func(*autoscaling.Options)) (*autoscaling.DetachLoadBalancerTargetGroupsOutput, error)
+}
 
 type autoScalingGroupDetails struct {
 	name string
@@ -22,29 +29,28 @@ type autoScalingGroupDetails struct {
 	tags                    map[string]string
 }
 
-func getAutoScalingGroupByName(service autoscalingiface.AutoScalingAPI, autoScalingGroupName string) (*autoScalingGroupDetails, error) {
+func getAutoScalingGroupByName(ctx context.Context, service AutoScalingAPI, autoScalingGroupName string) (*autoScalingGroupDetails, error) {
 	params := &autoscaling.DescribeAutoScalingGroupsInput{
-		AutoScalingGroupNames: []*string{
-			aws.String(autoScalingGroupName),
+		AutoScalingGroupNames: []string{
+			autoScalingGroupName,
 		},
 	}
-	resp, err := service.DescribeAutoScalingGroups(params)
-
+	resp, err := service.DescribeAutoScalingGroups(ctx, params)
 	if err != nil {
 		return nil, err
 	}
 
 	for _, g := range resp.AutoScalingGroups {
-		if aws.StringValue(g.AutoScalingGroupName) == autoScalingGroupName {
+		if aws.ToString(g.AutoScalingGroupName) == autoScalingGroupName {
 			tags := make(map[string]string)
 			for _, td := range g.Tags {
-				tags[aws.StringValue(td.Key)] = aws.StringValue(td.Value)
+				tags[aws.ToString(td.Key)] = aws.ToString(td.Value)
 			}
 			return &autoScalingGroupDetails{
 				name:                    autoScalingGroupName,
-				arn:                     aws.StringValue(g.AutoScalingGroupARN),
-				targetGroups:            aws.StringValueSlice(g.TargetGroupARNs),
-				launchConfigurationName: aws.StringValue(g.LaunchConfigurationName),
+				arn:                     aws.ToString(g.AutoScalingGroupARN),
+				targetGroups:            g.TargetGroupARNs,
+				launchConfigurationName: aws.ToString(g.LaunchConfigurationName),
 				tags:                    tags,
 			}, nil
 		}
@@ -53,27 +59,27 @@ func getAutoScalingGroupByName(service autoscalingiface.AutoScalingAPI, autoScal
 	return nil, fmt.Errorf("auto scaling group %q not found", autoScalingGroupName)
 }
 
-func getAutoScalingGroupsByName(service autoscalingiface.AutoScalingAPI, autoScalingGroupNames []string) (map[string]*autoScalingGroupDetails, error) {
+func getAutoScalingGroupsByName(ctx context.Context, service AutoScalingAPI, autoScalingGroupNames []string) (map[string]*autoScalingGroupDetails, error) {
 	params := &autoscaling.DescribeAutoScalingGroupsInput{
-		AutoScalingGroupNames: aws.StringSlice(autoScalingGroupNames),
+		AutoScalingGroupNames: autoScalingGroupNames,
 	}
-	resp, err := service.DescribeAutoScalingGroups(params)
+	resp, err := service.DescribeAutoScalingGroups(ctx, params)
 	if err != nil {
 		return nil, err
 	}
 
 	result := make(map[string]*autoScalingGroupDetails)
 	for _, g := range resp.AutoScalingGroups {
-		name := aws.StringValue(g.AutoScalingGroupName)
+		name := aws.ToString(g.AutoScalingGroupName)
 		tags := make(map[string]string)
 		for _, td := range g.Tags {
-			tags[aws.StringValue(td.Key)] = aws.StringValue(td.Value)
+			tags[aws.ToString(td.Key)] = aws.ToString(td.Value)
 		}
 		result[name] = &autoScalingGroupDetails{
 			name:                    name,
-			arn:                     aws.StringValue(g.AutoScalingGroupARN),
-			launchConfigurationName: aws.StringValue(g.LaunchConfigurationName),
-			targetGroups:            aws.StringValueSlice(g.TargetGroupARNs),
+			arn:                     aws.ToString(g.AutoScalingGroupARN),
+			launchConfigurationName: aws.ToString(g.LaunchConfigurationName),
+			targetGroups:            g.TargetGroupARNs,
 			tags:                    tags,
 		}
 	}
@@ -112,59 +118,57 @@ func testFilterTags(filterTags map[string][]string, asgTags map[string]string) b
 	return len(filterTags) == len(matches)
 }
 
-func getOwnedAndTargetedAutoScalingGroups(service autoscalingiface.AutoScalingAPI, filterTags map[string][]string, ownedTags map[string]string) (map[string]*autoScalingGroupDetails, map[string]*autoScalingGroupDetails, error) {
+func getOwnedAndTargetedAutoScalingGroups(ctx context.Context, service AutoScalingAPI, filterTags map[string][]string, ownedTags map[string]string) (map[string]*autoScalingGroupDetails, map[string]*autoScalingGroupDetails, error) {
 	params := &autoscaling.DescribeAutoScalingGroupsInput{}
-
 	targetedASGs := make(map[string]*autoScalingGroupDetails)
 	ownedASGs := make(map[string]*autoScalingGroupDetails)
-	err := service.DescribeAutoScalingGroupsPages(params,
-		func(page *autoscaling.DescribeAutoScalingGroupsOutput, lastPage bool) bool {
-			for _, g := range page.AutoScalingGroups {
-				name := aws.StringValue(g.AutoScalingGroupName)
-				tags := make(map[string]string)
-				for _, td := range g.Tags {
-					key := aws.StringValue(td.Key)
-					value := aws.StringValue(td.Value)
-					tags[key] = value
-				}
+	paginator := autoscaling.NewDescribeAutoScalingGroupsPaginator(service, params)
+	for paginator.HasMorePages() {
+		page, err := paginator.NextPage(ctx)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to get describe auto scaling groups page: %w", err)
+		}
 
-				asg := &autoScalingGroupDetails{
-					name:                    name,
-					arn:                     aws.StringValue(g.AutoScalingGroupARN),
-					launchConfigurationName: aws.StringValue(g.LaunchConfigurationName),
-					targetGroups:            aws.StringValueSlice(g.TargetGroupARNs),
-					tags:                    tags,
-				}
-
-				if hasTagsASG(g.Tags, ownedTags) {
-					ownedASGs[name] = asg
-				}
-
-				if testFilterTags(filterTags, tags) {
-					targetedASGs[name] = asg
-				}
+		for _, g := range page.AutoScalingGroups {
+			name := aws.ToString(g.AutoScalingGroupName)
+			tags := make(map[string]string)
+			for _, td := range g.Tags {
+				key := aws.ToString(td.Key)
+				value := aws.ToString(td.Value)
+				tags[key] = value
 			}
 
-			return true
-		})
-	if err != nil {
-		return nil, nil, err
-	}
+			asg := &autoScalingGroupDetails{
+				name:                    name,
+				arn:                     aws.ToString(g.AutoScalingGroupARN),
+				launchConfigurationName: aws.ToString(g.LaunchConfigurationName),
+				targetGroups:            g.TargetGroupARNs,
+				tags:                    tags,
+			}
 
+			if hasTagsASG(g.Tags, ownedTags) {
+				ownedASGs[name] = asg
+			}
+
+			if testFilterTags(filterTags, tags) {
+				targetedASGs[name] = asg
+			}
+		}
+	}
 	return targetedASGs, ownedASGs, nil
 }
 
-func updateTargetGroupsForAutoScalingGroup(svc autoscalingiface.AutoScalingAPI, elbv2svc elbv2iface.ELBV2API, targetGroupARNs []string, autoScalingGroupName string, ownerTags map[string]string) error {
+func updateTargetGroupsForAutoScalingGroup(ctx context.Context, svc AutoScalingAPI, elbv2svc ELBV2API, targetGroupARNs []string, autoScalingGroupName string, ownerTags map[string]string) error {
 	params := &autoscaling.DescribeLoadBalancerTargetGroupsInput{
 		AutoScalingGroupName: aws.String(autoScalingGroupName),
 	}
 
-	resp, err := svc.DescribeLoadBalancerTargetGroups(params)
+	resp, err := svc.DescribeLoadBalancerTargetGroups(ctx, params)
 	if err != nil {
 		return err
 	}
 
-	allTGs, err := describeTargetGroups(elbv2svc)
+	allTGs, err := describeTargetGroups(ctx, elbv2svc)
 	if err != nil {
 		return err
 	}
@@ -174,7 +178,7 @@ func updateTargetGroupsForAutoScalingGroup(svc autoscalingiface.AutoScalingAPI, 
 		detachARNs := make([]string, 0, len(resp.LoadBalancerTargetGroups))
 		validARNs := make([]string, 0, len(resp.LoadBalancerTargetGroups))
 		for _, tg := range resp.LoadBalancerTargetGroups {
-			tgARN := aws.StringValue(tg.LoadBalancerTargetGroupARN)
+			tgARN := aws.ToString(tg.LoadBalancerTargetGroupARN)
 
 			// check that TG exists at all, otherwise detach it
 			if _, ok := allTGs[tgARN]; !ok {
@@ -184,7 +188,7 @@ func updateTargetGroupsForAutoScalingGroup(svc autoscalingiface.AutoScalingAPI, 
 			}
 		}
 
-		descs, err := describeTags(elbv2svc, validARNs)
+		descs, err := describeTags(ctx, elbv2svc, validARNs)
 		if err != nil {
 			return err
 		}
@@ -203,7 +207,7 @@ func updateTargetGroupsForAutoScalingGroup(svc autoscalingiface.AutoScalingAPI, 
 		}
 
 		if len(detachARNs) > 0 {
-			err := detachTargetGroupsFromAutoScalingGroup(svc, detachARNs, autoScalingGroupName)
+			err := detachTargetGroupsFromAutoScalingGroup(ctx, svc, detachARNs, autoScalingGroupName)
 			if err != nil {
 				return err
 			}
@@ -221,7 +225,7 @@ func updateTargetGroupsForAutoScalingGroup(svc autoscalingiface.AutoScalingAPI, 
 	}
 
 	if len(attachARNs) > 0 {
-		err := attachTargetGroupsToAutoScalingGroup(svc, attachARNs, autoScalingGroupName)
+		err := attachTargetGroupsToAutoScalingGroup(ctx, svc, attachARNs, autoScalingGroupName)
 		if err != nil {
 			return err
 		}
@@ -230,13 +234,13 @@ func updateTargetGroupsForAutoScalingGroup(svc autoscalingiface.AutoScalingAPI, 
 	return nil
 }
 
-func describeTags(svc elbv2iface.ELBV2API, arns []string) ([]*elbv2.TagDescription, error) {
-	descs := make([]*elbv2.TagDescription, 0, len(arns))
+func describeTags(ctx context.Context, svc ELBV2API, arns []string) ([]elbv2Types.TagDescription, error) {
+	descs := make([]elbv2Types.TagDescription, 0, len(arns))
 	// You can specify up to 20 resources in a single call,
-	// see https://docs.aws.amazon.com/sdk-for-go/api/service/elbv2/#DescribeTagsInput
+	// see [elasticloadbalancingv2.DescribeTagsInput]
 	err := processChunked(arns, 20, func(chunk []string) error {
-		tgResp, err := svc.DescribeTags(&elbv2.DescribeTagsInput{
-			ResourceArns: aws.StringSlice(chunk),
+		tgResp, err := svc.DescribeTags(ctx, &elbv2.DescribeTagsInput{
+			ResourceArns: chunk,
 		})
 		if err == nil {
 			descs = append(descs, tgResp.TagDescriptions...)
@@ -246,40 +250,47 @@ func describeTags(svc elbv2iface.ELBV2API, arns []string) ([]*elbv2.TagDescripti
 	return descs, err
 }
 
-func describeTargetGroups(elbv2svc elbv2iface.ELBV2API) (map[string]struct{}, error) {
+func describeTargetGroups(ctx context.Context, elbv2svc ELBV2API) (map[string]struct{}, error) {
 	targetGroups := make(map[string]struct{})
-	err := elbv2svc.DescribeTargetGroupsPagesWithContext(context.TODO(), &elbv2.DescribeTargetGroupsInput{}, func(resp *elbv2.DescribeTargetGroupsOutput, lastPage bool) bool {
-		for _, tg := range resp.TargetGroups {
-			targetGroups[aws.StringValue(tg.TargetGroupArn)] = struct{}{}
+	paginator := elbv2.NewDescribeTargetGroupsPaginator(elbv2svc, &elbv2.DescribeTargetGroupsInput{})
+	for paginator.HasMorePages() {
+		page, err := paginator.NextPage(ctx)
+		if err != nil {
+			return targetGroups, fmt.Errorf("failed to get describe target groups page: %w", err)
 		}
-		return true
-	})
-	return targetGroups, err
+		for _, tg := range page.TargetGroups {
+			targetGroups[aws.ToString(tg.TargetGroupArn)] = struct{}{}
+		}
+	}
+	return targetGroups, nil
 }
 
 // map the target group slice into specific types such as instance, ip, etc
-func categorizeTargetTypeInstance(elbv2svc elbv2iface.ELBV2API, allTGARNs []string) (map[string][]string, error) {
-	targetTypes := make(map[string][]string)
-	err := elbv2svc.DescribeTargetGroupsPagesWithContext(context.TODO(), &elbv2.DescribeTargetGroupsInput{},
-		func(resp *elbv2.DescribeTargetGroupsOutput, lastPage bool) bool {
-			for _, tg := range resp.TargetGroups {
-				for _, v := range allTGARNs {
-					if v != aws.StringValue(tg.TargetGroupArn) {
-						continue
-					}
-					targetTypes[aws.StringValue(tg.TargetType)] = append(targetTypes[aws.StringValue(tg.TargetType)], aws.StringValue(tg.TargetGroupArn))
+func categorizeTargetTypeInstance(ctx context.Context, elbv2svc ELBV2API, allTGARNs []string) (map[elbv2Types.TargetTypeEnum][]string, error) {
+	targetTypes := make(map[elbv2Types.TargetTypeEnum][]string)
+	paginator := elbv2.NewDescribeTargetGroupsPaginator(elbv2svc, &elbv2.DescribeTargetGroupsInput{})
+	for paginator.HasMorePages() {
+		page, err := paginator.NextPage(ctx)
+		if err != nil {
+			return targetTypes, fmt.Errorf("failed to get describe target groups page: %w", err)
+		}
+		for _, tg := range page.TargetGroups {
+			for _, v := range allTGARNs {
+				if v != aws.ToString(tg.TargetGroupArn) {
+					continue
 				}
+				targetTypes[tg.TargetType] = append(targetTypes[tg.TargetType], aws.ToString(tg.TargetGroupArn))
 			}
-			return true
-		})
+		}
+	}
 	log.Debugf("categorized target group arns: %#v", targetTypes)
-	return targetTypes, err
+	return targetTypes, nil
 }
 
 // tgHasTags returns true if the specified resource has the expected tags.
-func tgHasTags(descs []*elbv2.TagDescription, arn string, tags map[string]string) bool {
+func tgHasTags(descs []elbv2Types.TagDescription, arn string, tags map[string]string) bool {
 	for _, desc := range descs {
-		if aws.StringValue(desc.ResourceArn) == arn && hasTags(desc.Tags, tags) {
+		if aws.ToString(desc.ResourceArn) == arn && hasTags(desc.Tags, tags) {
 			return true
 		}
 	}
@@ -287,11 +298,11 @@ func tgHasTags(descs []*elbv2.TagDescription, arn string, tags map[string]string
 }
 
 // hasTags returns true if the expectedTags are found in the list of tags.
-func hasTags(tags []*elbv2.Tag, expectedTags map[string]string) bool {
+func hasTags(tags []elbv2Types.Tag, expectedTags map[string]string) bool {
 	for key, val := range expectedTags {
 		found := false
 		for _, tag := range tags {
-			if aws.StringValue(tag.Key) == key && aws.StringValue(tag.Value) == val {
+			if aws.ToString(tag.Key) == key && aws.ToString(tag.Value) == val {
 				found = true
 				break
 			}
@@ -305,11 +316,11 @@ func hasTags(tags []*elbv2.Tag, expectedTags map[string]string) bool {
 }
 
 // hasTagsASG returns true if the expectedTags are found in the list of tags.
-func hasTagsASG(tags []*autoscaling.TagDescription, expectedTags map[string]string) bool {
+func hasTagsASG(tags []types.TagDescription, expectedTags map[string]string) bool {
 	for key, val := range expectedTags {
 		found := false
 		for _, tag := range tags {
-			if aws.StringValue(tag.Key) == key && aws.StringValue(tag.Value) == val {
+			if aws.ToString(tag.Key) == key && aws.ToString(tag.Value) == val {
 				found = true
 				break
 			}
@@ -322,25 +333,25 @@ func hasTagsASG(tags []*autoscaling.TagDescription, expectedTags map[string]stri
 	return true
 }
 
-func attachTargetGroupsToAutoScalingGroup(svc autoscalingiface.AutoScalingAPI, targetGroupARNs []string, autoScalingGroupName string) error {
+func attachTargetGroupsToAutoScalingGroup(ctx context.Context, svc AutoScalingAPI, targetGroupARNs []string, autoScalingGroupName string) error {
 	// You can specify up to 10 target groups,
-	// see https://docs.aws.amazon.com/sdk-for-go/api/service/autoscaling/#AttachLoadBalancerTargetGroupsInput
+	// see [autoscaling.AttachLoadBalancerTargetGroupsInput]
 	return processChunked(targetGroupARNs, 10, func(chunk []string) error {
-		_, err := svc.AttachLoadBalancerTargetGroups(&autoscaling.AttachLoadBalancerTargetGroupsInput{
+		_, err := svc.AttachLoadBalancerTargetGroups(ctx, &autoscaling.AttachLoadBalancerTargetGroupsInput{
 			AutoScalingGroupName: aws.String(autoScalingGroupName),
-			TargetGroupARNs:      aws.StringSlice(chunk),
+			TargetGroupARNs:      chunk,
 		})
 		return err
 	})
 }
 
-func detachTargetGroupsFromAutoScalingGroup(svc autoscalingiface.AutoScalingAPI, targetGroupARNs []string, autoScalingGroupName string) error {
+func detachTargetGroupsFromAutoScalingGroup(ctx context.Context, svc AutoScalingAPI, targetGroupARNs []string, autoScalingGroupName string) error {
 	// You can specify up to 10 target groups,
-	// see https://docs.aws.amazon.com/sdk-for-go/api/service/autoscaling/#DetachLoadBalancerTargetGroupsInput
+	// see [autoscaling.AttachLoadBalancerTargetGroupsInput]
 	return processChunked(targetGroupARNs, 10, func(chunk []string) error {
-		_, err := svc.DetachLoadBalancerTargetGroups(&autoscaling.DetachLoadBalancerTargetGroupsInput{
+		_, err := svc.DetachLoadBalancerTargetGroups(ctx, &autoscaling.DetachLoadBalancerTargetGroupsInput{
 			AutoScalingGroupName: aws.String(autoScalingGroupName),
-			TargetGroupARNs:      aws.StringSlice(chunk),
+			TargetGroupARNs:      chunk,
 		})
 		return err
 	})

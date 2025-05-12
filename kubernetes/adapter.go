@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/aws/aws-sdk-go/service/elbv2"
+	elbv2Types "github.com/aws/aws-sdk-go-v2/service/elasticloadbalancingv2/types"
 	log "github.com/sirupsen/logrus"
 	"github.com/zalando-incubator/kube-ingress-aws-controller/aws"
 	"k8s.io/client-go/kubernetes"
@@ -168,13 +168,14 @@ func (a *Adapter) newIngressFromRouteGroup(rg *routegroup) (*Ingress, error) {
 func (a *Adapter) newIngress(typ IngressType, metadata kubeItemMetadata, host string, hostnames []string) (*Ingress, error) {
 	annotations := metadata.Annotations
 
-	var scheme string
+	var scheme elbv2Types.LoadBalancerSchemeEnum
 	// Set schema to default if annotation value is not valid
-	switch getAnnotationsString(annotations, ingressSchemeAnnotation, "") {
-	case elbv2.LoadBalancerSchemeEnumInternal:
-		scheme = elbv2.LoadBalancerSchemeEnumInternal
+	annotationValue := getAnnotationsString(annotations, ingressSchemeAnnotation, "")
+	switch elbv2Types.LoadBalancerSchemeEnum(annotationValue) {
+	case elbv2Types.LoadBalancerSchemeEnumInternal:
+		scheme = elbv2Types.LoadBalancerSchemeEnumInternal
 	default:
-		scheme = elbv2.LoadBalancerSchemeEnumInternetFacing
+		scheme = elbv2Types.LoadBalancerSchemeEnumInternetFacing
 	}
 
 	shared := true
@@ -196,7 +197,7 @@ func (a *Adapter) newIngress(typ IngressType, metadata kubeItemMetadata, host st
 	if !hasLB {
 		// internal load balancers should be ALB if user do not override the decision
 		// https://docs.aws.amazon.com/elasticloadbalancing/latest/network/load-balancer-troubleshooting.html#intermittent-connection-failure
-		if scheme == elbv2.LoadBalancerSchemeEnumInternal {
+		if scheme == elbv2Types.LoadBalancerSchemeEnumInternal {
 			loadBalancerType = loadBalancerTypeALB
 		} else {
 			loadBalancerType = a.ingressDefaultLoadBalancerType
@@ -243,7 +244,7 @@ func (a *Adapter) newIngress(typ IngressType, metadata kubeItemMetadata, host st
 		Hostnames:        hostnames,
 		ClusterLocal:     len(hostnames) < 1,
 		CertificateARN:   getAnnotationsString(annotations, ingressCertificateARNAnnotation, ""),
-		Scheme:           scheme,
+		Scheme:           string(scheme),
 		Shared:           shared,
 		SecurityGroup:    securityGroup,
 		SSLPolicy:        sslPolicy,

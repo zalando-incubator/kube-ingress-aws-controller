@@ -1,12 +1,13 @@
 package aws
 
 import (
+	"context"
 	"fmt"
 	"reflect"
 	"testing"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/service/ec2"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/ec2/types"
 
 	"github.com/zalando-incubator/kube-ingress-aws-controller/aws/fake"
 )
@@ -56,7 +57,7 @@ func TestFindingSecurityGroup(t *testing.T) {
 	} {
 		t.Run(fmt.Sprintf("%v", test.name), func(t *testing.T) {
 			ec2 := &fake.EC2Client{Outputs: test.responses}
-			got, err := findSecurityGroupWithClusterID(ec2, "foo", "kube-ingress-aws-controller")
+			got, err := findSecurityGroupWithClusterID(context.Background(), ec2, "foo", "kube-ingress-aws-controller")
 			assertResultAndError(t, test.want, got, test.wantError, err)
 		})
 	}
@@ -160,7 +161,7 @@ func TestGetInstanceDetails(t *testing.T) {
 	} {
 		t.Run(fmt.Sprintf("%v", test.name), func(t *testing.T) {
 			ec2 := &fake.EC2Client{Outputs: test.responses}
-			got, err := getInstanceDetails(ec2, "foo")
+			got, err := getInstanceDetails(context.Background(), ec2, "foo")
 			assertResultAndError(t, test.want, got, test.wantError, err)
 		})
 	}
@@ -238,7 +239,7 @@ func TestGetSubnets(t *testing.T) {
 	} {
 		t.Run(fmt.Sprintf("%v", test.name), func(t *testing.T) {
 			ec2 := &fake.EC2Client{Outputs: test.responses}
-			got, err := getSubnets(ec2, "foo", "bar")
+			got, err := getSubnets(context.Background(), ec2, "foo", "bar")
 			assertResultAndError(t, test.want, got, test.wantError, err)
 		})
 	}
@@ -247,27 +248,26 @@ func TestGetSubnets(t *testing.T) {
 func TestGetInstancesDetailsWithFilters(t *testing.T) {
 	for _, test := range []struct {
 		name      string
-		input     []*ec2.Filter
+		input     []types.Filter
 		responses fake.EC2Outputs
 		want      map[string]*instanceDetails
 		wantError bool
 	}{
 		{
 			"success-call",
-			[]*ec2.Filter{
+			[]types.Filter{
 				{
 					Name: aws.String("tag:KubernetesCluster"),
-					Values: []*string{
-						aws.String("kube1"),
+					Values: []string{
+						"kube1",
 					},
 				},
 			},
-			fake.EC2Outputs{DescribeInstancesPages: fake.MockDescribeInstancesPagesOutput(
-				nil,
+			fake.EC2Outputs{DescribeInstances: fake.R(fake.MockDescribeInstancesOutput(
 				fake.TestInstance{Id: "foo1", Tags: fake.Tags{"bar": "baz"}, PrivateIp: "1.2.3.4", VpcId: "1", State: 16},
 				fake.TestInstance{Id: "foo2", Tags: fake.Tags{"bar": "baz"}, PrivateIp: "1.2.3.5", VpcId: "1", State: 32},
 				fake.TestInstance{Id: "foo3", Tags: fake.Tags{"aaa": "zzz"}, PrivateIp: "1.2.3.6", VpcId: "1", State: 80},
-			)},
+			), nil)},
 			map[string]*instanceDetails{
 				"foo1": {id: "foo1", tags: map[string]string{"bar": "baz"}, ip: "1.2.3.4", vpcID: "1", running: true},
 				"foo2": {id: "foo2", tags: map[string]string{"bar": "baz"}, ip: "1.2.3.5", vpcID: "1", running: false},
@@ -277,12 +277,11 @@ func TestGetInstancesDetailsWithFilters(t *testing.T) {
 		},
 		{
 			"success-empty-filters",
-			[]*ec2.Filter{},
-			fake.EC2Outputs{DescribeInstancesPages: fake.MockDescribeInstancesPagesOutput(
-				nil,
+			[]types.Filter{},
+			fake.EC2Outputs{DescribeInstances: fake.R(fake.MockDescribeInstancesOutput(
 				fake.TestInstance{Id: "foo1", Tags: fake.Tags{"bar": "baz"}, PrivateIp: "1.2.3.4", VpcId: "1", State: 16},
 				fake.TestInstance{Id: "foo3", Tags: fake.Tags{"aaa": "zzz"}, PrivateIp: "1.2.3.6", VpcId: "1", State: 80},
-			)},
+			), nil)},
 			map[string]*instanceDetails{
 				"foo1": {id: "foo1", tags: map[string]string{"bar": "baz"}, ip: "1.2.3.4", vpcID: "1", running: true},
 				"foo3": {id: "foo3", tags: map[string]string{"aaa": "zzz"}, ip: "1.2.3.6", vpcID: "1", running: false},
@@ -291,36 +290,36 @@ func TestGetInstancesDetailsWithFilters(t *testing.T) {
 		},
 		{
 			"success-empty-response",
-			[]*ec2.Filter{
+			[]types.Filter{
 				{
 					Name: aws.String("vpc-id"),
-					Values: []*string{
-						aws.String("some-vpc"),
+					Values: []string{
+						"some-vpc",
 					},
 				},
 			},
-			fake.EC2Outputs{DescribeInstancesPages: fake.MockDescribeInstancesPagesOutput(nil)},
+			fake.EC2Outputs{DescribeInstances: fake.R(fake.MockDescribeInstancesOutput(), nil)},
 			map[string]*instanceDetails{},
 			false,
 		},
 		{
 			"aws-api-fail",
-			[]*ec2.Filter{
+			[]types.Filter{
 				{
 					Name: aws.String("tag-key"),
-					Values: []*string{
-						aws.String("key1"),
+					Values: []string{
+						"key1",
 					},
 				},
 			},
-			fake.EC2Outputs{DescribeInstancesPages: fake.MockDescribeInstancesPagesOutput(fake.ErrDummy, fake.TestInstance{})},
+			fake.EC2Outputs{DescribeInstances: fake.R(fake.MockDescribeInstancesOutput(fake.TestInstance{}), fake.ErrDummy)},
 			nil,
 			true,
 		},
 	} {
 		t.Run(fmt.Sprintf("%v", test.name), func(t *testing.T) {
 			ec2 := &fake.EC2Client{Outputs: test.responses}
-			got, err := getInstancesDetailsWithFilters(ec2, test.input)
+			got, err := getInstancesDetailsWithFilters(context.Background(), ec2, test.input)
 			assertResultAndError(t, test.want, got, test.wantError, err)
 		})
 	}
@@ -339,5 +338,25 @@ func assertResultAndError(t *testing.T, want, got interface{}, wantError bool, e
 		if !reflect.DeepEqual(want, got) {
 			t.Errorf("unexpected result. wanted %+v, got %+v", want, got)
 		}
+	}
+}
+
+func TestIsInstanceRunning(t *testing.T) {
+	for _, test := range []struct {
+		name  string
+		input *types.InstanceState
+		want  bool
+	}{
+		{"running", &types.InstanceState{Code: aws.Int32(16)}, true},
+		{"stopped", &types.InstanceState{Code: aws.Int32(80)}, false},
+		{"shutting-down", &types.InstanceState{Code: aws.Int32(32)}, false},
+		{"terminated", &types.InstanceState{Code: aws.Int32(48)}, false},
+	} {
+		t.Run(fmt.Sprintf("%v", test.name), func(t *testing.T) {
+			got := isInstanceRunning(test.input)
+			if got != test.want {
+				t.Errorf("unexpected result. wanted %v, got %v", test.want, got)
+			}
+		})
 	}
 }

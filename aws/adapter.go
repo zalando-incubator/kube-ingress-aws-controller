@@ -1,27 +1,25 @@
 package aws
 
 import (
+	"context"
 	"errors"
 	"fmt"
+	"io"
+	"net/http"
 	"strings"
 	"time"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/client"
-	"github.com/aws/aws-sdk-go/aws/ec2metadata"
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/acm"
-	"github.com/aws/aws-sdk-go/service/acm/acmiface"
-	"github.com/aws/aws-sdk-go/service/autoscaling"
-	"github.com/aws/aws-sdk-go/service/autoscaling/autoscalingiface"
-	"github.com/aws/aws-sdk-go/service/cloudformation"
-	"github.com/aws/aws-sdk-go/service/cloudformation/cloudformationiface"
-	"github.com/aws/aws-sdk-go/service/ec2"
-	"github.com/aws/aws-sdk-go/service/ec2/ec2iface"
-	"github.com/aws/aws-sdk-go/service/elbv2"
-	"github.com/aws/aws-sdk-go/service/elbv2/elbv2iface"
-	"github.com/aws/aws-sdk-go/service/iam"
-	"github.com/aws/aws-sdk-go/service/iam/iamiface"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/feature/ec2/imds"
+	"github.com/aws/aws-sdk-go-v2/service/acm"
+	"github.com/aws/aws-sdk-go-v2/service/autoscaling"
+	"github.com/aws/aws-sdk-go-v2/service/cloudformation"
+	"github.com/aws/aws-sdk-go-v2/service/ec2"
+	ec2Types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
+	elbv2 "github.com/aws/aws-sdk-go-v2/service/elasticloadbalancingv2"
+	elbv2Types "github.com/aws/aws-sdk-go-v2/service/elasticloadbalancingv2/types"
+	"github.com/aws/aws-sdk-go-v2/service/iam"
 	"github.com/linki/instrumented_http"
 	log "github.com/sirupsen/logrus"
 	"github.com/zalando-incubator/kube-ingress-aws-controller/certs"
@@ -30,13 +28,13 @@ import (
 
 // An Adapter can be used to orchestrate and obtain information from Amazon Web Services.
 type Adapter struct {
-	ec2metadata    *ec2metadata.EC2Metadata
-	ec2            ec2iface.EC2API
-	elbv2          elbv2iface.ELBV2API
-	autoscaling    autoscalingiface.AutoScalingAPI
-	acm            acmiface.ACMAPI
-	iam            iamiface.IAMAPI
-	cloudformation cloudformationiface.CloudFormationAPI
+	ec2metadata    *imds.Client
+	ec2            EC2API
+	elbv2          ELBV2API
+	autoscaling    AutoScalingAPI
+	acm            ACMAPI
+	iam            IAMAPI
+	cloudformation CloudFormationAPI
 
 	manifest                    *manifest
 	healthCheckPath             string
@@ -46,7 +44,7 @@ type Adapter struct {
 	albHealthyThresholdCount    uint
 	albUnhealthyThresholdCount  uint
 	nlbHealthyThresholdCount    uint
-	targetType                  string
+	targetType                  elbv2Types.TargetTypeEnum
 	targetPort                  uint
 	albHTTPTargetPort           uint
 	nlbHTTPTargetPort           uint
@@ -88,7 +86,7 @@ type manifest struct {
 	securityGroup *securityGroupDetails
 	instance      *instanceDetails
 	subnets       []*subnetDetails
-	filters       []*ec2.Filter
+	filters       []ec2Types.Filter
 	asgFilters    map[string][]string
 	clusterID     string
 	vpcID         string
@@ -205,19 +203,30 @@ var (
 	}
 )
 
-func newConfigProvider(debug, disableInstrumentedHttpClient bool) client.ConfigProvider {
-	cfg := aws.NewConfig().WithMaxRetries(3)
+func newConfigProvider(debug, disableInstrumentedHttpClient bool) (*aws.Config, error) {
+	optFns := []func(*config.LoadOptions) error{
+		config.WithRetryMaxAttempts(3),
+	}
 	if debug {
-		cfg = cfg.WithLogLevel(aws.LogDebugWithRequestErrors)
+		optFns = append(optFns, config.WithClientLogMode(aws.LogRequest))
+	}
+
+	cfg, err := config.LoadDefaultConfig(context.TODO(), optFns...)
+	if err != nil {
+		return nil, fmt.Errorf("unable to load SDK config, %v", err)
 	}
 	if !disableInstrumentedHttpClient {
-		cfg = cfg.WithHTTPClient(instrumented_http.NewClient(cfg.HTTPClient, nil))
+		if cfg.HTTPClient != nil {
+			httpClient, ok := cfg.HTTPClient.(*http.Client)
+			if !ok {
+				return nil, fmt.Errorf("cfg.HTTPClient is not of type *http.Client %v", cfg.HTTPClient)
+			}
+			cfg.HTTPClient = instrumented_http.NewClient(httpClient, nil)
+		} else {
+			cfg.HTTPClient = instrumented_http.NewClient(nil, nil)
+		}
 	}
-	opts := session.Options{
-		SharedConfigState: session.SharedConfigEnable,
-		Config:            *cfg,
-	}
-	return session.Must(session.NewSessionWithOptions(opts))
+	return &cfg, nil
 }
 
 // NewAdapter returns a new Adapter that can be used to orchestrate and obtain information from Amazon Web Services.
@@ -225,15 +234,20 @@ func newConfigProvider(debug, disableInstrumentedHttpClient bool) client.ConfigP
 // Security Group that should be used for newly created Load Balancers. If any of those critical steps fail
 // an appropriate error is returned.
 func NewAdapter(clusterID, newControllerID, vpcID string, debug, disableInstrumentedHttpClient bool) (adapter *Adapter, err error) {
-	p := newConfigProvider(debug, disableInstrumentedHttpClient)
+	ctx := context.TODO()
+	cfgptr, err := newConfigProvider(debug, disableInstrumentedHttpClient)
+	if err != nil {
+		return nil, err
+	}
+	cfg := *cfgptr
 	adapter = &Adapter{
-		ec2:                        ec2.New(p),
-		elbv2:                      elbv2.New(p),
-		ec2metadata:                ec2metadata.New(p),
-		autoscaling:                autoscaling.New(p),
-		acm:                        acm.New(p),
-		iam:                        iam.New(p),
-		cloudformation:             cloudformation.New(p),
+		ec2:                        ec2.NewFromConfig(cfg),
+		elbv2:                      elbv2.NewFromConfig(cfg),
+		ec2metadata:                imds.NewFromConfig(cfg),
+		autoscaling:                autoscaling.NewFromConfig(cfg),
+		acm:                        acm.NewFromConfig(cfg),
+		iam:                        iam.NewFromConfig(cfg),
+		cloudformation:             cloudformation.NewFromConfig(cfg),
 		healthCheckPath:            DefaultHealthCheckPath,
 		healthCheckPort:            DefaultHealthCheckPort,
 		targetPort:                 DefaultTargetPort,
@@ -261,7 +275,7 @@ func NewAdapter(clusterID, newControllerID, vpcID string, debug, disableInstrume
 		},
 	}
 
-	adapter.manifest, err = buildManifest(adapter, clusterID, vpcID)
+	adapter.manifest, err = buildManifest(ctx, adapter, clusterID, vpcID)
 	if err != nil {
 		return nil, err
 	}
@@ -272,7 +286,8 @@ func NewAdapter(clusterID, newControllerID, vpcID string, debug, disableInstrume
 // UpdateManifest generates a manifest again based on cluster and VPC information.
 // This method is useful when using custom AWS clients.
 func (a *Adapter) UpdateManifest(clusterID, vpcID string) (*Adapter, error) {
-	m, err := buildManifest(a, clusterID, vpcID)
+	ctx := context.TODO()
+	m, err := buildManifest(ctx, a, clusterID, vpcID)
 	if err != nil {
 		return nil, err
 	}
@@ -490,9 +505,9 @@ func (a *Adapter) WithTargetAccessMode(mode string) *Adapter {
 
 	switch mode {
 	case TargetAccessModeHostPort:
-		a.targetType = elbv2.TargetTypeEnumInstance
+		a.targetType = elbv2Types.TargetTypeEnumInstance
 	case TargetAccessModeAWSCNI:
-		a.targetType = elbv2.TargetTypeEnumIp
+		a.targetType = elbv2Types.TargetTypeEnumIp
 	case TargetAccessModeLegacy:
 		a.targetType = ""
 	}
@@ -535,28 +550,28 @@ func (a *Adapter) WithInternalDomainsDenyResponseContenType(contentType string) 
 
 // WithCustomEc2Client returns an Adapter that will use the provided
 // EC2 client, instead of the EC2 client provided by AWS.
-func (a *Adapter) WithCustomEc2Client(c ec2iface.EC2API) *Adapter {
+func (a *Adapter) WithCustomEc2Client(c EC2API) *Adapter {
 	a.ec2 = c
 	return a
 }
 
 // WithCustomAutoScalingClient returns an Adapter that will use the provided
 // Auto scaling client, instead of the Auto scaling client provided by AWS.
-func (a *Adapter) WithCustomAutoScalingClient(c autoscalingiface.AutoScalingAPI) *Adapter {
+func (a *Adapter) WithCustomAutoScalingClient(c AutoScalingAPI) *Adapter {
 	a.autoscaling = c
 	return a
 }
 
 // WithCustomElbv2Client returns an Adapter that will use the provided
 // ELBv2 client, instead of the ELBv2 client provided by AWS.
-func (a *Adapter) WithCustomElbv2Client(c elbv2iface.ELBV2API) *Adapter {
+func (a *Adapter) WithCustomElbv2Client(c ELBV2API) *Adapter {
 	a.elbv2 = c
 	return a
 }
 
 // WithCustomCloudFormationClient returns an Adapter that will use the provided
 // CloudFormation client, instead of the CloudFormation client provided by AWS.
-func (a *Adapter) WithCustomCloudFormationClient(c cloudformationiface.CloudFormationAPI) *Adapter {
+func (a *Adapter) WithCustomCloudFormationClient(c CloudFormationAPI) *Adapter {
 	a.cloudformation = c
 	return a
 }
@@ -627,7 +642,7 @@ func (a Adapter) CachedInstances() int {
 func (a Adapter) FiltersString() string {
 	result := ""
 	for _, filter := range a.manifest.filters {
-		result += fmt.Sprintf("%s=%s ", aws.StringValue(filter.Name), strings.Join(aws.StringValueSlice(filter.Values), ","))
+		result += fmt.Sprintf("%s=%s ", aws.ToString(filter.Name), strings.Join(filter.Values, ","))
 	}
 	return strings.TrimSpace(result)
 }
@@ -640,7 +655,8 @@ func (a *Adapter) SecurityGroupID() string {
 // FindManagedStacks returns all CloudFormation stacks containing the controller management tags
 // that match the current cluster and are ready to be used. The stack status is used to filter.
 func (a *Adapter) FindManagedStacks() ([]*Stack, error) {
-	stacks, err := findManagedStacks(a.cloudformation, a.ClusterID(), a.controllerID)
+	ctx := context.TODO()
+	stacks, err := findManagedStacks(ctx, a.cloudformation, a.ClusterID(), a.controllerID)
 	if err != nil {
 		return nil, err
 	}
@@ -651,6 +667,7 @@ func (a *Adapter) FindManagedStacks() ([]*Stack, error) {
 // config to have relevant Target Groups and registers/deregisters single
 // instances (that do not belong to ASG) in relevant Target Groups.
 func (a *Adapter) UpdateTargetGroupsAndAutoScalingGroups(stacks []*Stack, problems *problem.List) {
+	ctx := context.TODO()
 	allTargetGroupARNs := make([]string, 0, len(stacks))
 	for _, stack := range stacks {
 		if len(stack.TargetGroupARNs) > 0 {
@@ -658,7 +675,7 @@ func (a *Adapter) UpdateTargetGroupsAndAutoScalingGroups(stacks []*Stack, proble
 		}
 	}
 	// split the full list into TG types
-	targetTypesARNs, err := categorizeTargetTypeInstance(a.elbv2, allTargetGroupARNs)
+	targetTypesARNs, err := categorizeTargetTypeInstance(ctx, a.elbv2, allTargetGroupARNs)
 	if err != nil {
 		problems.Add("failed to categorize Target Type Instance: %w", err)
 		return
@@ -666,11 +683,11 @@ func (a *Adapter) UpdateTargetGroupsAndAutoScalingGroups(stacks []*Stack, proble
 
 	// update the CNI TG list
 	if a.TargetCNI.Enabled {
-		a.TargetCNI.TargetGroupCh <- targetTypesARNs[elbv2.TargetTypeEnumIp]
+		a.TargetCNI.TargetGroupCh <- targetTypesARNs[elbv2Types.TargetTypeEnumIp]
 	}
 
 	// remove the IP TGs from the list keeping all other TGs including problematic #127 and nonexistent #436
-	targetGroupARNs := difference(allTargetGroupARNs, targetTypesARNs[elbv2.TargetTypeEnumIp])
+	targetGroupARNs := difference(allTargetGroupARNs, targetTypesARNs[elbv2Types.TargetTypeEnumIp])
 
 	ownerTags := map[string]string{
 		clusterIDTagPrefix + a.ClusterID(): resourceLifecycleOwned,
@@ -679,7 +696,7 @@ func (a *Adapter) UpdateTargetGroupsAndAutoScalingGroups(stacks []*Stack, proble
 
 	for _, asg := range a.TargetedAutoScalingGroups {
 		// This call is idempotent and safe to execute every time
-		if err := updateTargetGroupsForAutoScalingGroup(a.autoscaling, a.elbv2, targetGroupARNs, asg.name, ownerTags); err != nil {
+		if err := updateTargetGroupsForAutoScalingGroup(ctx, a.autoscaling, a.elbv2, targetGroupARNs, asg.name, ownerTags); err != nil {
 			problems.Add("failed to update target groups for autoscaling group %q: %w", asg.name, err)
 		}
 	}
@@ -688,7 +705,7 @@ func (a *Adapter) UpdateTargetGroupsAndAutoScalingGroups(stacks []*Stack, proble
 	nonTargetedASGs := nonTargetedASGs(a.OwnedAutoScalingGroups, a.TargetedAutoScalingGroups)
 	for _, asg := range nonTargetedASGs {
 		// This call is idempotent and safe to execute every time
-		if err := updateTargetGroupsForAutoScalingGroup(a.autoscaling, a.elbv2, nil, asg.name, ownerTags); err != nil {
+		if err := updateTargetGroupsForAutoScalingGroup(ctx, a.autoscaling, a.elbv2, nil, asg.name, ownerTags); err != nil {
 			problems.Add("failed to update target groups for non-targeted autoscaling group %q: %w", asg.name, err)
 		}
 	}
@@ -696,13 +713,13 @@ func (a *Adapter) UpdateTargetGroupsAndAutoScalingGroups(stacks []*Stack, proble
 	runningSingleInstances := a.RunningSingleInstances()
 	if len(runningSingleInstances) != 0 {
 		// This call is idempotent too
-		if err := registerTargetsOnTargetGroups(a.elbv2, targetGroupARNs, runningSingleInstances); err != nil {
+		if err := registerTargetsOnTargetGroups(ctx, a.elbv2, targetGroupARNs, runningSingleInstances); err != nil {
 			problems.Add("failed to register instances %q in target groups: %w", runningSingleInstances, err)
 		}
 	}
 	if len(a.obsoleteInstances) != 0 {
 		// Deregister instances from target groups and clean up list of obsolete instances
-		if err := deregisterTargetsOnTargetGroups(a.elbv2, targetGroupARNs, a.obsoleteInstances); err != nil {
+		if err := deregisterTargetsOnTargetGroups(ctx, a.elbv2, targetGroupARNs, a.obsoleteInstances); err != nil {
 			problems.Add("failed to deregister instances %q in target groups: %w", a.obsoleteInstances, err)
 		} else {
 			a.obsoleteInstances = make([]string, 0)
@@ -717,6 +734,7 @@ func (a *Adapter) UpdateTargetGroupsAndAutoScalingGroups(stacks []*Stack, proble
 // transactional fashion.
 // Failure to create the stack causes it to be deleted automatically.
 func (a *Adapter) CreateStack(certificateARNs []string, scheme, securityGroup, owner, sslPolicy, ipAddressType, wafWebACLID string, cwAlarms CloudWatchAlarmList, loadBalancerType string, http2 bool) (string, error) {
+	ctx := context.TODO()
 	certARNs := make(map[string]time.Time, len(certificateARNs))
 	for _, arn := range certificateARNs {
 		certARNs[arn] = time.Time{}
@@ -753,7 +771,7 @@ func (a *Adapter) CreateStack(certificateARNs []string, scheme, securityGroup, o
 		targetHTTPS:                       a.targetHTTPS,
 		httpDisabled:                      a.httpDisabled(loadBalancerType),
 		httpTargetPort:                    a.httpTargetPort(loadBalancerType),
-		timeoutInMinutes:                  uint(a.creationTimeout.Minutes()),
+		timeoutInMinutes:                  int32(a.creationTimeout.Minutes()),
 		stackTerminationProtection:        a.stackTerminationProtection,
 		idleConnectionTimeoutSeconds:      uint(a.idleConnectionTimeout.Seconds()),
 		deregistrationDelayTimeoutSeconds: uint(a.deregistrationDelayTimeout.Seconds()),
@@ -779,10 +797,11 @@ func (a *Adapter) CreateStack(certificateARNs []string, scheme, securityGroup, o
 		},
 	}
 
-	return createStack(a.cloudformation, spec)
+	return createStack(ctx, a.cloudformation, spec)
 }
 
 func (a *Adapter) UpdateStack(stackName string, certificateARNs map[string]time.Time, scheme, securityGroup, owner, sslPolicy, ipAddressType, wafWebACLID string, cwAlarms CloudWatchAlarmList, loadBalancerType string, http2 bool) (string, error) {
+	ctx := context.TODO()
 	if _, ok := SSLPolicies[sslPolicy]; !ok {
 		return "", fmt.Errorf("invalid SSLPolicy '%s' defined", sslPolicy)
 	}
@@ -810,7 +829,7 @@ func (a *Adapter) UpdateStack(stackName string, certificateARNs map[string]time.
 		targetHTTPS:                       a.targetHTTPS,
 		httpDisabled:                      a.httpDisabled(loadBalancerType),
 		httpTargetPort:                    a.httpTargetPort(loadBalancerType),
-		timeoutInMinutes:                  uint(a.creationTimeout.Minutes()),
+		timeoutInMinutes:                  int32(a.creationTimeout.Minutes()),
 		stackTerminationProtection:        a.stackTerminationProtection,
 		idleConnectionTimeoutSeconds:      uint(a.idleConnectionTimeout.Seconds()),
 		deregistrationDelayTimeoutSeconds: uint(a.deregistrationDelayTimeout.Seconds()),
@@ -836,7 +855,7 @@ func (a *Adapter) UpdateStack(stackName string, certificateARNs map[string]time.
 		},
 	}
 
-	return updateStack(a.cloudformation, spec)
+	return updateStack(ctx, a.cloudformation, spec)
 }
 
 func (a *Adapter) httpTargetPort(loadBalancerType string) uint {
@@ -861,32 +880,41 @@ func (a *Adapter) stackName() string {
 
 // GetStack returns the CloudFormation stack details with the name or ID from the argument
 func (a *Adapter) GetStack(stackID string) (*Stack, error) {
-	return getStack(a.cloudformation, stackID)
+	ctx := context.TODO()
+	return getStack(ctx, a.cloudformation, stackID)
 }
 
 // DeleteStack deletes the CloudFormation stack with the given name
 func (a *Adapter) DeleteStack(stack *Stack) error {
+	ctx := context.TODO()
 	for _, asg := range a.TargetedAutoScalingGroups {
-		if err := detachTargetGroupsFromAutoScalingGroup(a.autoscaling, stack.TargetGroupARNs, asg.name); err != nil {
+		if err := detachTargetGroupsFromAutoScalingGroup(ctx, a.autoscaling, stack.TargetGroupARNs, asg.name); err != nil {
 			return fmt.Errorf("failed to detach target groups from autoscaling group %q: %w", asg.name, err)
 		}
 	}
-	return deleteStack(a.cloudformation, stack.Name)
+	return deleteStack(ctx, a.cloudformation, stack.Name)
 }
 
-func buildManifest(awsAdapter *Adapter, clusterID, vpcID string) (*manifest, error) {
+func buildManifest(ctx context.Context, awsAdapter *Adapter, clusterID, vpcID string) (*manifest, error) {
 	var err error
 	var instanceDetails *instanceDetails
 
 	if clusterID == "" || vpcID == "" {
 		log.Debug("aws.ec2metadata.GetMetadata")
-		myID, err := awsAdapter.ec2metadata.GetMetadata("instance-id")
+		myID, err := awsAdapter.ec2metadata.GetMetadata(ctx, &imds.GetMetadataInput{
+			Path: "instance-id",
+		})
 		if err != nil {
 			return nil, err
 		}
 
 		log.Debug("aws.getInstanceDetails")
-		instanceDetails, err = getInstanceDetails(awsAdapter.ec2, myID)
+		content, err := io.ReadAll(myID.Content)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read metadata content: %w", err)
+		}
+		defer myID.Content.Close()
+		instanceDetails, err = getInstanceDetails(ctx, awsAdapter.ec2, string(content))
 		if err != nil {
 			return nil, err
 		}
@@ -895,13 +923,13 @@ func buildManifest(awsAdapter *Adapter, clusterID, vpcID string) (*manifest, err
 	}
 
 	log.Debug("aws.findSecurityGroupWithClusterID")
-	securityGroupDetails, err := findSecurityGroupWithClusterID(awsAdapter.ec2, clusterID, awsAdapter.controllerID)
+	securityGroupDetails, err := findSecurityGroupWithClusterID(ctx, awsAdapter.ec2, clusterID, awsAdapter.controllerID)
 	if err != nil {
 		return nil, err
 	}
 
 	log.Debug("aws.getSubnets")
-	subnets, err := getSubnets(awsAdapter.ec2, vpcID, clusterID)
+	subnets, err := getSubnets(ctx, awsAdapter.ec2, vpcID, clusterID)
 	if err != nil {
 		return nil, err
 	}
@@ -927,7 +955,7 @@ func buildManifest(awsAdapter *Adapter, clusterID, vpcID string) (*manifest, err
 // https://github.com/kubernetes/kubernetes/blob/65efeee64f772e0f38037e91a677138a335a7570/pkg/cloudprovider/providers/aws/aws.go#L2949-L3027
 func (a *Adapter) FindLBSubnets(scheme string) []string {
 	var internal bool
-	if scheme == elbv2.LoadBalancerSchemeEnumInternal {
+	if scheme == string(elbv2Types.LoadBalancerSchemeEnumInternal) {
 		internal = true
 	}
 
@@ -994,7 +1022,9 @@ func getTag(tags map[string]string, tagName string) (string, error) {
 // UpdateAutoScalingGroupsAndInstances updates list of known ASGs and EC2 instances.
 func (a *Adapter) UpdateAutoScalingGroupsAndInstances() error {
 	var err error
-	a.ec2Details, err = getInstancesDetailsWithFilters(a.ec2, a.manifest.filters)
+	ctx := context.TODO()
+
+	a.ec2Details, err = getInstancesDetailsWithFilters(ctx, a.ec2, a.manifest.filters)
 	if err != nil {
 		return err
 	}
@@ -1024,7 +1054,7 @@ func (a *Adapter) UpdateAutoScalingGroupsAndInstances() error {
 		clusterIDTagPrefix + a.ClusterID(): resourceLifecycleOwned,
 	}
 
-	targetedASGs, ownedASGs, err := getOwnedAndTargetedAutoScalingGroups(a.autoscaling, a.manifest.asgFilters, ownedTag)
+	targetedASGs, ownedASGs, err := getOwnedAndTargetedAutoScalingGroups(ctx, a.autoscaling, a.manifest.asgFilters, ownedTag)
 	if err != nil {
 		return err
 	}
@@ -1038,19 +1068,19 @@ func (a *Adapter) UpdateAutoScalingGroupsAndInstances() error {
 // later on each cycle. Filter is based on value of customTagFilterEnvVarName environment
 // veriable. If it is undefined or could not be parsed, default filter is returned which
 // filters on kubernetesClusterTag tag value and kubernetesNodeRoleTag existance.
-func (a *Adapter) parseFilters(clusterId string) []*ec2.Filter {
+func (a *Adapter) parseFilters(clusterId string) []ec2Types.Filter {
 	if a.customFilter != "" {
 		terms := strings.Fields(a.customFilter)
-		filters := make([]*ec2.Filter, len(terms))
+		filters := make([]ec2Types.Filter, len(terms))
 		for i, term := range terms {
 			parts := strings.Split(term, "=")
 			if len(parts) != 2 {
 				log.Errorf("Failed parsing %s, falling back to default", a.customFilter)
 				return generateDefaultFilters(clusterId)
 			}
-			filters[i] = &ec2.Filter{
+			filters[i] = ec2Types.Filter{
 				Name:   aws.String(parts[0]),
-				Values: aws.StringSlice(strings.Split(parts[1], ",")),
+				Values: strings.Split(parts[1], ","),
 			}
 		}
 		return filters
@@ -1060,15 +1090,15 @@ func (a *Adapter) parseFilters(clusterId string) []*ec2.Filter {
 
 // Generate default EC2 filter for usage with ECs DescribeInstances call based on EC2 tags
 // of instance where Ingress Controller pod was started.
-func generateDefaultFilters(clusterId string) []*ec2.Filter {
-	return []*ec2.Filter{
+func generateDefaultFilters(clusterId string) []ec2Types.Filter {
+	return []ec2Types.Filter{
 		{
 			Name:   aws.String("tag:" + clusterIDTagPrefix + clusterId),
-			Values: []*string{aws.String(resourceLifecycleOwned)},
+			Values: []string{resourceLifecycleOwned},
 		},
 		{
 			Name:   aws.String("tag-key"),
-			Values: []*string{aws.String(kubernetesNodeRoleTag)},
+			Values: []string{kubernetesNodeRoleTag},
 		},
 	}
 }
@@ -1121,9 +1151,10 @@ func nonTargetedASGs(ownedASGs, targetedASGs map[string]*autoScalingGroupDetails
 // SetTargetsOnCNITargetGroups implements desired state for CNI target groups
 // by polling the current list of targets thus creating a diff of what needs to be added and removed.
 func (a *Adapter) SetTargetsOnCNITargetGroups(endpoints, cniTargetGroupARNs []string) error {
+	ctx := context.TODO()
 	log.Debugf("setting targets on CNI target groups: '%v'", cniTargetGroupARNs)
 	for _, targetGroupARN := range cniTargetGroupARNs {
-		tgh, err := a.elbv2.DescribeTargetHealth(&elbv2.DescribeTargetHealthInput{TargetGroupArn: &targetGroupARN})
+		tgh, err := a.elbv2.DescribeTargetHealth(ctx, &elbv2.DescribeTargetHealthInput{TargetGroupArn: &targetGroupARN})
 		if err != nil {
 			log.Errorf("unable to describe target health %v", err)
 			// continue for processing of the rest of the target groups
@@ -1136,7 +1167,7 @@ func (a *Adapter) SetTargetsOnCNITargetGroups(endpoints, cniTargetGroupARNs []st
 		toRegister := difference(endpoints, registeredInstances)
 		if len(toRegister) > 0 {
 			log.Info("Registering CNI targets: ", toRegister)
-			err := registerTargetsOnTargetGroups(a.elbv2, []string{targetGroupARN}, toRegister)
+			err := registerTargetsOnTargetGroups(ctx, a.elbv2, []string{targetGroupARN}, toRegister)
 			if err != nil {
 				return err
 			}
@@ -1144,7 +1175,7 @@ func (a *Adapter) SetTargetsOnCNITargetGroups(endpoints, cniTargetGroupARNs []st
 		toDeregister := difference(registeredInstances, endpoints)
 		if len(toDeregister) > 0 {
 			log.Info("Deregistering CNI targets: ", toDeregister)
-			err := deregisterTargetsOnTargetGroups(a.elbv2, []string{targetGroupARN}, toDeregister)
+			err := deregisterTargetsOnTargetGroups(ctx, a.elbv2, []string{targetGroupARN}, toDeregister)
 			if err != nil {
 				return err
 			}

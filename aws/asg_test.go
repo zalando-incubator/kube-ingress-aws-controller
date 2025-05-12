@@ -1,13 +1,16 @@
 package aws
 
 import (
+	"context"
 	"fmt"
 	"reflect"
 	"testing"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/service/autoscaling"
-	"github.com/aws/aws-sdk-go/service/elbv2"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/autoscaling"
+	"github.com/aws/aws-sdk-go-v2/service/autoscaling/types"
+	elbv2 "github.com/aws/aws-sdk-go-v2/service/elasticloadbalancingv2"
+	elbv2types "github.com/aws/aws-sdk-go-v2/service/elasticloadbalancingv2/types"
 
 	"github.com/stretchr/testify/assert"
 
@@ -17,7 +20,7 @@ import (
 func mockAutoScalingGroupDetails(name string, tags map[string]string) *autoScalingGroupDetails {
 	return &autoScalingGroupDetails{
 		name:         name,
-		targetGroups: make([]string, 0),
+		targetGroups: []string{},
 		tags:         tags,
 	}
 }
@@ -82,7 +85,7 @@ func TestGetAutoScalingGroupByName(t *testing.T) {
 	} {
 		t.Run(fmt.Sprintf("%v", test.name), func(t *testing.T) {
 			mockSvc := &fake.ASGClient{Outputs: test.responses}
-			got, err := getAutoScalingGroupByName(mockSvc, test.givenName)
+			got, err := getAutoScalingGroupByName(context.Background(), mockSvc, test.givenName)
 
 			if test.wantError {
 				if err == nil {
@@ -165,7 +168,7 @@ func TestGetAutoScalingGroupsByName(t *testing.T) {
 	} {
 		t.Run(fmt.Sprintf("%v", test.name), func(t *testing.T) {
 			mockSvc := &fake.ASGClient{Outputs: test.responses}
-			got, err := getAutoScalingGroupsByName(mockSvc, test.givenNames)
+			got, err := getAutoScalingGroupsByName(context.Background(), mockSvc, test.givenNames)
 
 			if test.wantError {
 				if err == nil {
@@ -207,7 +210,7 @@ func TestAttach(t *testing.T) {
 			autoscalingOutputs: fake.ASGOutputs{
 				AttachLoadBalancerTargetGroups: fake.R(nil, nil),
 				DescribeLoadBalancerTargetGroups: fake.R(&autoscaling.DescribeLoadBalancerTargetGroupsOutput{
-					LoadBalancerTargetGroups: []*autoscaling.LoadBalancerTargetGroupState{
+					LoadBalancerTargetGroups: []types.LoadBalancerTargetGroupState{
 						{
 							LoadBalancerTargetGroupARN: aws.String("foo"),
 						},
@@ -226,7 +229,7 @@ func TestAttach(t *testing.T) {
 			autoscalingOutputs: fake.ASGOutputs{
 				AttachLoadBalancerTargetGroups: fake.R(nil, nil),
 				DescribeLoadBalancerTargetGroups: fake.R(&autoscaling.DescribeLoadBalancerTargetGroupsOutput{
-					LoadBalancerTargetGroups: []*autoscaling.LoadBalancerTargetGroupState{
+					LoadBalancerTargetGroups: []types.LoadBalancerTargetGroupState{
 						{
 							LoadBalancerTargetGroupARN: aws.String("foo"),
 						},
@@ -236,7 +239,7 @@ func TestAttach(t *testing.T) {
 			},
 			elbv2Response: fake.ELBv2Outputs{
 				DescribeTargetGroups: fake.R(&elbv2.DescribeTargetGroupsOutput{
-					TargetGroups: []*elbv2.TargetGroup{
+					TargetGroups: []elbv2types.TargetGroup{
 						{
 							TargetGroupArn: aws.String("foo"),
 						},
@@ -252,7 +255,7 @@ func TestAttach(t *testing.T) {
 			autoscalingOutputs: fake.ASGOutputs{
 				AttachLoadBalancerTargetGroups: fake.R(nil, nil),
 				DescribeLoadBalancerTargetGroups: fake.R(&autoscaling.DescribeLoadBalancerTargetGroupsOutput{
-					LoadBalancerTargetGroups: []*autoscaling.LoadBalancerTargetGroupState{
+					LoadBalancerTargetGroups: []types.LoadBalancerTargetGroupState{
 						{
 							LoadBalancerTargetGroupARN: aws.String("foo"),
 						},
@@ -260,18 +263,18 @@ func TestAttach(t *testing.T) {
 				}, nil)},
 			elbv2Response: fake.ELBv2Outputs{
 				DescribeTargetGroups: fake.R(&elbv2.DescribeTargetGroupsOutput{
-					TargetGroups: []*elbv2.TargetGroup{
+					TargetGroups: []elbv2types.TargetGroup{
 						{
 							TargetGroupArn: aws.String("foo"),
-							TargetType:     aws.String(elbv2.TargetTypeEnumInstance),
+							TargetType:     elbv2types.TargetTypeEnumInstance,
 						},
 					},
 				}, nil),
 				DescribeTags: fake.R(&elbv2.DescribeTagsOutput{
-					TagDescriptions: []*elbv2.TagDescription{
+					TagDescriptions: []elbv2types.TagDescription{
 						{
 							ResourceArn: aws.String("foo"),
-							Tags: []*elbv2.Tag{
+							Tags: []elbv2types.Tag{
 								{
 									Key:   aws.String("owner"),
 									Value: aws.String("true"),
@@ -290,7 +293,7 @@ func TestAttach(t *testing.T) {
 			autoscalingOutputs: fake.ASGOutputs{
 				AttachLoadBalancerTargetGroups: fake.R(nil, fake.ErrDummy),
 				DescribeLoadBalancerTargetGroups: fake.R(&autoscaling.DescribeLoadBalancerTargetGroupsOutput{
-					LoadBalancerTargetGroups: []*autoscaling.LoadBalancerTargetGroupState{
+					LoadBalancerTargetGroups: []types.LoadBalancerTargetGroupState{
 						{
 							LoadBalancerTargetGroupARN: aws.String("foo"),
 						},
@@ -299,18 +302,18 @@ func TestAttach(t *testing.T) {
 			},
 			elbv2Response: fake.ELBv2Outputs{
 				DescribeTargetGroups: fake.R(&elbv2.DescribeTargetGroupsOutput{
-					TargetGroups: []*elbv2.TargetGroup{
+					TargetGroups: []elbv2types.TargetGroup{
 						{
 							TargetGroupArn: aws.String("foo"),
-							TargetType:     aws.String(elbv2.TargetTypeEnumInstance),
+							TargetType:     elbv2types.TargetTypeEnumInstance,
 						},
 					},
 				}, nil),
 				DescribeTags: fake.R(&elbv2.DescribeTagsOutput{
-					TagDescriptions: []*elbv2.TagDescription{
+					TagDescriptions: []elbv2types.TagDescription{
 						{
 							ResourceArn: aws.String("foo"),
-							Tags: []*elbv2.Tag{
+							Tags: []elbv2types.Tag{
 								{
 									Key:   aws.String("owner"),
 									Value: aws.String("true"),
@@ -329,7 +332,7 @@ func TestAttach(t *testing.T) {
 			autoscalingOutputs: fake.ASGOutputs{
 				AttachLoadBalancerTargetGroups: fake.R(nil, nil),
 				DescribeLoadBalancerTargetGroups: fake.R(&autoscaling.DescribeLoadBalancerTargetGroupsOutput{
-					LoadBalancerTargetGroups: []*autoscaling.LoadBalancerTargetGroupState{
+					LoadBalancerTargetGroups: []types.LoadBalancerTargetGroupState{
 						{
 							LoadBalancerTargetGroupARN: aws.String("foo"),
 						},
@@ -348,7 +351,7 @@ func TestAttach(t *testing.T) {
 			},
 			elbv2Response: fake.ELBv2Outputs{
 				DescribeTargetGroups: fake.R(&elbv2.DescribeTargetGroupsOutput{
-					TargetGroups: []*elbv2.TargetGroup{
+					TargetGroups: []elbv2types.TargetGroup{
 						{
 							TargetGroupArn: aws.String("foo"),
 						},
@@ -361,10 +364,10 @@ func TestAttach(t *testing.T) {
 					},
 				}, nil),
 				DescribeTags: fake.R(&elbv2.DescribeTagsOutput{
-					TagDescriptions: []*elbv2.TagDescription{
+					TagDescriptions: []elbv2types.TagDescription{
 						{
 							ResourceArn: aws.String("foo"),
-							Tags: []*elbv2.Tag{
+							Tags: []elbv2types.Tag{
 								{
 									Key:   aws.String("owner"),
 									Value: aws.String("true"),
@@ -373,7 +376,7 @@ func TestAttach(t *testing.T) {
 						},
 						{
 							ResourceArn: aws.String("bar"),
-							Tags: []*elbv2.Tag{
+							Tags: []elbv2types.Tag{
 								{
 									Key:   aws.String("owner"),
 									Value: aws.String("true"),
@@ -382,11 +385,11 @@ func TestAttach(t *testing.T) {
 						},
 						{
 							ResourceArn: aws.String("baz"),
-							Tags:        []*elbv2.Tag{},
+							Tags:        []elbv2types.Tag{},
 						},
 						{
 							ResourceArn: aws.String("does-not-exist"),
-							Tags:        []*elbv2.Tag{},
+							Tags:        []elbv2types.Tag{},
 						},
 					},
 				}, nil),
@@ -400,7 +403,7 @@ func TestAttach(t *testing.T) {
 			autoscalingOutputs: fake.ASGOutputs{
 				AttachLoadBalancerTargetGroups: fake.R(nil, nil),
 				DescribeLoadBalancerTargetGroups: fake.R(&autoscaling.DescribeLoadBalancerTargetGroupsOutput{
-					LoadBalancerTargetGroups: []*autoscaling.LoadBalancerTargetGroupState{
+					LoadBalancerTargetGroups: []types.LoadBalancerTargetGroupState{
 						{
 							LoadBalancerTargetGroupARN: aws.String("foo"),
 						},
@@ -413,7 +416,7 @@ func TestAttach(t *testing.T) {
 			},
 			elbv2Response: fake.ELBv2Outputs{
 				DescribeTargetGroups: fake.R(&elbv2.DescribeTargetGroupsOutput{
-					TargetGroups: []*elbv2.TargetGroup{
+					TargetGroups: []elbv2types.TargetGroup{
 						{
 							TargetGroupArn: aws.String("foo"),
 						},
@@ -423,10 +426,10 @@ func TestAttach(t *testing.T) {
 					},
 				}, nil),
 				DescribeTags: fake.R(&elbv2.DescribeTagsOutput{
-					TagDescriptions: []*elbv2.TagDescription{
+					TagDescriptions: []elbv2types.TagDescription{
 						{
 							ResourceArn: aws.String("foo"),
-							Tags: []*elbv2.Tag{
+							Tags: []elbv2types.Tag{
 								{
 									Key:   aws.String("owner"),
 									Value: aws.String("true"),
@@ -435,7 +438,7 @@ func TestAttach(t *testing.T) {
 						},
 						{
 							ResourceArn: aws.String("bar"),
-							Tags: []*elbv2.Tag{
+							Tags: []elbv2types.Tag{
 								{
 									Key:   aws.String("owner"),
 									Value: aws.String("true"),
@@ -454,7 +457,7 @@ func TestAttach(t *testing.T) {
 			autoscalingOutputs: fake.ASGOutputs{
 				AttachLoadBalancerTargetGroups: fake.R(nil, nil),
 				DescribeLoadBalancerTargetGroups: fake.R(&autoscaling.DescribeLoadBalancerTargetGroupsOutput{
-					LoadBalancerTargetGroups: []*autoscaling.LoadBalancerTargetGroupState{
+					LoadBalancerTargetGroups: []types.LoadBalancerTargetGroupState{
 						{
 							LoadBalancerTargetGroupARN: aws.String("foo"),
 						},
@@ -465,26 +468,26 @@ func TestAttach(t *testing.T) {
 				}, nil)},
 			elbv2Response: fake.ELBv2Outputs{
 				DescribeTargetGroups: fake.R(&elbv2.DescribeTargetGroupsOutput{
-					TargetGroups: []*elbv2.TargetGroup{
+					TargetGroups: []elbv2types.TargetGroup{
 						{
 							TargetGroupArn: aws.String("foo"),
-							TargetType:     aws.String(elbv2.TargetTypeEnumInstance),
+							TargetType:     elbv2types.TargetTypeEnumInstance,
 						},
 						{
 							TargetGroupArn: aws.String("bar"),
-							TargetType:     aws.String(elbv2.TargetTypeEnumInstance),
+							TargetType:     elbv2types.TargetTypeEnumInstance,
 						},
 					},
 				}, nil),
 				DescribeTags: fake.R(&elbv2.DescribeTagsOutput{
-					TagDescriptions: []*elbv2.TagDescription{
+					TagDescriptions: []elbv2types.TagDescription{
 						{
 							ResourceArn: aws.String("foo"),
-							Tags:        []*elbv2.Tag{{Key: aws.String("owner"), Value: aws.String("true")}},
+							Tags:        []elbv2types.Tag{{Key: aws.String("owner"), Value: aws.String("true")}},
 						},
 						{
 							ResourceArn: aws.String("bar"),
-							Tags:        []*elbv2.Tag{{Key: aws.String("owner"), Value: aws.String("true")}},
+							Tags:        []elbv2types.Tag{{Key: aws.String("owner"), Value: aws.String("true")}},
 						},
 					},
 				}, nil),
@@ -492,7 +495,7 @@ func TestAttach(t *testing.T) {
 			autoscalingInputs: fake.ASGInputs{
 				AttachLoadBalancerTargetGroups: func(t *testing.T, input *autoscaling.AttachLoadBalancerTargetGroupsInput) {
 					assert.Equal(t, aws.String("asg-name"), input.AutoScalingGroupName)
-					assert.Equal(t, aws.StringSlice([]string{"foo", "bar"}), input.TargetGroupARNs)
+					assert.Equal(t, []string{"foo", "bar"}, input.TargetGroupARNs)
 				},
 			},
 			ownerTags: map[string]string{"owner": "true"},
@@ -502,7 +505,7 @@ func TestAttach(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			mockSvc := &fake.ASGClient{Outputs: test.autoscalingOutputs, Inputs: test.autoscalingInputs, T: t}
 			mockElbv2Svc := &fake.ELBv2Client{Outputs: test.elbv2Response}
-			err := updateTargetGroupsForAutoScalingGroup(mockSvc, mockElbv2Svc, test.targetGroups, "asg-name", test.ownerTags)
+			err := updateTargetGroupsForAutoScalingGroup(context.Background(), mockSvc, mockElbv2Svc, test.targetGroups, "asg-name", test.ownerTags)
 			if test.wantError {
 				if err == nil {
 					t.Error("wanted an error but call seemed to have succeeded")
@@ -529,7 +532,7 @@ func TestDetach(t *testing.T) {
 	} {
 		t.Run(fmt.Sprintf("%v", test.name), func(t *testing.T) {
 			mockSvc := &fake.ASGClient{Outputs: test.responses}
-			err := detachTargetGroupsFromAutoScalingGroup(mockSvc, []string{"foo"}, "bar")
+			err := detachTargetGroupsFromAutoScalingGroup(context.Background(), mockSvc, []string{"foo"}, "bar")
 			if test.wantError {
 				if err == nil {
 					t.Error("wanted an error but call seemed to have succeeded")
@@ -682,49 +685,107 @@ func TestProcessChunked(t *testing.T) {
 func Test_categorizeTargetTypeInstance(t *testing.T) {
 	for _, test := range []struct {
 		name         string
-		targetGroups map[string][]string
+		targetGroups []elbv2types.TargetGroup
 	}{
 		{
 			name: "one from any type",
-			targetGroups: map[string][]string{
-				elbv2.TargetTypeEnumInstance: {"instancy"},
-				elbv2.TargetTypeEnumAlb:      {"albly"},
-				elbv2.TargetTypeEnumIp:       {"ipvy"},
-				elbv2.TargetTypeEnumLambda:   {"lambada"},
+			targetGroups: []elbv2types.TargetGroup{
+				{
+					TargetGroupArn: aws.String("instancy"),
+					TargetType:     elbv2types.TargetTypeEnumInstance,
+				},
+				{
+					TargetGroupArn: aws.String("albly"),
+					TargetType:     elbv2types.TargetTypeEnumAlb,
+				},
+				{
+					TargetGroupArn: aws.String("ipvy"),
+					TargetType:     elbv2types.TargetTypeEnumIp,
+				},
+				{
+					TargetGroupArn: aws.String("lambada"),
+					TargetType:     elbv2types.TargetTypeEnumLambda,
+				},
 			},
 		},
 		{
 			name: "one type many target groups",
-			targetGroups: map[string][]string{
-				elbv2.TargetTypeEnumInstance: {"instancy", "foo", "void", "bar", "blank"},
+			targetGroups: []elbv2types.TargetGroup{
+				{
+					TargetGroupArn: aws.String("instancy"),
+					TargetType:     elbv2types.TargetTypeEnumInstance,
+				},
+				{
+					TargetGroupArn: aws.String("foo"),
+					TargetType:     elbv2types.TargetTypeEnumInstance,
+				},
+				{
+					TargetGroupArn: aws.String("void"),
+					TargetType:     elbv2types.TargetTypeEnumInstance,
+				},
+				{
+					TargetGroupArn: aws.String("bar"),
+					TargetType:     elbv2types.TargetTypeEnumInstance,
+				},
+				{
+					TargetGroupArn: aws.String("blank"),
+					TargetType:     elbv2types.TargetTypeEnumInstance,
+				},
 			},
 		},
 		{
 			name: "several types many target groups",
-			targetGroups: map[string][]string{
-				elbv2.TargetTypeEnumInstance: {"instancy", "foo", "void", "bar", "blank"},
-				elbv2.TargetTypeEnumAlb:      {"albly", "alblily"},
-				elbv2.TargetTypeEnumIp:       {"ipvy"},
+			targetGroups: []elbv2types.TargetGroup{
+				{
+					TargetGroupArn: aws.String("instancy"),
+					TargetType:     elbv2types.TargetTypeEnumInstance,
+				},
+				{
+					TargetGroupArn: aws.String("foo"),
+					TargetType:     elbv2types.TargetTypeEnumInstance,
+				},
+				{
+					TargetGroupArn: aws.String("void"),
+					TargetType:     elbv2types.TargetTypeEnumInstance,
+				},
+				{
+					TargetGroupArn: aws.String("bar"),
+					TargetType:     elbv2types.TargetTypeEnumInstance,
+				},
+				{
+					TargetGroupArn: aws.String("blank"),
+					TargetType:     elbv2types.TargetTypeEnumInstance,
+				},
+				{
+					TargetGroupArn: aws.String("albly"),
+					TargetType:     elbv2types.TargetTypeEnumAlb,
+				},
+				{
+					TargetGroupArn: aws.String("alblily"),
+					TargetType:     elbv2types.TargetTypeEnumAlb,
+				},
+				{
+					TargetGroupArn: aws.String("ipvy"),
+					TargetType:     elbv2types.TargetTypeEnumIp,
+				},
 			},
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			tg := []string{}
-			tgResponse := []*elbv2.TargetGroup{}
-			for k, v := range test.targetGroups {
-				for _, i := range v {
-					tg = append(tg, i)
-					tgResponse = append(tgResponse, &elbv2.TargetGroup{TargetGroupArn: aws.String(i), TargetType: aws.String(k)})
+			allARNs := []string{}
+			want := map[elbv2types.TargetTypeEnum][]string{}
+			for _, tg := range test.targetGroups {
+				allARNs = append(allARNs, *tg.TargetGroupArn)
+				if _, ok := want[tg.TargetType]; !ok {
+					want[tg.TargetType] = []string{*tg.TargetGroupArn}
+				} else {
+					want[tg.TargetType] = append(want[tg.TargetType], *tg.TargetGroupArn)
 				}
 			}
-
-			mockElbv2Svc := &fake.ELBv2Client{Outputs: fake.ELBv2Outputs{DescribeTargetGroups: fake.R(&elbv2.DescribeTargetGroupsOutput{TargetGroups: tgResponse}, nil)}}
-			got, err := categorizeTargetTypeInstance(mockElbv2Svc, tg)
+			mockElbv2Svc := &fake.ELBv2Client{Outputs: fake.ELBv2Outputs{DescribeTargetGroups: fake.R(&elbv2.DescribeTargetGroupsOutput{TargetGroups: test.targetGroups}, nil)}}
+			got, err := categorizeTargetTypeInstance(context.Background(), mockElbv2Svc, allARNs)
 			assert.NoError(t, err)
-			for k, v := range test.targetGroups {
-				assert.Len(t, got[k], len(v))
-				assert.Equal(t, got[k], v)
-			}
+			assert.Equal(t, want, got)
 		})
 	}
 }

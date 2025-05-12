@@ -1,32 +1,23 @@
 package fake
 
 import (
+	"context"
 	"fmt"
 
-	"github.com/aws/aws-sdk-go/service/iam"
-	"github.com/aws/aws-sdk-go/service/iam/iamiface"
+	"github.com/aws/aws-sdk-go-v2/service/iam"
 )
 
 type IAMClient struct {
-	iamiface.IAMAPI
 	list iam.ListServerCertificatesOutput
 	cert iam.GetServerCertificateOutput
 	tags map[string]*iam.ListServerCertificateTagsOutput
 }
 
-func (m IAMClient) ListServerCertificates(*iam.ListServerCertificatesInput) (*iam.ListServerCertificatesOutput, error) {
+func (m IAMClient) ListServerCertificates(context.Context, *iam.ListServerCertificatesInput, ...func(*iam.Options)) (*iam.ListServerCertificatesOutput, error) {
 	return &m.list, nil
 }
 
-func (m IAMClient) ListServerCertificatesPages(input *iam.ListServerCertificatesInput, fn func(*iam.ListServerCertificatesOutput, bool) bool) error {
-	fn(&m.list, true)
-	return nil
-}
-
-func (m IAMClient) ListServerCertificateTags(
-	in *iam.ListServerCertificateTagsInput,
-) (*iam.ListServerCertificateTagsOutput, error) {
-
+func (m IAMClient) ListServerCertificateTags(ctx context.Context, in *iam.ListServerCertificateTagsInput, fn ...func(*iam.Options)) (*iam.ListServerCertificateTagsOutput, error) {
 	if in.ServerCertificateName == nil {
 		return nil, fmt.Errorf("expected a valid CertificateArn, got: nil")
 	}
@@ -34,7 +25,7 @@ func (m IAMClient) ListServerCertificateTags(
 	return m.tags[name], nil
 }
 
-func (m IAMClient) GetServerCertificate(*iam.GetServerCertificateInput) (*iam.GetServerCertificateOutput, error) {
+func (m IAMClient) GetServerCertificate(context.Context, *iam.GetServerCertificateInput, ...func(*iam.Options)) (*iam.GetServerCertificateOutput, error) {
 	return &m.cert, nil
 }
 

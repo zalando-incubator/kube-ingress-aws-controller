@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/service/acm"
-	"github.com/aws/aws-sdk-go/service/acm/acmiface"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/acm"
+	"github.com/aws/aws-sdk-go-v2/service/acm/types"
 	"github.com/stretchr/testify/require"
 	"github.com/zalando-incubator/kube-ingress-aws-controller/aws/fake"
 )
@@ -25,28 +25,20 @@ func TestACM(t *testing.T) {
 
 	for _, ti := range []struct {
 		msg       string
-		api       acmiface.ACMAPI
+		api       ACMAPI
 		filterTag string
 		expect    acmExpect
 	}{
 		{
 			msg: "Found ACM Cert foobar and a chain",
 			api: fake.NewACMClient(
-				acm.ListCertificatesOutput{
-					CertificateSummaryList: []*acm.CertificateSummary{
-						{
-							CertificateArn: aws.String("foobar"),
-							DomainName:     aws.String("foobar.de"),
-						},
-					},
-				},
 				map[string]*acm.GetCertificateOutput{
 					"foobar": {
 						Certificate:      aws.String(cert),
 						CertificateChain: aws.String(chain),
 					},
 				},
-				nil,
+				nil, nil,
 			),
 			expect: acmExpect{
 				ARN:         "foobar",
@@ -56,20 +48,12 @@ func TestACM(t *testing.T) {
 		{
 			msg: "Found ACM Cert foobar and no chain",
 			api: fake.NewACMClient(
-				acm.ListCertificatesOutput{
-					CertificateSummaryList: []*acm.CertificateSummary{
-						{
-							CertificateArn: aws.String("foobar"),
-							DomainName:     aws.String("foobar.de"),
-						},
-					},
-				},
 				map[string]*acm.GetCertificateOutput{
 					"foobar": {
 						Certificate: aws.String(cert),
 					},
 				},
-				nil,
+				nil, nil,
 			),
 			expect: acmExpect{
 				ARN:         "foobar",
@@ -79,18 +63,6 @@ func TestACM(t *testing.T) {
 		{
 			msg: "Found one ACM Cert with correct filter tag",
 			api: fake.NewACMClient(
-				acm.ListCertificatesOutput{
-					CertificateSummaryList: []*acm.CertificateSummary{
-						{
-							CertificateArn: aws.String("foobar"),
-							DomainName:     aws.String("foobar.de"),
-						},
-						{
-							CertificateArn: aws.String("foobaz"),
-							DomainName:     aws.String("foobar.de"),
-						},
-					},
-				},
 				map[string]*acm.GetCertificateOutput{
 					"foobar": {
 						Certificate: aws.String(cert),
@@ -101,12 +73,13 @@ func TestACM(t *testing.T) {
 				},
 				map[string]*acm.ListTagsForCertificateOutput{
 					"foobar": {
-						Tags: []*acm.Tag{{Key: aws.String("production"), Value: aws.String("true")}},
+						Tags: []types.Tag{{Key: aws.String("production"), Value: aws.String("true")}},
 					},
 					"foobaz": {
-						Tags: []*acm.Tag{{Key: aws.String("production"), Value: aws.String("false")}},
+						Tags: []types.Tag{{Key: aws.String("production"), Value: aws.String("false")}},
 					},
 				},
+				nil,
 			),
 			filterTag: "production=true",
 			expect: acmExpect{
@@ -117,14 +90,6 @@ func TestACM(t *testing.T) {
 		{
 			msg: "ACM Cert with incorrect filter tag should not be found",
 			api: fake.NewACMClient(
-				acm.ListCertificatesOutput{
-					CertificateSummaryList: []*acm.CertificateSummary{
-						{
-							CertificateArn: aws.String("foobar"),
-							DomainName:     aws.String("foobar.de"),
-						},
-					},
-				},
 				map[string]*acm.GetCertificateOutput{
 					"foobar": {
 						Certificate: aws.String(cert),
@@ -132,9 +97,10 @@ func TestACM(t *testing.T) {
 				},
 				map[string]*acm.ListTagsForCertificateOutput{
 					"foobar": {
-						Tags: []*acm.Tag{{Key: aws.String("production"), Value: aws.String("false")}},
+						Tags: []types.Tag{{Key: aws.String("production"), Value: aws.String("false")}},
 					},
 				},
+				nil,
 			),
 			filterTag: "production=true",
 			expect: acmExpect{
@@ -144,15 +110,16 @@ func TestACM(t *testing.T) {
 			},
 		},
 		{
-			msg: "Fail on ListCertificatesPages error",
+			msg: "Fail on ListCertificates error",
 			api: fake.NewACMClient(
-				acm.ListCertificatesOutput{}, nil, nil,
-			).WithListCertificatesPages(func(input *acm.ListCertificatesInput, fn func(p *acm.ListCertificatesOutput, lastPage bool) (shouldContinue bool)) error {
-				return fmt.Errorf("ListCertificatesPages error")
-			}),
+				nil, nil,
+				map[string]error{
+					"ListCertificates": fmt.Errorf("ListCertificates error"),
+				},
+			),
 			filterTag: "production=true",
 			expect: acmExpect{
-				Error: "ListCertificatesPages error",
+				Error: "failed to list certificates page: ListCertificates error",
 			},
 		},
 	} {

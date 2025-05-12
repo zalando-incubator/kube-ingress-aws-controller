@@ -12,8 +12,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aws/aws-sdk-go/service/autoscaling"
-	cf "github.com/aws/aws-sdk-go/service/cloudformation"
+	"github.com/aws/aws-sdk-go-v2/service/autoscaling"
+	autoScalingTypes "github.com/aws/aws-sdk-go-v2/service/autoscaling/types"
+	cfTypes "github.com/aws/aws-sdk-go-v2/service/cloudformation/types"
 	cloudformation "github.com/mweagle/go-cloudformation"
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
@@ -33,7 +34,8 @@ func TestResourceConversionOneToOne(tt *testing.T) {
 	clusterID := "aws:123:eu-central-1:kube-1"
 	vpcID := "1"
 	securityGroupID := "42"
-	running := int64(16) // See https://github.com/aws/aws-sdk-go/blob/master/service/ec2/api.go, type InstanceState
+	// See https://github.com/aws/aws-sdk-go-v2/blob/main/service/ec2/types/types.go, type InstanceState
+	running := int32(16)
 
 	for _, scenario := range []struct {
 		name           string
@@ -45,8 +47,7 @@ func TestResourceConversionOneToOne(tt *testing.T) {
 	}{
 		{
 			name: "ingress_alb",
-			responsesEC2: fake.EC2Outputs{DescribeInstancesPages: fake.MockDescribeInstancesPagesOutput(
-				nil,
+			responsesEC2: fake.EC2Outputs{DescribeInstances: fake.R(fake.MockDescribeInstancesOutput(
 				fake.TestInstance{
 					Id:        "i0",
 					Tags:      fake.Tags{"aws:autoscaling:groupName": "asg1", clusterIDTagPrefix + clusterID: "owned"},
@@ -67,7 +68,7 @@ func TestResourceConversionOneToOne(tt *testing.T) {
 					PrivateIp: "1.2.3.5",
 					VpcId:     vpcID,
 					State:     running,
-				}),
+				}), nil),
 				DescribeSecurityGroups: fake.R(fake.MockDescribeSecurityGroupsOutput(map[string]string{"id": securityGroupID}), nil),
 				DescribeSubnets: fake.R(fake.MockDescribeSubnetsOutput(
 					fake.TestSubnet{Id: "foo1", Name: "bar1", Az: "baz1", Tags: map[string]string{"kubernetes.io/role/elb": ""}}), nil),
@@ -81,25 +82,23 @@ func TestResourceConversionOneToOne(tt *testing.T) {
 					clusterIDTagPrefix + clusterID: "owned",
 				}}), nil),
 				DescribeLoadBalancerTargetGroups: fake.R(&autoscaling.DescribeLoadBalancerTargetGroupsOutput{
-					LoadBalancerTargetGroups: []*autoscaling.LoadBalancerTargetGroupState{},
+					LoadBalancerTargetGroups: []autoScalingTypes.LoadBalancerTargetGroupState{},
 				}, nil),
 				AttachLoadBalancerTargetGroups: fake.R(nil, nil),
 			},
 			responsesELBv2: fake.ELBv2Outputs{
-				DescribeTargetGroups: fake.R(nil, nil),
+				DescribeTargetGroups: fake.R(fake.MockDescribeTargetGroupsOutput(), nil),
 				DescribeTags:         fake.R(nil, nil),
 			},
 			responsesCF: fake.CFOutputs{
-				DescribeStackPages: fake.R(nil, nil),
-				DescribeStacks:     fake.R(nil, nil),
-				CreateStack:        fake.R(fake.MockCSOutput("42"), nil),
+				DescribeStacks: fake.R(fake.MockDescribeStacksOutput(nil), nil),
+				CreateStack:    fake.R(fake.MockCSOutput("42"), nil),
 			},
 			typeLB: aws.LoadBalancerTypeApplication,
 		},
 		{
 			name: "ingress_nlb",
-			responsesEC2: fake.EC2Outputs{DescribeInstancesPages: fake.MockDescribeInstancesPagesOutput(
-				nil,
+			responsesEC2: fake.EC2Outputs{DescribeInstances: fake.R(fake.MockDescribeInstancesOutput(
 				fake.TestInstance{
 					Id:        "i0",
 					Tags:      fake.Tags{"aws:autoscaling:groupName": "asg1", clusterIDTagPrefix + clusterID: "owned"},
@@ -120,7 +119,7 @@ func TestResourceConversionOneToOne(tt *testing.T) {
 					PrivateIp: "1.2.3.5",
 					VpcId:     vpcID,
 					State:     running,
-				}),
+				}), nil),
 				DescribeSecurityGroups: fake.R(fake.MockDescribeSecurityGroupsOutput(map[string]string{"id": securityGroupID}), nil),
 				DescribeSubnets: fake.R(fake.MockDescribeSubnetsOutput(
 					fake.TestSubnet{Id: "foo1", Name: "bar1", Az: "baz1", Tags: map[string]string{"kubernetes.io/role/elb": ""}}), nil),
@@ -134,24 +133,22 @@ func TestResourceConversionOneToOne(tt *testing.T) {
 					clusterIDTagPrefix + clusterID: "owned",
 				}}), nil),
 				DescribeLoadBalancerTargetGroups: fake.R(&autoscaling.DescribeLoadBalancerTargetGroupsOutput{
-					LoadBalancerTargetGroups: []*autoscaling.LoadBalancerTargetGroupState{},
+					LoadBalancerTargetGroups: []autoScalingTypes.LoadBalancerTargetGroupState{},
 				}, nil),
 				AttachLoadBalancerTargetGroups: fake.R(nil, nil),
 			},
 			responsesELBv2: fake.ELBv2Outputs{
-				DescribeTargetGroups: fake.R(nil, nil),
+				DescribeTargetGroups: fake.R(fake.MockDescribeTargetGroupsOutput(), nil),
 				DescribeTags:         fake.R(nil, nil),
 			},
 			responsesCF: fake.CFOutputs{
-				DescribeStackPages: fake.R(nil, nil),
-				DescribeStacks:     fake.R(nil, nil),
-				CreateStack:        fake.R(fake.MockCSOutput("42"), nil),
+				DescribeStacks: fake.R(fake.MockDescribeStacksOutput(nil), nil),
+				CreateStack:    fake.R(fake.MockCSOutput("42"), nil),
 			},
 			typeLB: aws.LoadBalancerTypeNetwork,
 		}, {
 			name: "rg_alb",
-			responsesEC2: fake.EC2Outputs{DescribeInstancesPages: fake.MockDescribeInstancesPagesOutput(
-				nil,
+			responsesEC2: fake.EC2Outputs{DescribeInstances: fake.R(fake.MockDescribeInstancesOutput(
 				fake.TestInstance{
 					Id:        "i0",
 					Tags:      fake.Tags{"aws:autoscaling:groupName": "asg1", clusterIDTagPrefix + clusterID: "owned"},
@@ -172,7 +169,7 @@ func TestResourceConversionOneToOne(tt *testing.T) {
 					PrivateIp: "1.2.3.5",
 					VpcId:     vpcID,
 					State:     running,
-				}),
+				}), nil),
 				DescribeSecurityGroups: fake.R(fake.MockDescribeSecurityGroupsOutput(map[string]string{"id": securityGroupID}), nil),
 				DescribeSubnets: fake.R(fake.MockDescribeSubnetsOutput(
 					fake.TestSubnet{Id: "foo1", Name: "bar1", Az: "baz1", Tags: map[string]string{"kubernetes.io/role/elb": ""}}), nil),
@@ -186,24 +183,22 @@ func TestResourceConversionOneToOne(tt *testing.T) {
 					clusterIDTagPrefix + clusterID: "owned",
 				}}), nil),
 				DescribeLoadBalancerTargetGroups: fake.R(&autoscaling.DescribeLoadBalancerTargetGroupsOutput{
-					LoadBalancerTargetGroups: []*autoscaling.LoadBalancerTargetGroupState{},
+					LoadBalancerTargetGroups: []autoScalingTypes.LoadBalancerTargetGroupState{},
 				}, nil),
 				AttachLoadBalancerTargetGroups: fake.R(nil, nil),
 			},
 			responsesELBv2: fake.ELBv2Outputs{
-				DescribeTargetGroups: fake.R(nil, nil),
+				DescribeTargetGroups: fake.R(fake.MockDescribeTargetGroupsOutput(), nil),
 				DescribeTags:         fake.R(nil, nil),
 			},
 			responsesCF: fake.CFOutputs{
-				DescribeStackPages: fake.R(nil, nil),
-				DescribeStacks:     fake.R(nil, nil),
-				CreateStack:        fake.R(fake.MockCSOutput("42"), nil),
+				DescribeStacks: fake.R(fake.MockDescribeStacksOutput(nil), nil),
+				CreateStack:    fake.R(fake.MockCSOutput("42"), nil),
 			},
 			typeLB: aws.LoadBalancerTypeApplication,
 		}, {
 			name: "rg_nlb",
-			responsesEC2: fake.EC2Outputs{DescribeInstancesPages: fake.MockDescribeInstancesPagesOutput(
-				nil,
+			responsesEC2: fake.EC2Outputs{DescribeInstances: fake.R(fake.MockDescribeInstancesOutput(
 				fake.TestInstance{
 					Id:        "i0",
 					Tags:      fake.Tags{"aws:autoscaling:groupName": "asg1", clusterIDTagPrefix + clusterID: "owned"},
@@ -224,7 +219,7 @@ func TestResourceConversionOneToOne(tt *testing.T) {
 					PrivateIp: "1.2.3.5",
 					VpcId:     vpcID,
 					State:     running,
-				}),
+				}), nil),
 				DescribeSecurityGroups: fake.R(fake.MockDescribeSecurityGroupsOutput(map[string]string{"id": securityGroupID}), nil),
 				DescribeSubnets: fake.R(fake.MockDescribeSubnetsOutput(
 					fake.TestSubnet{Id: "foo1", Name: "bar1", Az: "baz1", Tags: map[string]string{"kubernetes.io/role/elb": ""}}), nil),
@@ -238,24 +233,22 @@ func TestResourceConversionOneToOne(tt *testing.T) {
 					clusterIDTagPrefix + clusterID: "owned",
 				}}), nil),
 				DescribeLoadBalancerTargetGroups: fake.R(&autoscaling.DescribeLoadBalancerTargetGroupsOutput{
-					LoadBalancerTargetGroups: []*autoscaling.LoadBalancerTargetGroupState{},
+					LoadBalancerTargetGroups: []autoScalingTypes.LoadBalancerTargetGroupState{},
 				}, nil),
 				AttachLoadBalancerTargetGroups: fake.R(nil, nil),
 			},
 			responsesELBv2: fake.ELBv2Outputs{
-				DescribeTargetGroups: fake.R(nil, nil),
+				DescribeTargetGroups: fake.R(fake.MockDescribeTargetGroupsOutput(), nil),
 				DescribeTags:         fake.R(nil, nil),
 			},
 			responsesCF: fake.CFOutputs{
-				DescribeStackPages: fake.R(nil, nil),
-				DescribeStacks:     fake.R(nil, nil),
-				CreateStack:        fake.R(fake.MockCSOutput("42"), nil),
+				DescribeStacks: fake.R(fake.MockDescribeStacksOutput(nil), nil),
+				CreateStack:    fake.R(fake.MockCSOutput("42"), nil),
 			},
 			typeLB: aws.LoadBalancerTypeNetwork,
 		}, {
 			name: "ing_shared_rg_notshared_alb",
-			responsesEC2: fake.EC2Outputs{DescribeInstancesPages: fake.MockDescribeInstancesPagesOutput(
-				nil,
+			responsesEC2: fake.EC2Outputs{DescribeInstances: fake.R(fake.MockDescribeInstancesOutput(
 				fake.TestInstance{
 					Id:        "i0",
 					Tags:      fake.Tags{"aws:autoscaling:groupName": "asg1", clusterIDTagPrefix + clusterID: "owned"},
@@ -276,7 +269,7 @@ func TestResourceConversionOneToOne(tt *testing.T) {
 					PrivateIp: "1.2.3.5",
 					VpcId:     vpcID,
 					State:     running,
-				}),
+				}), nil),
 				DescribeSecurityGroups: fake.R(fake.MockDescribeSecurityGroupsOutput(map[string]string{"id": securityGroupID}), nil),
 				DescribeSubnets: fake.R(fake.MockDescribeSubnetsOutput(
 					fake.TestSubnet{Id: "foo1", Name: "bar1", Az: "baz1", Tags: map[string]string{"kubernetes.io/role/elb": ""}}), nil),
@@ -290,24 +283,22 @@ func TestResourceConversionOneToOne(tt *testing.T) {
 					clusterIDTagPrefix + clusterID: "owned",
 				}}), nil),
 				DescribeLoadBalancerTargetGroups: fake.R(&autoscaling.DescribeLoadBalancerTargetGroupsOutput{
-					LoadBalancerTargetGroups: []*autoscaling.LoadBalancerTargetGroupState{},
+					LoadBalancerTargetGroups: []autoScalingTypes.LoadBalancerTargetGroupState{},
 				}, nil),
 				AttachLoadBalancerTargetGroups: fake.R(nil, nil),
 			},
 			responsesELBv2: fake.ELBv2Outputs{
-				DescribeTargetGroups: fake.R(nil, nil),
+				DescribeTargetGroups: fake.R(fake.MockDescribeTargetGroupsOutput(), nil),
 				DescribeTags:         fake.R(nil, nil),
 			},
 			responsesCF: fake.CFOutputs{
-				DescribeStackPages: fake.R(nil, nil),
-				DescribeStacks:     fake.R(nil, nil),
-				CreateStack:        fake.R(fake.MockCSOutput("42"), nil),
+				DescribeStacks: fake.R(fake.MockDescribeStacksOutput(nil), nil),
+				CreateStack:    fake.R(fake.MockCSOutput("42"), nil),
 			},
 			typeLB: aws.LoadBalancerTypeApplication,
 		}, {
 			name: "ingress_rg_shared_alb",
-			responsesEC2: fake.EC2Outputs{DescribeInstancesPages: fake.MockDescribeInstancesPagesOutput(
-				nil,
+			responsesEC2: fake.EC2Outputs{DescribeInstances: fake.R(fake.MockDescribeInstancesOutput(
 				fake.TestInstance{
 					Id:        "i0",
 					Tags:      fake.Tags{"aws:autoscaling:groupName": "asg1", clusterIDTagPrefix + clusterID: "owned"},
@@ -328,7 +319,7 @@ func TestResourceConversionOneToOne(tt *testing.T) {
 					PrivateIp: "1.2.3.5",
 					VpcId:     vpcID,
 					State:     running,
-				}),
+				}), nil),
 				DescribeSecurityGroups: fake.R(fake.MockDescribeSecurityGroupsOutput(map[string]string{"id": securityGroupID}), nil),
 				DescribeSubnets: fake.R(fake.MockDescribeSubnetsOutput(
 					fake.TestSubnet{Id: "foo1", Name: "bar1", Az: "baz1", Tags: map[string]string{"kubernetes.io/role/elb": ""}}), nil),
@@ -342,24 +333,22 @@ func TestResourceConversionOneToOne(tt *testing.T) {
 					clusterIDTagPrefix + clusterID: "owned",
 				}}), nil),
 				DescribeLoadBalancerTargetGroups: fake.R(&autoscaling.DescribeLoadBalancerTargetGroupsOutput{
-					LoadBalancerTargetGroups: []*autoscaling.LoadBalancerTargetGroupState{},
+					LoadBalancerTargetGroups: []autoScalingTypes.LoadBalancerTargetGroupState{},
 				}, nil),
 				AttachLoadBalancerTargetGroups: fake.R(nil, nil),
 			},
 			responsesELBv2: fake.ELBv2Outputs{
-				DescribeTargetGroups: fake.R(nil, nil),
+				DescribeTargetGroups: fake.R(fake.MockDescribeTargetGroupsOutput(), nil),
 				DescribeTags:         fake.R(nil, nil),
 			},
 			responsesCF: fake.CFOutputs{
-				DescribeStackPages: fake.R(nil, nil),
-				DescribeStacks:     fake.R(nil, nil),
-				CreateStack:        fake.R(fake.MockCSOutput("42"), nil),
+				DescribeStacks: fake.R(fake.MockDescribeStacksOutput(nil), nil),
+				CreateStack:    fake.R(fake.MockCSOutput("42"), nil),
 			},
 			typeLB: aws.LoadBalancerTypeApplication,
 		}, {
 			name: "ingress_rg_shared_nlb",
-			responsesEC2: fake.EC2Outputs{DescribeInstancesPages: fake.MockDescribeInstancesPagesOutput(
-				nil,
+			responsesEC2: fake.EC2Outputs{DescribeInstances: fake.R(fake.MockDescribeInstancesOutput(
 				fake.TestInstance{
 					Id:        "i0",
 					Tags:      fake.Tags{"aws:autoscaling:groupName": "asg1", clusterIDTagPrefix + clusterID: "owned"},
@@ -380,7 +369,7 @@ func TestResourceConversionOneToOne(tt *testing.T) {
 					PrivateIp: "1.2.3.5",
 					VpcId:     vpcID,
 					State:     running,
-				}),
+				}), nil),
 				DescribeSecurityGroups: fake.R(fake.MockDescribeSecurityGroupsOutput(map[string]string{"id": securityGroupID}), nil),
 				DescribeSubnets: fake.R(fake.MockDescribeSubnetsOutput(
 					fake.TestSubnet{Id: "foo1", Name: "bar1", Az: "baz1", Tags: map[string]string{"kubernetes.io/role/elb": ""}}), nil),
@@ -394,18 +383,17 @@ func TestResourceConversionOneToOne(tt *testing.T) {
 					clusterIDTagPrefix + clusterID: "owned",
 				}}), nil),
 				DescribeLoadBalancerTargetGroups: fake.R(&autoscaling.DescribeLoadBalancerTargetGroupsOutput{
-					LoadBalancerTargetGroups: []*autoscaling.LoadBalancerTargetGroupState{},
+					LoadBalancerTargetGroups: []autoScalingTypes.LoadBalancerTargetGroupState{},
 				}, nil),
 				AttachLoadBalancerTargetGroups: fake.R(nil, nil),
 			},
 			responsesELBv2: fake.ELBv2Outputs{
-				DescribeTargetGroups: fake.R(nil, nil),
+				DescribeTargetGroups: fake.R(fake.MockDescribeTargetGroupsOutput(), nil),
 				DescribeTags:         fake.R(nil, nil),
 			},
 			responsesCF: fake.CFOutputs{
-				DescribeStackPages: fake.R(nil, nil),
-				DescribeStacks:     fake.R(nil, nil),
-				CreateStack:        fake.R(fake.MockCSOutput("42"), nil),
+				DescribeStacks: fake.R(fake.MockDescribeStacksOutput(nil), nil),
+				CreateStack:    fake.R(fake.MockCSOutput("42"), nil),
 			},
 			typeLB: aws.LoadBalancerTypeNetwork,
 		},
@@ -435,9 +423,9 @@ func TestResourceConversionOneToOne(tt *testing.T) {
 				t.Fatal(err)
 			}
 
-			var params [][]*cf.Parameter
+			var params [][]cfTypes.Parameter
 			for _, file := range paramFiles {
-				var content []*cf.Parameter
+				var content []cfTypes.Parameter
 				err := json.Unmarshal(readFile("params/"+file.Name()), &content)
 				if err != nil {
 					t.Fatal(err)
@@ -450,9 +438,9 @@ func TestResourceConversionOneToOne(tt *testing.T) {
 				t.Fatal(err)
 			}
 
-			var tags [][]*cf.Tag
+			var tags [][]cfTypes.Tag
 			for _, file := range tagFiles {
-				var content []*cf.Tag
+				var content []cfTypes.Tag
 				err := json.Unmarshal(readFile("tags/"+file.Name()), &content)
 				if err != nil {
 					t.Fatal(err)

@@ -6,9 +6,10 @@ import (
 	"sort"
 	"testing"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/service/ec2"
-	"github.com/aws/aws-sdk-go/service/elbv2"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/ec2/types"
+	elbv2 "github.com/aws/aws-sdk-go-v2/service/elasticloadbalancingv2"
+	elbv2Types "github.com/aws/aws-sdk-go-v2/service/elasticloadbalancingv2/types"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -44,23 +45,23 @@ func TestGenerateDefaultFilters(tt *testing.T) {
 			if len(filters) != 2 {
 				t.Errorf("generateDefaultFilters returned %d filters instead of 2", len(filters))
 			}
-			if aws.StringValue(filters[0].Name) != "tag:"+clusterIDTagPrefix+test.clusterId {
-				t.Errorf("generateDefaultFilters first filter has wrong name %s", aws.StringValue(filters[0].Name))
+			if aws.ToString(filters[0].Name) != "tag:"+clusterIDTagPrefix+test.clusterId {
+				t.Errorf("generateDefaultFilters first filter has wrong name %s", aws.ToString(filters[0].Name))
 			}
 			if len(filters[0].Values) != 1 {
 				t.Errorf("generateDefaultFilters first filter has %d values instead of 1", len(filters[0].Values))
 			}
-			if aws.StringValue(filters[0].Values[0]) != resourceLifecycleOwned {
-				t.Errorf("generateDefaultFilters first filter has wrong value %s", aws.StringValue(filters[0].Values[0]))
+			if filters[0].Values[0] != resourceLifecycleOwned {
+				t.Errorf("generateDefaultFilters first filter has wrong value %s", filters[0].Values[0])
 			}
-			if aws.StringValue(filters[1].Name) != "tag-key" {
-				t.Errorf("generateDefaultFilters second filter has wrong name %s", aws.StringValue(filters[1].Name))
+			if aws.ToString(filters[1].Name) != "tag-key" {
+				t.Errorf("generateDefaultFilters second filter has wrong name %s", aws.ToString(filters[1].Name))
 			}
 			if len(filters[1].Values) != 1 {
 				t.Errorf("generateDefaultFilters second filter has %d values instead of 1", len(filters[1].Values))
 			}
-			if aws.StringValue(filters[1].Values[0]) != kubernetesNodeRoleTag {
-				t.Errorf("generateDefaultFilters second filter has wrong value %s", aws.StringValue(filters[1].Values[0]))
+			if filters[1].Values[0] != kubernetesNodeRoleTag {
+				t.Errorf("generateDefaultFilters second filter has wrong value %s", filters[1].Values[0])
 			}
 		})
 	}
@@ -71,20 +72,20 @@ func TestParseFilters(tt *testing.T) {
 		name            string
 		customFilter    *string
 		clusterId       string
-		expectedFilters []*ec2.Filter
+		expectedFilters []types.Filter
 	}{
 		{
 			"no-custom-filter",
 			nil,
 			"cluster",
-			[]*ec2.Filter{
+			[]types.Filter{
 				{
 					Name:   aws.String("tag:" + clusterIDTagPrefix + "cluster"),
-					Values: aws.StringSlice([]string{resourceLifecycleOwned}),
+					Values: []string{resourceLifecycleOwned},
 				},
 				{
 					Name:   aws.String("tag-key"),
-					Values: aws.StringSlice([]string{kubernetesNodeRoleTag}),
+					Values: []string{kubernetesNodeRoleTag},
 				},
 			},
 		},
@@ -92,10 +93,10 @@ func TestParseFilters(tt *testing.T) {
 			"custom-filter1",
 			aws.String("tag:Test=test"),
 			"cluster",
-			[]*ec2.Filter{
+			[]types.Filter{
 				{
 					Name:   aws.String("tag:Test"),
-					Values: aws.StringSlice([]string{"test"}),
+					Values: []string{"test"},
 				},
 			},
 		},
@@ -103,14 +104,14 @@ func TestParseFilters(tt *testing.T) {
 			"custom-filter2",
 			aws.String("tag:Test=test vpc-id=id1,id2"),
 			"cluster",
-			[]*ec2.Filter{
+			[]types.Filter{
 				{
 					Name:   aws.String("tag:Test"),
-					Values: aws.StringSlice([]string{"test"}),
+					Values: []string{"test"},
 				},
 				{
 					Name:   aws.String("vpc-id"),
-					Values: aws.StringSlice([]string{"id1", "id2"}),
+					Values: []string{"id1", "id2"},
 				},
 			},
 		},
@@ -118,18 +119,18 @@ func TestParseFilters(tt *testing.T) {
 			"custom-filter3",
 			aws.String("tag:Test=test tag:Test=test1,test2  tag-key=key1,key2,key3"),
 			"cluster",
-			[]*ec2.Filter{
+			[]types.Filter{
 				{
 					Name:   aws.String("tag:Test"),
-					Values: aws.StringSlice([]string{"test"}),
+					Values: []string{"test"},
 				},
 				{
 					Name:   aws.String("tag:Test"),
-					Values: aws.StringSlice([]string{"test1", "test2"}),
+					Values: []string{"test1", "test2"},
 				},
 				{
 					Name:   aws.String("tag-key"),
-					Values: aws.StringSlice([]string{"key1", "key2", "key3"}),
+					Values: []string{"key1", "key2", "key3"},
 				},
 			},
 		},
@@ -137,14 +138,14 @@ func TestParseFilters(tt *testing.T) {
 			"illegal1",
 			aws.String("test"),
 			"cluster",
-			[]*ec2.Filter{
+			[]types.Filter{
 				{
 					Name:   aws.String("tag:" + clusterIDTagPrefix + "cluster"),
-					Values: aws.StringSlice([]string{resourceLifecycleOwned}),
+					Values: []string{resourceLifecycleOwned},
 				},
 				{
 					Name:   aws.String("tag-key"),
-					Values: aws.StringSlice([]string{kubernetesNodeRoleTag}),
+					Values: []string{kubernetesNodeRoleTag},
 				},
 			},
 		},
@@ -166,7 +167,7 @@ func TestParseFilters(tt *testing.T) {
 			}
 			output := a.parseFilters(test.clusterId)
 			if !reflect.DeepEqual(test.expectedFilters, output) {
-				t.Errorf("unexpected result. wanted %q, got %q", test.expectedFilters, output)
+				t.Errorf("unexpected result. wanted %v, got %v", test.expectedFilters, output)
 			}
 		})
 	}
@@ -175,61 +176,61 @@ func TestParseFilters(tt *testing.T) {
 func TestFiltersString(tt *testing.T) {
 	for _, test := range []struct {
 		name    string
-		filters []*ec2.Filter
+		filters []types.Filter
 		str     string
 	}{
 		{
 			"test1",
-			[]*ec2.Filter{
+			[]types.Filter{
 				{
 					Name:   aws.String("tag:" + clusterIDTagPrefix + "cluster"),
-					Values: aws.StringSlice([]string{resourceLifecycleOwned}),
+					Values: []string{resourceLifecycleOwned},
 				},
 				{
 					Name:   aws.String("tag-key"),
-					Values: aws.StringSlice([]string{kubernetesNodeRoleTag}),
+					Values: []string{kubernetesNodeRoleTag},
 				},
 			},
 			"tag:" + clusterIDTagPrefix + "cluster=" + resourceLifecycleOwned + " tag-key=" + kubernetesNodeRoleTag,
 		},
 		{
 			"test2",
-			[]*ec2.Filter{
+			[]types.Filter{
 				{
 					Name:   aws.String("tag:Test"),
-					Values: aws.StringSlice([]string{"test"}),
+					Values: []string{"test"},
 				},
 			},
 			"tag:Test=test",
 		},
 		{
 			"custom-filter2",
-			[]*ec2.Filter{
+			[]types.Filter{
 				{
 					Name:   aws.String("tag:Test"),
-					Values: aws.StringSlice([]string{"test"}),
+					Values: []string{"test"},
 				},
 				{
 					Name:   aws.String("vpc-id"),
-					Values: aws.StringSlice([]string{"id1", "id2"}),
+					Values: []string{"id1", "id2"},
 				},
 			},
 			"tag:Test=test vpc-id=id1,id2",
 		},
 		{
 			"custom-filter3",
-			[]*ec2.Filter{
+			[]types.Filter{
 				{
 					Name:   aws.String("tag:Test"),
-					Values: aws.StringSlice([]string{"test"}),
+					Values: []string{"test"},
 				},
 				{
 					Name:   aws.String("tag:Test"),
-					Values: aws.StringSlice([]string{"test1", "test2"}),
+					Values: []string{"test1", "test2"},
 				},
 				{
 					Name:   aws.String("tag-key"),
-					Values: aws.StringSlice([]string{"key1", "key2", "key3"}),
+					Values: []string{"key1", "key2", "key3"},
 				},
 			},
 			"tag:Test=test tag:Test=test1,test2 tag-key=key1,key2,key3",
@@ -250,7 +251,7 @@ func TestUpdateAutoScalingGroupsAndInstances(tt *testing.T) {
 	a := Adapter{
 		ec2Details:        map[string]*instanceDetails{},
 		singleInstances:   make(map[string]*instanceDetails),
-		obsoleteInstances: make([]string, 0),
+		obsoleteInstances: []string{},
 		manifest: &manifest{
 			instance: &instanceDetails{
 				tags: map[string]string{
@@ -272,11 +273,10 @@ func TestUpdateAutoScalingGroupsAndInstances(tt *testing.T) {
 	}{
 		{
 			"initial",
-			fake.EC2Outputs{DescribeInstancesPages: fake.MockDescribeInstancesPagesOutput(
-				nil,
+			fake.EC2Outputs{DescribeInstances: fake.R(fake.MockDescribeInstancesOutput(
 				fake.TestInstance{Id: "foo0", Tags: fake.Tags{"aws:autoscaling:groupName": "asg1"}, PrivateIp: "1.2.3.3", VpcId: "1", State: runningState},
 				fake.TestInstance{Id: "foo1", Tags: fake.Tags{"aws:autoscaling:groupName": "asg1"}, PrivateIp: "1.2.3.4", VpcId: "1", State: runningState},
-			)},
+			), nil)},
 			fake.ASGOutputs{
 				DescribeAutoScalingGroups: fake.R(fake.MockDescribeAutoScalingGroupOutput(map[string]fake.ASGtags{"asg1": {
 					"foo":                          "bar",
@@ -292,12 +292,11 @@ func TestUpdateAutoScalingGroupsAndInstances(tt *testing.T) {
 		},
 		{
 			"add-node-same-asg",
-			fake.EC2Outputs{DescribeInstancesPages: fake.MockDescribeInstancesPagesOutput(
-				nil,
+			fake.EC2Outputs{DescribeInstances: fake.R(fake.MockDescribeInstancesOutput(
 				fake.TestInstance{Id: "foo0", Tags: fake.Tags{"aws:autoscaling:groupName": "asg1"}, PrivateIp: "1.2.3.3", VpcId: "1", State: runningState},
 				fake.TestInstance{Id: "foo1", Tags: fake.Tags{"aws:autoscaling:groupName": "asg1"}, PrivateIp: "1.2.3.4", VpcId: "1", State: 0},
 				fake.TestInstance{Id: "foo2", Tags: fake.Tags{"aws:autoscaling:groupName": "asg1"}, PrivateIp: "1.2.3.5", VpcId: "1", State: runningState},
-			)},
+			), nil)},
 			fake.ASGOutputs{
 				DescribeAutoScalingGroups: fake.R(fake.MockDescribeAutoScalingGroupOutput(map[string]fake.ASGtags{"asg1": {
 					"foo":                          "bar",
@@ -313,13 +312,12 @@ func TestUpdateAutoScalingGroupsAndInstances(tt *testing.T) {
 		},
 		{
 			"add-node-second-asg",
-			fake.EC2Outputs{DescribeInstancesPages: fake.MockDescribeInstancesPagesOutput(
-				nil,
+			fake.EC2Outputs{DescribeInstances: fake.R(fake.MockDescribeInstancesOutput(
 				fake.TestInstance{Id: "foo0", Tags: fake.Tags{"aws:autoscaling:groupName": "asg1"}, PrivateIp: "1.2.3.3", VpcId: "1", State: runningState},
 				fake.TestInstance{Id: "foo1", Tags: fake.Tags{"aws:autoscaling:groupName": "asg1"}, PrivateIp: "1.2.3.4", VpcId: "1", State: runningState},
 				fake.TestInstance{Id: "foo2", Tags: fake.Tags{"aws:autoscaling:groupName": "asg1"}, PrivateIp: "1.2.3.5", VpcId: "1", State: runningState},
 				fake.TestInstance{Id: "bar1", Tags: fake.Tags{"aws:autoscaling:groupName": "asg2"}, PrivateIp: "2.1.1.1", VpcId: "1", State: runningState},
-			)},
+			), nil)},
 			fake.ASGOutputs{
 				DescribeAutoScalingGroups: fake.R(fake.MockDescribeAutoScalingGroupOutput(map[string]fake.ASGtags{
 					"asg1": {
@@ -340,14 +338,13 @@ func TestUpdateAutoScalingGroupsAndInstances(tt *testing.T) {
 		},
 		{
 			"add-another-node-second-asg",
-			fake.EC2Outputs{DescribeInstancesPages: fake.MockDescribeInstancesPagesOutput(
-				nil,
+			fake.EC2Outputs{DescribeInstances: fake.R(fake.MockDescribeInstancesOutput(
 				fake.TestInstance{Id: "foo0", Tags: fake.Tags{"aws:autoscaling:groupName": "asg1"}, PrivateIp: "1.2.3.3", VpcId: "1", State: runningState},
 				fake.TestInstance{Id: "foo1", Tags: fake.Tags{"aws:autoscaling:groupName": "asg1"}, PrivateIp: "1.2.3.4", VpcId: "1", State: runningState},
 				fake.TestInstance{Id: "foo2", Tags: fake.Tags{"aws:autoscaling:groupName": "asg1"}, PrivateIp: "1.2.3.5", VpcId: "1", State: runningState},
 				fake.TestInstance{Id: "bar1", Tags: fake.Tags{"aws:autoscaling:groupName": "asg2"}, PrivateIp: "2.1.1.1", VpcId: "1", State: runningState},
 				fake.TestInstance{Id: "bar2", Tags: fake.Tags{"aws:autoscaling:groupName": "asg2"}, PrivateIp: "2.2.2.2", VpcId: "1", State: runningState},
-			)},
+			), nil)},
 			fake.ASGOutputs{
 				DescribeAutoScalingGroups: fake.R(fake.MockDescribeAutoScalingGroupOutput(map[string]fake.ASGtags{
 					"asg1": {
@@ -368,15 +365,14 @@ func TestUpdateAutoScalingGroupsAndInstances(tt *testing.T) {
 		},
 		{
 			"add-node-third-asg",
-			fake.EC2Outputs{DescribeInstancesPages: fake.MockDescribeInstancesPagesOutput(
-				nil,
+			fake.EC2Outputs{DescribeInstances: fake.R(fake.MockDescribeInstancesOutput(
 				fake.TestInstance{Id: "foo0", Tags: fake.Tags{"aws:autoscaling:groupName": "asg1"}, PrivateIp: "1.2.3.3", VpcId: "1", State: runningState},
 				fake.TestInstance{Id: "foo1", Tags: fake.Tags{"aws:autoscaling:groupName": "asg1"}, PrivateIp: "1.2.3.4", VpcId: "1", State: runningState},
 				fake.TestInstance{Id: "foo2", Tags: fake.Tags{"aws:autoscaling:groupName": "asg1"}, PrivateIp: "1.2.3.5", VpcId: "1", State: runningState},
 				fake.TestInstance{Id: "bar1", Tags: fake.Tags{"aws:autoscaling:groupName": "asg2"}, PrivateIp: "2.1.1.1", VpcId: "1", State: runningState},
 				fake.TestInstance{Id: "bar2", Tags: fake.Tags{"aws:autoscaling:groupName": "asg2"}, PrivateIp: "2.2.2.2", VpcId: "1", State: runningState},
 				fake.TestInstance{Id: "baz1", Tags: fake.Tags{"aws:autoscaling:groupName": "asg3"}, PrivateIp: "3.1.1.1", VpcId: "1", State: runningState},
-			)},
+			), nil)},
 			fake.ASGOutputs{
 				DescribeAutoScalingGroups: fake.R(fake.MockDescribeAutoScalingGroupOutput(map[string]fake.ASGtags{
 					"asg1": {
@@ -401,8 +397,7 @@ func TestUpdateAutoScalingGroupsAndInstances(tt *testing.T) {
 		},
 		{
 			"add-node-without-asg",
-			fake.EC2Outputs{DescribeInstancesPages: fake.MockDescribeInstancesPagesOutput(
-				nil,
+			fake.EC2Outputs{DescribeInstances: fake.R(fake.MockDescribeInstancesOutput(
 				fake.TestInstance{Id: "foo0", Tags: fake.Tags{"aws:autoscaling:groupName": "asg1"}, PrivateIp: "1.2.3.3", VpcId: "1", State: runningState},
 				fake.TestInstance{Id: "foo1", Tags: fake.Tags{"aws:autoscaling:groupName": "asg1"}, PrivateIp: "1.2.3.4", VpcId: "1", State: runningState},
 				fake.TestInstance{Id: "foo2", Tags: fake.Tags{"aws:autoscaling:groupName": "asg1"}, PrivateIp: "1.2.3.5", VpcId: "1", State: runningState},
@@ -410,7 +405,7 @@ func TestUpdateAutoScalingGroupsAndInstances(tt *testing.T) {
 				fake.TestInstance{Id: "bar2", Tags: fake.Tags{"aws:autoscaling:groupName": "asg2"}, PrivateIp: "2.2.2.2", VpcId: "1", State: runningState},
 				fake.TestInstance{Id: "baz1", Tags: fake.Tags{"aws:autoscaling:groupName": "asg3"}, PrivateIp: "3.1.1.1", VpcId: "1", State: runningState},
 				fake.TestInstance{Id: "sgl1", Tags: fake.Tags{"Name": "node1"}, PrivateIp: "0.1.1.1", VpcId: "1", State: runningState},
-			)},
+			), nil)},
 			fake.ASGOutputs{
 				DescribeAutoScalingGroups: fake.R(fake.MockDescribeAutoScalingGroupOutput(map[string]fake.ASGtags{
 					"asg1": {
@@ -435,8 +430,7 @@ func TestUpdateAutoScalingGroupsAndInstances(tt *testing.T) {
 		},
 		{
 			"add-stopped-node-without-asg",
-			fake.EC2Outputs{DescribeInstancesPages: fake.MockDescribeInstancesPagesOutput(
-				nil,
+			fake.EC2Outputs{DescribeInstances: fake.R(fake.MockDescribeInstancesOutput(
 				fake.TestInstance{Id: "foo0", Tags: fake.Tags{"aws:autoscaling:groupName": "asg1"}, PrivateIp: "1.2.3.3", VpcId: "1", State: runningState},
 				fake.TestInstance{Id: "foo1", Tags: fake.Tags{"aws:autoscaling:groupName": "asg1"}, PrivateIp: "1.2.3.4", VpcId: "1", State: runningState},
 				fake.TestInstance{Id: "foo2", Tags: fake.Tags{"aws:autoscaling:groupName": "asg1"}, PrivateIp: "1.2.3.5", VpcId: "1", State: runningState},
@@ -445,7 +439,7 @@ func TestUpdateAutoScalingGroupsAndInstances(tt *testing.T) {
 				fake.TestInstance{Id: "baz1", Tags: fake.Tags{"aws:autoscaling:groupName": "asg3"}, PrivateIp: "3.1.1.1", VpcId: "1", State: runningState},
 				fake.TestInstance{Id: "sgl1", Tags: fake.Tags{"Name": "node1"}, PrivateIp: "0.1.1.1", VpcId: "1", State: runningState},
 				fake.TestInstance{Id: "sgl2", Tags: fake.Tags{"Name": "node2"}, PrivateIp: "0.1.1.2", VpcId: "1", State: stoppedState},
-			)},
+			), nil)},
 			fake.ASGOutputs{
 				DescribeAutoScalingGroups: fake.R(fake.MockDescribeAutoScalingGroupOutput(map[string]fake.ASGtags{
 					"asg1": {
@@ -470,15 +464,14 @@ func TestUpdateAutoScalingGroupsAndInstances(tt *testing.T) {
 		},
 		{
 			"remove-third-asg-node-and-stopped-instance",
-			fake.EC2Outputs{DescribeInstancesPages: fake.MockDescribeInstancesPagesOutput(
-				nil,
+			fake.EC2Outputs{DescribeInstances: fake.R(fake.MockDescribeInstancesOutput(
 				fake.TestInstance{Id: "foo0", Tags: fake.Tags{"aws:autoscaling:groupName": "asg1"}, PrivateIp: "1.2.3.3", VpcId: "1", State: runningState},
 				fake.TestInstance{Id: "foo1", Tags: fake.Tags{"aws:autoscaling:groupName": "asg1"}, PrivateIp: "1.2.3.4", VpcId: "1", State: runningState},
 				fake.TestInstance{Id: "foo2", Tags: fake.Tags{"aws:autoscaling:groupName": "asg1"}, PrivateIp: "1.2.3.5", VpcId: "1", State: runningState},
 				fake.TestInstance{Id: "bar1", Tags: fake.Tags{"aws:autoscaling:groupName": "asg2"}, PrivateIp: "2.1.1.1", VpcId: "1", State: runningState},
 				fake.TestInstance{Id: "bar2", Tags: fake.Tags{"aws:autoscaling:groupName": "asg2"}, PrivateIp: "2.2.2.2", VpcId: "1", State: runningState},
 				fake.TestInstance{Id: "sgl1", Tags: fake.Tags{"Name": "node1"}, PrivateIp: "0.1.1.1", VpcId: "1", State: runningState},
-			)},
+			), nil)},
 			fake.ASGOutputs{
 				DescribeAutoScalingGroups: fake.R(fake.MockDescribeAutoScalingGroupOutput(map[string]fake.ASGtags{
 					"asg1": {
@@ -499,10 +492,11 @@ func TestUpdateAutoScalingGroupsAndInstances(tt *testing.T) {
 		},
 		{
 			"error-fetching-instance",
-			fake.EC2Outputs{DescribeInstancesPages: fake.MockDescribeInstancesPagesOutput(
-				fake.ErrDummy,
-				fake.TestInstance{},
-			)},
+			fake.EC2Outputs{
+				DescribeInstances: fake.R(fake.MockDescribeInstancesOutput(
+					fake.TestInstance{},
+				), fake.ErrDummy),
+			},
 			fake.ASGOutputs{},
 			6,
 			[]string{"asg1", "asg2"},
@@ -513,8 +507,7 @@ func TestUpdateAutoScalingGroupsAndInstances(tt *testing.T) {
 		},
 		{
 			"error-fetching-asg",
-			fake.EC2Outputs{DescribeInstancesPages: fake.MockDescribeInstancesPagesOutput(
-				nil,
+			fake.EC2Outputs{DescribeInstances: fake.R(fake.MockDescribeInstancesOutput(
 				fake.TestInstance{Id: "foo0", Tags: fake.Tags{"aws:autoscaling:groupName": "asg1"}, PrivateIp: "1.2.3.3", VpcId: "1", State: runningState},
 				fake.TestInstance{Id: "foo1", Tags: fake.Tags{"aws:autoscaling:groupName": "asg1"}, PrivateIp: "1.2.3.4", VpcId: "1", State: runningState},
 				fake.TestInstance{Id: "foo2", Tags: fake.Tags{"aws:autoscaling:groupName": "asg1"}, PrivateIp: "1.2.3.5", VpcId: "1", State: runningState},
@@ -522,7 +515,7 @@ func TestUpdateAutoScalingGroupsAndInstances(tt *testing.T) {
 				fake.TestInstance{Id: "bar2", Tags: fake.Tags{"aws:autoscaling:groupName": "asg2"}, PrivateIp: "2.2.2.2", VpcId: "1", State: runningState},
 				fake.TestInstance{Id: "sgl1", Tags: fake.Tags{"Name": "node1"}, PrivateIp: "0.1.1.1", VpcId: "1", State: runningState},
 				fake.TestInstance{Id: "fail", Tags: fake.Tags{"aws:autoscaling:groupName": "none"}, PrivateIp: "0.2.2.2", VpcId: "1", State: runningState},
-			)},
+			), nil)},
 			fake.ASGOutputs{
 				DescribeAutoScalingGroups: fake.R(fake.MockDescribeAutoScalingGroupOutput(map[string]fake.ASGtags{
 					"asg1": {
@@ -543,8 +536,7 @@ func TestUpdateAutoScalingGroupsAndInstances(tt *testing.T) {
 		},
 		{
 			"add-back-third-asg",
-			fake.EC2Outputs{DescribeInstancesPages: fake.MockDescribeInstancesPagesOutput(
-				nil,
+			fake.EC2Outputs{DescribeInstances: fake.R(fake.MockDescribeInstancesOutput(
 				fake.TestInstance{Id: "foo0", Tags: fake.Tags{"aws:autoscaling:groupName": "asg1"}, PrivateIp: "1.2.3.3", VpcId: "1", State: runningState},
 				fake.TestInstance{Id: "foo1", Tags: fake.Tags{"aws:autoscaling:groupName": "asg1"}, PrivateIp: "1.2.3.4", VpcId: "1", State: runningState},
 				fake.TestInstance{Id: "foo2", Tags: fake.Tags{"aws:autoscaling:groupName": "asg1"}, PrivateIp: "1.2.3.5", VpcId: "1", State: runningState},
@@ -552,7 +544,7 @@ func TestUpdateAutoScalingGroupsAndInstances(tt *testing.T) {
 				fake.TestInstance{Id: "bar2", Tags: fake.Tags{"aws:autoscaling:groupName": "asg2"}, PrivateIp: "2.2.2.2", VpcId: "1", State: runningState},
 				fake.TestInstance{Id: "baz1", Tags: fake.Tags{"aws:autoscaling:groupName": "asg3"}, PrivateIp: "3.1.1.1", VpcId: "1", State: runningState},
 				fake.TestInstance{Id: "sgl1", Tags: fake.Tags{"Name": "node1"}, PrivateIp: "0.1.1.1", VpcId: "1", State: runningState},
-			)},
+			), nil)},
 			fake.ASGOutputs{
 				DescribeAutoScalingGroups: fake.R(fake.MockDescribeAutoScalingGroupOutput(map[string]fake.ASGtags{
 					"asg1": {
@@ -577,12 +569,11 @@ func TestUpdateAutoScalingGroupsAndInstances(tt *testing.T) {
 		},
 		{
 			"remove-all-except-first-asg",
-			fake.EC2Outputs{DescribeInstancesPages: fake.MockDescribeInstancesPagesOutput(
-				nil,
+			fake.EC2Outputs{DescribeInstances: fake.R(fake.MockDescribeInstancesOutput(
 				fake.TestInstance{Id: "foo0", Tags: fake.Tags{"aws:autoscaling:groupName": "asg1"}, PrivateIp: "1.2.3.3", VpcId: "1", State: runningState},
 				fake.TestInstance{Id: "foo1", Tags: fake.Tags{"aws:autoscaling:groupName": "asg1"}, PrivateIp: "1.2.3.4", VpcId: "1", State: runningState},
 				fake.TestInstance{Id: "foo2", Tags: fake.Tags{"aws:autoscaling:groupName": "asg1"}, PrivateIp: "1.2.3.5", VpcId: "1", State: runningState},
-			)},
+			), nil)},
 			fake.ASGOutputs{
 				DescribeAutoScalingGroups: fake.R(fake.MockDescribeAutoScalingGroupOutput(map[string]fake.ASGtags{"asg1": {
 					"foo":                          "bar",
@@ -598,11 +589,10 @@ func TestUpdateAutoScalingGroupsAndInstances(tt *testing.T) {
 		},
 		{
 			"add-remove-simultaneously",
-			fake.EC2Outputs{DescribeInstancesPages: fake.MockDescribeInstancesPagesOutput(
-				nil,
+			fake.EC2Outputs{DescribeInstances: fake.R(fake.MockDescribeInstancesOutput(
 				fake.TestInstance{Id: "foo0", Tags: fake.Tags{"aws:autoscaling:groupName": "asg1"}, PrivateIp: "1.2.3.3", VpcId: "1", State: runningState},
 				fake.TestInstance{Id: "sgl1", Tags: fake.Tags{"Name": "node1"}, PrivateIp: "0.1.1.1", VpcId: "1", State: runningState},
-			)},
+			), nil)},
 			fake.ASGOutputs{
 				DescribeAutoScalingGroups: fake.R(fake.MockDescribeAutoScalingGroupOutput(map[string]fake.ASGtags{"asg1": {
 					"foo":                          "bar",
@@ -684,7 +674,7 @@ func TestFindLBSubnets(tt *testing.T) {
 					id:               "2",
 				},
 			},
-			scheme:          elbv2.LoadBalancerSchemeEnumInternetFacing,
+			scheme:          string(elbv2Types.LoadBalancerSchemeEnumInternetFacing),
 			expectedSubnets: []string{"1", "2"},
 		},
 		{
@@ -701,7 +691,7 @@ func TestFindLBSubnets(tt *testing.T) {
 					id:               "1",
 				},
 			},
-			scheme:          elbv2.LoadBalancerSchemeEnumInternetFacing,
+			scheme:          string(elbv2Types.LoadBalancerSchemeEnumInternetFacing),
 			expectedSubnets: []string{"1"},
 		},
 		{
@@ -713,7 +703,7 @@ func TestFindLBSubnets(tt *testing.T) {
 					id:               "2",
 				},
 			},
-			scheme:          elbv2.LoadBalancerSchemeEnumInternetFacing,
+			scheme:          string(elbv2Types.LoadBalancerSchemeEnumInternetFacing),
 			expectedSubnets: nil,
 		},
 		{
@@ -733,7 +723,7 @@ func TestFindLBSubnets(tt *testing.T) {
 					},
 				},
 			},
-			scheme:          elbv2.LoadBalancerSchemeEnumInternetFacing,
+			scheme:          string(elbv2Types.LoadBalancerSchemeEnumInternetFacing),
 			expectedSubnets: []string{"2"},
 		},
 		{
@@ -753,7 +743,7 @@ func TestFindLBSubnets(tt *testing.T) {
 					},
 				},
 			},
-			scheme:          elbv2.LoadBalancerSchemeEnumInternal,
+			scheme:          string(elbv2Types.LoadBalancerSchemeEnumInternal),
 			expectedSubnets: []string{"2"},
 		},
 	} {
@@ -954,7 +944,7 @@ func TestWithxlbHealthyThresholdCount(t *testing.T) {
 
 func TestAdapter_SetTargetsOnCNITargetGroups(t *testing.T) {
 	tgARNs := []string{"asg1"}
-	thOut := elbv2.DescribeTargetHealthOutput{TargetHealthDescriptions: []*elbv2.TargetHealthDescription{}}
+	thOut := elbv2.DescribeTargetHealthOutput{TargetHealthDescriptions: []elbv2Types.TargetHealthDescription{}}
 	m := &fake.ELBv2Client{
 		Outputs: fake.ELBv2Outputs{
 			DescribeTargetHealth: fake.R(&thOut, nil),
@@ -968,19 +958,19 @@ func TestAdapter_SetTargetsOnCNITargetGroups(t *testing.T) {
 		require.NoError(t, a.SetTargetsOnCNITargetGroups([]string{"1.1.1.1"}, tgARNs))
 		require.Equal(t, []*elbv2.RegisterTargetsInput{{
 			TargetGroupArn: aws.String("asg1"),
-			Targets:        []*elbv2.TargetDescription{{Id: aws.String("1.1.1.1")}},
+			Targets:        []elbv2Types.TargetDescription{{Id: aws.String("1.1.1.1")}},
 		}}, m.Rtinputs)
 		require.Equal(t, []*elbv2.DeregisterTargetsInput(nil), m.Dtinputs)
 	})
 
 	t.Run("two new endpoints, registers the new EPs only", func(t *testing.T) {
-		thOut = elbv2.DescribeTargetHealthOutput{TargetHealthDescriptions: []*elbv2.TargetHealthDescription{
-			{Target: &elbv2.TargetDescription{Id: aws.String("1.1.1.1")}}},
+		thOut = elbv2.DescribeTargetHealthOutput{TargetHealthDescriptions: []elbv2Types.TargetHealthDescription{
+			{Target: &elbv2Types.TargetDescription{Id: aws.String("1.1.1.1")}}},
 		}
 		m.Rtinputs, m.Dtinputs = nil, nil
 
 		require.NoError(t, a.SetTargetsOnCNITargetGroups([]string{"1.1.1.1", "2.2.2.2", "3.3.3.3"}, tgARNs))
-		require.Equal(t, []*elbv2.TargetDescription{
+		require.Equal(t, []elbv2Types.TargetDescription{
 			{Id: aws.String("2.2.2.2")},
 			{Id: aws.String("3.3.3.3")},
 		}, m.Rtinputs[0].Targets)
@@ -988,29 +978,29 @@ func TestAdapter_SetTargetsOnCNITargetGroups(t *testing.T) {
 	})
 
 	t.Run("removing one endpoint, causing deregistration of it", func(t *testing.T) {
-		thOut = elbv2.DescribeTargetHealthOutput{TargetHealthDescriptions: []*elbv2.TargetHealthDescription{
-			{Target: &elbv2.TargetDescription{Id: aws.String("1.1.1.1")}},
-			{Target: &elbv2.TargetDescription{Id: aws.String("2.2.2.2")}},
-			{Target: &elbv2.TargetDescription{Id: aws.String("3.3.3.3")}},
+		thOut = elbv2.DescribeTargetHealthOutput{TargetHealthDescriptions: []elbv2Types.TargetHealthDescription{
+			{Target: &elbv2Types.TargetDescription{Id: aws.String("1.1.1.1")}},
+			{Target: &elbv2Types.TargetDescription{Id: aws.String("2.2.2.2")}},
+			{Target: &elbv2Types.TargetDescription{Id: aws.String("3.3.3.3")}},
 		}}
 		m.Rtinputs, m.Dtinputs = nil, nil
 
 		require.NoError(t, a.SetTargetsOnCNITargetGroups([]string{"1.1.1.1", "3.3.3.3"}, tgARNs))
 		require.Equal(t, []*elbv2.RegisterTargetsInput(nil), m.Rtinputs)
-		require.Equal(t, []*elbv2.TargetDescription{{Id: aws.String("2.2.2.2")}}, m.Dtinputs[0].Targets)
+		require.Equal(t, []elbv2Types.TargetDescription{{Id: aws.String("2.2.2.2")}}, m.Dtinputs[0].Targets)
 	})
 
 	t.Run("restoring desired State after external manipulation, adding and removing one", func(t *testing.T) {
-		thOut = elbv2.DescribeTargetHealthOutput{TargetHealthDescriptions: []*elbv2.TargetHealthDescription{
-			{Target: &elbv2.TargetDescription{Id: aws.String("1.1.1.1")}},
-			{Target: &elbv2.TargetDescription{Id: aws.String("2.2.2.2")}},
-			{Target: &elbv2.TargetDescription{Id: aws.String("4.4.4.4")}},
+		thOut = elbv2.DescribeTargetHealthOutput{TargetHealthDescriptions: []elbv2Types.TargetHealthDescription{
+			{Target: &elbv2Types.TargetDescription{Id: aws.String("1.1.1.1")}},
+			{Target: &elbv2Types.TargetDescription{Id: aws.String("2.2.2.2")}},
+			{Target: &elbv2Types.TargetDescription{Id: aws.String("4.4.4.4")}},
 		}}
 		m.Rtinputs, m.Dtinputs = nil, nil
 
 		require.NoError(t, a.SetTargetsOnCNITargetGroups([]string{"1.1.1.1", "2.2.2.2", "3.3.3.3"}, tgARNs))
-		require.Equal(t, []*elbv2.TargetDescription{{Id: aws.String("3.3.3.3")}}, m.Rtinputs[0].Targets)
-		require.Equal(t, []*elbv2.TargetDescription{{Id: aws.String("4.4.4.4")}}, m.Dtinputs[0].Targets)
+		require.Equal(t, []elbv2Types.TargetDescription{{Id: aws.String("3.3.3.3")}}, m.Rtinputs[0].Targets)
+		require.Equal(t, []elbv2Types.TargetDescription{{Id: aws.String("4.4.4.4")}}, m.Dtinputs[0].Targets)
 	})
 }
 
@@ -1019,21 +1009,21 @@ func TestWithTargetAccessMode(t *testing.T) {
 		a := &Adapter{TargetCNI: &TargetCNIconfig{Enabled: false}}
 		a = a.WithTargetAccessMode("AWSCNI")
 
-		assert.Equal(t, elbv2.TargetTypeEnumIp, a.targetType)
+		assert.Equal(t, elbv2Types.TargetTypeEnumIp, a.targetType)
 		assert.True(t, a.TargetCNI.Enabled)
 	})
 	t.Run("WithTargetAccessMode HostPort", func(t *testing.T) {
 		a := &Adapter{TargetCNI: &TargetCNIconfig{Enabled: true}}
 		a = a.WithTargetAccessMode("HostPort")
 
-		assert.Equal(t, elbv2.TargetTypeEnumInstance, a.targetType)
+		assert.Equal(t, elbv2Types.TargetTypeEnumInstance, a.targetType)
 		assert.False(t, a.TargetCNI.Enabled)
 	})
 	t.Run("WithTargetAccessMode Legacy", func(t *testing.T) {
 		a := &Adapter{TargetCNI: &TargetCNIconfig{Enabled: true}}
 		a = a.WithTargetAccessMode("Legacy")
 
-		assert.Equal(t, "", a.targetType)
+		assert.Equal(t, elbv2Types.TargetTypeEnum(""), a.targetType)
 		assert.False(t, a.TargetCNI.Enabled)
 	})
 }

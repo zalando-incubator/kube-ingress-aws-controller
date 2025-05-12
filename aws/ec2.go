@@ -1,12 +1,13 @@
 package aws
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/service/ec2"
-	"github.com/aws/aws-sdk-go/service/ec2/ec2iface"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/ec2"
+	"github.com/aws/aws-sdk-go-v2/service/ec2/types"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -18,12 +19,21 @@ const (
 	resourceLifecycleOwned     = "owned"
 	kubernetesCreatorTag       = "kubernetes:application"
 	autoScalingGroupNameTag    = "aws:autoscaling:groupName"
-	runningState               = 16 // See https://github.com/aws/aws-sdk-go/blob/master/service/ec2/api.go, type InstanceState
-	stoppedState               = 80 // See https://github.com/aws/aws-sdk-go/blob/master/service/ec2/api.go, type InstanceState
-	elbRoleTagName             = "kubernetes.io/role/elb"
-	internalELBRoleTagName     = "kubernetes.io/role/internal-elb"
-	kubernetesNodeRoleTag      = "k8s.io/role/node"
+	// [types.InstanceState]
+	runningState = 16
+	// [types.InstanceState]
+	stoppedState           = 80
+	elbRoleTagName         = "kubernetes.io/role/elb"
+	internalELBRoleTagName = "kubernetes.io/role/internal-elb"
+	kubernetesNodeRoleTag  = "k8s.io/role/node"
 )
+
+type EC2API interface {
+	ec2.DescribeInstancesAPIClient
+	ec2.DescribeSubnetsAPIClient
+	ec2.DescribeRouteTablesAPIClient
+	ec2.DescribeSecurityGroupsAPIClient
+}
 
 type securityGroupDetails struct {
 	name string
@@ -83,18 +93,24 @@ func getAutoScalingGroupName(instanceTags map[string]string) (string, error) {
 	return asg, nil
 }
 
-func getInstanceDetails(ec2Service ec2iface.EC2API, instanceID string) (*instanceDetails, error) {
+func isInstanceRunning(state *types.InstanceState) bool {
+	// The low byte represents the state. The high byte is
+	// an opaque internal value and should be ignored.
+	return aws.ToInt32(state.Code)&0xff == runningState
+}
+
+func getInstanceDetails(ctx context.Context, ec2Service EC2API, instanceID string) (*instanceDetails, error) {
 	params := &ec2.DescribeInstancesInput{
-		Filters: []*ec2.Filter{
+		Filters: []types.Filter{
 			{
 				Name: aws.String("instance-id"),
-				Values: []*string{
-					aws.String(instanceID),
+				Values: []string{
+					instanceID,
 				},
 			},
 		},
 	}
-	resp, err := ec2Service.DescribeInstances(params)
+	resp, err := ec2Service.DescribeInstances(ctx, params)
 	if err != nil || resp == nil {
 		return nil, fmt.Errorf("unable to get details for instance %q: %w", instanceID, err)
 	}
@@ -105,71 +121,69 @@ func getInstanceDetails(ec2Service ec2iface.EC2API, instanceID string) (*instanc
 	}
 
 	return &instanceDetails{
-		id:      aws.StringValue(i.InstanceId),
-		ip:      aws.StringValue(i.PrivateIpAddress),
-		vpcID:   aws.StringValue(i.VpcId),
+		id:      aws.ToString(i.InstanceId),
+		ip:      aws.ToString(i.PrivateIpAddress),
+		vpcID:   aws.ToString(i.VpcId),
 		tags:    convertEc2Tags(i.Tags),
-		running: aws.Int64Value(i.State.Code)&0xff == runningState,
+		running: isInstanceRunning(i.State),
 	}, nil
 }
 
-func getInstancesDetailsWithFilters(ec2Service ec2iface.EC2API, filters []*ec2.Filter) (map[string]*instanceDetails, error) {
+func getInstancesDetailsWithFilters(ctx context.Context, ec2Service EC2API, filters []types.Filter) (map[string]*instanceDetails, error) {
 	params := &ec2.DescribeInstancesInput{
 		Filters: filters,
 	}
 	result := make(map[string]*instanceDetails)
-	err := ec2Service.DescribeInstancesPages(params, func(resp *ec2.DescribeInstancesOutput, lastPage bool) bool {
+	paginator := ec2.NewDescribeInstancesPaginator(ec2Service, params)
+	for paginator.HasMorePages() {
+		resp, err := paginator.NextPage(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("failed getting instance list from EC2: %w", err)
+		}
 		for _, reservation := range resp.Reservations {
 			for _, instance := range reservation.Instances {
-				result[aws.StringValue(instance.InstanceId)] = &instanceDetails{
-					id:      aws.StringValue(instance.InstanceId),
-					ip:      aws.StringValue(instance.PrivateIpAddress),
-					vpcID:   aws.StringValue(instance.VpcId),
+				result[aws.ToString(instance.InstanceId)] = &instanceDetails{
+					id:      aws.ToString(instance.InstanceId),
+					ip:      aws.ToString(instance.PrivateIpAddress),
+					vpcID:   aws.ToString(instance.VpcId),
 					tags:    convertEc2Tags(instance.Tags),
-					running: aws.Int64Value(instance.State.Code)&0xff == runningState,
+					running: isInstanceRunning(instance.State),
 				}
 			}
 		}
-		return true
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed getting instance list from EC2: %w", err)
 	}
-
 	return result, nil
 }
 
-func findFirstRunningInstance(resp *ec2.DescribeInstancesOutput) (*ec2.Instance, error) {
+func findFirstRunningInstance(resp *ec2.DescribeInstancesOutput) (*types.Instance, error) {
 	for _, reservation := range resp.Reservations {
 		for _, instance := range reservation.Instances {
-			// The low byte represents the state. The high byte is an opaque internal value
-			// and should be ignored.
-			if aws.Int64Value(instance.State.Code)&0xff == runningState {
-				return instance, nil
+			if isInstanceRunning(instance.State) {
+				return &instance, nil
 			}
 		}
 	}
 	return nil, ErrNoRunningInstances
 }
 
-func getSubnets(svc ec2iface.EC2API, vpcID, clusterID string) ([]*subnetDetails, error) {
+func getSubnets(ctx context.Context, svc EC2API, vpcID, clusterID string) ([]*subnetDetails, error) {
 	params := &ec2.DescribeSubnetsInput{
-		Filters: []*ec2.Filter{
+		Filters: []types.Filter{
 			{
 				Name: aws.String("vpc-id"),
-				Values: []*string{
-					aws.String(vpcID),
+				Values: []string{
+					vpcID,
 				},
 			},
 		},
 	}
-	resp, err := svc.DescribeSubnets(params)
+	resp, err := svc.DescribeSubnets(ctx, params)
 	if err != nil {
 		return nil, err
 	}
 
 	log.Debug("aws.getRouteTables")
-	rt, err := getRouteTables(svc, vpcID)
+	rt, err := getRouteTables(ctx, svc, vpcID)
 	if err != nil {
 		return nil, err
 	}
@@ -177,8 +191,8 @@ func getSubnets(svc ec2iface.EC2API, vpcID, clusterID string) ([]*subnetDetails,
 	retAll := make([]*subnetDetails, len(resp.Subnets))
 	retFiltered := make([]*subnetDetails, 0)
 	for i, sn := range resp.Subnets {
-		az := aws.StringValue(sn.AvailabilityZone)
-		subnetID := aws.StringValue(sn.SubnetId)
+		az := aws.ToString(sn.AvailabilityZone)
+		subnetID := aws.ToString(sn.SubnetId)
 		isPublic, err := isSubnetPublic(rt, subnetID)
 		if err != nil {
 			return nil, err
@@ -208,26 +222,26 @@ func getSubnets(svc ec2iface.EC2API, vpcID, clusterID string) ([]*subnetDetails,
 	return retFiltered, nil
 }
 
-func convertEc2Tags(instanceTags []*ec2.Tag) map[string]string {
+func convertEc2Tags(instanceTags []types.Tag) map[string]string {
 	tags := make(map[string]string, len(instanceTags))
 	for _, tagDescription := range instanceTags {
-		tags[aws.StringValue(tagDescription.Key)] = aws.StringValue(tagDescription.Value)
+		tags[aws.ToString(tagDescription.Key)] = aws.ToString(tagDescription.Value)
 	}
 	return tags
 }
 
-func getRouteTables(svc ec2iface.EC2API, vpcID string) ([]*ec2.RouteTable, error) {
+func getRouteTables(ctx context.Context, svc EC2API, vpcID string) ([]types.RouteTable, error) {
 	params := &ec2.DescribeRouteTablesInput{
-		Filters: []*ec2.Filter{
+		Filters: []types.Filter{
 			{
 				Name: aws.String("vpc-id"),
-				Values: []*string{
-					aws.String(vpcID),
+				Values: []string{
+					vpcID,
 				},
 			},
 		},
 	}
-	resp, err := svc.DescribeRouteTables(params)
+	resp, err := svc.DescribeRouteTables(ctx, params)
 	if err != nil {
 		return nil, err
 	}
@@ -236,12 +250,12 @@ func getRouteTables(svc ec2iface.EC2API, vpcID string) ([]*ec2.RouteTable, error
 }
 
 // Copied from Kubernete's https://github.com/kubernetes/kubernetes/blob/master/pkg/cloudprovider/providers/aws/aws.go
-func isSubnetPublic(rt []*ec2.RouteTable, subnetID string) (bool, error) {
-	var subnetTable *ec2.RouteTable
+func isSubnetPublic(rt []types.RouteTable, subnetID string) (bool, error) {
+	var subnetTable *types.RouteTable
 	for _, table := range rt {
 		for _, assoc := range table.Associations {
-			if aws.StringValue(assoc.SubnetId) == subnetID {
-				subnetTable = table
+			if aws.ToString(assoc.SubnetId) == subnetID {
+				subnetTable = &table
 				break
 			}
 		}
@@ -252,8 +266,8 @@ func isSubnetPublic(rt []*ec2.RouteTable, subnetID string) (bool, error) {
 		// associated with the VPC's main routing table.
 		for _, table := range rt {
 			for _, assoc := range table.Associations {
-				if aws.BoolValue(assoc.Main) {
-					subnetTable = table
+				if aws.ToBool(assoc.Main) {
+					subnetTable = &table
 					break
 				}
 			}
@@ -271,7 +285,7 @@ func isSubnetPublic(rt []*ec2.RouteTable, subnetID string) (bool, error) {
 		// from the default in-subnet route which is called "local"
 		// or other virtual gateway (starting with vgv)
 		// or vpc peering connections (starting with pcx).
-		if strings.HasPrefix(aws.StringValue(route.GatewayId), "igw") {
+		if strings.HasPrefix(aws.ToString(route.GatewayId), "igw") {
 			return true, nil
 		}
 	}
@@ -279,36 +293,36 @@ func isSubnetPublic(rt []*ec2.RouteTable, subnetID string) (bool, error) {
 	return false, nil
 }
 
-func findSecurityGroupWithClusterID(svc ec2iface.EC2API, clusterID string, controllerID string) (*securityGroupDetails, error) {
+func findSecurityGroupWithClusterID(ctx context.Context, svc EC2API, clusterID string, controllerID string) (*securityGroupDetails, error) {
 	params := &ec2.DescribeSecurityGroupsInput{
-		Filters: []*ec2.Filter{
+		Filters: []types.Filter{
 			{
 				Name: aws.String("tag:" + clusterIDTagPrefix + clusterID),
-				Values: []*string{
-					aws.String(resourceLifecycleOwned),
+				Values: []string{
+					resourceLifecycleOwned,
 				},
 			},
 			{
 				Name: aws.String("tag:" + kubernetesCreatorTag),
-				Values: []*string{
-					aws.String(controllerID),
+				Values: []string{
+					controllerID,
 				},
 			},
 		},
 	}
 
-	resp, err := svc.DescribeSecurityGroups(params)
+	resp, err := svc.DescribeSecurityGroups(ctx, params)
 	if err != nil {
 		return nil, err
 	}
 
 	if len(resp.SecurityGroups) < 1 {
-		return nil, fmt.Errorf("could not find security group that matches: %s", params.Filters)
+		return nil, fmt.Errorf("could not find security group that matches: %v", params.Filters)
 	}
 
 	sg := resp.SecurityGroups[0]
 	return &securityGroupDetails{
-		name: aws.StringValue(sg.GroupName),
-		id:   aws.StringValue(sg.GroupId),
+		name: aws.ToString(sg.GroupName),
+		id:   aws.ToString(sg.GroupId),
 	}, nil
 }

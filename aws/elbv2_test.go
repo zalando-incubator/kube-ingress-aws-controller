@@ -1,12 +1,13 @@
 package aws
 
 import (
+	"context"
 	"fmt"
 	"reflect"
 	"sort"
 	"testing"
 
-	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go-v2/aws"
 
 	"github.com/zalando-incubator/kube-ingress-aws-controller/aws/fake"
 )
@@ -83,7 +84,7 @@ func TestRegisterTargetsOnTargetGroups(t *testing.T) {
 	} {
 		t.Run(fmt.Sprintf("%v", test.name), func(t *testing.T) {
 			svc := &fake.ELBv2Client{Outputs: test.outputs}
-			err := registerTargetsOnTargetGroups(svc, test.input.targetGroupARNs, test.input.instances)
+			err := registerTargetsOnTargetGroups(context.Background(), svc, test.input.targetGroupARNs, test.input.instances)
 			if test.wantError && err == nil {
 				t.Fatalf("expected error, got nothing")
 			}
@@ -95,10 +96,10 @@ func TestRegisterTargetsOnTargetGroups(t *testing.T) {
 				sort.Strings(test.input.instances)
 				rtTargetsGroupARNs := make([]string, 0, len(test.input.targetGroupARNs))
 				for _, input := range svc.Rtinputs {
-					rtTargetsGroupARNs = append(rtTargetsGroupARNs, aws.StringValue(input.TargetGroupArn))
+					rtTargetsGroupARNs = append(rtTargetsGroupARNs, aws.ToString(input.TargetGroupArn))
 					rtInstances := make([]string, len(input.Targets))
 					for j, tgt := range input.Targets {
-						rtInstances[j] = aws.StringValue(tgt.Id)
+						rtInstances[j] = aws.ToString(tgt.Id)
 					}
 					sort.Strings(rtInstances)
 					if !reflect.DeepEqual(rtInstances, test.input.instances) {
@@ -176,7 +177,7 @@ func TestDeregisterTargetsOnTargetGroups(t *testing.T) {
 	} {
 		t.Run(fmt.Sprintf("%v", test.name), func(t *testing.T) {
 			svc := &fake.ELBv2Client{Outputs: test.outputs}
-			err := deregisterTargetsOnTargetGroups(svc, test.input.targetGroupARNs, test.input.instances)
+			err := deregisterTargetsOnTargetGroups(context.Background(), svc, test.input.targetGroupARNs, test.input.instances)
 			if test.wantError && err == nil {
 				t.Fatalf("expected error, got nothing")
 			}
@@ -188,10 +189,10 @@ func TestDeregisterTargetsOnTargetGroups(t *testing.T) {
 				sort.Strings(test.input.instances)
 				dtTargetsGroupARNs := make([]string, 0, len(test.input.targetGroupARNs))
 				for _, input := range svc.Dtinputs {
-					dtTargetsGroupARNs = append(dtTargetsGroupARNs, aws.StringValue(input.TargetGroupArn))
+					dtTargetsGroupARNs = append(dtTargetsGroupARNs, aws.ToString(input.TargetGroupArn))
 					dtInstances := make([]string, len(input.Targets))
 					for j, tgt := range input.Targets {
-						dtInstances[j] = aws.StringValue(tgt.Id)
+						dtInstances[j] = aws.ToString(tgt.Id)
 					}
 					sort.Strings(dtInstances)
 					if !reflect.DeepEqual(dtInstances, test.input.instances) {

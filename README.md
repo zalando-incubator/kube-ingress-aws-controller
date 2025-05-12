@@ -40,6 +40,11 @@ This information is used to manage AWS resources for each ingress objects of the
 
 ## Upgrade
 
+### <v0.16.0 to >=v0.16.0
+
+Version `v0.16.0` migrates to use the AWS SDK Go v2 as the version v1's End of life
+approaches (July 31, 2025)
+
 ### <v0.15.0 to >=v0.15.0
 
 Version `v0.15.0` removes support for deprecated Ingress versions
