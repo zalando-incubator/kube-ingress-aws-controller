@@ -28,8 +28,7 @@ func newIAMCertProvider(api IAMAPI, filterTag string) certs.CertificatesProvider
 }
 
 // GetCertificates returns a list of AWS IAM certificates
-func (p *iamCertificateProvider) GetCertificates() ([]*certs.CertificateSummary, error) {
-	ctx := context.TODO()
+func (p *iamCertificateProvider) GetCertificates(ctx context.Context) ([]*certs.CertificateSummary, error) {
 	serverCertificatesMetadata, err := getIAMServerCertificateMetadata(ctx, p.api)
 	if err != nil {
 		return nil, err

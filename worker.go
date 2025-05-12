@@ -243,7 +243,7 @@ func startPolling(
 	globalWAFACL string,
 ) {
 	for {
-		if errs := doWork(certsProvider, certsPerALB, certTTL, awsAdapter, kubeAdapter, globalWAFACL).Errors(); len(errs) > 0 {
+		if errs := doWork(ctx, certsProvider, certsPerALB, certTTL, awsAdapter, kubeAdapter, globalWAFACL).Errors(); len(errs) > 0 {
 			for _, err := range errs {
 				log.Error(err)
 			}
@@ -262,6 +262,7 @@ func startPolling(
 }
 
 func doWork(
+	ctx context.Context,
 	certsProvider certs.CertificatesProvider,
 	certsPerALB int,
 	certTTL time.Duration,
@@ -282,7 +283,7 @@ func doWork(
 		return problems.Add("failed to list ingress resources: %w", err)
 	}
 
-	stacks, err := awsAdapter.FindManagedStacks()
+	stacks, err := awsAdapter.FindManagedStacks(ctx)
 	if err != nil {
 		return problems.Add("failed to list managed stacks: %w", err)
 	}
@@ -293,12 +294,12 @@ func doWork(
 		}
 	}
 
-	err = awsAdapter.UpdateAutoScalingGroupsAndInstances()
+	err = awsAdapter.UpdateAutoScalingGroupsAndInstances(ctx)
 	if err != nil {
 		return problems.Add("failed to get instances from EC2: %w", err)
 	}
 
-	certificateSummaries, err := certsProvider.GetCertificates()
+	certificateSummaries, err := certsProvider.GetCertificates(ctx)
 	if err != nil {
 		return problems.Add("failed to get certificates: %w", err)
 	}
@@ -330,7 +331,7 @@ func doWork(
 	log.Debugf("Found %d certificate(s)", len(certificateSummaries))
 	log.Debugf("Found %d cloudwatch alarm configuration(s)", len(cwAlarms))
 
-	awsAdapter.UpdateTargetGroupsAndAutoScalingGroups(stacks, problems)
+	awsAdapter.UpdateTargetGroupsAndAutoScalingGroups(ctx, stacks, problems)
 
 	certs := NewCertificates(certificateSummaries)
 	model := buildManagedModel(certs, certsPerALB, certTTL, ingresses, stacks, cwAlarms, globalWAFACL)
@@ -338,14 +339,14 @@ func doWork(
 	for _, loadBalancer := range model {
 		switch loadBalancer.Status() {
 		case delete:
-			deleteStack(awsAdapter, loadBalancer, problems)
+			deleteStack(ctx, awsAdapter, loadBalancer, problems)
 		case missing:
-			createStack(awsAdapter, loadBalancer, problems)
+			createStack(ctx, awsAdapter, loadBalancer, problems)
 			updateIngress(kubeAdapter, loadBalancer, problems)
 		case ready:
 			updateIngress(kubeAdapter, loadBalancer, problems)
 		case update:
-			updateStack(awsAdapter, loadBalancer, problems)
+			updateStack(ctx, awsAdapter, loadBalancer, problems)
 			updateIngress(kubeAdapter, loadBalancer, problems)
 		}
 	}
@@ -526,7 +527,7 @@ func buildManagedModel(
 	return model
 }
 
-func createStack(awsAdapter *aws.Adapter, lb *loadBalancer, problems *problem.List) {
+func createStack(ctx context.Context, awsAdapter *aws.Adapter, lb *loadBalancer, problems *problem.List) {
 	certificates := make([]string, 0, len(lb.ingresses))
 	for cert := range lb.ingresses {
 		certificates = append(certificates, cert)
@@ -534,10 +535,10 @@ func createStack(awsAdapter *aws.Adapter, lb *loadBalancer, problems *problem.Li
 
 	log.Infof("Creating stack for certificates %q / ingress %q", certificates, lb.ingresses)
 
-	stackId, err := awsAdapter.CreateStack(certificates, lb.scheme, lb.securityGroup, lb.Owner(), lb.sslPolicy, lb.ipAddressType, lb.wafWebACLID, lb.cwAlarms, lb.loadBalancerType, lb.http2)
+	stackId, err := awsAdapter.CreateStack(ctx, certificates, lb.scheme, lb.securityGroup, lb.Owner(), lb.sslPolicy, lb.ipAddressType, lb.wafWebACLID, lb.cwAlarms, lb.loadBalancerType, lb.http2)
 	if err != nil {
 		if isAlreadyExistsError(err) {
-			lb.stack, err = awsAdapter.GetStack(stackId)
+			lb.stack, err = awsAdapter.GetStack(ctx, stackId)
 			if err == nil {
 				return
 			}
@@ -549,12 +550,12 @@ func createStack(awsAdapter *aws.Adapter, lb *loadBalancer, problems *problem.Li
 	}
 }
 
-func updateStack(awsAdapter *aws.Adapter, lb *loadBalancer, problems *problem.List) {
+func updateStack(ctx context.Context, awsAdapter *aws.Adapter, lb *loadBalancer, problems *problem.List) {
 	certificates := lb.CertificateARNs()
 
 	log.Infof("Updating %q stack for %d certificates / %d ingresses", lb.scheme, len(certificates), len(lb.ingresses))
 
-	stackId, err := awsAdapter.UpdateStack(lb.stack.Name, certificates, lb.scheme, lb.securityGroup, lb.Owner(), lb.sslPolicy, lb.ipAddressType, lb.wafWebACLID, lb.cwAlarms, lb.loadBalancerType, lb.http2)
+	stackId, err := awsAdapter.UpdateStack(ctx, lb.stack.Name, certificates, lb.scheme, lb.securityGroup, lb.Owner(), lb.sslPolicy, lb.ipAddressType, lb.wafWebACLID, lb.cwAlarms, lb.loadBalancerType, lb.http2)
 	if isNoUpdatesToBePerformedError(err) {
 		log.Debugf("Stack(%q) is already up to date", certificates)
 	} else if err != nil {
@@ -607,9 +608,9 @@ func updateIngress(kubeAdapter *kubernetes.Adapter, lb *loadBalancer, problems *
 	}
 }
 
-func deleteStack(awsAdapter *aws.Adapter, lb *loadBalancer, problems *problem.List) {
+func deleteStack(ctx context.Context, awsAdapter *aws.Adapter, lb *loadBalancer, problems *problem.List) {
 	stackName := lb.stack.Name
-	if err := awsAdapter.DeleteStack(lb.stack); err != nil {
+	if err := awsAdapter.DeleteStack(ctx, lb.stack); err != nil {
 		problems.Add("failed to delete stack %q: %w", stackName, err)
 	} else {
 		metrics.changesTotal.deleted("stack")
@@ -667,7 +668,7 @@ func getCloudWatchAlarmsFromConfigMap(configMap *kubernetes.ConfigMap) aws.Cloud
 // cniEventHandler syncronizes the events from kubernetes and the status updates from the load balancer controller.
 // Events updates a rate limited.
 func cniEventHandler(ctx context.Context, targetCNIcfg *aws.TargetCNIconfig,
-	targetSetter func([]string, []string) error, informer func(context.Context, chan<- []string) error) {
+	targetSetter func(context.Context, []string, []string) error, informer func(context.Context, chan<- []string) error) {
 	log.Infoln("Starting CNI event handler")
 
 	rateLimiter := time.NewTicker(cniEventRateLimit)
@@ -702,7 +703,7 @@ func cniEventHandler(ctx context.Context, targetCNIcfg *aws.TargetCNIconfig,
 			continue
 		}
 		<-rateLimiter.C
-		err := targetSetter(endpoints, cniTargetGroupARNs)
+		err := targetSetter(ctx, endpoints, cniTargetGroupARNs)
 		if err != nil {
 			log.Error(err)
 		}

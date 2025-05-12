@@ -1,6 +1,7 @@
 package aws
 
 import (
+	"context"
 	"fmt"
 	"testing"
 
@@ -125,7 +126,7 @@ func TestACM(t *testing.T) {
 	} {
 		t.Run(ti.msg, func(t *testing.T) {
 			provider := newACMCertProvider(ti.api, ti.filterTag)
-			list, err := provider.GetCertificates()
+			list, err := provider.GetCertificates(context.Background())
 
 			if ti.expect.Error != "" {
 				require.EqualError(t, err, ti.expect.Error)

@@ -1,6 +1,7 @@
 package aws
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -192,7 +193,7 @@ func TestIAMParseError(t *testing.T) {
 			},
 		),
 	}
-	_, err := provider.GetCertificates()
+	_, err := provider.GetCertificates(context.Background())
 	require.Equal(t, ErrNoCertificates, err)
 }
 
@@ -265,7 +266,7 @@ func TestIAMTagFiltering(t *testing.T) {
 		},
 	} {
 		t.Run(ti.msg, func(tt *testing.T) {
-			list, err := ti.provider.GetCertificates()
+			list, err := ti.provider.GetCertificates(context.Background())
 			if ti.expect.EmptyList {
 				require.Equal(tt, 0, len(list))
 			} else {

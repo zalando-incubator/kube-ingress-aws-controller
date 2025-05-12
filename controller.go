@@ -309,7 +309,7 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	log.Debug("aws.NewAdapter")
-	awsAdapter, err = aws.NewAdapter(clusterID, controllerID, vpcID, debugFlag, disableInstrumentedHttpClient)
+	awsAdapter, err = aws.NewAdapter(ctx, clusterID, controllerID, vpcID, debugFlag, disableInstrumentedHttpClient)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -355,6 +355,7 @@ func main() {
 
 	log.Debug("certs.NewCachingProvider")
 	certificatesProvider, err := certs.NewCachingProvider(
+		ctx,
 		certPollingInterval,
 		blacklistCertArnMap,
 		awsAdapter.NewACMCertificateProvider(certFilterTag),

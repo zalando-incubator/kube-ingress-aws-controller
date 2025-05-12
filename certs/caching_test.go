@@ -1,6 +1,7 @@
 package certs
 
 import (
+	"context"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"math/big"
@@ -11,7 +12,7 @@ import (
 type mockedCertificateProvider struct {
 }
 
-func (m mockedCertificateProvider) GetCertificates() ([]*CertificateSummary, error) {
+func (m mockedCertificateProvider) GetCertificates(ctx context.Context) ([]*CertificateSummary, error) {
 	caCert := x509.Certificate{
 		SerialNumber: big.NewInt(123),
 		Subject: pkix.Name{
@@ -33,10 +34,12 @@ func (m mockedCertificateProvider) GetCertificates() ([]*CertificateSummary, err
 }
 
 func TestCachingProvider(t *testing.T) {
+	ctx := context.Background()
 	var (
 		blacklistCertArnMap = make(map[string]bool)
 	)
 	cachingProvider, err := NewCachingProvider(
+		ctx,
 		time.Minute*10,
 		blacklistCertArnMap,
 		mockedCertificateProvider{},
@@ -44,7 +47,7 @@ func TestCachingProvider(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Expected no error, got: %v", err)
 	}
-	summaries, err := cachingProvider.GetCertificates()
+	summaries, err := cachingProvider.GetCertificates(ctx)
 	if err != nil {
 		t.Fatalf("Expected no error, got: %v", err)
 	}
