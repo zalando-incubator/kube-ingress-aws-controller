@@ -90,10 +90,16 @@ func (cc *cachingProvider) updateCertCache(ctx context.Context) error {
 // certificate cache.
 func (cc *cachingProvider) startBackgroundRefresh(ctx context.Context, certUpdateInterval time.Duration) {
 	go func() {
+		ticker := time.NewTicker(certUpdateInterval)
+		defer ticker.Stop()
 		for {
-			time.Sleep(certUpdateInterval)
-			if err := cc.updateCertCache(ctx); err != nil {
-				log.Errorf("certificate cache background update failed: %v", err)
+			select {
+			case <-ticker.C:
+				if err := cc.updateCertCache(ctx); err != nil {
+					log.Errorf("certificate cache background update failed: %v", err)
+				}
+			case <-ctx.Done():
+				return
 			}
 		}
 	}()
