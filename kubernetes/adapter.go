@@ -85,6 +85,7 @@ type Ingress struct {
 	LoadBalancerType string
 	WAFWebACLID      string
 	Hostnames        []string
+	Stickiness       bool
 }
 
 // String returns a string representation of the Ingress instance containing the type, namespace and the resource name.
@@ -235,6 +236,11 @@ func (a *Adapter) newIngress(typ IngressType, metadata kubeItemMetadata, host st
 	if getAnnotationsString(annotations, ingressHTTP2Annotation, "") == "false" {
 		http2 = false
 	}
+        
+	stickiness := false
+	if getAnnotationsString(annotations, ingressLoadBalancerStickiness, "") == "true" {
+		stickiness = true
+	}
 
 	return &Ingress{
 		ResourceType:     typ,
@@ -252,6 +258,7 @@ func (a *Adapter) newIngress(typ IngressType, metadata kubeItemMetadata, host st
 		LoadBalancerType: loadBalancerType,
 		WAFWebACLID:      wafWebAclId,
 		HTTP2:            http2,
+		Stickiness:       stickiness,
 	}, nil
 }
 
