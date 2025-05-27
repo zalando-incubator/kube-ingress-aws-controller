@@ -12,6 +12,7 @@ import (
 type ELBV2API interface {
 	elbv2.DescribeTargetGroupsAPIClient
 	elbv2.DescribeTargetHealthAPIClient
+	elbv2.DescribeLoadBalancersAPIClient
 	DescribeTags(context.Context, *elbv2.DescribeTagsInput, ...func(*elbv2.Options)) (*elbv2.DescribeTagsOutput, error)
 	RegisterTargets(context.Context, *elbv2.RegisterTargetsInput, ...func(*elbv2.Options)) (*elbv2.RegisterTargetsOutput, error)
 	DeregisterTargets(context.Context, *elbv2.DeregisterTargetsInput, ...func(*elbv2.Options)) (*elbv2.DeregisterTargetsOutput, error)

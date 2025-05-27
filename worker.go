@@ -14,6 +14,7 @@ import (
 	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/service/cloudformation/types"
+	elbv2Types "github.com/aws/aws-sdk-go-v2/service/elasticloadbalancingv2/types"
 	log "github.com/sirupsen/logrus"
 	"github.com/zalando-incubator/kube-ingress-aws-controller/aws"
 	"github.com/zalando-incubator/kube-ingress-aws-controller/certs"
@@ -342,12 +343,12 @@ func doWork(
 			deleteStack(ctx, awsAdapter, loadBalancer, problems)
 		case missing:
 			createStack(ctx, awsAdapter, loadBalancer, problems)
-			updateIngress(kubeAdapter, loadBalancer, problems)
+			updateIngress(ctx, awsAdapter, kubeAdapter, loadBalancer, problems)
 		case ready:
-			updateIngress(kubeAdapter, loadBalancer, problems)
+			updateIngress(ctx, awsAdapter, kubeAdapter, loadBalancer, problems)
 		case update:
 			updateStack(ctx, awsAdapter, loadBalancer, problems)
-			updateIngress(kubeAdapter, loadBalancer, problems)
+			updateIngress(ctx, awsAdapter, kubeAdapter, loadBalancer, problems)
 		}
 	}
 	return
@@ -581,13 +582,23 @@ func isNoUpdatesToBePerformedError(err error) bool {
 	return false
 }
 
-func updateIngress(kubeAdapter *kubernetes.Adapter, lb *loadBalancer, problems *problem.List) {
+func updateIngress(ctx context.Context, awsAdapter *aws.Adapter, kubeAdapter *kubernetes.Adapter, lb *loadBalancer, problems *problem.List) {
 	var dnsName string
 	if lb.clusterLocal {
 		dnsName = kubernetes.DefaultClusterLocalDomain
 	} else {
-		// only update ingress if the stack exists and is in a complete state.
+		// do not update ingress if the stack exists and is in a complete state.
 		if lb.stack == nil || !lb.stack.IsComplete() {
+			return
+		}
+		// do not update ingress if the load balancer is not in active state.
+		awsLB, err := awsAdapter.GetLoadBalancer(ctx, lb.stack.Name)
+		if err != nil {
+			problems.Add("failed to get aws load balancer for stack %q: %w", lb.stack.Name, err)
+			return
+		}
+		if awsLB == nil || awsLB.State.Code != elbv2Types.LoadBalancerStateEnumActive {
+			log.Infof("load balancer of %q stack is in %q state, skipping ingress update", lb.stack.Name, awsLB.State.Code)
 			return
 		}
 		dnsName = strings.ToLower(lb.stack.DNSName) // lower case to satisfy Kubernetes reqs

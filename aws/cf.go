@@ -130,6 +130,8 @@ func convertStackParameters(parameters []types.Parameter) map[string]string {
 }
 
 const (
+	AWSLoadBalancerResourceType = "AWS::ElasticLoadBalancingV2::LoadBalancer"
+
 	// The following constants should be part of the Output section of the CloudFormation template
 	outputLoadBalancerDNSName = "LoadBalancerDNSName"
 	outputTargetGroupARN      = "TargetGroupARN"
@@ -207,6 +209,7 @@ type denyResp struct {
 
 type CloudFormationAPI interface {
 	cloudformation.DescribeStacksAPIClient
+	cloudformation.ListStackResourcesAPIClient
 	CreateStack(context.Context, *cloudformation.CreateStackInput, ...func(*cloudformation.Options)) (*cloudformation.CreateStackOutput, error)
 	UpdateTerminationProtection(context.Context, *cloudformation.UpdateTerminationProtectionInput, ...func(*cloudformation.Options)) (*cloudformation.UpdateTerminationProtectionOutput, error)
 	UpdateStack(context.Context, *cloudformation.UpdateStackInput, ...func(*cloudformation.Options)) (*cloudformation.UpdateStackOutput, error)
@@ -432,6 +435,46 @@ func getStack(ctx context.Context, svc CloudFormationAPI, stackName string) (*St
 		return nil, ErrLoadBalancerStackNotReady
 	}
 	return mapToManagedStack(stack), nil
+}
+
+// getLoadBalancerStackResource retrieves the load balancer resource from a
+// CloudFormation stack. It returns the first resource of type
+// AWS::ElasticLoadBalancingV2::LoadBalancer found in the stack. The stack
+// should only have one such resource, as it is expected to be a managed load
+// balancer stack.
+func getLoadBalancerStackResource(
+	ctx context.Context,
+	svc CloudFormationAPI,
+	stackName string,
+) (
+	*types.StackResourceSummary,
+	error,
+) {
+
+	var nextToken *string
+
+	for {
+		resp, err := svc.ListStackResources(ctx, &cloudformation.ListStackResourcesInput{
+			StackName: aws.String(stackName),
+			NextToken: nextToken,
+		})
+
+		if err != nil {
+			return nil, fmt.Errorf("failed to list stack resources for stack %s: %w", stackName, err)
+		}
+
+		for _, resource := range resp.StackResourceSummaries {
+			if aws.ToString(resource.ResourceType) == AWSLoadBalancerResourceType {
+				return &resource, nil
+			}
+		}
+
+		if resp.NextToken == nil {
+			return nil, fmt.Errorf("no load balancer resource found in stack %s", stackName)
+		}
+
+		nextToken = resp.NextToken
+	}
 }
 
 func getCFStackByName(ctx context.Context, svc CloudFormationAPI, stackName string) (*types.Stack, error) {
