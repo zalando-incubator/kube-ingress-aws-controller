@@ -1028,3 +1028,112 @@ func TestWithTargetAccessMode(t *testing.T) {
 		assert.False(t, a.TargetCNI.Enabled)
 	})
 }
+
+func TestGetStackELBs(t *testing.T) {
+	tests := []struct {
+		name              string
+		elbv2Outputs      fake.ELBv2Outputs
+		stacks            []*Stack
+		expectedStackELBs []*StackELB
+		expectError       bool
+	}{
+		{
+			name: "success - matching ELBs",
+			elbv2Outputs: fake.ELBv2Outputs{
+				DescribeLoadBalancers: fake.R(&elbv2.DescribeLoadBalancersOutput{
+					LoadBalancers: []elbv2Types.LoadBalancer{
+						{LoadBalancerArn: aws.String("arn1"), LoadBalancerName: aws.String("lb1")},
+						{LoadBalancerArn: aws.String("arn2"), LoadBalancerName: aws.String("lb2")},
+					},
+				}, nil),
+			},
+			stacks: []*Stack{
+				{Name: "stack1", LoadBalancerARN: "arn1"},
+				{Name: "stack2", LoadBalancerARN: "arn2"},
+			},
+			expectedStackELBs: []*StackELB{
+				{
+					Stack: &Stack{Name: "stack1", LoadBalancerARN: "arn1"},
+					ELB:   &elbv2Types.LoadBalancer{LoadBalancerArn: aws.String("arn1"), LoadBalancerName: aws.String("lb1")},
+				},
+				{
+					Stack: &Stack{Name: "stack2", LoadBalancerARN: "arn2"},
+					ELB:   &elbv2Types.LoadBalancer{LoadBalancerArn: aws.String("arn2"), LoadBalancerName: aws.String("lb2")},
+				},
+			},
+			expectError: false,
+		},
+		{
+			name: "success - no matching ELB found for one of the stacks",
+			elbv2Outputs: fake.ELBv2Outputs{
+				DescribeLoadBalancers: fake.R(&elbv2.DescribeLoadBalancersOutput{
+					LoadBalancers: []elbv2Types.LoadBalancer{
+						{LoadBalancerArn: aws.String("arn1"), LoadBalancerName: aws.String("lb1")},
+					},
+				}, nil),
+			},
+			stacks: []*Stack{
+				{Name: "stack1", LoadBalancerARN: "arn1"},
+				{Name: "stack2", LoadBalancerARN: "arn2"},
+			},
+			expectedStackELBs: []*StackELB{
+				{
+					Stack: &Stack{Name: "stack1", LoadBalancerARN: "arn1"},
+					ELB:   &elbv2Types.LoadBalancer{LoadBalancerArn: aws.String("arn1"), LoadBalancerName: aws.String("lb1")},
+				},
+				{
+					Stack: &Stack{Name: "stack2", LoadBalancerARN: "arn2"},
+					ELB:   nil, // No matching ELB found for stack2
+				},
+			},
+			expectError: false,
+		},
+		{
+			name: "error - paginated DescribeLoadBalancers API failure",
+			elbv2Outputs: fake.ELBv2Outputs{
+				DescribeLoadBalancers: fake.R(nil, fmt.Errorf("API error")),
+			},
+			stacks:            []*Stack{{Name: "stack1", LoadBalancerARN: "arn1"}},
+			expectedStackELBs: nil,
+			expectError:       true,
+		},
+		{
+			name: "success - no stacks",
+			elbv2Outputs: fake.ELBv2Outputs{
+				DescribeLoadBalancers: fake.R(&elbv2.DescribeLoadBalancersOutput{
+					LoadBalancers: []elbv2Types.LoadBalancer{},
+				}, nil),
+			},
+			stacks:            []*Stack{},
+			expectedStackELBs: []*StackELB{},
+			expectError:       false,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			a := &Adapter{
+				elbv2: &fake.ELBv2Client{
+					Outputs: test.elbv2Outputs,
+				},
+			}
+
+			stackELBs, err := a.GetStackELBs(context.Background(), test.stacks)
+
+			if test.expectError {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				require.Len(t, stackELBs, len(test.expectedStackELBs))
+				for i, expected := range test.expectedStackELBs {
+					require.Equal(t, expected.Stack, stackELBs[i].Stack)
+					if expected.ELB == nil {
+						require.Nil(t, stackELBs[i].ELB)
+					} else {
+						require.Equal(t, expected.ELB.LoadBalancerArn, stackELBs[i].ELB.LoadBalancerArn)
+					}
+				}
+			}
+		})
+	}
+}

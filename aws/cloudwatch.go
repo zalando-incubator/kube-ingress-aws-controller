@@ -77,7 +77,7 @@ func normalizeCloudWatchAlarmDimensions(alarmDimensions *cloudformation.CloudWat
 		return &cloudformation.CloudWatchAlarmDimensionList{
 			{
 				Name:  cloudformation.String("LoadBalancer"),
-				Value: cloudformation.GetAtt("LB", "LoadBalancerFullName").String(),
+				Value: cloudformation.GetAtt(LoadBalancerResourceLogicalID, "LoadBalancerFullName").String(),
 			},
 		}
 	}
@@ -89,7 +89,7 @@ func normalizeCloudWatchAlarmDimensions(alarmDimensions *cloudformation.CloudWat
 
 		switch dimension.Name.Literal {
 		case "LoadBalancer":
-			value = cloudformation.GetAtt("LB", "LoadBalancerFullName").String()
+			value = cloudformation.GetAtt(LoadBalancerResourceLogicalID, "LoadBalancerFullName").String()
 		case "TargetGroup":
 			value = cloudformation.GetAtt("TG", "TargetGroupFullName").String()
 		}

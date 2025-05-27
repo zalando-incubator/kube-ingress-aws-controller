@@ -660,6 +660,60 @@ func (a *Adapter) FindManagedStacks(ctx context.Context) ([]*Stack, error) {
 	return stacks, nil
 }
 
+// GetStackELBs returns the list of load balancers of the managed stacks.
+// While implementing this method it was taken that each stack has its own load
+// balancer and never refer to the same load balancer from multiple stacks.
+//
+// If a stack does not have a load balancer ARN it will be returned with an empty
+// ELB field.
+func (a *Adapter) GetStackELBs(ctx context.Context, stacks []*Stack) ([]*StackELB, error) {
+
+	lbARNs := make([]string, 0, len(stacks))
+	for _, stack := range stacks {
+		if stack.LoadBalancerARN == "" {
+			continue
+		}
+		lbARNs = append(lbARNs, stack.LoadBalancerARN)
+	}
+
+	lbsMap := make(map[string]*elbv2Types.LoadBalancer, len(lbARNs))
+
+	paginator := elbv2.NewDescribeLoadBalancersPaginator(
+		a.elbv2,
+		&elbv2.DescribeLoadBalancersInput{
+			LoadBalancerArns: lbARNs,
+		},
+	)
+	for paginator.HasMorePages() {
+		elbOutput, err := paginator.NextPage(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("describe-load-balancers paginated call to AWS API failed: %w", err)
+		}
+		for _, lb := range elbOutput.LoadBalancers {
+			lbsMap[aws.ToString(lb.LoadBalancerArn)] = &lb
+		}
+	}
+
+	stackELBs := make([]*StackELB, 0, len(stacks))
+	for _, stack := range stacks {
+		if stack == nil {
+			continue
+		}
+		var elb *elbv2Types.LoadBalancer
+		if lbsMap[stack.LoadBalancerARN] != nil {
+			elb = lbsMap[stack.LoadBalancerARN]
+		} else {
+			log.Warnf("The load balancer of %s stack is not found", stack.Name)
+		}
+		stackELB := &StackELB{
+			Stack: stack,
+			ELB:   elb,
+		}
+		stackELBs = append(stackELBs, stackELB)
+	}
+	return stackELBs, nil
+}
+
 // UpdateTargetGroupsAndAutoScalingGroups updates Auto Scaling Groups
 // config to have relevant Target Groups and registers/deregisters single
 // instances (that do not belong to ASG) in relevant Target Groups.

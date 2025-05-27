@@ -103,7 +103,7 @@ func TestNormalizeCloudWatchAlarmDimensions(t *testing.T) {
 			expected: &cloudformation.CloudWatchAlarmDimensionList{
 				{
 					Name:  cloudformation.String("LoadBalancer"),
-					Value: cloudformation.GetAtt("LB", "LoadBalancerFullName").String(),
+					Value: cloudformation.GetAtt(LoadBalancerResourceLogicalID, "LoadBalancerFullName").String(),
 				},
 			},
 		},
@@ -113,7 +113,7 @@ func TestNormalizeCloudWatchAlarmDimensions(t *testing.T) {
 			expected: &cloudformation.CloudWatchAlarmDimensionList{
 				{
 					Name:  cloudformation.String("LoadBalancer"),
-					Value: cloudformation.GetAtt("LB", "LoadBalancerFullName").String(),
+					Value: cloudformation.GetAtt(LoadBalancerResourceLogicalID, "LoadBalancerFullName").String(),
 				},
 			},
 		},
@@ -135,7 +135,7 @@ func TestNormalizeCloudWatchAlarmDimensions(t *testing.T) {
 			expected: &cloudformation.CloudWatchAlarmDimensionList{
 				{
 					Name:  cloudformation.String("LoadBalancer"),
-					Value: cloudformation.GetAtt("LB", "LoadBalancerFullName").String(),
+					Value: cloudformation.GetAtt(LoadBalancerResourceLogicalID, "LoadBalancerFullName").String(),
 				},
 				{
 					Name:  cloudformation.String("TargetGroup"),
