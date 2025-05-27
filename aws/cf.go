@@ -24,6 +24,7 @@ type Stack struct {
 	Name              string
 	status            types.StackStatus
 	statusReason      string
+	LoadBalancerARN   string
 	DNSName           string
 	Scheme            string
 	SecurityGroup     string
@@ -105,6 +106,10 @@ func newStackOutput(outputs []types.Output) stackOutput {
 	return result
 }
 
+func (o stackOutput) loadBalancerARN() string {
+	return o[outputLoadBalancerARN]
+}
+
 func (o stackOutput) dnsName() string {
 	return o[outputLoadBalancerDNSName]
 }
@@ -131,6 +136,7 @@ func convertStackParameters(parameters []types.Parameter) map[string]string {
 
 const (
 	// The following constants should be part of the Output section of the CloudFormation template
+	outputLoadBalancerARN     = "LoadBalancerARN"
 	outputLoadBalancerDNSName = "LoadBalancerDNSName"
 	outputTargetGroupARN      = "TargetGroupARN"
 	outputHTTPTargetGroupARN  = "HTTPTargetGroupARN"
@@ -486,6 +492,7 @@ func mapToManagedStack(stack *types.Stack) *Stack {
 
 	return &Stack{
 		Name:              aws.ToString(stack.StackName),
+		LoadBalancerARN:   outputs.loadBalancerARN(),
 		DNSName:           outputs.dnsName(),
 		TargetGroupARNs:   outputs.targetGroupARNs(),
 		Scheme:            parameters[parameterLoadBalancerSchemeParameter],

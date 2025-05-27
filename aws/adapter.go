@@ -660,6 +660,42 @@ func (a *Adapter) FindManagedStacks(ctx context.Context) ([]*Stack, error) {
 	return stacks, nil
 }
 
+// GetStackLBStates returns the list of load balancers of the managed stacks.
+// While implementing this method it was taken that each stack has its own load
+// balancer and never refer to the same load balancer from multiple stacks.
+//
+// If a stack does not have a load balancer ARN it will be returned with a nil
+// LBState field.
+func (a *Adapter) GetStackLBStates(ctx context.Context, stacks []*Stack) ([]*StackLBState, error) {
+
+	lbARNs := make([]string, 0, len(stacks))
+	for _, stack := range stacks {
+		if stack.LoadBalancerARN == "" {
+			continue
+		}
+		lbARNs = append(lbARNs, stack.LoadBalancerARN)
+	}
+
+	lbsMap, err := getLoadBalancerStates(ctx, a.elbv2, lbARNs)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get load balancer states: %w", err)
+	}
+
+	stackLBStates := make([]*StackLBState, 0, len(stacks))
+	for _, stack := range stacks {
+		lbstate, found := lbsMap[stack.LoadBalancerARN]
+		if !found {
+			log.Warnf("The load balancer (ARN: %q) of %q stack is not found", stack.LoadBalancerARN, stack.Name)
+		}
+		stackELB := &StackLBState{
+			Stack:   stack,
+			LBState: lbstate,
+		}
+		stackLBStates = append(stackLBStates, stackELB)
+	}
+	return stackLBStates, nil
+}
+
 // UpdateTargetGroupsAndAutoScalingGroups updates Auto Scaling Groups
 // config to have relevant Target Groups and registers/deregisters single
 // instances (that do not belong to ASG) in relevant Target Groups.

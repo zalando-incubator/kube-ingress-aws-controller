@@ -51,3 +51,4 @@ The following table describes those outputs:
 |---------------------	|----------------------------------------------------------------------------------	|
 | LoadBalancerDNSName 	| DNS name for the Application Load Balancer created by the stack                  	|
 | TargetGroupARN      	| The ARN of the Target Group created by the stack and referenced by the listeners 	|
+| LoadBalancerARN       | The ARN of the Elastic LoadBalancer that get created by the stack                	|

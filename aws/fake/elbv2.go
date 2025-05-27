@@ -2,16 +2,20 @@ package fake
 
 import (
 	"context"
+	"fmt"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
 	elbv2 "github.com/aws/aws-sdk-go-v2/service/elasticloadbalancingv2"
+	elbv2Types "github.com/aws/aws-sdk-go-v2/service/elasticloadbalancingv2/types"
 )
 
 type ELBv2Outputs struct {
-	RegisterTargets      *APIResponse
-	DeregisterTargets    *APIResponse
-	DescribeTags         *APIResponse
-	DescribeTargetGroups *APIResponse
-	DescribeTargetHealth *APIResponse
+	RegisterTargets       *APIResponse
+	DeregisterTargets     *APIResponse
+	DescribeTags          *APIResponse
+	DescribeTargetGroups  *APIResponse
+	DescribeTargetHealth  *APIResponse
+	DescribeLoadBalancers *APIResponse
 }
 
 type ELBv2Client struct {
@@ -66,10 +70,45 @@ func (m *ELBv2Client) DescribeTargetGroups(context.Context, *elbv2.DescribeTarge
 	return out, m.Outputs.DescribeTargetGroups.err
 }
 
+func (m *ELBv2Client) DescribeLoadBalancers(ctx context.Context, input *elbv2.DescribeLoadBalancersInput, opts ...func(*elbv2.Options)) (*elbv2.DescribeLoadBalancersOutput, error) {
+	if input != nil && len(input.LoadBalancerArns) > 20 {
+		return nil, fmt.Errorf("too many load balancers requested: %d, maximum is 20", len(input.LoadBalancerArns))
+	}
+
+	// if mocked output is provided, return the mocked output
+	if m.Outputs.DescribeLoadBalancers != nil {
+		out, ok := m.Outputs.DescribeLoadBalancers.response.(*elbv2.DescribeLoadBalancersOutput)
+		if !ok {
+			return nil, m.Outputs.DescribeLoadBalancers.err
+		}
+		if out == nil {
+			return &elbv2.DescribeLoadBalancersOutput{}, m.Outputs.DescribeLoadBalancers.err
+		}
+		return out, m.Outputs.DescribeLoadBalancers.err
+	}
+
+	// if no mocked output is provided, create the output based on the input
+	lbs := make([]elbv2Types.LoadBalancer, len(input.LoadBalancerArns))
+	for i, arn := range input.LoadBalancerArns {
+		lbs[i] = elbv2Types.LoadBalancer{
+			LoadBalancerArn: &arn,
+			State: &elbv2Types.LoadBalancerState{
+				Code:   elbv2Types.LoadBalancerStateEnumActive,
+				Reason: aws.String("Mocked state"),
+			},
+		}
+	}
+	return &elbv2.DescribeLoadBalancersOutput{LoadBalancers: lbs}, nil
+}
+
 func MockDescribeTargetGroupsOutput() *elbv2.DescribeTargetGroupsOutput {
 	return &elbv2.DescribeTargetGroupsOutput{}
 }
 
 func MockDeregisterTargetsOutput() *elbv2.DeregisterTargetsOutput {
 	return &elbv2.DeregisterTargetsOutput{}
+}
+
+func MockDescribeLoadBalancersOutput() *elbv2.DescribeLoadBalancersOutput {
+	return &elbv2.DescribeLoadBalancersOutput{}
 }

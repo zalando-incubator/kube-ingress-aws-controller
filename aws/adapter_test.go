@@ -1028,3 +1028,138 @@ func TestWithTargetAccessMode(t *testing.T) {
 		assert.False(t, a.TargetCNI.Enabled)
 	})
 }
+
+func TestGetStackLBStates(t *testing.T) {
+	tests := []struct {
+		name                  string
+		elbv2Outputs          fake.ELBv2Outputs
+		stacks                []*Stack
+		expectedStackLBStates []*StackLBState
+		expectError           bool
+	}{
+		{
+			name: "success - matching ELBs",
+			elbv2Outputs: fake.ELBv2Outputs{
+				DescribeLoadBalancers: fake.R(&elbv2.DescribeLoadBalancersOutput{
+					LoadBalancers: []elbv2Types.LoadBalancer{
+						{
+							LoadBalancerArn: aws.String("arn1"),
+							State:           &elbv2Types.LoadBalancerState{Code: elbv2Types.LoadBalancerStateEnumActive},
+						},
+						{
+							LoadBalancerArn: aws.String("arn2"),
+							State:           &elbv2Types.LoadBalancerState{Code: elbv2Types.LoadBalancerStateEnumFailed},
+						},
+					},
+				}, nil),
+			},
+			stacks: []*Stack{
+				{Name: "stack1", LoadBalancerARN: "arn1"},
+				{Name: "stack2", LoadBalancerARN: "arn2"},
+			},
+			expectedStackLBStates: []*StackLBState{
+				{
+					Stack:   &Stack{Name: "stack1", LoadBalancerARN: "arn1"},
+					LBState: &LoadBalancerState{StateCode: elbv2Types.LoadBalancerStateEnumActive},
+				},
+				{
+					Stack:   &Stack{Name: "stack2", LoadBalancerARN: "arn2"},
+					LBState: &LoadBalancerState{StateCode: elbv2Types.LoadBalancerStateEnumFailed},
+				},
+			},
+			expectError: false,
+		},
+		{
+			name: "success - no matching ELB found for one of the stacks",
+			elbv2Outputs: fake.ELBv2Outputs{
+				DescribeLoadBalancers: fake.R(&elbv2.DescribeLoadBalancersOutput{
+					LoadBalancers: []elbv2Types.LoadBalancer{
+						{
+							LoadBalancerArn: aws.String("arn1"),
+							State:           &elbv2Types.LoadBalancerState{Code: elbv2Types.LoadBalancerStateEnumActive},
+						},
+					},
+				}, nil),
+			},
+			stacks: []*Stack{
+				{Name: "stack1", LoadBalancerARN: "arn1"},
+				{Name: "stack2", LoadBalancerARN: "arn2"},
+			},
+			expectedStackLBStates: []*StackLBState{
+				{
+					Stack:   &Stack{Name: "stack1", LoadBalancerARN: "arn1"},
+					LBState: &LoadBalancerState{StateCode: elbv2Types.LoadBalancerStateEnumActive},
+				},
+				{
+					Stack:   &Stack{Name: "stack2", LoadBalancerARN: "arn2"},
+					LBState: nil, // No matching ELB found for stack2
+				},
+			},
+			expectError: false,
+		},
+		{
+			name: "error - DescribeLoadBalancers API failure",
+			elbv2Outputs: fake.ELBv2Outputs{
+				DescribeLoadBalancers: fake.R(nil, fmt.Errorf("API error")),
+			},
+			stacks:                []*Stack{{Name: "stack1", LoadBalancerARN: "arn1"}},
+			expectedStackLBStates: nil,
+			expectError:           true,
+		},
+		{
+			name: "success - no LB arn in some stacks",
+			elbv2Outputs: fake.ELBv2Outputs{
+				DescribeLoadBalancers: fake.R(&elbv2.DescribeLoadBalancersOutput{
+					LoadBalancers: []elbv2Types.LoadBalancer{
+						{
+							LoadBalancerArn: aws.String("arn1"),
+							State:           &elbv2Types.LoadBalancerState{Code: elbv2Types.LoadBalancerStateEnumActive},
+						},
+					},
+				}, nil),
+			},
+			stacks: []*Stack{
+				{Name: "stack1", LoadBalancerARN: "arn1"},
+				{Name: "stack2"},
+			},
+			expectedStackLBStates: []*StackLBState{
+				{
+					Stack:   &Stack{Name: "stack1", LoadBalancerARN: "arn1"},
+					LBState: &LoadBalancerState{StateCode: elbv2Types.LoadBalancerStateEnumActive},
+				},
+				{
+					Stack:   &Stack{Name: "stack2"},
+					LBState: nil, // No LoadBalancerARN provided for stack2
+				},
+			},
+			expectError: false,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			a := &Adapter{
+				elbv2: &fake.ELBv2Client{
+					Outputs: test.elbv2Outputs,
+				},
+			}
+
+			stackLBStates, err := a.GetStackLBStates(context.Background(), test.stacks)
+
+			if test.expectError {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				require.Len(t, stackLBStates, len(test.expectedStackLBStates))
+				for i, expected := range test.expectedStackLBStates {
+					require.Equal(t, expected.Stack, stackLBStates[i].Stack)
+					if expected.LBState == nil {
+						require.Nil(t, stackLBStates[i].LBState)
+					} else {
+						require.Equal(t, expected.LBState.StateCode, stackLBStates[i].LBState.StateCode)
+					}
+				}
+			}
+		})
+	}
+}
