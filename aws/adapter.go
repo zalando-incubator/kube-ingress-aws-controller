@@ -852,6 +852,29 @@ func (a *Adapter) UpdateStack(ctx context.Context, stackName string, certificate
 	return updateStack(ctx, a.cloudformation, spec)
 }
 
+func (a *Adapter) GetLoadBalancer(ctx context.Context, stackName string) (*elbv2Types.LoadBalancer, error) {
+	lbStackResources, err := getLoadBalancerStackResource(ctx, a.cloudformation, stackName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get load balancer stack resource: %w", err)
+	}
+
+	loadBalancerID := aws.ToString(lbStackResources.PhysicalResourceId)
+	lbs, err := a.elbv2.DescribeLoadBalancers(ctx, &elbv2.DescribeLoadBalancersInput{
+		LoadBalancerArns: []string{loadBalancerID},
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to describe load balancer %q: %w", loadBalancerID, err)
+	}
+	if len(lbs.LoadBalancers) == 0 {
+		return nil, fmt.Errorf("load balancer %q not found", loadBalancerID)
+	}
+	if len(lbs.LoadBalancers) > 1 {
+		return nil, fmt.Errorf("multiple load balancers found for physical-Id %q", loadBalancerID)
+	}
+	return &lbs.LoadBalancers[0], nil
+}
+
 func (a *Adapter) httpTargetPort(loadBalancerType string) uint {
 	if loadBalancerType == LoadBalancerTypeApplication && a.albHTTPTargetPort != 0 {
 		return a.albHTTPTargetPort

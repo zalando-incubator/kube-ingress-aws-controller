@@ -24,6 +24,13 @@ const (
 	//
 	// [0]: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-elasticloadbalancingv2-listenerrule.html#cfn-elasticloadbalancingv2-listenerrule-priority
 	internalTrafficDenyRulePriority int64 = 1
+
+  // LoadBalancerResou  rceLogicalID is the logical ID of the LoadBalancer 
+  // resource in the CloudFormation template.
+  // 
+  // !!!Caution
+  //    Changing this value will recreate the LoadBalancer resource.
+	LoadBalancerResourceLogicalID = "LB"
 )
 
 func hashARNs(certARNs []string) []byte {
@@ -117,7 +124,7 @@ func generateTemplate(spec *stackSpec) (string, error) {
 	template.Outputs = map[string]*cloudformation.Output{
 		outputLoadBalancerDNSName: {
 			Description: "DNS name for the LoadBalancer",
-			Value:       cloudformation.GetAtt("LB", "DNSName").String(),
+			Value:       cloudformation.GetAtt(LoadBalancerResourceLogicalID, "DNSName").String(),
 		},
 		outputTargetGroupARN: {
 			Description: "The ARN of the TargetGroup",
@@ -160,7 +167,7 @@ func generateTemplate(spec *stackSpec) (string, error) {
 							},
 						},
 					},
-					LoadBalancerArn: cloudformation.Ref("LB").String(),
+					LoadBalancerArn: cloudformation.Ref(LoadBalancerResourceLogicalID).String(),
 					Port:            cloudformation.Integer(80),
 					Protocol:        cloudformation.String("HTTP"),
 				})
@@ -172,7 +179,7 @@ func generateTemplate(spec *stackSpec) (string, error) {
 							TargetGroupArn: cloudformation.Ref(httpTargetGroupName).String(),
 						},
 					},
-					LoadBalancerArn: cloudformation.Ref("LB").String(),
+					LoadBalancerArn: cloudformation.Ref(LoadBalancerResourceLogicalID).String(),
 					Port:            cloudformation.Integer(80),
 					Protocol:        cloudformation.String("HTTP"),
 				})
@@ -196,7 +203,7 @@ func generateTemplate(spec *stackSpec) (string, error) {
 						TargetGroupArn: cloudformation.Ref(httpTargetGroupName).String(),
 					},
 				},
-				LoadBalancerArn: cloudformation.Ref("LB").String(),
+				LoadBalancerArn: cloudformation.Ref(LoadBalancerResourceLogicalID).String(),
 				Port:            cloudformation.Integer(80),
 				Protocol:        cloudformation.String("TCP"),
 			})
@@ -227,7 +234,7 @@ func generateTemplate(spec *stackSpec) (string, error) {
 						CertificateArn: cloudformation.String(certificateARNs[0]),
 					},
 				},
-				LoadBalancerArn: cloudformation.Ref("LB").String(),
+				LoadBalancerArn: cloudformation.Ref(LoadBalancerResourceLogicalID).String(),
 				Port:            cloudformation.Integer(443),
 				Protocol:        cloudformation.String("HTTPS"),
 				SslPolicy:       cloudformation.Ref(parameterListenerSslPolicyParameter).String(),
@@ -256,7 +263,7 @@ func generateTemplate(spec *stackSpec) (string, error) {
 						CertificateArn: cloudformation.String(certificateARNs[0]),
 					},
 				},
-				LoadBalancerArn: cloudformation.Ref("LB").String(),
+				LoadBalancerArn: cloudformation.Ref(LoadBalancerResourceLogicalID).String(),
 				Port:            cloudformation.Integer(443),
 				Protocol:        cloudformation.String("TLS"),
 				SslPolicy:       cloudformation.Ref(parameterListenerSslPolicyParameter).String(),
@@ -379,17 +386,17 @@ func generateTemplate(spec *stackSpec) (string, error) {
 		lb.Type = cloudformation.Ref(parameterLoadBalancerTypeParameter).String()
 	}
 
-	template.AddResource("LB", lb)
+	template.AddResource(LoadBalancerResourceLogicalID, lb)
 
 	if spec.loadbalancerType == LoadBalancerTypeApplication && spec.wafWebAclId != "" {
 		if strings.HasPrefix(spec.wafWebAclId, "arn:aws:wafv2:") {
 			template.AddResource("WAFAssociation", &cloudformation.WAFv2WebACLAssociation{
-				ResourceArn: cloudformation.Ref("LB").String(),
+				ResourceArn: cloudformation.Ref(LoadBalancerResourceLogicalID).String(),
 				WebACLArn:   cloudformation.Ref(parameterLoadBalancerWAFWebACLIDParameter).String(),
 			})
 		} else {
 			template.AddResource("WAFAssociation", &cloudformation.WAFRegionalWebACLAssociation{
-				ResourceArn: cloudformation.Ref("LB").String(),
+				ResourceArn: cloudformation.Ref(LoadBalancerResourceLogicalID).String(),
 				WebACLID:    cloudformation.Ref(parameterLoadBalancerWAFWebACLIDParameter).String(),
 			})
 		}
