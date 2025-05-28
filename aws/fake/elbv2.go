@@ -7,11 +7,12 @@ import (
 )
 
 type ELBv2Outputs struct {
-	RegisterTargets      *APIResponse
-	DeregisterTargets    *APIResponse
-	DescribeTags         *APIResponse
-	DescribeTargetGroups *APIResponse
-	DescribeTargetHealth *APIResponse
+	RegisterTargets       *APIResponse
+	DeregisterTargets     *APIResponse
+	DescribeTags          *APIResponse
+	DescribeTargetGroups  *APIResponse
+	DescribeTargetHealth  *APIResponse
+	DescribeLoadBalancers *APIResponse
 }
 
 type ELBv2Client struct {
@@ -64,6 +65,14 @@ func (m *ELBv2Client) DescribeTargetGroups(context.Context, *elbv2.DescribeTarge
 		return nil, m.Outputs.DescribeTargetGroups.err
 	}
 	return out, m.Outputs.DescribeTargetGroups.err
+}
+
+func (m *ELBv2Client) DescribeLoadBalancers(context.Context, *elbv2.DescribeLoadBalancersInput, ...func(*elbv2.Options)) (*elbv2.DescribeLoadBalancersOutput, error) {
+	out, ok := m.Outputs.DescribeLoadBalancers.response.(*elbv2.DescribeLoadBalancersOutput)
+	if !ok {
+		return nil, m.Outputs.DescribeLoadBalancers.err
+	}
+	return out, m.Outputs.DescribeLoadBalancers.err
 }
 
 func MockDescribeTargetGroupsOutput() *elbv2.DescribeTargetGroupsOutput {
