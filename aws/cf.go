@@ -24,6 +24,7 @@ type Stack struct {
 	Name              string
 	status            types.StackStatus
 	statusReason      string
+	lbState           *elbv2Types.LoadBalancerState
 	DNSName           string
 	Scheme            string
 	SecurityGroup     string
@@ -130,8 +131,6 @@ func convertStackParameters(parameters []types.Parameter) map[string]string {
 }
 
 const (
-	AWSLoadBalancerResourceType = "AWS::ElasticLoadBalancingV2::LoadBalancer"
-
 	// The following constants should be part of the Output section of the CloudFormation template
 	outputLoadBalancerDNSName = "LoadBalancerDNSName"
 	outputTargetGroupARN      = "TargetGroupARN"
@@ -464,7 +463,7 @@ func getLoadBalancerStackResource(
 		}
 
 		for _, resource := range resp.StackResourceSummaries {
-			if aws.ToString(resource.ResourceType) == AWSLoadBalancerResourceType {
+			if aws.ToString(resource.LogicalResourceId) == loadBalancerResourceLogicalID {
 				return &resource, nil
 			}
 		}
