@@ -8,100 +8,97 @@ import (
 	"crypto/x509/pkix"
 	"fmt"
 	"math/big"
-	"sync"
 	"time"
 
 	"github.com/zalando-incubator/kube-ingress-aws-controller/certs"
 )
 
-type caSingleton struct {
-	once      sync.Once
-	err       error
+type CA struct {
 	chainKey  *rsa.PrivateKey
 	roots     *x509.CertPool
 	chainCert *x509.Certificate
 }
 
-type CertificateProvider struct {
-	ca caSingleton
+func NewCA() (*CA, error) {
+	const tenYears = time.Hour * 24 * 365 * 10
+
+	caKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		return nil, fmt.Errorf("unable to generate CA key: %w", err)
+	}
+
+	caCert := x509.Certificate{
+		SerialNumber: big.NewInt(1),
+		Subject: pkix.Name{
+			Organization: []string{"Testing CA"},
+		},
+		NotBefore: time.Time{},
+		NotAfter:  time.Now().Add(tenYears),
+
+		KeyUsage:              x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature | x509.KeyUsageCertSign,
+		BasicConstraintsValid: true,
+
+		IsCA: true,
+	}
+
+	caBody, err := x509.CreateCertificate(rand.Reader, &caCert, &caCert, caKey.Public(), caKey)
+	if err != nil {
+		return nil, fmt.Errorf("unable to generate CA certificate: %w", err)
+	}
+
+	caReparsed, err := x509.ParseCertificate(caBody)
+	if err != nil {
+		return nil, fmt.Errorf("unable to parse CA certificate: %w", err)
+	}
+
+	chainKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		return nil, fmt.Errorf("unable to generate sub-CA key: %w", err)
+	}
+	chainCert := x509.Certificate{
+		SerialNumber: big.NewInt(2),
+		Subject: pkix.Name{
+			Organization: []string{"Testing Sub-CA"},
+		},
+		NotBefore: time.Time{},
+		NotAfter:  time.Now().Add(tenYears),
+
+		KeyUsage:              x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature | x509.KeyUsageCertSign,
+		BasicConstraintsValid: true,
+
+		IsCA: true,
+	}
+
+	chainBody, err := x509.CreateCertificate(rand.Reader, &chainCert, caReparsed, chainKey.Public(), caKey)
+	if err != nil {
+		return nil, fmt.Errorf("unable to generate sub-CA certificate: %w", err)
+	}
+
+	chainReparsed, err := x509.ParseCertificate(chainBody)
+	if err != nil {
+		return nil, fmt.Errorf("unable to parse sub-CA certificate: %w", err)
+	}
+
+	ca := new(CA)
+	ca.roots = x509.NewCertPool()
+	ca.roots.AddCert(caReparsed)
+	ca.chainKey = chainKey
+	ca.chainCert = chainReparsed
+
+	return ca, nil
 }
 
-func (m *CertificateProvider) GetCertificates(ctx context.Context) ([]*certs.CertificateSummary, error) {
-	tenYears := time.Hour * 24 * 365 * 10
+func (ca *CA) NewCertificateSummary() (*certs.CertificateSummary, error) {
 	altNames := []string{"foo.bar.org"}
 	arn := "DUMMY"
 	notBefore := time.Now()
 	notAfter := time.Now().Add(time.Hour * 24)
 
-	m.ca.once.Do(func() {
-		caKey, err := rsa.GenerateKey(rand.Reader, 2048)
-		if err != nil {
-			m.ca.err = fmt.Errorf("unable to generate CA key: %w", err)
-			return
-		}
-
-		caCert := x509.Certificate{
-			SerialNumber: big.NewInt(1),
-			Subject: pkix.Name{
-				Organization: []string{"Testing CA"},
-			},
-			NotBefore: time.Time{},
-			NotAfter:  time.Now().Add(tenYears),
-
-			KeyUsage:              x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature | x509.KeyUsageCertSign,
-			BasicConstraintsValid: true,
-
-			IsCA: true,
-		}
-		caBody, err := x509.CreateCertificate(rand.Reader, &caCert, &caCert, caKey.Public(), caKey)
-		if err != nil {
-			m.ca.err = fmt.Errorf("unable to generate CA certificate: %w", err)
-			return
-		}
-		caReparsed, err := x509.ParseCertificate(caBody)
-		if err != nil {
-			m.ca.err = fmt.Errorf("unable to parse CA certificate: %w", err)
-			return
-		}
-		m.ca.roots = x509.NewCertPool()
-		m.ca.roots.AddCert(caReparsed)
-
-		chainKey, err := rsa.GenerateKey(rand.Reader, 2048)
-		if err != nil {
-			m.ca.err = fmt.Errorf("unable to generate sub-CA key: %w", err)
-			return
-		}
-		chainCert := x509.Certificate{
-			SerialNumber: big.NewInt(2),
-			Subject: pkix.Name{
-				Organization: []string{"Testing Sub-CA"},
-			},
-			NotBefore: time.Time{},
-			NotAfter:  time.Now().Add(tenYears),
-
-			KeyUsage:              x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature | x509.KeyUsageCertSign,
-			BasicConstraintsValid: true,
-
-			IsCA: true,
-		}
-		chainBody, err := x509.CreateCertificate(rand.Reader, &chainCert, caReparsed, chainKey.Public(), caKey)
-		if err != nil {
-			m.ca.err = fmt.Errorf("unable to generate sub-CA certificate: %w", err)
-		}
-		chainReparsed, err := x509.ParseCertificate(chainBody)
-		if err != nil {
-			m.ca.err = fmt.Errorf("unable to parse sub-CA certificate: %w", err)
-			return
-		}
-
-		m.ca.chainKey = chainKey
-		m.ca.chainCert = chainReparsed
-	})
-
 	certKey, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
 		return nil, fmt.Errorf("unable to generate certificate key: %w", err)
 	}
+
 	cert := x509.Certificate{
 		SerialNumber: big.NewInt(3),
 		DNSNames:     altNames,
@@ -113,17 +110,27 @@ func (m *CertificateProvider) GetCertificates(ctx context.Context) ([]*certs.Cer
 		BasicConstraintsValid: true,
 	}
 
-	body, err := x509.CreateCertificate(rand.Reader, &cert, m.ca.chainCert, certKey.Public(), m.ca.chainKey)
+	body, err := x509.CreateCertificate(rand.Reader, &cert, ca.chainCert, certKey.Public(), ca.chainKey)
 	if err != nil {
 		return nil, err
 	}
+
 	reparsed, err := x509.ParseCertificate(body)
 	if err != nil {
 		return nil, err
 	}
 
-	c := certs.NewCertificate(arn, reparsed, []*x509.Certificate{m.ca.chainCert})
-	return []*certs.CertificateSummary{c.WithRoots(m.ca.roots)}, nil
+	c := certs.NewCertificate(arn, reparsed, []*x509.Certificate{ca.chainCert})
+	return c.WithRoots(ca.roots), nil
+}
+
+type CertificateProvider struct {
+	Summaries []*certs.CertificateSummary
+	Error     error
+}
+
+func (m *CertificateProvider) GetCertificates(_ context.Context) ([]*certs.CertificateSummary, error) {
+	return m.Summaries, m.Error
 }
 
 // certmock implements CertificatesFinder for testing, without validating

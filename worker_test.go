@@ -37,6 +37,16 @@ func TestResourceConversionOneToOne(tt *testing.T) {
 	// See https://github.com/aws/aws-sdk-go-v2/blob/main/service/ec2/types/types.go, type InstanceState
 	running := int32(16)
 
+	ca, err := certsfake.NewCA()
+	require.NoError(tt, err)
+
+	certSummary, err := ca.NewCertificateSummary()
+	require.NoError(tt, err)
+
+	var certsProvider certs.CertificatesProvider = &certsfake.CertificateProvider{
+		Summaries: []*certs.CertificateSummary{certSummary},
+	}
+
 	for _, scenario := range []struct {
 		name           string
 		responsesEC2   fake.EC2Outputs
@@ -512,7 +522,7 @@ func TestResourceConversionOneToOne(tt *testing.T) {
 			}
 
 			log.SetLevel(log.DebugLevel)
-			problems := doWork(ctx, &certsfake.CertificateProvider{}, 10, time.Hour, a, k, "")
+			problems := doWork(ctx, certsProvider, 10, time.Hour, a, k, "")
 			if len(problems.Errors()) > 0 {
 				t.Error(problems.Errors())
 			}
