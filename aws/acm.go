@@ -33,7 +33,7 @@ func (p *acmCertificateProvider) GetCertificates(ctx context.Context) ([]*certs.
 	if err != nil {
 		return nil, err
 	}
-	result := make([]*certs.CertificateSummary, 0)
+	result := make([]*certs.CertificateSummary, 0, len(acmSummaries))
 	for _, o := range acmSummaries {
 		summary, err := getCertificateSummaryFromACM(ctx, p.api, o.CertificateArn)
 		if err != nil {
