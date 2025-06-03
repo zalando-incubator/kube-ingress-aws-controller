@@ -50,5 +50,9 @@
   {
     "parameterKey": "TargetGroupHealthCheckTimeoutParameter",
     "parameterValue": "0"
+  },
+  {
+    "parameterKey": "Stickiness",
+    "parameterValue": "false"
   }
 ]
