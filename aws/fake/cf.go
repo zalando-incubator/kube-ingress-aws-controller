@@ -50,6 +50,14 @@ func (m *CFClient) DescribeStacks(context.Context, *cloudformation.DescribeStack
 	return out, m.Outputs.DescribeStacks.err
 }
 
+func (m *CFClient) ListStackResources(ctx context.Context, params *cloudformation.ListStackResourcesInput, fn ...func(*cloudformation.Options)) (*cloudformation.ListStackResourcesOutput, error) {
+	out, ok := m.Outputs.DescribeStacks.response.(*cloudformation.ListStackResourcesOutput)
+	if !ok {
+		return nil, m.Outputs.DescribeStacks.err
+	}
+	return out, m.Outputs.DescribeStacks.err
+}
+
 func MockDescribeStacksOutput(stackId *string) *cloudformation.DescribeStacksOutput {
 	if stackId == nil {
 		return &cloudformation.DescribeStacksOutput{
