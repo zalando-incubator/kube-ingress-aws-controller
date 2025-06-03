@@ -318,6 +318,10 @@ func doWork(
 		return problems.Add("failed to get certificates: %w", err)
 	}
 
+	if len(certificateSummaries) == 0 {
+		return problems.Add("no certificates found")
+	}
+
 	cwAlarms, err := getCloudWatchAlarms(kubeAdapter, cwAlarmConfigMapLocation)
 	if err != nil {
 		return problems.Add("failed to retrieve cloudwatch alarm configuration: %w", err)
