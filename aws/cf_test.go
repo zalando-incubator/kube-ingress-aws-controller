@@ -784,6 +784,84 @@ func TestGetStack(t *testing.T) {
 	}
 }
 
+func TestGetLoadBalancerStackResource(t *testing.T) {
+
+	for _, ti := range []struct {
+		name    string
+		given   fake.CFOutputs
+		want    *types.StackResourceSummary
+		wantErr bool
+	}{
+		{
+			"managed load balancer resource found",
+			fake.CFOutputs{
+				ListStackResources: fake.R(&cloudformation.ListStackResourcesOutput{
+					StackResourceSummaries: []types.StackResourceSummary{
+						{
+							LogicalResourceId:    aws.String(loadBalancerResourceLogicalID),
+							ResourceType:         aws.String("AWS::ElasticLoadBalancingV2::LoadBalancer"),
+							ResourceStatus:       types.ResourceStatusCreateComplete,
+							ResourceStatusReason: aws.String(""),
+						},
+					}}, nil),
+			},
+			&types.StackResourceSummary{
+				LogicalResourceId:    aws.String(loadBalancerResourceLogicalID),
+				ResourceType:         aws.String("AWS::ElasticLoadBalancingV2::LoadBalancer"),
+				ResourceStatus:       types.ResourceStatusCreateComplete,
+				ResourceStatusReason: aws.String(""),
+			},
+			false,
+		},
+		{
+			"no load balancer resource",
+			fake.CFOutputs{
+				ListStackResources: fake.R(&cloudformation.ListStackResourcesOutput{
+					StackResourceSummaries: []types.StackResourceSummary{
+						{
+							LogicalResourceId:    aws.String("SomeOtherResourceLogicalID"),
+							ResourceType:         aws.String("AWS::Some::OtherResource"),
+							ResourceStatus:       types.ResourceStatusCreateComplete,
+							ResourceStatusReason: aws.String(""),
+						},
+					}}, nil),
+			},
+			nil,
+			true,
+		},
+		{
+			"unmanaged load balancer",
+			fake.CFOutputs{
+				ListStackResources: fake.R(&cloudformation.ListStackResourcesOutput{
+					StackResourceSummaries: []types.StackResourceSummary{
+						{
+							LogicalResourceId:    aws.String("unmanaged-load-balancer"),
+							ResourceType:         aws.String("AWS::ElasticLoadBalancingV2::LoadBalancer"),
+							ResourceStatus:       types.ResourceStatusCreateComplete,
+							ResourceStatusReason: aws.String(""),
+						},
+					}}, nil),
+			},
+			nil,
+			true,
+		},
+	} {
+		t.Run(ti.name, func(t *testing.T) {
+			c := &fake.CFClient{Outputs: ti.given}
+			got, err := getLoadBalancerStackResource(context.Background(), c, "dontcare")
+			if err != nil {
+				if !ti.wantErr {
+					t.Error("unexpected error", err)
+				}
+			} else {
+				if !reflect.DeepEqual(ti.want, got) {
+					t.Errorf("unexpected result. wanted %+v, got %+v", ti.want, got)
+				}
+			}
+		})
+	}
+}
+
 func TestShouldDelete(t *testing.T) {
 	for _, ti := range []struct {
 		msg   string
