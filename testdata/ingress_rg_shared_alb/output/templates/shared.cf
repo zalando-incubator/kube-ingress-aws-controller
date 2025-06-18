@@ -200,6 +200,12 @@
         }
     },
     "Outputs": {
+        "LoadBalancerARN": {
+            "Description": "The ARN of the LoadBalancer",
+            "Value": {
+                "Ref": "LB"
+            }
+        },
         "LoadBalancerDNSName": {
             "Description": "DNS name for the LoadBalancer",
             "Value": {
