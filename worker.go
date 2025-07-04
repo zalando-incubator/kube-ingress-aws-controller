@@ -25,6 +25,7 @@ type loadBalancer struct {
 	ingresses                    map[string][]*kubernetes.Ingress
 	scheme                       string
 	stack                        *aws.Stack
+	state                        *aws.LoadBalancerState
 	existingStackCertificateARNs map[string]time.Time
 	shared                       bool
 	http2                        bool
@@ -294,6 +295,11 @@ func doWork(
 		}
 	}
 
+	stackELBs, err := awsAdapter.GetStackLBStates(ctx, stacks)
+	if err != nil {
+		return problems.Add("failed to get stack ELBs: %w", err)
+	}
+
 	err = awsAdapter.UpdateAutoScalingGroupsAndInstances(ctx)
 	if err != nil {
 		return problems.Add("failed to get instances from EC2: %w", err)
@@ -338,7 +344,7 @@ func doWork(
 	awsAdapter.UpdateTargetGroupsAndAutoScalingGroups(ctx, stacks, problems)
 
 	certs := NewCertificates(certificateSummaries)
-	model := buildManagedModel(certs, certsPerALB, certTTL, ingresses, stacks, cwAlarms, globalWAFACL)
+	model := buildManagedModel(certs, certsPerALB, certTTL, ingresses, stackELBs, cwAlarms, globalWAFACL)
 	log.Debugf("Have %d model(s)", len(model))
 	for _, loadBalancer := range model {
 		switch loadBalancer.Status() {
@@ -365,38 +371,39 @@ func countByIngressType(ingresses []*kubernetes.Ingress) map[kubernetes.IngressT
 	return counts
 }
 
-func sortStacks(stacks []*aws.Stack) {
-	sort.Slice(stacks, func(i, j int) bool {
-		if len(stacks[i].CertificateARNs) == len(stacks[j].CertificateARNs) {
-			return stacks[i].Name < stacks[j].Name
+func sortStacks(stackLBState []*aws.StackLBState) {
+	sort.Slice(stackLBState, func(i, j int) bool {
+		if len(stackLBState[i].Stack.CertificateARNs) == len(stackLBState[j].Stack.CertificateARNs) {
+			return stackLBState[i].Stack.Name < stackLBState[j].Stack.Name
 		}
-		return len(stacks[i].CertificateARNs) > len(stacks[j].CertificateARNs)
+		return len(stackLBState[i].Stack.CertificateARNs) > len(stackLBState[j].Stack.CertificateARNs)
 	})
 }
 
-func getAllLoadBalancers(certs CertificatesFinder, certTTL time.Duration, stacks []*aws.Stack) []*loadBalancer {
-	loadBalancers := make([]*loadBalancer, 0, len(stacks))
+func getAllLoadBalancers(certs CertificatesFinder, certTTL time.Duration, stackLBStates []*aws.StackLBState) []*loadBalancer {
+	loadBalancers := make([]*loadBalancer, 0, len(stackLBStates))
 
-	for _, stack := range stacks {
+	for _, sl := range stackLBStates {
 		lb := &loadBalancer{
-			stack:                        stack,
-			existingStackCertificateARNs: make(map[string]time.Time, len(stack.CertificateARNs)),
+			stack:                        sl.Stack,
+			state:                        sl.LBState,
+			existingStackCertificateARNs: make(map[string]time.Time, len(sl.Stack.CertificateARNs)),
 			ingresses:                    make(map[string][]*kubernetes.Ingress),
-			scheme:                       stack.Scheme,
-			shared:                       stack.OwnerIngress == "",
-			securityGroup:                stack.SecurityGroup,
-			sslPolicy:                    stack.SSLPolicy,
-			ipAddressType:                stack.IpAddressType,
-			loadBalancerType:             stack.LoadBalancerType,
-			http2:                        stack.HTTP2,
-			wafWebACLID:                  stack.WAFWebACLID,
+			scheme:                       sl.Stack.Scheme,
+			shared:                       sl.Stack.OwnerIngress == "",
+			securityGroup:                sl.Stack.SecurityGroup,
+			sslPolicy:                    sl.Stack.SSLPolicy,
+			ipAddressType:                sl.Stack.IpAddressType,
+			loadBalancerType:             sl.Stack.LoadBalancerType,
+			http2:                        sl.Stack.HTTP2,
+			wafWebACLID:                  sl.Stack.WAFWebACLID,
 			certTTL:                      certTTL,
 		}
 		// initialize ingresses map with existing certificates from the stack.
 		// Also filter the stack certificates so we have a set of
 		// certificates which are still availale, compared to what was
 		// latest stored on the stack.
-		for cert, expiry := range stack.CertificateARNs {
+		for cert, expiry := range sl.Stack.CertificateARNs {
 			if certs.CertificateExists(cert) {
 				lb.existingStackCertificateARNs[cert] = expiry
 				lb.ingresses[cert] = make([]*kubernetes.Ingress, 0)
@@ -518,13 +525,13 @@ func buildManagedModel(
 	certsPerALB int,
 	certTTL time.Duration,
 	ingresses []*kubernetes.Ingress,
-	stacks []*aws.Stack,
+	stackLBStates []*aws.StackLBState,
 	cwAlarms aws.CloudWatchAlarmList,
 	globalWAFACL string,
 ) []*loadBalancer {
-	sortStacks(stacks)
+	sortStacks(stackLBStates)
 	attachGlobalWAFACL(ingresses, globalWAFACL)
-	model := getAllLoadBalancers(certs, certTTL, stacks)
+	model := getAllLoadBalancers(certs, certTTL, stackLBStates)
 	model = matchIngressesToLoadBalancers(model, certs, certsPerALB, ingresses)
 	attachCloudWatchAlarms(model, cwAlarms)
 
@@ -590,8 +597,24 @@ func updateIngress(kubeAdapter *kubernetes.Adapter, lb *loadBalancer, problems *
 	if lb.clusterLocal {
 		dnsName = kubernetes.DefaultClusterLocalDomain
 	} else {
-		// only update ingress if the stack exists and is in a complete state.
-		if lb.stack == nil || !lb.stack.IsComplete() {
+		// only update ingress if the CF stack is in a completed state and the ELB
+		// is in the active state.
+		if lb.stack == nil {
+			log.Infof("CF stack is nil, skipping ingress update")
+			return
+		}
+		if !lb.stack.IsComplete() {
+			log.Infof(
+				"CF stack %q is not in a completed state, skipping ingress update",
+				lb.stack.Name,
+			)
+			return
+		}
+		if !aws.IsActiveLBState(lb.state) {
+			log.Infof(
+				"The load balancer of CF stack %q is not in active state (state: %s, lb-ARN: %s), skipping ingress update",
+				lb.stack.Name, aws.GetLBStateString(lb.state), lb.stack.LoadBalancerARN,
+			)
 			return
 		}
 		dnsName = strings.ToLower(lb.stack.DNSName) // lower case to satisfy Kubernetes reqs

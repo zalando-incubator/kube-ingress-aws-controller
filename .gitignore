@@ -36,3 +36,4 @@ Dockerfile.upstream
 profile.cov
 
 .idea/
+.vscode/

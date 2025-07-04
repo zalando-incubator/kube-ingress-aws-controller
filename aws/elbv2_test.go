@@ -9,7 +9,12 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 
+	elbv2 "github.com/aws/aws-sdk-go-v2/service/elasticloadbalancingv2"
+	elbv2Types "github.com/aws/aws-sdk-go-v2/service/elasticloadbalancingv2/types"
 	"github.com/zalando-incubator/kube-ingress-aws-controller/aws/fake"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 type registerTargetsOnTargetGroupsInputTest struct {
@@ -20,6 +25,48 @@ type registerTargetsOnTargetGroupsInputTest struct {
 type deregisterTargetsOnTargetGroupsInputTest struct {
 	targetGroupARNs []string
 	instances       []string
+}
+
+func TestIsActiveLBState(t *testing.T) {
+	tests := []struct {
+		name     string
+		lbState  *LoadBalancerState
+		expected bool
+	}{
+		{"nil state", nil, false},
+		{"active state", &LoadBalancerState{StateCode: elbv2Types.LoadBalancerStateEnumActive}, true},
+		{"provisioning state", &LoadBalancerState{StateCode: elbv2Types.LoadBalancerStateEnumProvisioning}, false},
+		{"active impaired state", &LoadBalancerState{StateCode: elbv2Types.LoadBalancerStateEnumActiveImpaired}, false},
+		{"provisioning state", &LoadBalancerState{StateCode: elbv2Types.LoadBalancerStateEnumFailed}, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := IsActiveLBState(tt.lbState)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestGetLBStateString(t *testing.T) {
+	tests := []struct {
+		name     string
+		lbState  *LoadBalancerState
+		expected string
+	}{
+		{"nil state", nil, "nil"},
+		{"active state", &LoadBalancerState{StateCode: elbv2Types.LoadBalancerStateEnumActive}, "active"},
+		{"provisioning state", &LoadBalancerState{StateCode: elbv2Types.LoadBalancerStateEnumProvisioning}, "provisioning"},
+		{"active impaired state", &LoadBalancerState{StateCode: elbv2Types.LoadBalancerStateEnumActiveImpaired}, "active_impaired"},
+		{"failed state", &LoadBalancerState{StateCode: elbv2Types.LoadBalancerStateEnumFailed}, "failed"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := GetLBStateString(tt.lbState)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
 }
 
 func TestRegisterTargetsOnTargetGroups(t *testing.T) {
@@ -203,6 +250,118 @@ func TestDeregisterTargetsOnTargetGroups(t *testing.T) {
 				if !reflect.DeepEqual(dtTargetsGroupARNs, test.input.targetGroupARNs) {
 					t.Errorf("unexpected set of targetGroupARNs. expected: %q, got: %q", test.input.targetGroupARNs, dtTargetsGroupARNs)
 				}
+			}
+		})
+	}
+}
+
+func TestGetLoadBalancerStates(t *testing.T) {
+	outputBasedOnInput := fake.ELBv2Outputs{DescribeLoadBalancers: nil}
+	expectedLBState := LoadBalancerState{
+		StateCode: elbv2Types.LoadBalancerStateEnumActive,
+		Reason:    "Mocked state",
+	}
+
+	for _, test := range []struct {
+		name           string
+		input          []string
+		outputs        fake.ELBv2Outputs
+		expectedOutput map[string]*LoadBalancerState
+		wantError      bool
+	}{
+		{
+			"single load balancer",
+			[]string{"lb1"},
+			outputBasedOnInput,
+			map[string]*LoadBalancerState{
+				"lb1": &expectedLBState,
+			},
+			false,
+		},
+		{
+			"multiple load balancers",
+			[]string{"lb1", "lb2", "lb3", "lb4"},
+			outputBasedOnInput,
+			map[string]*LoadBalancerState{
+				"lb1": &expectedLBState,
+				"lb2": &expectedLBState,
+				"lb3": &expectedLBState,
+				"lb4": &expectedLBState,
+			},
+			false,
+		},
+		{
+			"more than 20 load balancers",
+			[]string{
+				"lb1", "lb2", "lb3", "lb4", "lb5", "lb6", "lb7", "lb8", "lb9", "lb10",
+				"lb11", "lb12", "lb13", "lb14", "lb15", "lb16", "lb17", "lb18", "lb19",
+				"lb20", "lb21", "lb22",
+			},
+			outputBasedOnInput,
+			map[string]*LoadBalancerState{
+				"lb1":  &expectedLBState,
+				"lb2":  &expectedLBState,
+				"lb3":  &expectedLBState,
+				"lb4":  &expectedLBState,
+				"lb5":  &expectedLBState,
+				"lb6":  &expectedLBState,
+				"lb7":  &expectedLBState,
+				"lb8":  &expectedLBState,
+				"lb9":  &expectedLBState,
+				"lb10": &expectedLBState,
+				"lb11": &expectedLBState,
+				"lb12": &expectedLBState,
+				"lb13": &expectedLBState,
+				"lb14": &expectedLBState,
+				"lb15": &expectedLBState,
+				"lb16": &expectedLBState,
+				"lb17": &expectedLBState,
+				"lb18": &expectedLBState,
+				"lb19": &expectedLBState,
+				"lb20": &expectedLBState,
+				"lb21": &expectedLBState,
+				"lb22": &expectedLBState,
+			},
+			false,
+		},
+		{
+			"no load balancers",
+			[]string{},
+			outputBasedOnInput,
+			map[string]*LoadBalancerState{},
+			false,
+		},
+		{
+			"error response",
+			[]string{"lb1"},
+			fake.ELBv2Outputs{DescribeLoadBalancers: fake.R(nil, fake.ErrDummy)},
+			nil,
+			true,
+		},
+		{
+			"nil load balancer state",
+			[]string{"lb1"},
+			fake.ELBv2Outputs{DescribeLoadBalancers: fake.R(&elbv2.DescribeLoadBalancersOutput{
+				LoadBalancers: []elbv2Types.LoadBalancer{
+					{
+						LoadBalancerArn: aws.String("lb1"),
+						State:           nil, // No state information
+					},
+				}}, nil)},
+			map[string]*LoadBalancerState{
+				"lb1": nil, // Expecting nil state for lb1
+			},
+			false,
+		},
+	} {
+		t.Run(fmt.Sprintf("%v", test.name), func(t *testing.T) {
+			svc := &fake.ELBv2Client{Outputs: test.outputs}
+			states, err := getLoadBalancerStates(context.Background(), svc, test.input)
+			if test.wantError {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				assert.Equal(t, test.expectedOutput, states)
 			}
 		})
 	}
