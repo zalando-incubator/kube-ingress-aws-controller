@@ -183,9 +183,9 @@ func (a *Adapter) newIngress(typ IngressType, metadata kubeItemMetadata, host st
 		shared = false
 	}
 
-	ipAddressType := aws.IPAddressTypeIPV4
-	if getAnnotationsString(annotations, ingressALBIPAddressType, "") == aws.IPAddressTypeDualstack {
-		ipAddressType = aws.IPAddressTypeDualstack
+	ipAddressType := aws.IPAddressTypeDualstack
+	if getAnnotationsString(annotations, ingressALBIPAddressType, "") == aws.IPAddressTypeIPV4 {
+		ipAddressType = aws.IPAddressTypeIPV4
 	}
 
 	sslPolicy := getAnnotationsString(annotations, ingressSSLPolicyAnnotation, a.ingressDefaultSSLPolicy)
@@ -227,8 +227,8 @@ func (a *Adapter) newIngress(typ IngressType, metadata kubeItemMetadata, host st
 	loadBalancerType = loadBalancerTypesIngressToAWS[loadBalancerType]
 
 	if loadBalancerType == aws.LoadBalancerTypeNetwork {
-		// ensure ipv4 for network load balancers
-		ipAddressType = aws.IPAddressTypeIPV4
+		// ensure both ipv4 and ipv6 for network load balancers
+		ipAddressType = aws.IPAddressTypeDualstack
 	}
 
 	http2 := true
