@@ -123,7 +123,7 @@ func TestGenerateTemplate(t *testing.T) {
 					&cloudformation.CloudWatchAlarmDimensionList{
 						{
 							Name:  cloudformation.String("LoadBalancer"),
-							Value: cloudformation.GetAtt("LB", "LoadBalancerFullName").String(),
+							Value: cloudformation.GetAtt(LoadBalancerResourceLogicalID, "LoadBalancerFullName").String(),
 						},
 					},
 					props.Dimensions,
@@ -270,8 +270,8 @@ func TestGenerateTemplate(t *testing.T) {
 				nlbCrossZone:     true,
 			},
 			validate: func(t *testing.T, template *cloudformation.Template) {
-				require.NotNil(t, template.Resources["LB"])
-				properties := template.Resources["LB"].Properties.(*cloudformation.ElasticLoadBalancingV2LoadBalancer)
+				require.NotNil(t, template.Resources[LoadBalancerResourceLogicalID])
+				properties := template.Resources[LoadBalancerResourceLogicalID].Properties.(*cloudformation.ElasticLoadBalancingV2LoadBalancer)
 				attributes := []cloudformation.ElasticLoadBalancingV2LoadBalancerLoadBalancerAttribute(*properties.LoadBalancerAttributes)
 				require.Equal(t, attributes[0].Key.Literal, "load_balancing.cross_zone.enabled")
 				require.Equal(t, attributes[0].Value.Literal, "true")
@@ -284,8 +284,8 @@ func TestGenerateTemplate(t *testing.T) {
 				nlbCrossZone:     false,
 			},
 			validate: func(t *testing.T, template *cloudformation.Template) {
-				require.NotNil(t, template.Resources["LB"])
-				properties := template.Resources["LB"].Properties.(*cloudformation.ElasticLoadBalancingV2LoadBalancer)
+				require.NotNil(t, template.Resources[LoadBalancerResourceLogicalID])
+				properties := template.Resources[LoadBalancerResourceLogicalID].Properties.(*cloudformation.ElasticLoadBalancingV2LoadBalancer)
 				attributes := []cloudformation.ElasticLoadBalancingV2LoadBalancerLoadBalancerAttribute(*properties.LoadBalancerAttributes)
 				require.Equal(t, attributes[0].Key.Literal, "load_balancing.cross_zone.enabled")
 				require.Equal(t, attributes[0].Value.Literal, "false")
@@ -298,8 +298,8 @@ func TestGenerateTemplate(t *testing.T) {
 				nlbZoneAffinity:  "any_availability_zone",
 			},
 			validate: func(t *testing.T, template *cloudformation.Template) {
-				require.NotNil(t, template.Resources["LB"])
-				properties := template.Resources["LB"].Properties.(*cloudformation.ElasticLoadBalancingV2LoadBalancer)
+				require.NotNil(t, template.Resources[LoadBalancerResourceLogicalID])
+				properties := template.Resources[LoadBalancerResourceLogicalID].Properties.(*cloudformation.ElasticLoadBalancingV2LoadBalancer)
 				attributes := []cloudformation.ElasticLoadBalancingV2LoadBalancerLoadBalancerAttribute(*properties.LoadBalancerAttributes)
 				require.Equal(t, attributes[1].Key.Literal, "dns_record.client_routing_policy")
 				require.Equal(t, attributes[1].Value.Literal, "any_availability_zone")
@@ -312,8 +312,8 @@ func TestGenerateTemplate(t *testing.T) {
 				nlbZoneAffinity:  "availability_zone_affinity",
 			},
 			validate: func(t *testing.T, template *cloudformation.Template) {
-				require.NotNil(t, template.Resources["LB"])
-				properties := template.Resources["LB"].Properties.(*cloudformation.ElasticLoadBalancingV2LoadBalancer)
+				require.NotNil(t, template.Resources[LoadBalancerResourceLogicalID])
+				properties := template.Resources[LoadBalancerResourceLogicalID].Properties.(*cloudformation.ElasticLoadBalancingV2LoadBalancer)
 				attributes := []cloudformation.ElasticLoadBalancingV2LoadBalancerLoadBalancerAttribute(*properties.LoadBalancerAttributes)
 				require.Equal(t, attributes[1].Key.Literal, "dns_record.client_routing_policy")
 				require.Equal(t, attributes[1].Value.Literal, "availability_zone_affinity")
@@ -326,8 +326,8 @@ func TestGenerateTemplate(t *testing.T) {
 				nlbZoneAffinity:  "partial_availability_zone_affinity",
 			},
 			validate: func(t *testing.T, template *cloudformation.Template) {
-				require.NotNil(t, template.Resources["LB"])
-				properties := template.Resources["LB"].Properties.(*cloudformation.ElasticLoadBalancingV2LoadBalancer)
+				require.NotNil(t, template.Resources[LoadBalancerResourceLogicalID])
+				properties := template.Resources[LoadBalancerResourceLogicalID].Properties.(*cloudformation.ElasticLoadBalancingV2LoadBalancer)
 				attributes := []cloudformation.ElasticLoadBalancingV2LoadBalancerLoadBalancerAttribute(*properties.LoadBalancerAttributes)
 				require.Equal(t, attributes[1].Key.Literal, "dns_record.client_routing_policy")
 				require.Equal(t, attributes[1].Value.Literal, "partial_availability_zone_affinity")
@@ -352,8 +352,8 @@ func TestGenerateTemplate(t *testing.T) {
 				http2:            true,
 			},
 			validate: func(t *testing.T, template *cloudformation.Template) {
-				require.NotNil(t, template.Resources["LB"])
-				properties := template.Resources["LB"].Properties.(*cloudformation.ElasticLoadBalancingV2LoadBalancer)
+				require.NotNil(t, template.Resources[LoadBalancerResourceLogicalID])
+				properties := template.Resources[LoadBalancerResourceLogicalID].Properties.(*cloudformation.ElasticLoadBalancingV2LoadBalancer)
 				attributes := []cloudformation.ElasticLoadBalancingV2LoadBalancerLoadBalancerAttribute(*properties.LoadBalancerAttributes)
 				require.Equal(t, attributes[1].Key.Literal, "routing.http2.enabled")
 				require.Equal(t, attributes[1].Value.Literal, "true")
@@ -366,8 +366,8 @@ func TestGenerateTemplate(t *testing.T) {
 				http2:            false,
 			},
 			validate: func(t *testing.T, template *cloudformation.Template) {
-				require.NotNil(t, template.Resources["LB"])
-				properties := template.Resources["LB"].Properties.(*cloudformation.ElasticLoadBalancingV2LoadBalancer)
+				require.NotNil(t, template.Resources[LoadBalancerResourceLogicalID])
+				properties := template.Resources[LoadBalancerResourceLogicalID].Properties.(*cloudformation.ElasticLoadBalancingV2LoadBalancer)
 				attributes := []cloudformation.ElasticLoadBalancingV2LoadBalancerLoadBalancerAttribute(*properties.LoadBalancerAttributes)
 				require.Equal(t, attributes[1].Key.Literal, "routing.http2.enabled")
 				require.Equal(t, attributes[1].Value.Literal, "false")
