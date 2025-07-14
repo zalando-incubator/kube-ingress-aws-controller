@@ -226,11 +226,6 @@ func (a *Adapter) newIngress(typ IngressType, metadata kubeItemMetadata, host st
 	// convert to the internal naming e.g. nlb -> network
 	loadBalancerType = loadBalancerTypesIngressToAWS[loadBalancerType]
 
-	if loadBalancerType == aws.LoadBalancerTypeNetwork {
-		// ensure both ipv4 and ipv6 for network load balancers
-		ipAddressType = aws.IPAddressTypeDualstack
-	}
-
 	http2 := true
 	if getAnnotationsString(annotations, ingressHTTP2Annotation, "") == "false" {
 		http2 = false
