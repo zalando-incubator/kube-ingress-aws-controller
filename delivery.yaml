@@ -21,7 +21,7 @@ pipeline:
       IMAGE=$IMAGE VERSION=$VERSION make build.push
 
       # multi-arch image
-      IMAGE=container-registry-test.zalando.net/gwproxy/kube-ingress-aws-controller-test
+      IMAGE=container-registry-test.zalando.net/teapot/kube-ingress-aws-controller-test-eks
 
       make build.linux.amd64 build.linux.arm64
 
