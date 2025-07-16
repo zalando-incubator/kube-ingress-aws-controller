@@ -19,19 +19,17 @@ pipeline:
       git diff --exit-code || exit 1
   - desc: Push docker image
     cmd: |
-      if [ -n "$CDP_PULL_REQUEST_NUMBER" ]; then
-        IMAGE=registry-write.opensource.zalan.do/teapot/kube-ingress-aws-controller-test
-        VERSION=$CDP_BUILD_VERSION
-        IMAGE=$IMAGE VERSION=$VERSION make build.push
+      IMAGE=registry-write.opensource.zalan.do/teapot/kube-ingress-aws-controller-test
+      VERSION=$CDP_BUILD_VERSION
+      IMAGE=$IMAGE VERSION=$VERSION make build.push
 
-        # multi-arch image
-        IMAGE=container-registry-test.zalando.net/teapot/kube-ingress-aws-controller
+      # multi-arch image
+      IMAGE=container-registry-test.zalando.net/teapot/kube-ingress-aws-controller
 
-        make build.linux.amd64 build.linux.arm64
+      make build.linux.amd64 build.linux.arm64
 
-        docker buildx create --config /etc/cdp-buildkitd.toml --driver-opt network=host --bootstrap --use
-        docker buildx build --rm --build-arg BASE_IMAGE=container-registry.zalando.net/library/static:latest -t "${IMAGE}:${CDP_BUILD_VERSION}" --platform linux/amd64,linux/arm64 --push .
-      fi
+      docker buildx create --config /etc/cdp-buildkitd.toml --driver-opt network=host --bootstrap --use
+      docker buildx build --rm --build-arg BASE_IMAGE=container-registry.zalando.net/library/static:latest -t "${IMAGE}:${CDP_BUILD_VERSION}" --platform linux/amd64,linux/arm64 --push .
 
 - id: buildprod
   when:
