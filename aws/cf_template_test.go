@@ -9,7 +9,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	cloudformation "github.com/zalando-incubator/kube-ingress-aws-controller/aws/cloudformation"
+	cloudformation "github.com/zalando-incubator/kube-ingress-aws-controller/internal/aws/cloudformation"
 )
 
 func TestGenerateTemplate(t *testing.T) {

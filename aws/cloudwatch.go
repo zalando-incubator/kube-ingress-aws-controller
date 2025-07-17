@@ -7,7 +7,7 @@ import (
 
 	"github.com/ghodss/yaml"
 	log "github.com/sirupsen/logrus"
-	cloudformation "github.com/zalando-incubator/kube-ingress-aws-controller/aws/cloudformation"
+	cloudformation "github.com/zalando-incubator/kube-ingress-aws-controller/internal/aws/cloudformation"
 )
 
 // CloudWatchAlarmList represents a list of CloudWatch Alarms directly usable

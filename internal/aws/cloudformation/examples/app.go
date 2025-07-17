@@ -1,12 +1,15 @@
 // This program emits a cloudformation document for `app` to stdout
 package main
 
-import cf "github.com/zalando-incubator/kube-ingress-aws-controller/aws/cloudformation"
+import (
+	"encoding/json"
+	"log"
+	"os"
 
-// makeTemplateTheOldWay is an implementation of makeTemplate that uses the
-// older pre-Stringable syntax. If this file builds, then maybe we haven't broken
-// backcompat.
-func makeTemplateTheOldWay() *cf.Template {
+	cf "github.com/zalando-incubator/kube-ingress-aws-controller/internal/aws/cloudformation"
+)
+
+func makeTemplate() *cf.Template {
 	t := cf.NewTemplate()
 	t.Description = "example production infrastructure"
 	t.Parameters["DnsName"] = &cf.Parameter{
@@ -35,10 +38,10 @@ func makeTemplateTheOldWay() *cf.Template {
 				LoadBalancerPort: cf.String("443"),
 				Protocol:         cf.String("SSL"),
 				SSLCertificateID: cf.Join("",
-					*cf.String("arn:aws:iam::"),
-					*cf.Ref("AWS::AccountID").String(),
-					*cf.String(":server-certificate/"),
-					*cf.Ref("DnsName").String()).String(),
+					cf.String("arn:aws:iam::"),
+					cf.Ref("AWS::AccountID"),
+					cf.String(":server-certificate/"),
+					cf.Ref("DnsName")),
 			},
 		},
 		Policies: &cf.ElasticLoadBalancingLoadBalancerPoliciesList{
@@ -51,15 +54,25 @@ func makeTemplateTheOldWay() *cf.Template {
 						"Value": "true",
 					},
 				},
-				InstancePorts: cf.StringList(*cf.String("8000")),
+				InstancePorts: cf.StringList(cf.String("8000")),
 			},
 		},
 		Subnets: cf.StringList(
-			*cf.Ref("VpcSubnetA").String(),
-			*cf.Ref("VpcSubnetB").String(),
-			*cf.Ref("VpcSubnetC").String(),
+			cf.Ref("VpcSubnetA"),
+			cf.Ref("VpcSubnetB"),
+			cf.Ref("VpcSubnetC"),
 		),
-		SecurityGroups: cf.StringList(*cf.Ref("LoadBalancerSecurityGroup").String()),
+		SecurityGroups: cf.StringList(cf.Ref("LoadBalancerSecurityGroup")),
 	})
+
 	return t
+}
+
+func main() {
+	template := makeTemplate()
+	buf, err := json.MarshalIndent(template, "", "  ")
+	if err != nil {
+		log.Fatalf("marshal: %s", err)
+	}
+	os.Stdout.Write(buf)
 }

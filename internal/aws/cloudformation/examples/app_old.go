@@ -1,15 +1,12 @@
 // This program emits a cloudformation document for `app` to stdout
 package main
 
-import (
-	"encoding/json"
-	"log"
-	"os"
+import cf "github.com/zalando-incubator/kube-ingress-aws-controller/internal/aws/cloudformation"
 
-	cf "github.com/zalando-incubator/kube-ingress-aws-controller/aws/cloudformation"
-)
-
-func makeTemplate() *cf.Template {
+// makeTemplateTheOldWay is an implementation of makeTemplate that uses the
+// older pre-Stringable syntax. If this file builds, then maybe we haven't broken
+// backcompat.
+func makeTemplateTheOldWay() *cf.Template {
 	t := cf.NewTemplate()
 	t.Description = "example production infrastructure"
 	t.Parameters["DnsName"] = &cf.Parameter{
@@ -38,10 +35,10 @@ func makeTemplate() *cf.Template {
 				LoadBalancerPort: cf.String("443"),
 				Protocol:         cf.String("SSL"),
 				SSLCertificateID: cf.Join("",
-					cf.String("arn:aws:iam::"),
-					cf.Ref("AWS::AccountID"),
-					cf.String(":server-certificate/"),
-					cf.Ref("DnsName")),
+					*cf.String("arn:aws:iam::"),
+					*cf.Ref("AWS::AccountID").String(),
+					*cf.String(":server-certificate/"),
+					*cf.Ref("DnsName").String()).String(),
 			},
 		},
 		Policies: &cf.ElasticLoadBalancingLoadBalancerPoliciesList{
@@ -54,25 +51,15 @@ func makeTemplate() *cf.Template {
 						"Value": "true",
 					},
 				},
-				InstancePorts: cf.StringList(cf.String("8000")),
+				InstancePorts: cf.StringList(*cf.String("8000")),
 			},
 		},
 		Subnets: cf.StringList(
-			cf.Ref("VpcSubnetA"),
-			cf.Ref("VpcSubnetB"),
-			cf.Ref("VpcSubnetC"),
+			*cf.Ref("VpcSubnetA").String(),
+			*cf.Ref("VpcSubnetB").String(),
+			*cf.Ref("VpcSubnetC").String(),
 		),
-		SecurityGroups: cf.StringList(cf.Ref("LoadBalancerSecurityGroup")),
+		SecurityGroups: cf.StringList(*cf.Ref("LoadBalancerSecurityGroup").String()),
 	})
-
 	return t
-}
-
-func main() {
-	template := makeTemplate()
-	buf, err := json.MarshalIndent(template, "", "  ")
-	if err != nil {
-		log.Fatalf("marshal: %s", err)
-	}
-	os.Stdout.Write(buf)
 }

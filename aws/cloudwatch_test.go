@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	cloudformation "github.com/zalando-incubator/kube-ingress-aws-controller/aws/cloudformation"
+	cloudformation "github.com/zalando-incubator/kube-ingress-aws-controller/internal/aws/cloudformation"
 )
 
 func TestCloudWatchAlarmList_Hash(t *testing.T) {
