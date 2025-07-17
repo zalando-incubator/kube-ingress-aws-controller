@@ -8,7 +8,7 @@ import (
 	"crypto/sha256"
 	"sort"
 
-	cloudformation "github.com/mweagle/go-cloudformation"
+	cloudformation "github.com/zalando-incubator/kube-ingress-aws-controller/aws/cloudformation"
 )
 
 const (

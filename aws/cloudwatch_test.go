@@ -3,8 +3,8 @@ package aws
 import (
 	"testing"
 
-	cloudformation "github.com/mweagle/go-cloudformation"
 	"github.com/stretchr/testify/assert"
+	cloudformation "github.com/zalando-incubator/kube-ingress-aws-controller/aws/cloudformation"
 )
 
 func TestCloudWatchAlarmList_Hash(t *testing.T) {

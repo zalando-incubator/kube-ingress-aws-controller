@@ -12,17 +12,21 @@ require (
 	github.com/google/go-cmp v0.7.0
 	github.com/google/uuid v1.6.0
 	github.com/linki/instrumented_http v0.3.0
-	github.com/mweagle/go-cloudformation v0.0.0-20211009163201-0a35d7d0fa70
 	github.com/prometheus/client_golang v1.22.0
 	github.com/sirupsen/logrus v1.9.3
 	github.com/stretchr/testify v1.10.0
 	github.com/zalando/skipper v0.22.29
+	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c
 	k8s.io/api v0.31.1
 	k8s.io/apimachinery v0.31.1
 	k8s.io/client-go v0.31.1
 )
 
-require github.com/rogpeppe/go-internal v1.13.1 // indirect
+require (
+	github.com/kr/pretty v0.3.1 // indirect
+	github.com/kr/text v0.2.0 // indirect
+	github.com/rogpeppe/go-internal v1.13.1 // indirect
+)
 
 require (
 	github.com/alecthomas/units v0.0.0-20240626203959-61d1e3462e30 // indirect
@@ -94,7 +98,7 @@ require (
 	google.golang.org/protobuf v1.36.6 // indirect
 	gopkg.in/evanphx/json-patch.v4 v4.12.0 // indirect
 	gopkg.in/go-playground/assert.v1 v1.2.1 // indirect
-	gopkg.in/go-playground/validator.v9 v9.31.0 // indirect
+	gopkg.in/go-playground/validator.v9 v9.31.0
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
