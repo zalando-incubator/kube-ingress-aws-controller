@@ -13,16 +13,17 @@ func ImportValue(valueToImport Stringable) ImportValueFunc {
 //
 // Note
 // The following restrictions apply to cross-stack references:
-//    For each AWS account, Export names must be unique within a region.
-//    You can't create cross-stack references across different regions. You can
-//      use the intrinsic function Fn::ImportValue only to import values that
-//      have been exported within the same region.
-//    For outputs, the value of the Name property of an Export can't use
-//      functions (Ref or GetAtt) that depend on a resource.
-//    Similarly, the ImportValue function can't include functions (Ref or GetAtt)
-//      that depend on a resource.
-//    You can't delete a stack if another stack references one of its outputs.
-//    You can't modify or remove the output value as long as it's referenced by another stack.
+//
+//	For each AWS account, Export names must be unique within a region.
+//	You can't create cross-stack references across different regions. You can
+//	  use the intrinsic function Fn::ImportValue only to import values that
+//	  have been exported within the same region.
+//	For outputs, the value of the Name property of an Export can't use
+//	  functions (Ref or GetAtt) that depend on a resource.
+//	Similarly, the ImportValue function can't include functions (Ref or GetAtt)
+//	  that depend on a resource.
+//	You can't delete a stack if another stack references one of its outputs.
+//	You can't modify or remove the output value as long as it's referenced by another stack.
 //
 // See http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/intrinsic-function-reference-importvalue.html
 type ImportValueFunc struct {

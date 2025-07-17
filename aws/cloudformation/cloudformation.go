@@ -3,26 +3,26 @@
 //
 // Parsing example:
 //
-// 	t := Template{}
-// 	json.NewDecoder(os.Stdin).Decode(&t)
+//	t := Template{}
+//	json.NewDecoder(os.Stdin).Decode(&t)
 //
 // Producing Example:
 //
-// 	t := NewTemplate()
-// 	t.Parameters["DnsName"] = &Parameter{
-// 		Type: "string",
-// 		Default: "example.com",
-// 		Description: "the top level DNS name for the service"
-// 	}
-// 	t.AddResource("DataBucket", &S3Bucket{
-// 		BucketName: Join("-", *String("data"), *Ref("DnsName").String())
-// 	})
-// 	json.NewEncoder(os.Stdout).Encoder(t)
+//	t := NewTemplate()
+//	t.Parameters["DnsName"] = &Parameter{
+//		Type: "string",
+//		Default: "example.com",
+//		Description: "the top level DNS name for the service"
+//	}
+//	t.AddResource("DataBucket", &S3Bucket{
+//		BucketName: Join("-", *String("data"), *Ref("DnsName").String())
+//	})
+//	json.NewEncoder(os.Stdout).Encoder(t)
 //
 // See the examples directory for a more complete example of producing a
 // cloudformation template from code.
 //
-// Producing the Schema
+// # Producing the Schema
 //
 // As far as I can tell, AWS do not produce a structured document that
 // describes the Cloudformation schema. The names and types for the
@@ -32,7 +32,7 @@
 // which suggests that it is constructed by hand. If you run into
 // problems, please submit a bug (or better yet, a pull request).
 //
-// Object Types
+// # Object Types
 //
 // Top level objects in Cloudformation are called resources. They have
 // names like AWS::S3::Bucket and appear as values in the "Resources"
@@ -45,7 +45,7 @@
 // type name the non-letter characters are removed to get
 // S3VersioningConfiguration.
 //
-// Type System
+// # Type System
 //
 // Cloudformation uses three scalar types: string, int and bool. When
 // they appear as properties we represent them as *StringExpr, *IntegerExpr,
@@ -59,5 +59,4 @@
 // for this, whenever a list of objects appears, a custom type *WhateverList
 // is used. This allows us to add a custom UnmarshalJSON which transforms
 // an object into a list containing an object.
-//
 package cloudformation

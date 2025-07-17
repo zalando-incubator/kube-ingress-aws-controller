@@ -10,12 +10,11 @@ import (
 // the Literal gives the value. Typically instances of this function
 // are created by Integer() Ex:
 //
-//   type LocalBalancer struct {
-//     Timeout *IntegerExpr
-//   }
+//	type LocalBalancer struct {
+//	  Timeout *IntegerExpr
+//	}
 //
-//   lb := LocalBalancer{Timeout: Integer(300)}
-//
+//	lb := LocalBalancer{Timeout: Integer(300)}
 type IntegerExpr struct {
 	Func    IntegerFunc
 	Literal int64

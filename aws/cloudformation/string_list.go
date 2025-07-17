@@ -16,13 +16,12 @@ type StringListable interface {
 // the value. Typically instances of this function are created by
 // StringList() or one of the function constructors. Ex:
 //
-//   type LocalBalancer struct {
-//     Name *StringListExpr
-//   }
+//	type LocalBalancer struct {
+//	  Name *StringListExpr
+//	}
 //
-//   lb := LocalBalancer{Name: StringList("hello")}
-//   lb2 := LocalBalancer{Name: Ref("LoadBalancerNane").StringList()}
-//
+//	lb := LocalBalancer{Name: StringList("hello")}
+//	lb2 := LocalBalancer{Name: Ref("LoadBalancerNane").StringList()}
 type StringListExpr struct {
 	Func    StringListFunc
 	Literal []*StringExpr

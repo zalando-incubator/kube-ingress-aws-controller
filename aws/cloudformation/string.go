@@ -13,13 +13,12 @@ type Stringable interface {
 // the value. Typically instances of this function are created by
 // String() or one of the function constructors. Ex:
 //
-//   type LocalBalancer struct {
-//     Name *StringExpr
-//   }
+//	type LocalBalancer struct {
+//	  Name *StringExpr
+//	}
 //
-//   lb := LocalBalancer{Name: String("hello")}
-//   lb2 := LocalBalancer{Name: Ref("LoadBalancerNane").String()}
-//
+//	lb := LocalBalancer{Name: String("hello")}
+//	lb2 := LocalBalancer{Name: Ref("LoadBalancerNane").String()}
 type StringExpr struct {
 	Func    StringFunc
 	Literal string
