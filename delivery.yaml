@@ -10,16 +10,8 @@ pipeline:
     - ~/.cache/go-build # Go build cache
   type: script
   commands:
-  - desc: Build docker image
-    cmd: |
-      make build.docker
-      git diff --exit-code || exit 1
   - desc: Push docker image
     cmd: |
-      IMAGE=registry-write.opensource.zalan.do/teapot/kube-ingress-aws-controller-test
-      VERSION=$CDP_BUILD_VERSION
-      IMAGE=$IMAGE VERSION=$VERSION make build.push
-
       # multi-arch image
       IMAGE=container-registry-test.zalando.net/teapot/kube-ingress-aws-controller-test-eks
 
