@@ -5,8 +5,6 @@ import (
 	"fmt"
 )
 
-type selectArg interface{}
-
 // Select returns a new instance of SelectFunc chooses among items via selector. If you
 func Select(selector string, items ...interface{}) *StringExpr {
 	if len(items) == 1 {

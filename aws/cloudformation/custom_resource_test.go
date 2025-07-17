@@ -40,7 +40,7 @@ func TestCustomResource(t *testing.T) {
 		t.Fatalf("marshal: %s", err)
 	}
 	parsedOutput := map[string]interface{}{}
-	json.Unmarshal(output, &parsedOutput)
+	_ = json.Unmarshal(output, &parsedOutput)
 
 	resources := parsedOutput["Resources"].(map[string]interface{})
 	customResource := resources["MyCustomResource"].(map[string]interface{})

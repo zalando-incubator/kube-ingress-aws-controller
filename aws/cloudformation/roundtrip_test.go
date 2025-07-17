@@ -2,8 +2,7 @@ package cloudformation
 
 import (
 	"encoding/json"
-	"io/ioutil"
-	"reflect"
+	"os"
 	"testing"
 )
 
@@ -26,7 +25,7 @@ var testFilePaths = []string{
 
 func TestRoundtrips(t *testing.T) {
 	for _, testFilePath := range testFilePaths {
-		buf, err := ioutil.ReadFile(testFilePath)
+		buf, err := os.ReadFile(testFilePath)
 		if err != nil {
 			panic(err)
 		}
@@ -37,40 +36,15 @@ func TestRoundtrips(t *testing.T) {
 
 func testMarshalResourcesPieceByPiece(t *testing.T, path string, input []byte) {
 	v := map[string]interface{}{}
-	err := json.Unmarshal(input, &v)
+	_ = json.Unmarshal(input, &v)
 	resources := v["Resources"].(map[string]interface{})
 	for name, resource := range resources {
 		buf, _ := json.Marshal(resource)
 		r := Resource{}
-		err = json.Unmarshal(buf, &r)
+		err := json.Unmarshal(buf, &r)
 		if err != nil {
 			t.Errorf("marshal: %s %s: %s", path, name, err)
 			return
 		}
-	}
-}
-
-func testOne(t *testing.T, input []byte) {
-	templ := Template{}
-	err := json.Unmarshal(input, &templ)
-	if err != nil {
-		t.Errorf("decode: %s", err)
-		return
-	}
-
-	output, err := json.Marshal(templ)
-	if err != nil {
-		t.Errorf("marshal: %s", err)
-		return
-	}
-
-	parsedInput := map[string]interface{}{}
-	json.Unmarshal(input, &parsedInput)
-
-	parsedOutput := map[string]interface{}{}
-	json.Unmarshal(output, &parsedOutput)
-
-	if !reflect.DeepEqual(parsedInput, parsedOutput) {
-		t.Errorf("expected %#v, got %#v", parsedInput, parsedOutput)
 	}
 }

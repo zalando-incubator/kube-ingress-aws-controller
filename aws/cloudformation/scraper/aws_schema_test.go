@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"html/template"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"os"
 	"os/exec"
@@ -79,7 +78,7 @@ var golintTransformations = map[string]string{
 // defaulting to us-east-1 if that isn't set
 func getLatestSchema(t *testing.T) string {
 
-	tmpFile, tmpFileErr := ioutil.TempFile("", "cloudformation")
+	tmpFile, tmpFileErr := os.CreateTemp("", "cloudformation")
 	if nil != tmpFileErr {
 		t.Fatalf("Failed to create temp file")
 	}
@@ -146,7 +145,7 @@ func writeOutputFile(t *testing.T, filename string, contents []byte) error {
 		"mweagle",
 		"go-cloudformation",
 		filename)
-	ioWriteErr := ioutil.WriteFile(outputFilepath, contents, 0644)
+	ioWriteErr := os.WriteFile(outputFilepath, contents, 0644)
 	if nil != ioWriteErr {
 		t.Logf("WARN: Failed to write %s output\n", outputFilepath)
 	} else {
@@ -389,6 +388,7 @@ func writePropertyDefinition(t *testing.T,
 	fmt.Fprintf(w, "type %s struct {\n", golangTypename)
 	for _, eachSortedProp := range sortedPropertyNames {
 		// Ensure that the first character in the name is capitalized...
+		// nolint:staticcheck
 		capName := strings.Title(eachSortedProp)
 		writePropertyFieldDefinition(t,
 			cloudFormationPropertyTypeName,
@@ -434,9 +434,9 @@ func writePropertyDefinition(t *testing.T,
 	}
 }
 
-////////////////////////////////////////////////////////////////////////////////
+// //////////////////////////////////////////////////////////////////////////////
 // Write Header
-////////////////////////////////////////////////////////////////////////////////
+// //////////////////////////////////////////////////////////////////////////////
 func writeHeader(t *testing.T,
 	buildID string,
 	resourceSpecVersion string,
@@ -478,9 +478,9 @@ func RegisterCustomResourceProvider(provider CustomResourceProvider) {
 	}
 }
 
-////////////////////////////////////////////////////////////////////////////////
+// //////////////////////////////////////////////////////////////////////////////
 // Write referenced properties
-////////////////////////////////////////////////////////////////////////////////
+// //////////////////////////////////////////////////////////////////////////////
 func writePropertyTypesDefinition(t *testing.T,
 	propertyTypes map[string]PropertyTypes,
 	w io.Writer) {
@@ -524,9 +524,9 @@ func sortedResourceNames(resourceTypes map[string]ResourceTypes) []string {
 	return sortedResourceNames
 }
 
-////////////////////////////////////////////////////////////////////////////////
+// //////////////////////////////////////////////////////////////////////////////
 // Write top level resources
-////////////////////////////////////////////////////////////////////////////////
+// //////////////////////////////////////////////////////////////////////////////
 func writeResourceTypesDefinition(t *testing.T, resourceTypes map[string]ResourceTypes, w io.Writer) {
 	sortedResourceNames := sortedResourceNames(resourceTypes)
 	fmt.Fprintf(w, `
@@ -572,9 +572,9 @@ func writeResourceTypesDefinition(t *testing.T, resourceTypes map[string]Resourc
 	}
 }
 
-////////////////////////////////////////////////////////////////////////////////
+// //////////////////////////////////////////////////////////////////////////////
 // Write footer properties
-////////////////////////////////////////////////////////////////////////////////
+// //////////////////////////////////////////////////////////////////////////////
 func writeFactoryFooter(t *testing.T, resourceTypes map[string]ResourceTypes, w io.Writer) {
 	fmt.Fprintf(w, `// NewResourceByType returns a new resource object correspoding with the provided type
 func NewResourceByType(typeName string) ResourceProperties {
@@ -625,17 +625,17 @@ func TestSchema(t *testing.T) {
 	if cmdErr != nil {
 		t.Error(cmdErr)
 	}
-	buildID := strings.TrimSpace(string(stdout.Bytes()))
+	buildID := strings.TrimSpace(stdout.String())
 
 	// Go get the latest JSON file
 	schemaFile := getLatestSchema(t)
-	schemaInput, schemaInputErr := ioutil.ReadFile(schemaFile)
+	schemaInput, schemaInputErr := os.ReadFile(schemaFile)
 	if nil != schemaInputErr {
 		t.Error(schemaInputErr)
 	}
 	// Log the schema to output
 	t.Logf("Latest CloudFormation Schema:\n%s", string(schemaInput))
-	writeOutputFile(t, "schema.json", schemaInput)
+	_ = writeOutputFile(t, "schema.json", schemaInput)
 
 	var data CloudFormationSchema
 	unmarshalErr := json.Unmarshal(schemaInput, &data)
@@ -650,6 +650,6 @@ func TestSchema(t *testing.T) {
 	writeFactoryFooter(t, data.ResourceTypes, &output)
 
 	// Write it out
-	writeOutputFile(t, "schema.go", output.Bytes())
+	_ = writeOutputFile(t, "schema.go", output.Bytes())
 
 }
