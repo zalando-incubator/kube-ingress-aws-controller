@@ -95,7 +95,7 @@ func generateTemplate(spec *stackSpec) (string, error) {
 		parameterIpAddressTypeParameter: {
 			Type:        "String",
 			Description: "IP Address Type, 'ipv4' or 'dualstack'",
-			Default:     IPAddressTypeIPV4,
+			Default:     IPAddressTypeDualstack,
 		},
 		parameterLoadBalancerTypeParameter: {
 			Type:        "String",
