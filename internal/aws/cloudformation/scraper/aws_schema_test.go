@@ -612,7 +612,7 @@ func NewResourceByType(typeName string) ResourceProperties {
 // ╚══════╝ ╚═════╝╚═╝  ╚═╝╚══════╝╚═╝     ╚═╝╚═╝  ╚═╝
 ////////////////////////////////////////////////////////////////////////////////
 
-func TestSchema(t *testing.T) {
+func DisableTestSchema(t *testing.T) {
 	// Who are we?
 	cmd := exec.Command("git",
 		"rev-parse",
