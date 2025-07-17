@@ -9,6 +9,7 @@ DOCKERFILE    ?= Dockerfile
 GOPKGS        = $(shell go list ./...)
 BUILD_FLAGS   ?= -v
 LDFLAGS       ?= -X main.version=$(VERSION) -X main.buildstamp=$(shell date -u '+%Y-%m-%d_%I:%M:%S%p') -X main.githash=$(shell git rev-parse HEAD) -w -s
+CF_SCHEMA     ?= 24.0.0
 
 
 default: build.local
@@ -96,6 +97,11 @@ recreate.ca: recreate.cnf
 export TEST_CNF
 recreate.cnf:
 	@echo "$$TEST_CNF" > kubernetes/testdata/test.cnf
+
+## recreate.schema: recreate AWS CloudFormation schema
+recreate.schema: internal/aws/cloudformation/scraper/aws_schema_test.go
+	CF_SCHEMA=$(CF_SCHEMA) go test ./internal/aws/cloudformation/scraper -run=TestSchema -tags=scraper -v
+	go fmt ./internal/aws/cloudformation/schema.go
 
 ## help: prints this help message
 help:
