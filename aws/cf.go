@@ -150,6 +150,7 @@ const (
 	parameterTargetGroupHealthCheckTimeoutParameter  = "TargetGroupHealthCheckTimeoutParameter"
 	parameterTargetGroupTargetPortParameter          = "TargetGroupTargetPortParameter"
 	parameterTargetGroupHTTPTargetPortParameter      = "TargetGroupHTTPTargetPortParameter"
+	parameterTargetGroupIpAddressTypeParameter       = "TargetGroupIpAddressTypeParameter"
 	parameterTargetGroupVPCIDParameter               = "TargetGroupVPCIDParameter"
 	parameterListenerSslPolicyParameter              = "ListenerSslPolicyParameter"
 	parameterIpAddressTypeParameter                  = "IpAddressType"
@@ -183,6 +184,7 @@ type stackSpec struct {
 	controllerID                      string
 	sslPolicy                         string
 	ipAddressType                     string
+	targetIpAddressType               string
 	loadbalancerType                  string
 	albLogsS3Bucket                   string
 	albLogsS3Prefix                   string
@@ -241,6 +243,7 @@ func createStack(ctx context.Context, svc CloudFormationAPI, spec *stackSpec) (s
 			cfParam(parameterLoadBalancerSubnetsParameter, strings.Join(spec.subnets, ",")),
 			cfParam(parameterTargetGroupVPCIDParameter, spec.vpcID),
 			cfParam(parameterTargetGroupTargetPortParameter, fmt.Sprintf("%d", spec.targetPort)),
+			cfParam(parameterTargetGroupIpAddressTypeParameter, spec.targetIpAddressType),
 			cfParam(parameterListenerSslPolicyParameter, spec.sslPolicy),
 			cfParam(parameterIpAddressTypeParameter, spec.ipAddressType),
 			cfParam(parameterLoadBalancerTypeParameter, spec.loadbalancerType),
@@ -316,6 +319,7 @@ func updateStack(ctx context.Context, svc CloudFormationAPI, spec *stackSpec) (s
 			cfParam(parameterLoadBalancerSubnetsParameter, strings.Join(spec.subnets, ",")),
 			cfParam(parameterTargetGroupVPCIDParameter, spec.vpcID),
 			cfParam(parameterTargetGroupTargetPortParameter, fmt.Sprintf("%d", spec.targetPort)),
+			cfParam(parameterTargetGroupIpAddressTypeParameter, spec.targetIpAddressType),
 			cfParam(parameterListenerSslPolicyParameter, spec.sslPolicy),
 			cfParam(parameterIpAddressTypeParameter, spec.ipAddressType),
 			cfParam(parameterLoadBalancerTypeParameter, spec.loadbalancerType),

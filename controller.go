@@ -66,6 +66,7 @@ var (
 	blacklistCertARNs             []string
 	blacklistCertArnMap           map[string]bool
 	ipAddressType                 string
+	targetIpAddressType           string
 	albLogsS3Bucket               string
 	albLogsS3Prefix               string
 	wafWebAclId                   string
@@ -164,6 +165,8 @@ func loadSettings() error {
 	kingpin.Flag("blacklist-certificate-arns", "Certificate ARNs to not consider by the controller.").StringsVar(&blacklistCertARNs)
 	kingpin.Flag("ip-addr-type", "IP Address type to use.").
 		Default(aws.DefaultIpAddressType).EnumVar(&ipAddressType, aws.IPAddressTypeIPV4, aws.IPAddressTypeDualstack)
+	kingpin.Flag("target-ip-addr-type", "Target IP Address type to use. Defaults to ipv4, can be set to ipv6.").
+		Default(aws.DefaultTargetIpAddressType).EnumVar(&targetIpAddressType, aws.IPAddressTypeIPV4, aws.IPAddressTypeIPV6)
 	kingpin.Flag("logs-s3-bucket", "S3 bucket to be used for ALB logging").
 		Default(aws.DefaultAlbS3LogsBucket).StringVar(&albLogsS3Bucket)
 	kingpin.Flag("logs-s3-prefix", "Prefix within S3 bucket to be used for ALB logging").
@@ -338,6 +341,7 @@ func main() {
 		WithControllerID(controllerID).
 		WithSslPolicy(sslPolicy).
 		WithIpAddressType(ipAddressType).
+		WithTargetIpAddressType(targetIpAddressType).
 		WithAlbLogsS3Bucket(albLogsS3Bucket).
 		WithAlbLogsS3Prefix(albLogsS3Prefix).
 		WithHTTPRedirectToHTTPS(httpRedirectToHTTPS).
