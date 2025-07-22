@@ -6,8 +6,8 @@ import (
 	"encoding/json"
 
 	"github.com/ghodss/yaml"
-	cloudformation "github.com/mweagle/go-cloudformation"
 	log "github.com/sirupsen/logrus"
+	cloudformation "github.com/zalando-incubator/kube-ingress-aws-controller/internal/aws/cloudformation"
 )
 
 // CloudWatchAlarmList represents a list of CloudWatch Alarms directly usable

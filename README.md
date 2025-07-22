@@ -40,6 +40,11 @@ This information is used to manage AWS resources for each ingress objects of the
 
 ## Upgrade
 
+### <v0.18.0 to >=v0.18.0
+
+Version `v0.18.0` vendors-in https://github.com/mweagle/go-cloudformation library to enable addition of missing CloudFormation features.
+It was last updated in October 2021 and recommends to use https://github.com/awslabs/goformation which is archived since October 2024.
+
 ### <v0.17.0 to >=v0.17.0
 
 Version `v0.17.0` uses the controller context in the AWS Adapter API's, so as to pass context to the AWS SDK Go v2.

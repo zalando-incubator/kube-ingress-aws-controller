@@ -13,8 +13,6 @@ jobs:
     - run: go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
     - run: make test
     - run: make lint
-    - run: grep -Ev "zalando-incubator/kube-ingress-aws-controller/(certs|aws)/fake/" profile.cov > tmp.profile.cov
-    - run: mv tmp.profile.cov profile.cov
     - run: goveralls -coverprofile=profile.cov -service=github
       env:
         COVERALLS_TOKEN: ${{ secrets.GITHUB_TOKEN }}

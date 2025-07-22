@@ -1,0 +1,41 @@
+{
+  "Mappings": {
+    "AWSInstanceType2Arch": {
+      "t1.micro": {
+        "Arch": "PV64"
+      }
+    },
+    "AWSRegionArch2AMI": {
+      "us-east-1": {
+        "HVM64": "ami-05783d60"
+      }
+    }
+  },
+  "Resources": {
+    "ServerLoadBalancer": {
+      "Type": "AWS::ElasticLoadBalancing::LoadBalancer",
+      "DependsOn": ["Foo", "Bar"],
+      "Properties": {
+        "CrossZone": true
+      }
+    }
+  },
+  "Outputs" : {
+    "LoadBalancerDNSName" : {
+      "Description" : "ELB Description",
+      "Value" : {"Fn::GetAtt" : ["ServerLoadBalancer", "DNSName"]},
+      "Export" : {
+        "Name" : "CrossStackELBName"
+      }
+    }
+  },
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Description": "example production infrastructure",
+  "Parameters": {
+    "DnsName": {
+      "Description": "The top level DNS name for the infrastructure",
+      "Type": "String",
+      "Default": "preview.example.com"
+    }
+  }
+}
