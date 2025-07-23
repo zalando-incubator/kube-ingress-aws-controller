@@ -1,3 +1,5 @@
+//go:build scraper
+
 package scraper
 
 import (
@@ -6,15 +8,15 @@ import (
 	"fmt"
 	"html/template"
 	"io"
+	"maps"
 	"net/http"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 	"testing"
-	"time"
 )
 
 // Top level resources must comply with the ResourceProperties interface
@@ -74,9 +76,8 @@ var golintTransformations = map[string]string{
 	"Vpc":     "VPC",
 }
 
-// download the latest CloudFormation JSON schema for the given AWS_REGION,
-// defaulting to us-east-1 if that isn't set
-func getLatestSchema(t *testing.T) string {
+// getSchema downloads given CF_SCHEMA (default "latest") CloudFormation JSON schema version for the given AWS_REGION (default "us-east-1").
+func getSchema(t *testing.T) string {
 
 	tmpFile, tmpFileErr := os.CreateTemp("", "cloudformation")
 	if nil != tmpFileErr {
@@ -84,37 +85,45 @@ func getLatestSchema(t *testing.T) string {
 	}
 	defer tmpFile.Close()
 
+	version := os.Getenv("CF_SCHEMA")
+	if version == "" {
+		version = "latest"
+	}
+	t.Logf("Downloading CloudFormation schema version: %s", version)
+
 	// URLs posted to: http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/cfn-resource-specification.html
 	schemaURL := ""
 	switch os.Getenv("AWS_REGION") {
 	case "us-east-2":
-		schemaURL = "https://dnwj8swjjbsbt.cloudfront.net/latest/gzip/CloudFormationResourceSpecification.json"
+		schemaURL = "https://dnwj8swjjbsbt.cloudfront.net"
 	case "us-west-1":
-		schemaURL = "https://d68hl49wbnanq.cloudfront.net/latest/gzip/CloudFormationResourceSpecification.json"
+		schemaURL = "https://d68hl49wbnanq.cloudfront.net"
 	case "us-west-2":
-		schemaURL = "https://d201a2mn26r7lk.cloudfront.net/latest/gzip/CloudFormationResourceSpecification.json"
+		schemaURL = "https://d201a2mn26r7lk.cloudfront.net"
 	case "ap-south-1":
-		schemaURL = "https://d2senuesg1djtx.cloudfront.net/latest/gzip/CloudFormationResourceSpecification.json"
+		schemaURL = "https://d2senuesg1djtx.cloudfront.net"
 	case "ap-northeast-2":
-		schemaURL = "https://d1ane3fvebulky.cloudfront.net/latest/gzip/CloudFormationResourceSpecification.json"
+		schemaURL = "https://d1ane3fvebulky.cloudfront.net"
 	case "ap-southeast-1":
-		schemaURL = "https://doigdx0kgq9el.cloudfront.net/latest/gzip/CloudFormationResourceSpecification.json"
+		schemaURL = "https://doigdx0kgq9el.cloudfront.net"
 	case "ap-southeast-2":
-		schemaURL = "https://d2stg8d246z9di.cloudfront.net/latest/gzip/CloudFormationResourceSpecification.json"
+		schemaURL = "https://d2stg8d246z9di.cloudfront.net"
 	case "ap-northeast-1":
-		schemaURL = "https://d33vqc0rt9ld30.cloudfront.net/latest/gzip/CloudFormationResourceSpecification.json"
+		schemaURL = "https://d33vqc0rt9ld30.cloudfront.net"
 	case "eu-central-1":
-		schemaURL = "https://d1mta8qj7i28i2.cloudfront.net/latest/gzip/CloudFormationResourceSpecification.json"
+		schemaURL = "https://d1mta8qj7i28i2.cloudfront.net"
 	case "eu-west-1":
-		schemaURL = "https://d3teyb21fexa9r.cloudfront.net/latest/gzip/CloudFormationResourceSpecification.json"
+		schemaURL = "https://d3teyb21fexa9r.cloudfront.net"
 	case "eu-west-2":
-		schemaURL = "https://d1742qcu2c1ncx.cloudfront.net/latest/gzip/CloudFormationResourceSpecification.json"
+		schemaURL = "https://d1742qcu2c1ncx.cloudfront.net"
 	case "sa-east-1":
-		schemaURL = "https://d3c9jyj3w509b0.cloudfront.net/latest/gzip/CloudFormationResourceSpecification.json"
+		schemaURL = "https://d3c9jyj3w509b0.cloudfront.net"
 	default:
 		// Virginia
-		schemaURL = "https://d1uauaxba7bl26.cloudfront.net/latest/gzip/CloudFormationResourceSpecification.json"
+		schemaURL = "https://d1uauaxba7bl26.cloudfront.net"
 	}
+
+	schemaURL = schemaURL + "/" + version + "/gzip/CloudFormationResourceSpecification.json"
 
 	// Get the data
 	resp, respErr := http.Get(schemaURL)
@@ -135,16 +144,7 @@ func getLatestSchema(t *testing.T) string {
 // Utility function to create an output file in the package
 // root with the given name and contents
 func writeOutputFile(t *testing.T, filename string, contents []byte) error {
-	gopath := os.Getenv("GOPATH")
-	if "" == gopath {
-		gopath = os.ExpandEnv("${HOME}/go")
-	}
-	outputFilepath := filepath.Join(gopath,
-		"src",
-		"github.com",
-		"mweagle",
-		"go-cloudformation",
-		filename)
+	outputFilepath := filepath.Join("../", filename)
 	ioWriteErr := os.WriteFile(outputFilepath, contents, 0644)
 	if nil != ioWriteErr {
 		t.Logf("WARN: Failed to write %s output\n", outputFilepath)
@@ -438,19 +438,18 @@ func writePropertyDefinition(t *testing.T,
 // Write Header
 // //////////////////////////////////////////////////////////////////////////////
 func writeHeader(t *testing.T,
-	buildID string,
 	resourceSpecVersion string,
 	w io.Writer) {
 
 	headerText := fmt.Sprintf(`package cloudformation
 // RESOURCE SPECIFICATION VERSION: %s
-// SOURCE CODE SHA: %s
-// GENERATED: %s
 import "time"
 import "encoding/json"
 import _ "gopkg.in/go-playground/validator.v9" // Used for struct level validation tags
 
 const ResourceSpecificationVersion = "%s"
+
+var _ = time.Now
 
 // CustomResourceProvider allows extend the NewResourceByType factory method
 // with their own resource types.
@@ -468,8 +467,6 @@ func RegisterCustomResourceProvider(provider CustomResourceProvider) {
 }
 `,
 		resourceSpecVersion,
-		buildID,
-		time.Now().UTC().String(),
 		resourceSpecVersion)
 
 	_, writeErr := w.Write([]byte(headerText))
@@ -612,44 +609,54 @@ func NewResourceByType(typeName string) ResourceProperties {
 // ╚══════╝ ╚═════╝╚═╝  ╚═╝╚══════╝╚═╝     ╚═╝╚═╝  ╚═╝
 ////////////////////////////////////////////////////////////////////////////////
 
-func DisableTestSchema(t *testing.T) {
-	// Who are we?
-	cmd := exec.Command("git",
-		"rev-parse",
-		"HEAD")
-	var stdout bytes.Buffer
-	var stderr bytes.Buffer
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
-	cmdErr := cmd.Run()
-	if cmdErr != nil {
-		t.Error(cmdErr)
-	}
-	buildID := strings.TrimSpace(stdout.String())
+var includeResourceTypes = []string{
+	"AWS::CloudWatch::Alarm",
+	"AWS::ElasticLoadBalancingV2::LoadBalancer",
+	"AWS::ElasticLoadBalancingV2::TargetGroup",
+	"AWS::ElasticLoadBalancingV2::Listener",
+	"AWS::ElasticLoadBalancingV2::ListenerRule",
+	"AWS::ElasticLoadBalancingV2::ListenerCertificate",
+	"AWS::WAFv2::WebACLAssociation",
+	"AWS::WAFRegional::WebACLAssociation",
+}
 
-	// Go get the latest JSON file
-	schemaFile := getLatestSchema(t)
+func TestSchema(t *testing.T) {
+	schemaFile := getSchema(t)
 	schemaInput, schemaInputErr := os.ReadFile(schemaFile)
 	if nil != schemaInputErr {
 		t.Error(schemaInputErr)
 	}
 	// Log the schema to output
-	t.Logf("Latest CloudFormation Schema:\n%s", string(schemaInput))
-	_ = writeOutputFile(t, "schema.json", schemaInput)
+	//t.Logf("Latest CloudFormation Schema:\n%s", string(schemaInput))
+	//_ = writeOutputFile(t, "schema.json", schemaInput)
 
 	var data CloudFormationSchema
 	unmarshalErr := json.Unmarshal(schemaInput, &data)
 	if nil != unmarshalErr {
 		t.Error(unmarshalErr)
 	}
+
+	// Delete all property and resource types that are not in the include list
+	maps.DeleteFunc(data.ResourceTypes, func(resourceTypeName string, _ ResourceTypes) bool {
+		return !slices.Contains(includeResourceTypes, resourceTypeName)
+	})
+	maps.DeleteFunc(data.PropertyTypes, func(propertyTypeName string, _ PropertyTypes) bool {
+		switch propertyTypeName {
+		case "Tag":
+			return false
+		}
+		return !slices.ContainsFunc(includeResourceTypes, func(resourceTypeName string) bool {
+			return strings.HasPrefix(propertyTypeName, resourceTypeName)
+		})
+	})
+
 	// For each property, make the necessary property statement
 	var output bytes.Buffer
-	writeHeader(t, buildID, data.ResourceSpecificationVersion, &output)
+	writeHeader(t, data.ResourceSpecificationVersion, &output)
 	writePropertyTypesDefinition(t, data.PropertyTypes, &output)
 	writeResourceTypesDefinition(t, data.ResourceTypes, &output)
 	writeFactoryFooter(t, data.ResourceTypes, &output)
 
 	// Write it out
 	_ = writeOutputFile(t, "schema.go", output.Bytes())
-
 }
