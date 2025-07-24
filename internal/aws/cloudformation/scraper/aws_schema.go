@@ -68,7 +68,7 @@ func (piType *PropertyItemType) UnmarshalJSON(data []byte) error {
 		piType.MultiValues = stringArray
 		return nil
 	}
-	return fmt.Errorf("Failed to unmarshal type: " + sliceErr.Error())
+	return fmt.Errorf("failed to unmarshal type: %w", sliceErr)
 }
 
 // PropertyTypeDefinition is the definition of a property

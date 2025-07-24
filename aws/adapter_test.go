@@ -679,6 +679,23 @@ func TestFindLBSubnets(tt *testing.T) {
 			expectedSubnets: []string{"1", "2"},
 		},
 		{
+			name: "should find two public subnets for public LB regardless of details order",
+			subnets: []*subnetDetails{
+				{
+					availabilityZone: "b",
+					public:           true,
+					id:               "2",
+				},
+				{
+					availabilityZone: "a",
+					public:           true,
+					id:               "1",
+				},
+			},
+			scheme:          string(elbv2Types.LoadBalancerSchemeEnumInternetFacing),
+			expectedSubnets: []string{"1", "2"},
+		},
+		{
 			name: "should select first lexicographically subnet when two match a single zone",
 			subnets: []*subnetDetails{
 				{
@@ -760,9 +777,6 @@ func TestFindLBSubnets(tt *testing.T) {
 			if len(subnets) != len(test.expectedSubnets) {
 				t.Errorf("unexpected number of subnets %d, expected %d", len(subnets), len(test.expectedSubnets))
 			}
-
-			// sort subnets so it's simpler to compare.
-			sort.Strings(subnets)
 
 			for i, subnet := range subnets {
 				if subnet != test.expectedSubnets[i] {
