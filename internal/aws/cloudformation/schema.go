@@ -1,12 +1,9 @@
 package cloudformation
 
 // RESOURCE SPECIFICATION VERSION: 24.0.0
-import (
-	"encoding/json"
-	"time"
-
-	_ "gopkg.in/go-playground/validator.v9"
-) // Used for struct level validation tags
+import "time"
+import "encoding/json"
+import _ "gopkg.in/go-playground/validator.v9" // Used for struct level validation tags
 
 const ResourceSpecificationVersion = "24.0.0"
 
