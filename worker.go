@@ -21,6 +21,20 @@ import (
 	"github.com/zalando-incubator/kube-ingress-aws-controller/problem"
 )
 
+type worker struct {
+	awsAdapter  *aws.Adapter
+	kubeAdapter *kubernetes.Adapter
+	metrics     *metrics
+
+	certsProvider certs.CertificatesProvider
+	certsPerALB   int
+	certTTL       time.Duration
+
+	globalWAFACL string
+
+	cwAlarmConfig *kubernetes.ResourceLocation
+}
+
 type loadBalancer struct {
 	ingresses                    map[string][]*kubernetes.Ingress
 	scheme                       string
@@ -233,23 +247,14 @@ func (c *Certificates) FindMatchingCertificateIDs(hostnames []string) []string {
 	return certIDs
 }
 
-func startPolling(
-	ctx context.Context,
-	certsProvider certs.CertificatesProvider,
-	certsPerALB int,
-	certTTL time.Duration,
-	awsAdapter *aws.Adapter,
-	kubeAdapter *kubernetes.Adapter,
-	pollingInterval time.Duration,
-	globalWAFACL string,
-) {
+func (w *worker) startPolling(ctx context.Context, pollingInterval time.Duration) {
 	for {
-		if errs := doWork(ctx, certsProvider, certsPerALB, certTTL, awsAdapter, kubeAdapter, globalWAFACL).Errors(); len(errs) > 0 {
+		if errs := w.doWork(ctx).Errors(); len(errs) > 0 {
 			for _, err := range errs {
 				log.Error(err)
 			}
 		} else {
-			metrics.lastSyncTimestamp.SetToCurrentTime()
+			w.metrics.lastSyncTimestamp.SetToCurrentTime()
 		}
 		firstRun = false
 
@@ -262,15 +267,7 @@ func startPolling(
 	}
 }
 
-func doWork(
-	ctx context.Context,
-	certsProvider certs.CertificatesProvider,
-	certsPerALB int,
-	certTTL time.Duration,
-	awsAdapter *aws.Adapter,
-	kubeAdapter *kubernetes.Adapter,
-	globalWAFACL string,
-) (problems *problem.List) {
+func (w *worker) doWork(ctx context.Context) (problems *problem.List) {
 	problems = new(problem.List)
 	defer func() {
 		if r := recover(); r != nil {
@@ -279,12 +276,12 @@ func doWork(
 		}
 	}()
 
-	ingresses, err := kubeAdapter.ListResources()
+	ingresses, err := w.kubeAdapter.ListResources()
 	if err != nil {
 		return problems.Add("failed to list ingress resources: %w", err)
 	}
 
-	stacks, err := awsAdapter.FindManagedStacks(ctx)
+	stacks, err := w.awsAdapter.FindManagedStacks(ctx)
 	if err != nil {
 		return problems.Add("failed to list managed stacks: %w", err)
 	}
@@ -295,17 +292,17 @@ func doWork(
 		}
 	}
 
-	stackELBs, err := awsAdapter.GetStackLBStates(ctx, stacks)
+	stackELBs, err := w.awsAdapter.GetStackLBStates(ctx, stacks)
 	if err != nil {
 		return problems.Add("failed to get stack ELBs: %w", err)
 	}
 
-	err = awsAdapter.UpdateAutoScalingGroupsAndInstances(ctx)
+	err = w.awsAdapter.UpdateAutoScalingGroupsAndInstances(ctx)
 	if err != nil {
 		return problems.Add("failed to get instances from EC2: %w", err)
 	}
 
-	certificateSummaries, err := certsProvider.GetCertificates(ctx)
+	certificateSummaries, err := w.certsProvider.GetCertificates(ctx)
 	if err != nil {
 		return problems.Add("failed to get certificates: %w", err)
 	}
@@ -314,50 +311,50 @@ func doWork(
 		return problems.Add("no certificates found")
 	}
 
-	cwAlarms, err := getCloudWatchAlarms(kubeAdapter, cwAlarmConfigMapLocation)
+	cwAlarms, err := w.getCloudWatchAlarms()
 	if err != nil {
 		return problems.Add("failed to retrieve cloudwatch alarm configuration: %w", err)
 	}
 
 	counts := countByIngressType(ingresses)
 
-	metrics.ingressesTotal.Set(float64(counts[kubernetes.TypeIngress]))
-	metrics.routegroupsTotal.Set(float64(counts[kubernetes.TypeRouteGroup]))
-	metrics.stacksTotal.Set(float64(len(stacks)))
-	metrics.ownedAutoscalingGroupsTotal.Set(float64(len(awsAdapter.OwnedAutoScalingGroups)))
-	metrics.targetedAutoscalingGroupsTotal.Set(float64(len(awsAdapter.TargetedAutoScalingGroups)))
-	metrics.instancesTotal.Set(float64(awsAdapter.CachedInstances()))
-	metrics.standaloneInstancesTotal.Set(float64(len(awsAdapter.SingleInstances())))
-	metrics.certificatesTotal.Set(float64(len(certificateSummaries)))
-	metrics.cloudWatchAlarmsTotal.Set(float64(len(cwAlarms)))
+	w.metrics.ingressesTotal.Set(float64(counts[kubernetes.TypeIngress]))
+	w.metrics.routegroupsTotal.Set(float64(counts[kubernetes.TypeRouteGroup]))
+	w.metrics.stacksTotal.Set(float64(len(stacks)))
+	w.metrics.ownedAutoscalingGroupsTotal.Set(float64(len(w.awsAdapter.OwnedAutoScalingGroups)))
+	w.metrics.targetedAutoscalingGroupsTotal.Set(float64(len(w.awsAdapter.TargetedAutoScalingGroups)))
+	w.metrics.instancesTotal.Set(float64(w.awsAdapter.CachedInstances()))
+	w.metrics.standaloneInstancesTotal.Set(float64(len(w.awsAdapter.SingleInstances())))
+	w.metrics.certificatesTotal.Set(float64(len(certificateSummaries)))
+	w.metrics.cloudWatchAlarmsTotal.Set(float64(len(cwAlarms)))
 
 	log.Debugf("Found %d ingress(es)", counts[kubernetes.TypeIngress])
 	log.Debugf("Found %d route group(s)", counts[kubernetes.TypeRouteGroup])
 	log.Debugf("Found %d stack(s)", len(stacks))
-	log.Debugf("Found %d owned auto scaling group(s)", len(awsAdapter.OwnedAutoScalingGroups))
-	log.Debugf("Found %d targeted auto scaling group(s)", len(awsAdapter.TargetedAutoScalingGroups))
-	log.Debugf("Found %d EC2 instance(s)", awsAdapter.CachedInstances())
-	log.Debugf("Found %d single instance(s)", len(awsAdapter.SingleInstances()))
+	log.Debugf("Found %d owned auto scaling group(s)", len(w.awsAdapter.OwnedAutoScalingGroups))
+	log.Debugf("Found %d targeted auto scaling group(s)", len(w.awsAdapter.TargetedAutoScalingGroups))
+	log.Debugf("Found %d EC2 instance(s)", w.awsAdapter.CachedInstances())
+	log.Debugf("Found %d single instance(s)", len(w.awsAdapter.SingleInstances()))
 	log.Debugf("Found %d certificate(s)", len(certificateSummaries))
 	log.Debugf("Found %d cloudwatch alarm configuration(s)", len(cwAlarms))
 
-	awsAdapter.UpdateTargetGroupsAndAutoScalingGroups(ctx, stacks, problems)
+	w.awsAdapter.UpdateTargetGroupsAndAutoScalingGroups(ctx, stacks, problems)
 
 	certs := NewCertificates(certificateSummaries)
-	model := buildManagedModel(certs, certsPerALB, certTTL, ingresses, stackELBs, cwAlarms, globalWAFACL)
+	model := w.buildManagedModel(certs, ingresses, stackELBs, cwAlarms)
 	log.Debugf("Have %d model(s)", len(model))
 	for _, loadBalancer := range model {
 		switch loadBalancer.Status() {
 		case delete:
-			deleteStack(ctx, awsAdapter, loadBalancer, problems)
+			w.deleteStack(ctx, loadBalancer, problems)
 		case missing:
-			createStack(ctx, awsAdapter, loadBalancer, problems)
-			updateIngress(kubeAdapter, loadBalancer, problems)
+			w.createStack(ctx, loadBalancer, problems)
+			w.updateIngress(loadBalancer, problems)
 		case ready:
-			updateIngress(kubeAdapter, loadBalancer, problems)
+			w.updateIngress(loadBalancer, problems)
 		case update:
-			updateStack(ctx, awsAdapter, loadBalancer, problems)
-			updateIngress(kubeAdapter, loadBalancer, problems)
+			w.updateStack(ctx, loadBalancer, problems)
+			w.updateIngress(loadBalancer, problems)
 		}
 	}
 	return
@@ -520,25 +517,22 @@ func attachGlobalWAFACL(ings []*kubernetes.Ingress, globalWAFACL string) {
 	}
 }
 
-func buildManagedModel(
+func (w *worker) buildManagedModel(
 	certs CertificatesFinder,
-	certsPerALB int,
-	certTTL time.Duration,
 	ingresses []*kubernetes.Ingress,
 	stackLBStates []*aws.StackLBState,
 	cwAlarms aws.CloudWatchAlarmList,
-	globalWAFACL string,
 ) []*loadBalancer {
 	sortStacks(stackLBStates)
-	attachGlobalWAFACL(ingresses, globalWAFACL)
-	model := getAllLoadBalancers(certs, certTTL, stackLBStates)
-	model = matchIngressesToLoadBalancers(model, certs, certsPerALB, ingresses)
+	attachGlobalWAFACL(ingresses, w.globalWAFACL)
+	model := getAllLoadBalancers(certs, w.certTTL, stackLBStates)
+	model = matchIngressesToLoadBalancers(model, certs, w.certsPerALB, ingresses)
 	attachCloudWatchAlarms(model, cwAlarms)
 
 	return model
 }
 
-func createStack(ctx context.Context, awsAdapter *aws.Adapter, lb *loadBalancer, problems *problem.List) {
+func (w *worker) createStack(ctx context.Context, lb *loadBalancer, problems *problem.List) {
 	certificates := make([]string, 0, len(lb.ingresses))
 	for cert := range lb.ingresses {
 		certificates = append(certificates, cert)
@@ -546,33 +540,33 @@ func createStack(ctx context.Context, awsAdapter *aws.Adapter, lb *loadBalancer,
 
 	log.Infof("Creating stack for certificates %q / ingress %q", certificates, lb.ingresses)
 
-	stackId, err := awsAdapter.CreateStack(ctx, certificates, lb.scheme, lb.securityGroup, lb.Owner(), lb.sslPolicy, lb.ipAddressType, lb.wafWebACLID, lb.cwAlarms, lb.loadBalancerType, lb.http2)
+	stackId, err := w.awsAdapter.CreateStack(ctx, certificates, lb.scheme, lb.securityGroup, lb.Owner(), lb.sslPolicy, lb.ipAddressType, lb.wafWebACLID, lb.cwAlarms, lb.loadBalancerType, lb.http2)
 	if err != nil {
 		if isAlreadyExistsError(err) {
-			lb.stack, err = awsAdapter.GetStack(ctx, stackId)
+			lb.stack, err = w.awsAdapter.GetStack(ctx, stackId)
 			if err == nil {
 				return
 			}
 		}
 		problems.Add("failed to create stack %q: %w", certificates, err)
 	} else {
-		metrics.changesTotal.created("stack")
+		w.metrics.changesTotal.created("stack")
 		log.Infof("Stack %q for certificates %q created", stackId, certificates)
 	}
 }
 
-func updateStack(ctx context.Context, awsAdapter *aws.Adapter, lb *loadBalancer, problems *problem.List) {
+func (w *worker) updateStack(ctx context.Context, lb *loadBalancer, problems *problem.List) {
 	certificates := lb.CertificateARNs()
 
 	log.Infof("Updating %q stack for %d certificates / %d ingresses", lb.scheme, len(certificates), len(lb.ingresses))
 
-	stackId, err := awsAdapter.UpdateStack(ctx, lb.stack.Name, certificates, lb.scheme, lb.securityGroup, lb.Owner(), lb.sslPolicy, lb.ipAddressType, lb.wafWebACLID, lb.cwAlarms, lb.loadBalancerType, lb.http2)
+	stackId, err := w.awsAdapter.UpdateStack(ctx, lb.stack.Name, certificates, lb.scheme, lb.securityGroup, lb.Owner(), lb.sslPolicy, lb.ipAddressType, lb.wafWebACLID, lb.cwAlarms, lb.loadBalancerType, lb.http2)
 	if isNoUpdatesToBePerformedError(err) {
 		log.Debugf("Stack(%q) is already up to date", certificates)
 	} else if err != nil {
 		problems.Add("failed to update stack %q: %w", certificates, err)
 	} else {
-		metrics.changesTotal.updated("stack")
+		w.metrics.changesTotal.updated("stack")
 		log.Infof("Stack %q for certificate %q updated", stackId, certificates)
 	}
 }
@@ -592,7 +586,7 @@ func isNoUpdatesToBePerformedError(err error) bool {
 	return false
 }
 
-func updateIngress(kubeAdapter *kubernetes.Adapter, lb *loadBalancer, problems *problem.List) {
+func (w *worker) updateIngress(lb *loadBalancer, problems *problem.List) {
 	var dnsName string
 	if lb.clusterLocal {
 		dnsName = kubernetes.DefaultClusterLocalDomain
@@ -621,40 +615,40 @@ func updateIngress(kubeAdapter *kubernetes.Adapter, lb *loadBalancer, problems *
 	}
 	for _, ingresses := range lb.ingresses {
 		for _, ing := range ingresses {
-			if err := kubeAdapter.UpdateIngressLoadBalancer(ing, dnsName); err != nil {
+			if err := w.kubeAdapter.UpdateIngressLoadBalancer(ing, dnsName); err != nil {
 				if err == kubernetes.ErrUpdateNotNeeded {
 					log.Debugf("Update not needed for %s with DNS name %s", ing, dnsName)
 				} else {
 					problems.Add("failed to update %s: %w", ing, err)
 				}
 			} else {
-				metrics.changesTotal.updated(string(ing.ResourceType))
+				w.metrics.changesTotal.updated(string(ing.ResourceType))
 				log.Infof("Updated %s with DNS name %s", ing, dnsName)
 			}
 		}
 	}
 }
 
-func deleteStack(ctx context.Context, awsAdapter *aws.Adapter, lb *loadBalancer, problems *problem.List) {
+func (w *worker) deleteStack(ctx context.Context, lb *loadBalancer, problems *problem.List) {
 	stackName := lb.stack.Name
-	if err := awsAdapter.DeleteStack(ctx, lb.stack); err != nil {
+	if err := w.awsAdapter.DeleteStack(ctx, lb.stack); err != nil {
 		problems.Add("failed to delete stack %q: %w", stackName, err)
 	} else {
-		metrics.changesTotal.deleted("stack")
+		w.metrics.changesTotal.deleted("stack")
 		log.Infof("Deleted orphaned stack %q", stackName)
 	}
 }
 
 // getCloudWatchAlarms retrieves CloudWatch Alarm configuration from a
-// ConfigMap described by configMapLoc. If configMapLoc is nil, an empty alarm
+// ConfigMap described by [worker.cwAlarmConfig]. If [worker.cwAlarmConfig] is nil, an empty alarm
 // configuration will be returned. Returns any error that might occur while
 // retrieving the configuration.
-func getCloudWatchAlarms(kubeAdapter *kubernetes.Adapter, configMapLoc *kubernetes.ResourceLocation) (aws.CloudWatchAlarmList, error) {
-	if configMapLoc == nil {
+func (w *worker) getCloudWatchAlarms() (aws.CloudWatchAlarmList, error) {
+	if w.cwAlarmConfig == nil {
 		return aws.CloudWatchAlarmList{}, nil
 	}
 
-	configMap, err := kubeAdapter.GetConfigMap(configMapLoc.Namespace, configMapLoc.Name)
+	configMap, err := w.kubeAdapter.GetConfigMap(w.cwAlarmConfig.Namespace, w.cwAlarmConfig.Name)
 	if err != nil {
 		return nil, err
 	}
