@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"sort"
 	"strings"
 	"time"
 
@@ -976,7 +977,7 @@ func buildManifest(ctx context.Context, awsAdapter *Adapter, clusterID, vpcID st
 	}, nil
 }
 
-// FindLBSubnets finds subnets for an ALB based on the scheme.
+// FindLBSubnets finds subnets for a load balancer based on the scheme.
 //
 // It follows the same logic for finding subnets as the kube-controller-manager
 // when finding subnets for ELBs used for services of type LoadBalancer.
@@ -1029,6 +1030,9 @@ func (a *Adapter) FindLBSubnets(scheme string) []string {
 	for _, subnet := range subnetsByAZ {
 		subnetIDs = append(subnetIDs, subnet.id)
 	}
+
+	// Sort to have a stable order
+	sort.Strings(subnetIDs)
 
 	return subnetIDs
 }
