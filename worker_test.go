@@ -1454,6 +1454,8 @@ func TestBuildModel(t *testing.T) {
 		},
 	)
 
+	const certTTL = time.Hour
+
 	for _, test := range []struct {
 		title         string
 		certs         CertificatesFinder
@@ -1613,16 +1615,14 @@ func TestBuildModel(t *testing.T) {
 				maxCertsPerLB = test.maxCertsPerLB
 			}
 
-			w := &worker{
-				certTTL:      1 * time.Hour,
-				certsPerALB:  maxCertsPerLB,
-				globalWAFACL: test.globalWAFACL,
-			}
-			m := w.buildManagedModel(
+			m := buildManagedModel(
 				certs,
+				maxCertsPerLB,
+				certTTL,
 				test.ingresses,
 				test.stacks,
 				test.alarms,
+				test.globalWAFACL,
 			)
 
 			test.validate(t, m)

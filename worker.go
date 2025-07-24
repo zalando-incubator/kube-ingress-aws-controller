@@ -341,7 +341,7 @@ func (w *worker) doWork(ctx context.Context) (problems *problem.List) {
 	w.awsAdapter.UpdateTargetGroupsAndAutoScalingGroups(ctx, stacks, problems)
 
 	certs := NewCertificates(certificateSummaries)
-	model := w.buildManagedModel(certs, ingresses, stackELBs, cwAlarms)
+	model := buildManagedModel(certs, w.certsPerALB, w.certTTL, ingresses, stackELBs, cwAlarms, w.globalWAFACL)
 	log.Debugf("Have %d model(s)", len(model))
 	for _, loadBalancer := range model {
 		switch loadBalancer.Status() {
@@ -517,16 +517,19 @@ func attachGlobalWAFACL(ings []*kubernetes.Ingress, globalWAFACL string) {
 	}
 }
 
-func (w *worker) buildManagedModel(
+func buildManagedModel(
 	certs CertificatesFinder,
+	certsPerALB int,
+	certTTL time.Duration,
 	ingresses []*kubernetes.Ingress,
 	stackLBStates []*aws.StackLBState,
 	cwAlarms aws.CloudWatchAlarmList,
+	globalWAFACL string,
 ) []*loadBalancer {
 	sortStacks(stackLBStates)
-	attachGlobalWAFACL(ingresses, w.globalWAFACL)
-	model := getAllLoadBalancers(certs, w.certTTL, stackLBStates)
-	model = matchIngressesToLoadBalancers(model, certs, w.certsPerALB, ingresses)
+	attachGlobalWAFACL(ingresses, globalWAFACL)
+	model := getAllLoadBalancers(certs, certTTL, stackLBStates)
+	model = matchIngressesToLoadBalancers(model, certs, certsPerALB, ingresses)
 	attachCloudWatchAlarms(model, cwAlarms)
 
 	return model
