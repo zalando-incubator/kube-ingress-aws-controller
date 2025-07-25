@@ -789,6 +789,10 @@ func (a *Adapter) CreateStack(ctx context.Context, certificateARNs []string, sch
 		sslPolicy = a.sslPolicy
 	}
 
+	if targetIpAddressType == "" {
+		targetIpAddressType = a.targetIpAddressType
+	}
+
 	if _, ok := SSLPolicies[sslPolicy]; !ok {
 		return "", fmt.Errorf("invalid SSLPolicy '%s' defined", sslPolicy)
 	}
