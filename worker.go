@@ -543,7 +543,12 @@ func (w *worker) createStack(ctx context.Context, lb *loadBalancer, problems *pr
 
 	log.Infof("Creating stack for certificates %q / ingress %q", certificates, lb.ingresses)
 
-	stackId, err := w.awsAdapter.CreateStack(ctx, certificates, lb.scheme, lb.securityGroup, lb.Owner(), lb.sslPolicy, lb.ipAddressType, lb.wafWebACLID, lb.cwAlarms, lb.loadBalancerType, lb.http2, lb.stack.TargetIPAddressType)
+	targetIpAddressType := ""
+	if lb.stack != nil {
+		targetIpAddressType = lb.stack.TargetIPAddressType
+	}
+
+	stackId, err := w.awsAdapter.CreateStack(ctx, certificates, lb.scheme, lb.securityGroup, lb.Owner(), lb.sslPolicy, lb.ipAddressType, lb.wafWebACLID, lb.cwAlarms, lb.loadBalancerType, lb.http2, targetIpAddressType)
 	if err != nil {
 		if isAlreadyExistsError(err) {
 			lb.stack, err = w.awsAdapter.GetStack(ctx, stackId)
