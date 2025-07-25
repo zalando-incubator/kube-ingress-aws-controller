@@ -684,6 +684,10 @@ func (a *Adapter) GetStackLBStates(ctx context.Context, stacks []*Stack) ([]*Sta
 
 	stackLBStates := make([]*StackLBState, 0, len(stacks))
 	for _, stack := range stacks {
+		if stack.LoadBalancerARN == "" {
+			stackLBStates = append(stackLBStates, &StackLBState{Stack: stack})
+			continue
+		}
 		lbstate, found := lbsMap[stack.LoadBalancerARN]
 		if !found {
 			log.Warnf("The load balancer (ARN: %q) of %q stack is not found", stack.LoadBalancerARN, stack.Name)

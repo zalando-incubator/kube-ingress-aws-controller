@@ -56,6 +56,7 @@ var (
 	additionalStackTags           = make(map[string]string)
 	idleConnectionTimeout         time.Duration
 	deregistrationDelayTimeout    time.Duration
+	minLoadBalancerAge            time.Duration
 	ingressClassFilters           string
 	controllerID                  string
 	clusterID                     string
@@ -113,7 +114,6 @@ func loadSettings() error {
 		StringMapVar(&additionalStackTags)
 	kingpin.Flag("cert-ttl-timeout", "sets the timeout of how long a certificate is kept on an old ALB to be decommissioned.").
 		Default(defaultCertTTL).DurationVar(&certTTL)
-
 	kingpin.Flag("cert-filter-tag", "sets a tag so the ingress controller only consider ACM or IAM certificates that have this tag set when adding a certificate to a load balancer.").
 		Default("").StringVar(&certFilterTag)
 	kingpin.Flag("health-check-path", "sets the health check path for the created target groups").
@@ -142,6 +142,8 @@ func loadSettings() error {
 		Default(aws.DefaultIdleConnectionTimeout.String()).DurationVar(&idleConnectionTimeout)
 	kingpin.Flag("deregistration-delay-timeout", "sets the deregistration delay timeout of all target groups.  The flag accepts a value acceptable to time.ParseDuration that is between 1s and 3600s.").
 		Default(aws.DefaultDeregistrationTimeout.String()).DurationVar(&deregistrationDelayTimeout)
+	kingpin.Flag("min-load-balancer-age", "sets ingress status update delay for new load balancers to give target groups a time to discover targets. Status will not be updated until this duration has passed since the load balancer was created. The flag accepts a value acceptable to time.ParseDuration.").
+		Default("6m").DurationVar(&minLoadBalancerAge)
 	kingpin.Flag("metrics-address", "defines where to serve metrics").Default(":7979").StringVar(&metricsAddress)
 	kingpin.Flag("ingress-class-filter", "optional comma-seperated list of kubernetes.io/ingress.class annotation values to filter behaviour on.").
 		StringVar(&ingressClassFilters)
@@ -422,14 +424,15 @@ func main() {
 	}
 
 	w := &worker{
-		awsAdapter:    awsAdapter,
-		kubeAdapter:   kubeAdapter,
-		metrics:       metrics,
-		certsProvider: certificatesProvider,
-		certsPerALB:   certificatesPerALB,
-		certTTL:       certTTL,
-		globalWAFACL:  wafWebAclId,
-		cwAlarmConfig: cwAlarmConfigMapLocation,
+		awsAdapter:         awsAdapter,
+		kubeAdapter:        kubeAdapter,
+		metrics:            metrics,
+		certsProvider:      certificatesProvider,
+		certsPerALB:        certificatesPerALB,
+		certTTL:            certTTL,
+		globalWAFACL:       wafWebAclId,
+		cwAlarmConfig:      cwAlarmConfigMapLocation,
+		minLoadBalancerAge: minLoadBalancerAge,
 	}
 
 	w.startPolling(ctx, pollingInterval)

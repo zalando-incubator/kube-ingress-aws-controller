@@ -34,16 +34,15 @@ func TestIsActiveLBState(t *testing.T) {
 		expected bool
 	}{
 		{"nil state", nil, false},
-		{"active state", &LoadBalancerState{StateCode: elbv2Types.LoadBalancerStateEnumActive}, true},
-		{"provisioning state", &LoadBalancerState{StateCode: elbv2Types.LoadBalancerStateEnumProvisioning}, false},
-		{"active impaired state", &LoadBalancerState{StateCode: elbv2Types.LoadBalancerStateEnumActiveImpaired}, false},
-		{"provisioning state", &LoadBalancerState{StateCode: elbv2Types.LoadBalancerStateEnumFailed}, false},
+		{"active state", &LoadBalancerState{stateCode: elbv2Types.LoadBalancerStateEnumActive}, true},
+		{"provisioning state", &LoadBalancerState{stateCode: elbv2Types.LoadBalancerStateEnumProvisioning}, false},
+		{"active impaired state", &LoadBalancerState{stateCode: elbv2Types.LoadBalancerStateEnumActiveImpaired}, false},
+		{"provisioning state", &LoadBalancerState{stateCode: elbv2Types.LoadBalancerStateEnumFailed}, false},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := IsActiveLBState(tt.lbState)
-			assert.Equal(t, tt.expected, result)
+			assert.Equal(t, tt.expected, tt.lbState.IsActive())
 		})
 	}
 }
@@ -55,16 +54,15 @@ func TestGetLBStateString(t *testing.T) {
 		expected string
 	}{
 		{"nil state", nil, "nil"},
-		{"active state", &LoadBalancerState{StateCode: elbv2Types.LoadBalancerStateEnumActive}, "active"},
-		{"provisioning state", &LoadBalancerState{StateCode: elbv2Types.LoadBalancerStateEnumProvisioning}, "provisioning"},
-		{"active impaired state", &LoadBalancerState{StateCode: elbv2Types.LoadBalancerStateEnumActiveImpaired}, "active_impaired"},
-		{"failed state", &LoadBalancerState{StateCode: elbv2Types.LoadBalancerStateEnumFailed}, "failed"},
+		{"active state", &LoadBalancerState{stateCode: elbv2Types.LoadBalancerStateEnumActive}, "active"},
+		{"provisioning state", &LoadBalancerState{stateCode: elbv2Types.LoadBalancerStateEnumProvisioning}, "provisioning"},
+		{"active impaired state", &LoadBalancerState{stateCode: elbv2Types.LoadBalancerStateEnumActiveImpaired}, "active_impaired"},
+		{"failed state", &LoadBalancerState{stateCode: elbv2Types.LoadBalancerStateEnumFailed}, "failed"},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := GetLBStateString(tt.lbState)
-			assert.Equal(t, tt.expected, result)
+			assert.Equal(t, tt.expected, tt.lbState.StateCodeString())
 		})
 	}
 }
@@ -258,8 +256,8 @@ func TestDeregisterTargetsOnTargetGroups(t *testing.T) {
 func TestGetLoadBalancerStates(t *testing.T) {
 	outputBasedOnInput := fake.ELBv2Outputs{DescribeLoadBalancers: nil}
 	expectedLBState := LoadBalancerState{
-		StateCode: elbv2Types.LoadBalancerStateEnumActive,
-		Reason:    "Mocked state",
+		stateCode: elbv2Types.LoadBalancerStateEnumActive,
+		reason:    "Mocked state",
 	}
 
 	for _, test := range []struct {

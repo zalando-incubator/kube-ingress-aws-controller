@@ -3,6 +3,7 @@ package aws
 import (
 	"context"
 	"fmt"
+	"time"
 
 	log "github.com/sirupsen/logrus"
 
@@ -12,8 +13,9 @@ import (
 )
 
 type LoadBalancerState struct {
-	StateCode elbv2Types.LoadBalancerStateEnum
-	Reason    string
+	createdTime time.Time
+	stateCode   elbv2Types.LoadBalancerStateEnum
+	reason      string
 }
 
 type StackLBState struct {
@@ -30,18 +32,28 @@ type ELBV2API interface {
 	DeregisterTargets(context.Context, *elbv2.DeregisterTargetsInput, ...func(*elbv2.Options)) (*elbv2.DeregisterTargetsOutput, error)
 }
 
-// IsActiveLBState checks if the LoadBalancerState is in an active state. Return
+// IsActive checks if the LoadBalancerState is in an active state. Return
 // false if the LoadBalancerState is nil.
-func IsActiveLBState(ls *LoadBalancerState) bool {
-	return ls != nil && ls.StateCode == elbv2Types.LoadBalancerStateEnumActive
+func (ls *LoadBalancerState) IsActive() bool {
+	if ls == nil {
+		return false
+	}
+	return ls.stateCode == elbv2Types.LoadBalancerStateEnumActive
 }
 
-// GetLBStateString returns a string representation of the LoadBalancerState.
-func GetLBStateString(ls *LoadBalancerState) string {
+// StateCodeString returns a string representation of the LoadBalancerState.
+func (ls *LoadBalancerState) StateCodeString() string {
 	if ls == nil {
 		return "nil"
 	}
-	return string(ls.StateCode)
+	return string(ls.stateCode)
+}
+
+func (ls *LoadBalancerState) Age() time.Duration {
+	if ls == nil {
+		return 0
+	}
+	return time.Since(ls.createdTime)
 }
 
 func registerTargetsOnTargetGroups(ctx context.Context, svc ELBV2API, targetGroupARNs []string, instances []string) error {
@@ -122,8 +134,9 @@ func getLoadBalancerStates(
 				loadBalancerStates[aws.ToString(lb.LoadBalancerArn)] = nil
 			} else {
 				loadBalancerStates[aws.ToString(lb.LoadBalancerArn)] = &LoadBalancerState{
-					StateCode: lb.State.Code,
-					Reason:    aws.ToString(lb.State.Reason),
+					createdTime: aws.ToTime(lb.CreatedTime),
+					stateCode:   lb.State.Code,
+					reason:      aws.ToString(lb.State.Reason),
 				}
 			}
 
