@@ -881,7 +881,6 @@ func (a *Adapter) UpdateStack(ctx context.Context, stackName string, certificate
 		controllerID:                      a.controllerID,
 		sslPolicy:                         sslPolicy,
 		ipAddressType:                     ipAddressType,
-		targetIpAddressType:               a.targetIpAddressType,
 		loadbalancerType:                  loadBalancerType,
 		albLogsS3Bucket:                   a.albLogsS3Bucket,
 		albLogsS3Prefix:                   a.albLogsS3Prefix,

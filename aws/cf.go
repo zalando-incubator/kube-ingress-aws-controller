@@ -319,7 +319,6 @@ func updateStack(ctx context.Context, svc CloudFormationAPI, spec *stackSpec) (s
 			cfParam(parameterLoadBalancerSubnetsParameter, strings.Join(spec.subnets, ",")),
 			cfParam(parameterTargetGroupVPCIDParameter, spec.vpcID),
 			cfParam(parameterTargetGroupTargetPortParameter, fmt.Sprintf("%d", spec.targetPort)),
-			cfParam(parameterTargetGroupIpAddressTypeParameter, spec.targetIpAddressType),
 			cfParam(parameterListenerSslPolicyParameter, spec.sslPolicy),
 			cfParam(parameterIpAddressTypeParameter, spec.ipAddressType),
 			cfParam(parameterLoadBalancerTypeParameter, spec.loadbalancerType),
