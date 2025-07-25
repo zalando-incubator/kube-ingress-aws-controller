@@ -543,7 +543,7 @@ func (w *worker) createStack(ctx context.Context, lb *loadBalancer, problems *pr
 
 	log.Infof("Creating stack for certificates %q / ingress %q", certificates, lb.ingresses)
 
-	stackId, err := w.awsAdapter.CreateStack(ctx, certificates, lb.scheme, lb.securityGroup, lb.Owner(), lb.sslPolicy, lb.ipAddressType, lb.wafWebACLID, lb.cwAlarms, lb.loadBalancerType, lb.http2)
+	stackId, err := w.awsAdapter.CreateStack(ctx, certificates, lb.scheme, lb.securityGroup, lb.Owner(), lb.sslPolicy, lb.ipAddressType, lb.wafWebACLID, lb.cwAlarms, lb.loadBalancerType, lb.http2, lb.stack.TargetIPAddressType)
 	if err != nil {
 		if isAlreadyExistsError(err) {
 			lb.stack, err = w.awsAdapter.GetStack(ctx, stackId)
@@ -563,7 +563,7 @@ func (w *worker) updateStack(ctx context.Context, lb *loadBalancer, problems *pr
 
 	log.Infof("Updating %q stack for %d certificates / %d ingresses", lb.scheme, len(certificates), len(lb.ingresses))
 
-	stackId, err := w.awsAdapter.UpdateStack(ctx, lb.stack.Name, certificates, lb.scheme, lb.securityGroup, lb.Owner(), lb.sslPolicy, lb.ipAddressType, lb.wafWebACLID, lb.cwAlarms, lb.loadBalancerType, lb.http2)
+	stackId, err := w.awsAdapter.UpdateStack(ctx, lb.stack.Name, certificates, lb.scheme, lb.securityGroup, lb.Owner(), lb.sslPolicy, lb.ipAddressType, lb.wafWebACLID, lb.cwAlarms, lb.loadBalancerType, lb.http2, lb.stack.TargetIPAddressType)
 	if isNoUpdatesToBePerformedError(err) {
 		log.Debugf("Stack(%q) is already up to date", certificates)
 	} else if err != nil {
