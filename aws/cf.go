@@ -495,6 +495,11 @@ func mapToManagedStack(stack *types.Stack) *Stack {
 		http2 = false
 	}
 
+	targetGroupIpAddressType := parameters[parameterTargetGroupIpAddressTypeParameter]
+	if targetGroupIpAddressType == "" {
+		targetGroupIpAddressType = IPAddressTypeIPV4
+	}
+
 	return &Stack{
 		Name:                aws.ToString(stack.StackName),
 		LoadBalancerARN:     outputs.loadBalancerARN(),
@@ -513,7 +518,7 @@ func mapToManagedStack(stack *types.Stack) *Stack {
 		statusReason:        aws.ToString(stack.StackStatusReason),
 		CWAlarmConfigHash:   tags[cwAlarmConfigHashTag],
 		WAFWebACLID:         parameters[parameterLoadBalancerWAFWebACLIDParameter],
-		TargetIPAddressType: parameters[parameterTargetGroupIpAddressTypeParameter],
+		TargetIPAddressType: targetGroupIpAddressType,
 	}
 }
 
