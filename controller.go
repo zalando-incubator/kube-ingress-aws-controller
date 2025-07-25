@@ -92,10 +92,6 @@ var (
 	defaultInternalDomains        = fmt.Sprintf("*%s", kubernetes.DefaultClusterLocalDomain)
 )
 
-func init() {
-	registerMetrics()
-}
-
 func loadSettings() error {
 	kingpin.Flag("version", "Print version and exit").Default("false").BoolVar(&versionFlag)
 	kingpin.Flag("debug", "Enables debug logging level").Default("false").BoolVar(&debugFlag)
@@ -421,21 +417,26 @@ func main() {
 	log.Infof("NLB Cross Zone: %t", nlbCrossZone)
 	log.Infof("NLB Zone Affinity: %s", nlbZoneAffinity)
 
+	metrics := newMetrics()
+
 	go handleTerminationSignals(cancel, syscall.SIGTERM, syscall.SIGQUIT)
-	go serveMetrics(metricsAddress)
+	go metrics.serve(metricsAddress)
 	if awsAdapter.TargetCNI.Enabled {
 		go cniEventHandler(ctx, awsAdapter.TargetCNI, awsAdapter.SetTargetsOnCNITargetGroups, kubeAdapter.PodInformer)
 	}
-	startPolling(
-		ctx,
-		certificatesProvider,
-		certificatesPerALB,
-		certTTL,
-		awsAdapter,
-		kubeAdapter,
-		pollingInterval,
-		wafWebAclId,
-	)
+
+	w := &worker{
+		awsAdapter:    awsAdapter,
+		kubeAdapter:   kubeAdapter,
+		metrics:       metrics,
+		certsProvider: certificatesProvider,
+		certsPerALB:   certificatesPerALB,
+		certTTL:       certTTL,
+		globalWAFACL:  wafWebAclId,
+		cwAlarmConfig: cwAlarmConfigMapLocation,
+	}
+
+	w.startPolling(ctx, pollingInterval)
 
 	log.Infof("Terminating %s", os.Args[0])
 }

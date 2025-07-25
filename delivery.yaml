@@ -61,7 +61,7 @@ pipeline:
       echo "create release page"
       tf=$(mktemp)
       echo -e "### Changes\n" >$tf
-      git log -1 --pretty=%B | grep -v 'Signed-off-by:' | grep -v -E '^\s*$' | grep -vE '^\*' >>$tf
+      git log -1 --pretty=%B | grep -v -F 'Signed-off-by:' | grep -v -F 'Co-authored-by:' >>$tf
       echo -e "\n### Docker image\n" >>$tf
       echo -e "Docker image is available in Zalando's Open Source registry:\n" >>$tf
       echo -e '```' >>$tf

@@ -476,7 +476,16 @@ func TestResourceConversionOneToOne(tt *testing.T) {
 			}
 
 			log.SetLevel(log.DebugLevel)
-			problems := doWork(ctx, scenario.certsProvider, 10, time.Hour, a, k, "")
+
+			w := &worker{
+				awsAdapter:    a,
+				kubeAdapter:   k,
+				metrics:       newMetrics(),
+				certsProvider: scenario.certsProvider,
+				certsPerALB:   10,
+				certTTL:       time.Hour,
+			}
+			problems := w.doWork(ctx)
 
 			if scenario.problems != nil {
 				assert.Len(t, problems.Errors(), len(scenario.problems))
@@ -1622,7 +1631,8 @@ func TestBuildModel(t *testing.T) {
 }
 
 func TestDoWorkPanicReturnsProblem(t *testing.T) {
-	problem := doWork(context.Background(), nil, 0, 0, nil, nil, "")
+	w := &worker{}
+	problem := w.doWork(context.Background())
 
 	require.NotNil(t, problem, "expected problem")
 	require.Len(t, problem.Errors(), 1)
