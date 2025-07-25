@@ -1390,6 +1390,8 @@ type ElasticLoadBalancingV2TargetGroup struct {
 	HealthCheckTimeoutSeconds *IntegerExpr `json:"HealthCheckTimeoutSeconds,omitempty"`
 	// HealthyThresholdCount docs: http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-elasticloadbalancingv2-targetgroup.html#cfn-elasticloadbalancingv2-targetgroup-healthythresholdcount
 	HealthyThresholdCount *IntegerExpr `json:"HealthyThresholdCount,omitempty"`
+	// IpAddressType docs: http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-elasticloadbalancingv2-targetgroup.html#cfn-elasticloadbalancingv2-targetgroup-ipaddresstype
+	IpAddressType *StringExpr `json:"IpAddressType,omitempty"`
 	// Matcher docs: http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-elasticloadbalancingv2-targetgroup.html#cfn-elasticloadbalancingv2-targetgroup-matcher
 	Matcher *ElasticLoadBalancingV2TargetGroupMatcher `json:"Matcher,omitempty"`
 	// Name docs: http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-elasticloadbalancingv2-targetgroup.html#cfn-elasticloadbalancingv2-targetgroup-name
