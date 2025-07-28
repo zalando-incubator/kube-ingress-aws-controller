@@ -9,7 +9,7 @@ DOCKERFILE    ?= Dockerfile
 GOPKGS        = $(shell go list ./...)
 BUILD_FLAGS   ?= -v
 LDFLAGS       ?= -X main.version=$(VERSION) -X main.buildstamp=$(shell date -u '+%Y-%m-%d_%I:%M:%S%p') -X main.githash=$(shell git rev-parse HEAD) -w -s
-CF_SCHEMA     ?= 24.0.0
+CF_SCHEMA     ?= 206.0.0 # Run `CF_SCHEMA=latest make recreate.schema` to get the latest schema version
 
 
 default: build.local
