@@ -1074,11 +1074,11 @@ func TestGetStackLBStates(t *testing.T) {
 			expectedStackLBStates: []*StackLBState{
 				{
 					Stack:   &Stack{Name: "stack1", LoadBalancerARN: "arn1"},
-					LBState: &LoadBalancerState{StateCode: elbv2Types.LoadBalancerStateEnumActive},
+					LBState: &LoadBalancerState{stateCode: elbv2Types.LoadBalancerStateEnumActive},
 				},
 				{
 					Stack:   &Stack{Name: "stack2", LoadBalancerARN: "arn2"},
-					LBState: &LoadBalancerState{StateCode: elbv2Types.LoadBalancerStateEnumFailed},
+					LBState: &LoadBalancerState{stateCode: elbv2Types.LoadBalancerStateEnumFailed},
 				},
 			},
 			expectError: false,
@@ -1102,7 +1102,7 @@ func TestGetStackLBStates(t *testing.T) {
 			expectedStackLBStates: []*StackLBState{
 				{
 					Stack:   &Stack{Name: "stack1", LoadBalancerARN: "arn1"},
-					LBState: &LoadBalancerState{StateCode: elbv2Types.LoadBalancerStateEnumActive},
+					LBState: &LoadBalancerState{stateCode: elbv2Types.LoadBalancerStateEnumActive},
 				},
 				{
 					Stack:   &Stack{Name: "stack2", LoadBalancerARN: "arn2"},
@@ -1139,7 +1139,7 @@ func TestGetStackLBStates(t *testing.T) {
 			expectedStackLBStates: []*StackLBState{
 				{
 					Stack:   &Stack{Name: "stack1", LoadBalancerARN: "arn1"},
-					LBState: &LoadBalancerState{StateCode: elbv2Types.LoadBalancerStateEnumActive},
+					LBState: &LoadBalancerState{stateCode: elbv2Types.LoadBalancerStateEnumActive},
 				},
 				{
 					Stack:   &Stack{Name: "stack2"},
@@ -1170,7 +1170,7 @@ func TestGetStackLBStates(t *testing.T) {
 					if expected.LBState == nil {
 						require.Nil(t, stackLBStates[i].LBState)
 					} else {
-						require.Equal(t, expected.LBState.StateCode, stackLBStates[i].LBState.StateCode)
+						require.Equal(t, expected.LBState.stateCode, stackLBStates[i].LBState.stateCode)
 					}
 				}
 			}
