@@ -1,11 +1,11 @@
 package cloudformation
 
-// RESOURCE SPECIFICATION VERSION: 24.0.0
+// RESOURCE SPECIFICATION VERSION: 206.0.0
 import "time"
 import "encoding/json"
 import _ "gopkg.in/go-playground/validator.v9" // Used for struct level validation tags
 
-const ResourceSpecificationVersion = "24.0.0"
+const ResourceSpecificationVersion = "206.0.0"
 
 var _ = time.Now
 
@@ -34,11 +34,11 @@ func RegisterCustomResourceProvider(provider CustomResourceProvider) {
 //
 
 // CloudWatchAlarmDimension represents the AWS::CloudWatch::Alarm.Dimension CloudFormation property type
-// See http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-cw-dimension.html
+// See http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-cloudwatch-alarm-dimension.html
 type CloudWatchAlarmDimension struct {
-	// Name docs: http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-cw-dimension.html#cfn-cloudwatch-alarm-dimension-name
+	// Name docs: http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-cloudwatch-alarm-dimension.html#cfn-cloudwatch-alarm-dimension-name
 	Name *StringExpr `json:"Name,omitempty" validate:"dive,required"`
-	// Value docs: http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-cw-dimension.html#cfn-cloudwatch-alarm-dimension-value
+	// Value docs: http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-cloudwatch-alarm-dimension.html#cfn-cloudwatch-alarm-dimension-value
 	Value *StringExpr `json:"Value,omitempty" validate:"dive,required"`
 }
 
@@ -96,6 +96,8 @@ func (l *CloudWatchAlarmMetricList) UnmarshalJSON(buf []byte) error {
 // CloudWatchAlarmMetricDataQuery represents the AWS::CloudWatch::Alarm.MetricDataQuery CloudFormation property type
 // See http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-cloudwatch-alarm-metricdataquery.html
 type CloudWatchAlarmMetricDataQuery struct {
+	// AccountID docs: http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-cloudwatch-alarm-metricdataquery.html#cfn-cloudwatch-alarm-metricdataquery-accountid
+	AccountID *StringExpr `json:"AccountId,omitempty"`
 	// Expression docs: http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-cloudwatch-alarm-metricdataquery.html#cfn-cloudwatch-alarm-metricdataquery-expression
 	Expression *StringExpr `json:"Expression,omitempty"`
 	// ID docs: http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-cloudwatch-alarm-metricdataquery.html#cfn-cloudwatch-alarm-metricdataquery-id
@@ -255,7 +257,7 @@ type ElasticLoadBalancingV2ListenerAuthenticateOidcConfig struct {
 	// ClientID docs: http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-elasticloadbalancingv2-listener-authenticateoidcconfig.html#cfn-elasticloadbalancingv2-listener-authenticateoidcconfig-clientid
 	ClientID *StringExpr `json:"ClientId,omitempty" validate:"dive,required"`
 	// ClientSecret docs: http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-elasticloadbalancingv2-listener-authenticateoidcconfig.html#cfn-elasticloadbalancingv2-listener-authenticateoidcconfig-clientsecret
-	ClientSecret *StringExpr `json:"ClientSecret,omitempty" validate:"dive,required"`
+	ClientSecret *StringExpr `json:"ClientSecret,omitempty"`
 	// Issuer docs: http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-elasticloadbalancingv2-listener-authenticateoidcconfig.html#cfn-elasticloadbalancingv2-listener-authenticateoidcconfig-issuer
 	Issuer *StringExpr `json:"Issuer,omitempty" validate:"dive,required"`
 	// OnUnauthenticatedRequest docs: http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-elasticloadbalancingv2-listener-authenticateoidcconfig.html#cfn-elasticloadbalancingv2-listener-authenticateoidcconfig-onunauthenticatedrequest
@@ -268,6 +270,8 @@ type ElasticLoadBalancingV2ListenerAuthenticateOidcConfig struct {
 	SessionTimeout *StringExpr `json:"SessionTimeout,omitempty"`
 	// TokenEndpoint docs: http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-elasticloadbalancingv2-listener-authenticateoidcconfig.html#cfn-elasticloadbalancingv2-listener-authenticateoidcconfig-tokenendpoint
 	TokenEndpoint *StringExpr `json:"TokenEndpoint,omitempty" validate:"dive,required"`
+	// UseExistingClientSecret docs: http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-elasticloadbalancingv2-listener-authenticateoidcconfig.html#cfn-elasticloadbalancingv2-listener-authenticateoidcconfig-useexistingclientsecret
+	UseExistingClientSecret *BoolExpr `json:"UseExistingClientSecret,omitempty"`
 	// UserInfoEndpoint docs: http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-elasticloadbalancingv2-listener-authenticateoidcconfig.html#cfn-elasticloadbalancingv2-listener-authenticateoidcconfig-userinfoendpoint
 	UserInfoEndpoint *StringExpr `json:"UserInfoEndpoint,omitempty" validate:"dive,required"`
 }
@@ -374,6 +378,68 @@ func (l *ElasticLoadBalancingV2ListenerForwardConfigList) UnmarshalJSON(buf []by
 	err := json.Unmarshal(buf, &list)
 	if err == nil {
 		*l = ElasticLoadBalancingV2ListenerForwardConfigList(list)
+		return nil
+	}
+	return err
+}
+
+// ElasticLoadBalancingV2ListenerListenerAttribute represents the AWS::ElasticLoadBalancingV2::Listener.ListenerAttribute CloudFormation property type
+// See http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-elasticloadbalancingv2-listener-listenerattribute.html
+type ElasticLoadBalancingV2ListenerListenerAttribute struct {
+	// Key docs: http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-elasticloadbalancingv2-listener-listenerattribute.html#cfn-elasticloadbalancingv2-listener-listenerattribute-key
+	Key *StringExpr `json:"Key,omitempty"`
+	// Value docs: http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-elasticloadbalancingv2-listener-listenerattribute.html#cfn-elasticloadbalancingv2-listener-listenerattribute-value
+	Value *StringExpr `json:"Value,omitempty"`
+}
+
+// ElasticLoadBalancingV2ListenerListenerAttributeList represents a list of ElasticLoadBalancingV2ListenerListenerAttribute
+type ElasticLoadBalancingV2ListenerListenerAttributeList []ElasticLoadBalancingV2ListenerListenerAttribute
+
+// UnmarshalJSON sets the object from the provided JSON representation
+func (l *ElasticLoadBalancingV2ListenerListenerAttributeList) UnmarshalJSON(buf []byte) error {
+	// Cloudformation allows a single object when a list of objects is expected
+	item := ElasticLoadBalancingV2ListenerListenerAttribute{}
+	if err := json.Unmarshal(buf, &item); err == nil {
+		*l = ElasticLoadBalancingV2ListenerListenerAttributeList{item}
+		return nil
+	}
+	list := []ElasticLoadBalancingV2ListenerListenerAttribute{}
+	err := json.Unmarshal(buf, &list)
+	if err == nil {
+		*l = ElasticLoadBalancingV2ListenerListenerAttributeList(list)
+		return nil
+	}
+	return err
+}
+
+// ElasticLoadBalancingV2ListenerMutualAuthentication represents the AWS::ElasticLoadBalancingV2::Listener.MutualAuthentication CloudFormation property type
+// See http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-elasticloadbalancingv2-listener-mutualauthentication.html
+type ElasticLoadBalancingV2ListenerMutualAuthentication struct {
+	// AdvertiseTrustStoreCaNames docs: http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-elasticloadbalancingv2-listener-mutualauthentication.html#cfn-elasticloadbalancingv2-listener-mutualauthentication-advertisetruststorecanames
+	AdvertiseTrustStoreCaNames *StringExpr `json:"AdvertiseTrustStoreCaNames,omitempty"`
+	// IgnoreClientCertificateExpiry docs: http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-elasticloadbalancingv2-listener-mutualauthentication.html#cfn-elasticloadbalancingv2-listener-mutualauthentication-ignoreclientcertificateexpiry
+	IgnoreClientCertificateExpiry *BoolExpr `json:"IgnoreClientCertificateExpiry,omitempty"`
+	// Mode docs: http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-elasticloadbalancingv2-listener-mutualauthentication.html#cfn-elasticloadbalancingv2-listener-mutualauthentication-mode
+	Mode *StringExpr `json:"Mode,omitempty"`
+	// TrustStoreArn docs: http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-elasticloadbalancingv2-listener-mutualauthentication.html#cfn-elasticloadbalancingv2-listener-mutualauthentication-truststorearn
+	TrustStoreArn *StringExpr `json:"TrustStoreArn,omitempty"`
+}
+
+// ElasticLoadBalancingV2ListenerMutualAuthenticationList represents a list of ElasticLoadBalancingV2ListenerMutualAuthentication
+type ElasticLoadBalancingV2ListenerMutualAuthenticationList []ElasticLoadBalancingV2ListenerMutualAuthentication
+
+// UnmarshalJSON sets the object from the provided JSON representation
+func (l *ElasticLoadBalancingV2ListenerMutualAuthenticationList) UnmarshalJSON(buf []byte) error {
+	// Cloudformation allows a single object when a list of objects is expected
+	item := ElasticLoadBalancingV2ListenerMutualAuthentication{}
+	if err := json.Unmarshal(buf, &item); err == nil {
+		*l = ElasticLoadBalancingV2ListenerMutualAuthenticationList{item}
+		return nil
+	}
+	list := []ElasticLoadBalancingV2ListenerMutualAuthentication{}
+	err := json.Unmarshal(buf, &list)
+	if err == nil {
+		*l = ElasticLoadBalancingV2ListenerMutualAuthenticationList(list)
 		return nil
 	}
 	return err
@@ -593,7 +659,7 @@ type ElasticLoadBalancingV2ListenerRuleAuthenticateOidcConfig struct {
 	// ClientID docs: http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-elasticloadbalancingv2-listenerrule-authenticateoidcconfig.html#cfn-elasticloadbalancingv2-listenerrule-authenticateoidcconfig-clientid
 	ClientID *StringExpr `json:"ClientId,omitempty" validate:"dive,required"`
 	// ClientSecret docs: http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-elasticloadbalancingv2-listenerrule-authenticateoidcconfig.html#cfn-elasticloadbalancingv2-listenerrule-authenticateoidcconfig-clientsecret
-	ClientSecret *StringExpr `json:"ClientSecret,omitempty" validate:"dive,required"`
+	ClientSecret *StringExpr `json:"ClientSecret,omitempty"`
 	// Issuer docs: http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-elasticloadbalancingv2-listenerrule-authenticateoidcconfig.html#cfn-elasticloadbalancingv2-listenerrule-authenticateoidcconfig-issuer
 	Issuer *StringExpr `json:"Issuer,omitempty" validate:"dive,required"`
 	// OnUnauthenticatedRequest docs: http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-elasticloadbalancingv2-listenerrule-authenticateoidcconfig.html#cfn-elasticloadbalancingv2-listenerrule-authenticateoidcconfig-onunauthenticatedrequest
@@ -1022,11 +1088,11 @@ func (l *ElasticLoadBalancingV2ListenerRuleTargetGroupTupleList) UnmarshalJSON(b
 }
 
 // ElasticLoadBalancingV2LoadBalancerLoadBalancerAttribute represents the AWS::ElasticLoadBalancingV2::LoadBalancer.LoadBalancerAttribute CloudFormation property type
-// See http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-elasticloadbalancingv2-loadbalancer-loadbalancerattributes.html
+// See http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-elasticloadbalancingv2-loadbalancer-loadbalancerattribute.html
 type ElasticLoadBalancingV2LoadBalancerLoadBalancerAttribute struct {
-	// Key docs: http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-elasticloadbalancingv2-loadbalancer-loadbalancerattributes.html#cfn-elasticloadbalancingv2-loadbalancer-loadbalancerattributes-key
+	// Key docs: http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-elasticloadbalancingv2-loadbalancer-loadbalancerattribute.html#cfn-elasticloadbalancingv2-loadbalancer-loadbalancerattribute-key
 	Key *StringExpr `json:"Key,omitempty"`
-	// Value docs: http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-elasticloadbalancingv2-loadbalancer-loadbalancerattributes.html#cfn-elasticloadbalancingv2-loadbalancer-loadbalancerattributes-value
+	// Value docs: http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-elasticloadbalancingv2-loadbalancer-loadbalancerattribute.html#cfn-elasticloadbalancingv2-loadbalancer-loadbalancerattribute-value
 	Value *StringExpr `json:"Value,omitempty"`
 }
 
@@ -1050,6 +1116,33 @@ func (l *ElasticLoadBalancingV2LoadBalancerLoadBalancerAttributeList) UnmarshalJ
 	return err
 }
 
+// ElasticLoadBalancingV2LoadBalancerMinimumLoadBalancerCapacity represents the AWS::ElasticLoadBalancingV2::LoadBalancer.MinimumLoadBalancerCapacity CloudFormation property type
+// See http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-elasticloadbalancingv2-loadbalancer-minimumloadbalancercapacity.html
+type ElasticLoadBalancingV2LoadBalancerMinimumLoadBalancerCapacity struct {
+	// CapacityUnits docs: http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-elasticloadbalancingv2-loadbalancer-minimumloadbalancercapacity.html#cfn-elasticloadbalancingv2-loadbalancer-minimumloadbalancercapacity-capacityunits
+	CapacityUnits *IntegerExpr `json:"CapacityUnits,omitempty" validate:"dive,required"`
+}
+
+// ElasticLoadBalancingV2LoadBalancerMinimumLoadBalancerCapacityList represents a list of ElasticLoadBalancingV2LoadBalancerMinimumLoadBalancerCapacity
+type ElasticLoadBalancingV2LoadBalancerMinimumLoadBalancerCapacityList []ElasticLoadBalancingV2LoadBalancerMinimumLoadBalancerCapacity
+
+// UnmarshalJSON sets the object from the provided JSON representation
+func (l *ElasticLoadBalancingV2LoadBalancerMinimumLoadBalancerCapacityList) UnmarshalJSON(buf []byte) error {
+	// Cloudformation allows a single object when a list of objects is expected
+	item := ElasticLoadBalancingV2LoadBalancerMinimumLoadBalancerCapacity{}
+	if err := json.Unmarshal(buf, &item); err == nil {
+		*l = ElasticLoadBalancingV2LoadBalancerMinimumLoadBalancerCapacityList{item}
+		return nil
+	}
+	list := []ElasticLoadBalancingV2LoadBalancerMinimumLoadBalancerCapacity{}
+	err := json.Unmarshal(buf, &list)
+	if err == nil {
+		*l = ElasticLoadBalancingV2LoadBalancerMinimumLoadBalancerCapacityList(list)
+		return nil
+	}
+	return err
+}
+
 // ElasticLoadBalancingV2LoadBalancerSubnetMapping represents the AWS::ElasticLoadBalancingV2::LoadBalancer.SubnetMapping CloudFormation property type
 // See http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-elasticloadbalancingv2-loadbalancer-subnetmapping.html
 type ElasticLoadBalancingV2LoadBalancerSubnetMapping struct {
@@ -1059,6 +1152,8 @@ type ElasticLoadBalancingV2LoadBalancerSubnetMapping struct {
 	IPv6Address *StringExpr `json:"IPv6Address,omitempty"`
 	// PrivateIPv4Address docs: http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-elasticloadbalancingv2-loadbalancer-subnetmapping.html#cfn-elasticloadbalancingv2-loadbalancer-subnetmapping-privateipv4address
 	PrivateIPv4Address *StringExpr `json:"PrivateIPv4Address,omitempty"`
+	// SourceNatIPv6Prefix docs: http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-elasticloadbalancingv2-loadbalancer-subnetmapping.html#cfn-elasticloadbalancingv2-loadbalancer-subnetmapping-sourcenatipv6prefix
+	SourceNatIPv6Prefix *StringExpr `json:"SourceNatIpv6Prefix,omitempty"`
 	// SubnetID docs: http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-elasticloadbalancingv2-loadbalancer-subnetmapping.html#cfn-elasticloadbalancingv2-loadbalancer-subnetmapping-subnetid
 	SubnetID *StringExpr `json:"SubnetId,omitempty" validate:"dive,required"`
 }
@@ -1086,6 +1181,8 @@ func (l *ElasticLoadBalancingV2LoadBalancerSubnetMappingList) UnmarshalJSON(buf 
 // ElasticLoadBalancingV2TargetGroupMatcher represents the AWS::ElasticLoadBalancingV2::TargetGroup.Matcher CloudFormation property type
 // See http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-elasticloadbalancingv2-targetgroup-matcher.html
 type ElasticLoadBalancingV2TargetGroupMatcher struct {
+	// GrpcCode docs: http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-elasticloadbalancingv2-targetgroup-matcher.html#cfn-elasticloadbalancingv2-targetgroup-matcher-grpccode
+	GrpcCode *StringExpr `json:"GrpcCode,omitempty"`
 	// HTTPCode docs: http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-elasticloadbalancingv2-targetgroup-matcher.html#cfn-elasticloadbalancingv2-targetgroup-matcher-httpcode
 	HTTPCode *StringExpr `json:"HttpCode,omitempty"`
 }
@@ -1208,49 +1305,51 @@ func (l *TagList) UnmarshalJSON(buf []byte) error {
 //
 
 // CloudWatchAlarm represents the AWS::CloudWatch::Alarm CloudFormation resource type
-// See http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-cw-alarm.html
+// See http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-cloudwatch-alarm.html
 type CloudWatchAlarm struct {
-	// ActionsEnabled docs: http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-cw-alarm.html#cfn-cloudwatch-alarms-actionsenabled
+	// ActionsEnabled docs: http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-cloudwatch-alarm.html#cfn-cloudwatch-alarm-actionsenabled
 	ActionsEnabled *BoolExpr `json:"ActionsEnabled,omitempty"`
-	// AlarmActions docs: http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-cw-alarm.html#cfn-cloudwatch-alarms-alarmactions
+	// AlarmActions docs: http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-cloudwatch-alarm.html#cfn-cloudwatch-alarm-alarmactions
 	AlarmActions *StringListExpr `json:"AlarmActions,omitempty"`
-	// AlarmDescription docs: http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-cw-alarm.html#cfn-cloudwatch-alarms-alarmdescription
+	// AlarmDescription docs: http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-cloudwatch-alarm.html#cfn-cloudwatch-alarm-alarmdescription
 	AlarmDescription *StringExpr `json:"AlarmDescription,omitempty"`
-	// AlarmName docs: http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-cw-alarm.html#cfn-cloudwatch-alarms-alarmname
+	// AlarmName docs: http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-cloudwatch-alarm.html#cfn-cloudwatch-alarm-alarmname
 	AlarmName *StringExpr `json:"AlarmName,omitempty"`
-	// ComparisonOperator docs: http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-cw-alarm.html#cfn-cloudwatch-alarms-comparisonoperator
+	// ComparisonOperator docs: http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-cloudwatch-alarm.html#cfn-cloudwatch-alarm-comparisonoperator
 	ComparisonOperator *StringExpr `json:"ComparisonOperator,omitempty" validate:"dive,required"`
-	// DatapointsToAlarm docs: http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-cw-alarm.html#cfn-cloudwatch-alarm-datapointstoalarm
+	// DatapointsToAlarm docs: http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-cloudwatch-alarm.html#cfn-cloudwatch-alarm-datapointstoalarm
 	DatapointsToAlarm *IntegerExpr `json:"DatapointsToAlarm,omitempty"`
-	// Dimensions docs: http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-cw-alarm.html#cfn-cloudwatch-alarms-dimension
+	// Dimensions docs: http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-cloudwatch-alarm.html#cfn-cloudwatch-alarm-dimensions
 	Dimensions *CloudWatchAlarmDimensionList `json:"Dimensions,omitempty"`
-	// EvaluateLowSampleCountPercentile docs: http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-cw-alarm.html#cfn-cloudwatch-alarms-evaluatelowsamplecountpercentile
+	// EvaluateLowSampleCountPercentile docs: http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-cloudwatch-alarm.html#cfn-cloudwatch-alarm-evaluatelowsamplecountpercentile
 	EvaluateLowSampleCountPercentile *StringExpr `json:"EvaluateLowSampleCountPercentile,omitempty"`
-	// EvaluationPeriods docs: http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-cw-alarm.html#cfn-cloudwatch-alarms-evaluationperiods
+	// EvaluationPeriods docs: http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-cloudwatch-alarm.html#cfn-cloudwatch-alarm-evaluationperiods
 	EvaluationPeriods *IntegerExpr `json:"EvaluationPeriods,omitempty" validate:"dive,required"`
-	// ExtendedStatistic docs: http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-cw-alarm.html#cfn-cloudwatch-alarms-extendedstatistic
+	// ExtendedStatistic docs: http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-cloudwatch-alarm.html#cfn-cloudwatch-alarm-extendedstatistic
 	ExtendedStatistic *StringExpr `json:"ExtendedStatistic,omitempty"`
-	// InsufficientDataActions docs: http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-cw-alarm.html#cfn-cloudwatch-alarms-insufficientdataactions
+	// InsufficientDataActions docs: http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-cloudwatch-alarm.html#cfn-cloudwatch-alarm-insufficientdataactions
 	InsufficientDataActions *StringListExpr `json:"InsufficientDataActions,omitempty"`
-	// MetricName docs: http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-cw-alarm.html#cfn-cloudwatch-alarms-metricname
+	// MetricName docs: http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-cloudwatch-alarm.html#cfn-cloudwatch-alarm-metricname
 	MetricName *StringExpr `json:"MetricName,omitempty"`
-	// Metrics docs: http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-cw-alarm.html#cfn-cloudwatch-alarm-metrics
+	// Metrics docs: http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-cloudwatch-alarm.html#cfn-cloudwatch-alarm-metrics
 	Metrics *CloudWatchAlarmMetricDataQueryList `json:"Metrics,omitempty"`
-	// Namespace docs: http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-cw-alarm.html#cfn-cloudwatch-alarms-namespace
+	// Namespace docs: http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-cloudwatch-alarm.html#cfn-cloudwatch-alarm-namespace
 	Namespace *StringExpr `json:"Namespace,omitempty"`
-	// OKActions docs: http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-cw-alarm.html#cfn-cloudwatch-alarms-okactions
+	// OKActions docs: http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-cloudwatch-alarm.html#cfn-cloudwatch-alarm-okactions
 	OKActions *StringListExpr `json:"OKActions,omitempty"`
-	// Period docs: http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-cw-alarm.html#cfn-cloudwatch-alarms-period
+	// Period docs: http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-cloudwatch-alarm.html#cfn-cloudwatch-alarm-period
 	Period *IntegerExpr `json:"Period,omitempty"`
-	// Statistic docs: http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-cw-alarm.html#cfn-cloudwatch-alarms-statistic
+	// Statistic docs: http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-cloudwatch-alarm.html#cfn-cloudwatch-alarm-statistic
 	Statistic *StringExpr `json:"Statistic,omitempty"`
-	// Threshold docs: http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-cw-alarm.html#cfn-cloudwatch-alarms-threshold
+	// Tags docs: http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-cloudwatch-alarm.html#cfn-cloudwatch-alarm-tags
+	Tags *TagList `json:"Tags,omitempty"`
+	// Threshold docs: http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-cloudwatch-alarm.html#cfn-cloudwatch-alarm-threshold
 	Threshold *IntegerExpr `json:"Threshold,omitempty"`
-	// ThresholdMetricID docs: http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-cw-alarm.html#cfn-cloudwatch-alarms-dynamic-threshold
+	// ThresholdMetricID docs: http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-cloudwatch-alarm.html#cfn-cloudwatch-alarm-thresholdmetricid
 	ThresholdMetricID *StringExpr `json:"ThresholdMetricId,omitempty"`
-	// TreatMissingData docs: http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-cw-alarm.html#cfn-cloudwatch-alarms-treatmissingdata
+	// TreatMissingData docs: http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-cloudwatch-alarm.html#cfn-cloudwatch-alarm-treatmissingdata
 	TreatMissingData *StringExpr `json:"TreatMissingData,omitempty"`
-	// Unit docs: http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-cw-alarm.html#cfn-cloudwatch-alarms-unit
+	// Unit docs: http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-cloudwatch-alarm.html#cfn-cloudwatch-alarm-unit
 	Unit *StringExpr `json:"Unit,omitempty"`
 }
 
@@ -1274,8 +1373,12 @@ type ElasticLoadBalancingV2Listener struct {
 	Certificates *ElasticLoadBalancingV2ListenerCertificatePropertyList `json:"Certificates,omitempty"`
 	// DefaultActions docs: http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-elasticloadbalancingv2-listener.html#cfn-elasticloadbalancingv2-listener-defaultactions
 	DefaultActions *ElasticLoadBalancingV2ListenerActionList `json:"DefaultActions,omitempty" validate:"dive,required"`
+	// ListenerAttributes docs: http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-elasticloadbalancingv2-listener.html#cfn-elasticloadbalancingv2-listener-listenerattributes
+	ListenerAttributes *ElasticLoadBalancingV2ListenerListenerAttributeList `json:"ListenerAttributes,omitempty"`
 	// LoadBalancerArn docs: http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-elasticloadbalancingv2-listener.html#cfn-elasticloadbalancingv2-listener-loadbalancerarn
 	LoadBalancerArn *StringExpr `json:"LoadBalancerArn,omitempty" validate:"dive,required"`
+	// MutualAuthentication docs: http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-elasticloadbalancingv2-listener.html#cfn-elasticloadbalancingv2-listener-mutualauthentication
+	MutualAuthentication *ElasticLoadBalancingV2ListenerMutualAuthentication `json:"MutualAuthentication,omitempty"`
 	// Port docs: http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-elasticloadbalancingv2-listener.html#cfn-elasticloadbalancingv2-listener-port
 	Port *IntegerExpr `json:"Port,omitempty"`
 	// Protocol docs: http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-elasticloadbalancingv2-listener.html#cfn-elasticloadbalancingv2-listener-protocol
@@ -1323,7 +1426,7 @@ type ElasticLoadBalancingV2ListenerRule struct {
 	// Conditions docs: http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-elasticloadbalancingv2-listenerrule.html#cfn-elasticloadbalancingv2-listenerrule-conditions
 	Conditions *ElasticLoadBalancingV2ListenerRuleRuleConditionList `json:"Conditions,omitempty" validate:"dive,required"`
 	// ListenerArn docs: http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-elasticloadbalancingv2-listenerrule.html#cfn-elasticloadbalancingv2-listenerrule-listenerarn
-	ListenerArn *StringExpr `json:"ListenerArn,omitempty" validate:"dive,required"`
+	ListenerArn *StringExpr `json:"ListenerArn,omitempty"`
 	// Priority docs: http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-elasticloadbalancingv2-listenerrule.html#cfn-elasticloadbalancingv2-listenerrule-priority
 	Priority *IntegerExpr `json:"Priority,omitempty" validate:"dive,required"`
 }
@@ -1342,10 +1445,18 @@ func (s ElasticLoadBalancingV2ListenerRule) CfnResourceAttributes() []string {
 // ElasticLoadBalancingV2LoadBalancer represents the AWS::ElasticLoadBalancingV2::LoadBalancer CloudFormation resource type
 // See http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-elasticloadbalancingv2-loadbalancer.html
 type ElasticLoadBalancingV2LoadBalancer struct {
+	// EnablePrefixForIPv6SourceNat docs: http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-elasticloadbalancingv2-loadbalancer.html#cfn-elasticloadbalancingv2-loadbalancer-enableprefixforipv6sourcenat
+	EnablePrefixForIPv6SourceNat *StringExpr `json:"EnablePrefixForIpv6SourceNat,omitempty"`
+	// EnforceSecurityGroupInboundRulesOnPrivateLinkTraffic docs: http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-elasticloadbalancingv2-loadbalancer.html#cfn-elasticloadbalancingv2-loadbalancer-enforcesecuritygroupinboundrulesonprivatelinktraffic
+	EnforceSecurityGroupInboundRulesOnPrivateLinkTraffic *StringExpr `json:"EnforceSecurityGroupInboundRulesOnPrivateLinkTraffic,omitempty"`
 	// IPAddressType docs: http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-elasticloadbalancingv2-loadbalancer.html#cfn-elasticloadbalancingv2-loadbalancer-ipaddresstype
 	IPAddressType *StringExpr `json:"IpAddressType,omitempty"`
+	// IPv4IPamPoolID docs: http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-elasticloadbalancingv2-loadbalancer.html#cfn-elasticloadbalancingv2-loadbalancer-ipv4ipampoolid
+	IPv4IPamPoolID *StringExpr `json:"Ipv4IpamPoolId,omitempty"`
 	// LoadBalancerAttributes docs: http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-elasticloadbalancingv2-loadbalancer.html#cfn-elasticloadbalancingv2-loadbalancer-loadbalancerattributes
 	LoadBalancerAttributes *ElasticLoadBalancingV2LoadBalancerLoadBalancerAttributeList `json:"LoadBalancerAttributes,omitempty"`
+	// MinimumLoadBalancerCapacity docs: http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-elasticloadbalancingv2-loadbalancer.html#cfn-elasticloadbalancingv2-loadbalancer-minimumloadbalancercapacity
+	MinimumLoadBalancerCapacity *ElasticLoadBalancingV2LoadBalancerMinimumLoadBalancerCapacity `json:"MinimumLoadBalancerCapacity,omitempty"`
 	// Name docs: http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-elasticloadbalancingv2-loadbalancer.html#cfn-elasticloadbalancingv2-loadbalancer-name
 	Name *StringExpr `json:"Name,omitempty"`
 	// Scheme docs: http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-elasticloadbalancingv2-loadbalancer.html#cfn-elasticloadbalancingv2-loadbalancer-scheme
@@ -1370,7 +1481,7 @@ func (s ElasticLoadBalancingV2LoadBalancer) CfnResourceType() string {
 
 // CfnResourceAttributes returns the attributes produced by this resource
 func (s ElasticLoadBalancingV2LoadBalancer) CfnResourceAttributes() []string {
-	return []string{"CanonicalHostedZoneID", "DNSName", "LoadBalancerFullName", "LoadBalancerName", "SecurityGroups"}
+	return []string{"CanonicalHostedZoneID", "DNSName", "LoadBalancerArn", "LoadBalancerFullName", "LoadBalancerName", "SecurityGroups"}
 }
 
 // ElasticLoadBalancingV2TargetGroup represents the AWS::ElasticLoadBalancingV2::TargetGroup CloudFormation resource type
@@ -1390,6 +1501,8 @@ type ElasticLoadBalancingV2TargetGroup struct {
 	HealthCheckTimeoutSeconds *IntegerExpr `json:"HealthCheckTimeoutSeconds,omitempty"`
 	// HealthyThresholdCount docs: http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-elasticloadbalancingv2-targetgroup.html#cfn-elasticloadbalancingv2-targetgroup-healthythresholdcount
 	HealthyThresholdCount *IntegerExpr `json:"HealthyThresholdCount,omitempty"`
+	// IPAddressType docs: http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-elasticloadbalancingv2-targetgroup.html#cfn-elasticloadbalancingv2-targetgroup-ipaddresstype
+	IPAddressType *StringExpr `json:"IpAddressType,omitempty"`
 	// Matcher docs: http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-elasticloadbalancingv2-targetgroup.html#cfn-elasticloadbalancingv2-targetgroup-matcher
 	Matcher *ElasticLoadBalancingV2TargetGroupMatcher `json:"Matcher,omitempty"`
 	// Name docs: http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-elasticloadbalancingv2-targetgroup.html#cfn-elasticloadbalancingv2-targetgroup-name
@@ -1398,6 +1511,8 @@ type ElasticLoadBalancingV2TargetGroup struct {
 	Port *IntegerExpr `json:"Port,omitempty"`
 	// Protocol docs: http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-elasticloadbalancingv2-targetgroup.html#cfn-elasticloadbalancingv2-targetgroup-protocol
 	Protocol *StringExpr `json:"Protocol,omitempty"`
+	// ProtocolVersion docs: http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-elasticloadbalancingv2-targetgroup.html#cfn-elasticloadbalancingv2-targetgroup-protocolversion
+	ProtocolVersion *StringExpr `json:"ProtocolVersion,omitempty"`
 	// Tags docs: http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-elasticloadbalancingv2-targetgroup.html#cfn-elasticloadbalancingv2-targetgroup-tags
 	Tags *TagList `json:"Tags,omitempty"`
 	// TargetGroupAttributes docs: http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-elasticloadbalancingv2-targetgroup.html#cfn-elasticloadbalancingv2-targetgroup-targetgroupattributes
@@ -1420,7 +1535,7 @@ func (s ElasticLoadBalancingV2TargetGroup) CfnResourceType() string {
 
 // CfnResourceAttributes returns the attributes produced by this resource
 func (s ElasticLoadBalancingV2TargetGroup) CfnResourceAttributes() []string {
-	return []string{"LoadBalancerArns", "TargetGroupFullName", "TargetGroupName"}
+	return []string{"LoadBalancerArns", "TargetGroupArn", "TargetGroupFullName", "TargetGroupName"}
 }
 
 // WAFRegionalWebACLAssociation represents the AWS::WAFRegional::WebACLAssociation CloudFormation resource type
