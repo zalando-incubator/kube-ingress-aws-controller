@@ -88,9 +88,7 @@ func NewCA() (*CA, error) {
 	return ca, nil
 }
 
-func (ca *CA) NewCertificateSummary() (*certs.CertificateSummary, error) {
-	altNames := []string{"foo.bar.org"}
-	arn := "DUMMY"
+func (ca *CA) NewCertificateSummary(arn string, altNames ...string) (*certs.CertificateSummary, error) {
 	notBefore := time.Now()
 	notAfter := time.Now().Add(time.Hour * 24)
 

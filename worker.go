@@ -22,9 +22,9 @@ import (
 )
 
 type worker struct {
-	awsAdapter  *aws.Adapter
-	kubeAdapter *kubernetes.Adapter
-	metrics     *metrics
+	awsAdapter *aws.Adapter
+	kubeAPI    kubernetes.API
+	metrics    *metrics
 
 	certsProvider certs.CertificatesProvider
 	certsPerALB   int
@@ -278,7 +278,7 @@ func (w *worker) doWork(ctx context.Context) (problems *problem.List) {
 		}
 	}()
 
-	ingresses, err := w.kubeAdapter.ListResources()
+	ingresses, err := w.kubeAPI.ListResources()
 	if err != nil {
 		return problems.Add("failed to list ingress resources: %w", err)
 	}
@@ -628,7 +628,7 @@ func (w *worker) updateIngress(lb *loadBalancer, problems *problem.List) {
 	}
 	for _, ingresses := range lb.ingresses {
 		for _, ing := range ingresses {
-			if err := w.kubeAdapter.UpdateIngressLoadBalancer(ing, dnsName); err != nil {
+			if err := w.kubeAPI.UpdateIngressLoadBalancer(ing, dnsName); err != nil {
 				if err == kubernetes.ErrUpdateNotNeeded {
 					log.Debugf("Update not needed for %s with DNS name %s", ing, dnsName)
 				} else {
@@ -661,7 +661,7 @@ func (w *worker) getCloudWatchAlarms() (aws.CloudWatchAlarmList, error) {
 		return aws.CloudWatchAlarmList{}, nil
 	}
 
-	configMap, err := w.kubeAdapter.GetConfigMap(w.cwAlarmConfig.Namespace, w.cwAlarmConfig.Name)
+	configMap, err := w.kubeAPI.GetConfigMap(w.cwAlarmConfig.Namespace, w.cwAlarmConfig.Name)
 	if err != nil {
 		return nil, err
 	}

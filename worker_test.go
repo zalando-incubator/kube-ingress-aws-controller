@@ -41,7 +41,7 @@ func TestResourceConversionOneToOne(tt *testing.T) {
 	ca, err := certsfake.NewCA()
 	require.NoError(tt, err)
 
-	certSummary, err := ca.NewCertificateSummary()
+	certSummary, err := ca.NewCertificateSummary("DUMMY", "foo.bar.org")
 	require.NoError(tt, err)
 
 	var certsProvider certs.CertificatesProvider = &certsfake.CertificateProvider{
@@ -478,7 +478,7 @@ func TestResourceConversionOneToOne(tt *testing.T) {
 
 			w := &worker{
 				awsAdapter:    a,
-				kubeAdapter:   k,
+				kubeAPI:       k,
 				metrics:       newMetrics(),
 				certsProvider: scenario.certsProvider,
 				certsPerALB:   10,

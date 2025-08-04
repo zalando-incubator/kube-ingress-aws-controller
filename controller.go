@@ -425,7 +425,7 @@ func main() {
 
 	w := &worker{
 		awsAdapter:         awsAdapter,
-		kubeAdapter:        kubeAdapter,
+		kubeAPI:            kubeAdapter,
 		metrics:            metrics,
 		certsProvider:      certificatesProvider,
 		certsPerALB:        certificatesPerALB,
