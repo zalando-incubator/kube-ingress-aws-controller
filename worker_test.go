@@ -16,7 +16,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/autoscaling"
 	autoScalingTypes "github.com/aws/aws-sdk-go-v2/service/autoscaling/types"
 	cfTypes "github.com/aws/aws-sdk-go-v2/service/cloudformation/types"
-	elbv2Types "github.com/aws/aws-sdk-go-v2/service/elasticloadbalancingv2/types"
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -42,7 +41,7 @@ func TestResourceConversionOneToOne(tt *testing.T) {
 	ca, err := certsfake.NewCA()
 	require.NoError(tt, err)
 
-	certSummary, err := ca.NewCertificateSummary()
+	certSummary, err := ca.NewCertificateSummary("DUMMY", "foo.bar.org")
 	require.NoError(tt, err)
 
 	var certsProvider certs.CertificatesProvider = &certsfake.CertificateProvider{
@@ -479,7 +478,7 @@ func TestResourceConversionOneToOne(tt *testing.T) {
 
 			w := &worker{
 				awsAdapter:    a,
-				kubeAdapter:   k,
+				kubeAPI:       k,
 				metrics:       newMetrics(),
 				certsProvider: scenario.certsProvider,
 				certsPerALB:   10,
@@ -923,10 +922,7 @@ func TestCertificateExists(tt *testing.T) {
 func TestGetAllLoadBalancers(tt *testing.T) {
 	certTTL, _ := time.ParseDuration("90d")
 
-	activeLBState := &aws.LoadBalancerState{
-		StateCode: elbv2Types.LoadBalancerStateEnumActive,
-		Reason:    "",
-	}
+	aLBState := &aws.LoadBalancerState{}
 
 	for _, test := range []struct {
 		name          string
@@ -942,7 +938,7 @@ func TestGetAllLoadBalancers(tt *testing.T) {
 						Scheme:        "foo",
 						SecurityGroup: "sg-123456",
 					},
-					LBState: activeLBState,
+					LBState: aLBState,
 				},
 			},
 			certs: []*certs.CertificateSummary{},
@@ -954,7 +950,7 @@ func TestGetAllLoadBalancers(tt *testing.T) {
 					shared:                       true,
 					ingresses:                    map[string][]*kubernetes.Ingress{},
 					certTTL:                      certTTL,
-					state:                        activeLBState,
+					state:                        aLBState,
 				},
 			},
 		},
@@ -969,7 +965,7 @@ func TestGetAllLoadBalancers(tt *testing.T) {
 							"cert-arn": {},
 						},
 					},
-					LBState: activeLBState,
+					LBState: aLBState,
 				},
 			},
 			certs: []*certs.CertificateSummary{
@@ -991,7 +987,7 @@ func TestGetAllLoadBalancers(tt *testing.T) {
 						"cert-arn": {},
 					},
 					certTTL: certTTL,
-					state:   activeLBState,
+					state:   aLBState,
 				},
 			},
 		},
@@ -1006,7 +1002,7 @@ func TestGetAllLoadBalancers(tt *testing.T) {
 							"cert-arn": {},
 						},
 					},
-					LBState: activeLBState,
+					LBState: aLBState,
 				},
 			},
 			certs: []*certs.CertificateSummary{},
@@ -1018,7 +1014,7 @@ func TestGetAllLoadBalancers(tt *testing.T) {
 					shared:                       true,
 					ingresses:                    map[string][]*kubernetes.Ingress{},
 					certTTL:                      certTTL,
-					state:                        activeLBState,
+					state:                        aLBState,
 				},
 			},
 		},

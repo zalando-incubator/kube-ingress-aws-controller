@@ -22,7 +22,13 @@ clean:
 ## test: runs go test
 test:
 	go test -v -race -coverprofile=profile.cov -cover $(GOPKGS)
-	grep -Ev 'github.com/zalando-incubator/kube-ingress-aws-controller/(certs/fake|aws/fake|internal/aws/cloudformation)/' profile.cov > profile.cov.tmp
+	grep -v \
+		-e github.com/zalando-incubator/kube-ingress-aws-controller/certs/fake/ \
+		-e github.com/zalando-incubator/kube-ingress-aws-controller/aws/fake/ \
+		-e github.com/zalando-incubator/kube-ingress-aws-controller/internal/aws/cloudformation/ \
+		-e github.com/zalando-incubator/kube-ingress-aws-controller/internal/aws/mock/ \
+		-e github.com/zalando-incubator/kube-ingress-aws-controller/internal/kubernetes/mock/ \
+		profile.cov > profile.cov.tmp
 	mv profile.cov.tmp profile.cov
 
 ## lint: runs golangci-lint

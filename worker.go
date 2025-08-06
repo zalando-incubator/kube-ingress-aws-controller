@@ -22,9 +22,9 @@ import (
 )
 
 type worker struct {
-	awsAdapter  *aws.Adapter
-	kubeAdapter *kubernetes.Adapter
-	metrics     *metrics
+	awsAdapter *aws.Adapter
+	kubeAPI    kubernetes.API
+	metrics    *metrics
 
 	certsProvider certs.CertificatesProvider
 	certsPerALB   int
@@ -33,6 +33,8 @@ type worker struct {
 	globalWAFACL string
 
 	cwAlarmConfig *kubernetes.ResourceLocation
+
+	minLoadBalancerAge time.Duration
 }
 
 type loadBalancer struct {
@@ -276,7 +278,7 @@ func (w *worker) doWork(ctx context.Context) (problems *problem.List) {
 		}
 	}()
 
-	ingresses, err := w.kubeAdapter.ListResources()
+	ingresses, err := w.kubeAPI.ListResources()
 	if err != nil {
 		return problems.Add("failed to list ingress resources: %w", err)
 	}
@@ -597,28 +599,36 @@ func (w *worker) updateIngress(lb *loadBalancer, problems *problem.List) {
 		// only update ingress if the CF stack is in a completed state and the ELB
 		// is in the active state.
 		if lb.stack == nil {
-			log.Infof("CF stack is nil, skipping ingress update")
+			log.Infof("Stack is nil, skipping ingress update")
 			return
 		}
+
+		stackLog := log.WithField("stack", lb.stack.Name)
 		if !lb.stack.IsComplete() {
-			log.Infof(
-				"CF stack %q is not in a completed state, skipping ingress update",
-				lb.stack.Name,
-			)
+			stackLog.Infof("Stack is not complete, skipping ingress update")
 			return
 		}
-		if !aws.IsActiveLBState(lb.state) {
-			log.Infof(
-				"The load balancer of CF stack %q is not in active state (state: %s, lb-ARN: %s), skipping ingress update",
-				lb.stack.Name, aws.GetLBStateString(lb.state), lb.stack.LoadBalancerARN,
-			)
+		if lb.state == nil {
+			stackLog.Infof("Load balancer state is unknown, skipping ingress update")
 			return
 		}
+
+		stackLog = stackLog.WithField("loadbalancer", lb.stack.LoadBalancerARN)
+		if !lb.state.IsActive() {
+			stackLog.Infof("Load balancer is not in active state (state: %s), skipping ingress update", lb.state.StateCodeString())
+			return
+		}
+
+		if lb.state.Age() < w.minLoadBalancerAge {
+			stackLog.Infof("Load balancer was created less than %s ago, skipping ingress update", w.minLoadBalancerAge)
+			return
+		}
+
 		dnsName = strings.ToLower(lb.stack.DNSName) // lower case to satisfy Kubernetes reqs
 	}
 	for _, ingresses := range lb.ingresses {
 		for _, ing := range ingresses {
-			if err := w.kubeAdapter.UpdateIngressLoadBalancer(ing, dnsName); err != nil {
+			if err := w.kubeAPI.UpdateIngressLoadBalancer(ing, dnsName); err != nil {
 				if err == kubernetes.ErrUpdateNotNeeded {
 					log.Debugf("Update not needed for %s with DNS name %s", ing, dnsName)
 				} else {
@@ -651,7 +661,7 @@ func (w *worker) getCloudWatchAlarms() (aws.CloudWatchAlarmList, error) {
 		return aws.CloudWatchAlarmList{}, nil
 	}
 
-	configMap, err := w.kubeAdapter.GetConfigMap(w.cwAlarmConfig.Namespace, w.cwAlarmConfig.Name)
+	configMap, err := w.kubeAPI.GetConfigMap(w.cwAlarmConfig.Namespace, w.cwAlarmConfig.Name)
 	if err != nil {
 		return nil, err
 	}
