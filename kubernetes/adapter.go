@@ -11,6 +11,21 @@ import (
 	"k8s.io/client-go/kubernetes"
 )
 
+type API interface {
+	// ListResources can be used to obtain the list of ingress and routegroup
+	// resources for all namespaces filtered by class. It
+	// returns the Ingress business object, that for the controller does
+	// not matter to be routegroup or ingress.
+	ListResources() ([]*Ingress, error)
+
+	// UpdateIngressLoadBalancer can be used to update the loadBalancer object of an ingress resource. It will update
+	// the hostname property with the provided load balancer DNS name.
+	UpdateIngressLoadBalancer(ingress *Ingress, loadBalancerDNSName string) error
+
+	// GetConfigMap retrieves the ConfigMap with name from namespace.
+	GetConfigMap(namespace, name string) (*ConfigMap, error)
+}
+
 type Adapter struct {
 	kubeClient                     client
 	clientset                      kubernetes.Interface
@@ -24,6 +39,8 @@ type Adapter struct {
 	clusterLocalDomain             string
 	routeGroupSupport              bool
 }
+
+var _ API = &Adapter{}
 
 type IngressType string
 
