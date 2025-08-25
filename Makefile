@@ -9,7 +9,7 @@ DOCKERFILE    ?= Dockerfile
 GOPKGS        = $(shell go list ./...)
 BUILD_FLAGS   ?= -v
 LDFLAGS       ?= -X main.version=$(VERSION) -X main.buildstamp=$(shell date -u '+%Y-%m-%d_%I:%M:%S%p') -X main.githash=$(shell git rev-parse HEAD) -w -s
-CF_SCHEMA     ?= 24.0.0
+CF_SCHEMA     ?= 206.0.0 # Run `CF_SCHEMA=latest make recreate.schema` to get the latest schema version
 
 
 default: build.local
@@ -22,7 +22,13 @@ clean:
 ## test: runs go test
 test:
 	go test -v -race -coverprofile=profile.cov -cover $(GOPKGS)
-	grep -Ev 'github.com/zalando-incubator/kube-ingress-aws-controller/(certs/fake|aws/fake|internal/aws/cloudformation)/' profile.cov > profile.cov.tmp
+	grep -v \
+		-e github.com/zalando-incubator/kube-ingress-aws-controller/certs/fake/ \
+		-e github.com/zalando-incubator/kube-ingress-aws-controller/aws/fake/ \
+		-e github.com/zalando-incubator/kube-ingress-aws-controller/internal/aws/cloudformation/ \
+		-e github.com/zalando-incubator/kube-ingress-aws-controller/internal/aws/mock/ \
+		-e github.com/zalando-incubator/kube-ingress-aws-controller/internal/kubernetes/mock/ \
+		profile.cov > profile.cov.tmp
 	mv profile.cov.tmp profile.cov
 
 ## lint: runs golangci-lint
