@@ -500,7 +500,7 @@ func newTargetGroup(spec *stackSpec, targetPortParameter string) *cloudformation
 		HealthCheckProtocol:        cloudformation.String(healthCheckProtocol),
 		HealthyThresholdCount:      cloudformation.Integer(int64(healthyThresholdCount)),
 		UnhealthyThresholdCount:    cloudformation.Integer(int64(unhealthyThresholdCount)),
-		IpAddressType:              cloudformation.Ref(parameterTargetGroupIpAddressTypeParameter).String(),
+		IPAddressType:              cloudformation.Ref(parameterTargetGroupIpAddressTypeParameter).String(),
 		Port:                       cloudformation.Ref(targetPortParameter).Integer(),
 		Protocol:                   cloudformation.String(protocol),
 		TargetType:                 targetType,
