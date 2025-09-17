@@ -796,9 +796,8 @@ func (a *Adapter) CreateStack(ctx context.Context, certificateARNs []string, sch
 		return "", fmt.Errorf("invalid SSLPolicy '%s' defined", sslPolicy)
 	}
 
-	targetGroupIPAddressType := a.targetGroupIPAddressType
-	if ipAddressType == IPAddressTypeIPV4 && targetGroupIPAddressType == IPAddressTypeIPv6 {
-		return "", fmt.Errorf("invalid TargetGroupIPAddressType '%s' defined for IPAddressType '%s'", targetGroupIPAddressType, ipAddressType)
+	if ipAddressType == IPAddressTypeIPV4 && a.targetGroupIPAddressType == IPAddressTypeIPv6 {
+		return "", fmt.Errorf("invalid TargetGroupIPAddressType '%s' defined for IPAddressType '%s'", a.targetGroupIPAddressType, ipAddressType)
 	}
 
 	spec := &stackSpec{
@@ -831,7 +830,7 @@ func (a *Adapter) CreateStack(ctx context.Context, certificateARNs []string, sch
 		controllerID:                      a.controllerID,
 		sslPolicy:                         sslPolicy,
 		ipAddressType:                     ipAddressType,
-		targetGroupIPAddressType:          targetGroupIPAddressType,
+		targetGroupIPAddressType:          a.targetGroupIPAddressType,
 		loadbalancerType:                  loadBalancerType,
 		albLogsS3Bucket:                   a.albLogsS3Bucket,
 		albLogsS3Prefix:                   a.albLogsS3Prefix,
