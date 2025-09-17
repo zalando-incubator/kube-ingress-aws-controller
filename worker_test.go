@@ -469,6 +469,7 @@ func TestResourceConversionOneToOne(tt *testing.T) {
 				sslPolicy,
 				scenario.typeLB,
 				clusterLocalDomain,
+				aws.DefaultIpAddressType,
 				true)
 			if err != nil {
 				t.Fatal(err)
