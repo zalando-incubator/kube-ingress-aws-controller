@@ -859,10 +859,10 @@ func (a *Adapter) UpdateStack(ctx context.Context, stackName string, certificate
 		return "", fmt.Errorf("invalid SSLPolicy '%s' defined", sslPolicy)
 	}
 
-	targetGroupIpAddressType := a.targetGroupIPAddressType
+	targetGroupIPAddressType := a.targetGroupIPAddressType
 	if ipAddressType == IPAddressTypeIPV4 {
-		if targetGroupIpAddressType == "" || targetGroupIpAddressType == IPAddressTypeIPv6 {
-			targetGroupIpAddressType = IPAddressTypeIPV4
+		if targetGroupIPAddressType == "" || targetGroupIPAddressType == IPAddressTypeIPv6 {
+			targetGroupIPAddressType = IPAddressTypeIPV4
 		}
 	}
 
@@ -896,7 +896,7 @@ func (a *Adapter) UpdateStack(ctx context.Context, stackName string, certificate
 		controllerID:                      a.controllerID,
 		sslPolicy:                         sslPolicy,
 		ipAddressType:                     ipAddressType,
-		targetGroupIPAddressType:          a.targetGroupIPAddressType,
+		targetGroupIPAddressType:          targetGroupIPAddressType,
 		loadbalancerType:                  loadBalancerType,
 		albLogsS3Bucket:                   a.albLogsS3Bucket,
 		albLogsS3Prefix:                   a.albLogsS3Prefix,
