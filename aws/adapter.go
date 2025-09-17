@@ -63,6 +63,7 @@ type Adapter struct {
 	controllerID                string
 	sslPolicy                   string
 	ipAddressType               string
+	targetGroupIPAddressType    string
 	albLogsS3Bucket             string
 	albLogsS3Prefix             string
 	nlbZoneAffinity             string
@@ -118,6 +119,8 @@ const (
 	DefaultSslPolicy = "ELBSecurityPolicy-2016-08"
 	// DefaultIpAddressType sets IpAddressType to "ipv4", it is either ipv4 or dualstack
 	DefaultIpAddressType = "ipv4"
+	// DefaultTargetGroupIPAddressType sets TargetGroupIPAddressType to "ipv4", it is either ipv4 or ipv6
+	DefaultTargetGroupIPAddressType = "ipv4"
 	// DefaultAlbS3LogsBucket is a blank string, and must be set if enabled
 	DefaultAlbS3LogsBucket = ""
 	// DefaultAlbS3LogsPrefix is a blank string, and optionally set if desired
@@ -138,6 +141,7 @@ const (
 	LoadBalancerTypeApplication = "application"
 	LoadBalancerTypeNetwork     = "network"
 	IPAddressTypeIPV4           = "ipv4"
+	IPAddressTypeIPv6           = "ipv6"
 	IPAddressTypeDualstack      = "dualstack"
 
 	TargetAccessModeAWSCNI   = "AWSCNI"
@@ -438,6 +442,14 @@ func (a *Adapter) WithStackTags(tags map[string]string) *Adapter {
 func (a *Adapter) WithIpAddressType(ipAddressType string) *Adapter {
 	if ipAddressType == IPAddressTypeDualstack {
 		a.ipAddressType = ipAddressType
+	}
+	return a
+}
+
+// WithTargetGroupIPAddressType returns the receiver with ipv4 or ipv6 configuration for target groups, defaults to ipv4.
+func (a *Adapter) WithTargetGroupIPAddressType(ipAddressType string) *Adapter {
+	if ipAddressType == IPAddressTypeIPv6 {
+		a.targetGroupIPAddressType = ipAddressType
 	}
 	return a
 }
@@ -814,6 +826,7 @@ func (a *Adapter) CreateStack(ctx context.Context, certificateARNs []string, sch
 		controllerID:                      a.controllerID,
 		sslPolicy:                         sslPolicy,
 		ipAddressType:                     ipAddressType,
+		targetGroupIPAddressType:          a.targetGroupIPAddressType,
 		loadbalancerType:                  loadBalancerType,
 		albLogsS3Bucket:                   a.albLogsS3Bucket,
 		albLogsS3Prefix:                   a.albLogsS3Prefix,
@@ -871,6 +884,7 @@ func (a *Adapter) UpdateStack(ctx context.Context, stackName string, certificate
 		controllerID:                      a.controllerID,
 		sslPolicy:                         sslPolicy,
 		ipAddressType:                     ipAddressType,
+		targetGroupIPAddressType:          a.targetGroupIPAddressType,
 		loadbalancerType:                  loadBalancerType,
 		albLogsS3Bucket:                   a.albLogsS3Bucket,
 		albLogsS3Prefix:                   a.albLogsS3Prefix,
