@@ -796,6 +796,11 @@ func (a *Adapter) CreateStack(ctx context.Context, certificateARNs []string, sch
 		return "", fmt.Errorf("invalid SSLPolicy '%s' defined", sslPolicy)
 	}
 
+	targetGroupIPAddressType := a.targetGroupIPAddressType
+	if ipAddressType == IPAddressTypeIPV4 && targetGroupIPAddressType == IPAddressTypeIPv6 {
+		return "", fmt.Errorf("invalid TargetGroupIPAddressType '%s' defined for IPAddressType '%s'", targetGroupIPAddressType, ipAddressType)
+	}
+
 	spec := &stackSpec{
 		name:            a.stackName(),
 		scheme:          scheme,
@@ -826,7 +831,7 @@ func (a *Adapter) CreateStack(ctx context.Context, certificateARNs []string, sch
 		controllerID:                      a.controllerID,
 		sslPolicy:                         sslPolicy,
 		ipAddressType:                     ipAddressType,
-		targetGroupIPAddressType:          a.targetGroupIPAddressType,
+		targetGroupIPAddressType:          targetGroupIPAddressType,
 		loadbalancerType:                  loadBalancerType,
 		albLogsS3Bucket:                   a.albLogsS3Bucket,
 		albLogsS3Prefix:                   a.albLogsS3Prefix,
@@ -852,6 +857,13 @@ func (a *Adapter) CreateStack(ctx context.Context, certificateARNs []string, sch
 func (a *Adapter) UpdateStack(ctx context.Context, stackName string, certificateARNs map[string]time.Time, scheme, securityGroup, owner, sslPolicy, ipAddressType, wafWebACLID string, cwAlarms CloudWatchAlarmList, loadBalancerType string, http2 bool) (string, error) {
 	if _, ok := SSLPolicies[sslPolicy]; !ok {
 		return "", fmt.Errorf("invalid SSLPolicy '%s' defined", sslPolicy)
+	}
+
+	targetGroupIpAddressType := a.targetGroupIPAddressType
+	if ipAddressType == IPAddressTypeIPV4 {
+		if targetGroupIpAddressType == "" || targetGroupIpAddressType == IPAddressTypeIPv6 {
+			targetGroupIpAddressType = IPAddressTypeIPV4
+		}
 	}
 
 	spec := &stackSpec{
