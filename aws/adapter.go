@@ -267,6 +267,7 @@ func NewAdapter(ctx context.Context, clusterID, newControllerID, vpcID string, d
 		controllerID:               newControllerID,
 		sslPolicy:                  DefaultSslPolicy,
 		ipAddressType:              DefaultIpAddressType,
+		targetGroupIPAddressType:   DefaultTargetGroupIPAddressType,
 		albLogsS3Bucket:            DefaultAlbS3LogsBucket,
 		albLogsS3Prefix:            DefaultAlbS3LogsPrefix,
 		nlbCrossZone:               DefaultNLBCrossZone,
