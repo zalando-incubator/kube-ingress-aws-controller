@@ -443,7 +443,7 @@ func TestNewIngressFromKube(tt *testing.T) {
 		},
 	} {
 		tt.Run(tc.msg, func(t *testing.T) {
-			a, err := NewAdapter(testConfig, IngressAPIVersionNetworking, testIngressFilter, testIngressDefaultSecurityGroup, testSSLPolicy, tc.defaultLoadBalancerType, DefaultClusterLocalDomain, false)
+			a, err := NewAdapter(testConfig, IngressAPIVersionNetworking, testIngressFilter, testIngressDefaultSecurityGroup, testSSLPolicy, tc.defaultLoadBalancerType, DefaultClusterLocalDomain, aws.DefaultIpAddressType, false)
 			if err != nil {
 				t.Fatalf("cannot create kubernetes adapter: %v", err)
 			}
@@ -518,7 +518,7 @@ func (c *mockClient) patch(res string, payload []byte) (io.ReadCloser, error) {
 }
 
 func TestListIngress(t *testing.T) {
-	a, _ := NewAdapter(testConfig, IngressAPIVersionNetworking, testIngressFilter, testIngressDefaultSecurityGroup, testSSLPolicy, aws.LoadBalancerTypeApplication, DefaultClusterLocalDomain, false)
+	a, _ := NewAdapter(testConfig, IngressAPIVersionNetworking, testIngressFilter, testIngressDefaultSecurityGroup, testSSLPolicy, aws.LoadBalancerTypeApplication, DefaultClusterLocalDomain, aws.DefaultIpAddressType, false)
 	client := &mockClient{}
 	a.kubeClient = client
 	ingresses, err := a.ListIngress()
@@ -536,7 +536,7 @@ func TestListIngress(t *testing.T) {
 }
 
 func TestAdapterUpdateIngressLoadBalancer(t *testing.T) {
-	a, _ := NewAdapter(testConfig, IngressAPIVersionNetworking, testIngressFilter, testSecurityGroup, testSSLPolicy, aws.LoadBalancerTypeApplication, DefaultClusterLocalDomain, false)
+	a, _ := NewAdapter(testConfig, IngressAPIVersionNetworking, testIngressFilter, testSecurityGroup, testSSLPolicy, aws.LoadBalancerTypeApplication, DefaultClusterLocalDomain, aws.DefaultIpAddressType, false)
 	client := &mockClient{}
 	a.kubeClient = client
 	ing := &Ingress{
@@ -565,7 +565,7 @@ func TestAdapterUpdateIngressLoadBalancer(t *testing.T) {
 }
 
 func TestUpdateRouteGroupLoadBalancer(t *testing.T) {
-	a, _ := NewAdapter(testConfig, IngressAPIVersionNetworking, testIngressFilter, testSecurityGroup, testSSLPolicy, aws.LoadBalancerTypeApplication, DefaultClusterLocalDomain, false)
+	a, _ := NewAdapter(testConfig, IngressAPIVersionNetworking, testIngressFilter, testSecurityGroup, testSSLPolicy, aws.LoadBalancerTypeApplication, DefaultClusterLocalDomain, aws.DefaultIpAddressType, false)
 	client := &mockClient{}
 	a.kubeClient = client
 	ing := &Ingress{
@@ -604,7 +604,7 @@ func TestBrokenConfig(t *testing.T) {
 		{"broken-cert", &Config{BaseURL: "dontcare", TLSClientConfig: TLSClientConfig{CAFile: "testdata/broken.pem"}}},
 	} {
 		t.Run(fmt.Sprintf("%v", test.cfg), func(t *testing.T) {
-			_, err := NewAdapter(test.cfg, IngressAPIVersionNetworking, testIngressFilter, testSecurityGroup, testSSLPolicy, aws.LoadBalancerTypeApplication, DefaultClusterLocalDomain, false)
+			_, err := NewAdapter(test.cfg, IngressAPIVersionNetworking, testIngressFilter, testSecurityGroup, testSSLPolicy, aws.LoadBalancerTypeApplication, DefaultClusterLocalDomain, aws.DefaultIpAddressType, false)
 			if err == nil {
 				t.Error("expected an error")
 			}
@@ -613,7 +613,7 @@ func TestBrokenConfig(t *testing.T) {
 }
 
 func TestAdapter_GetConfigMap(t *testing.T) {
-	a, _ := NewAdapter(testConfig, IngressAPIVersionNetworking, testIngressFilter, testIngressDefaultSecurityGroup, testSSLPolicy, aws.LoadBalancerTypeApplication, DefaultClusterLocalDomain, false)
+	a, _ := NewAdapter(testConfig, IngressAPIVersionNetworking, testIngressFilter, testIngressDefaultSecurityGroup, testSSLPolicy, aws.LoadBalancerTypeApplication, DefaultClusterLocalDomain, aws.DefaultIpAddressType, false)
 	client := &mockClient{}
 	a.kubeClient = client
 
@@ -727,7 +727,7 @@ func TestListIngressFilterClass(t *testing.T) {
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
-			a, _ := NewAdapter(testConfig, IngressAPIVersionNetworking, test.ingressClassFilters, testIngressDefaultSecurityGroup, testSSLPolicy, aws.LoadBalancerTypeApplication, DefaultClusterLocalDomain, false)
+			a, _ := NewAdapter(testConfig, IngressAPIVersionNetworking, test.ingressClassFilters, testIngressDefaultSecurityGroup, testSSLPolicy, aws.LoadBalancerTypeApplication, DefaultClusterLocalDomain, aws.DefaultIpAddressType, false)
 			client := &mockClient{}
 			a.kubeClient = client
 			ingresses, err := a.ListResources()
