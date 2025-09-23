@@ -380,7 +380,7 @@ func main() {
 	}
 
 	log.Debug("kubernetes.NewAdapter")
-	kubeAdapter, err = kubernetes.NewAdapter(kubeConfig, ingressAPIVersion, ingressClassFiltersList, awsAdapter.SecurityGroupID(), sslPolicy, loadBalancerType, clusterLocalDomain, disableInstrumentedHttpClient)
+	kubeAdapter, err = kubernetes.NewAdapter(kubeConfig, ingressAPIVersion, ingressClassFiltersList, awsAdapter.SecurityGroupID(), sslPolicy, loadBalancerType, clusterLocalDomain, ipAddressType, disableInstrumentedHttpClient)
 	if err != nil {
 		log.Fatal(err)
 	}

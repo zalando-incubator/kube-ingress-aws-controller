@@ -36,6 +36,7 @@ type Adapter struct {
 	ingressDefaultSecurityGroup    string
 	ingressDefaultSSLPolicy        string
 	ingressDefaultLoadBalancerType string
+	ingressIpAddressType           string
 	clusterLocalDomain             string
 	routeGroupSupport              bool
 }
@@ -123,7 +124,7 @@ func (c *ConfigMap) String() string {
 }
 
 // NewAdapter creates an Adapter for Kubernetes using a given configuration.
-func NewAdapter(config *Config, ingressAPIVersion string, ingressClassFilters []string, ingressDefaultSecurityGroup, ingressDefaultSSLPolicy, ingressDefaultLoadBalancerType, clusterLocalDomain string, disableInstrumentedHttpClient bool) (*Adapter, error) {
+func NewAdapter(config *Config, ingressAPIVersion string, ingressClassFilters []string, ingressDefaultSecurityGroup, ingressDefaultSSLPolicy, ingressDefaultLoadBalancerType, clusterLocalDomain, ingressIpAddressType string, disableInstrumentedHttpClient bool) (*Adapter, error) {
 	if config == nil || config.BaseURL == "" {
 		return nil, ErrInvalidConfiguration
 	}
@@ -139,6 +140,7 @@ func NewAdapter(config *Config, ingressAPIVersion string, ingressClassFilters []
 		ingressDefaultSecurityGroup:    ingressDefaultSecurityGroup,
 		ingressDefaultSSLPolicy:        ingressDefaultSSLPolicy,
 		ingressDefaultLoadBalancerType: loadBalancerTypesAWSToIngress[ingressDefaultLoadBalancerType],
+		ingressIpAddressType:           ingressIpAddressType,
 		clusterLocalDomain:             clusterLocalDomain,
 		routeGroupSupport:              true,
 	}, nil
@@ -200,9 +202,23 @@ func (a *Adapter) newIngress(typ IngressType, metadata kubeItemMetadata, host st
 		shared = false
 	}
 
-	ipAddressType := aws.IPAddressTypeIPV4
-	if getAnnotationsString(annotations, ingressALBIPAddressType, "") == aws.IPAddressTypeDualstack {
+	ipAddressType := a.ingressIpAddressType
+	albIPType := getAnnotationsString(annotations, ingressALBIPAddressType, "")
+	ipType := getAnnotationsString(annotations, ingressIPAddressType, "")
+	if albIPType != "" {
+		log.Warnf("Deprecated annotation %q in use for %q resource named %q in namespace %q", ingressALBIPAddressType, typ, metadata.Name, metadata.Namespace)
+
+		if ipType != "" {
+			log.Warnf("Both annotations are set for %q resource named %q in namespace %q, deprecated annotation %q=%q will be ignored, using %q=%q",
+				typ, metadata.Name, metadata.Namespace, ingressALBIPAddressType, albIPType, ingressIPAddressType, ipType)
+		}
+	}
+	// Prefer ingressIPAddressType if set, otherwise fallback to deprecated ingressALBIPAddressType
+	switch {
+	case ipType == aws.IPAddressTypeDualstack || albIPType == aws.IPAddressTypeDualstack:
 		ipAddressType = aws.IPAddressTypeDualstack
+	case ipType == aws.IPAddressTypeIPV4 || albIPType == aws.IPAddressTypeIPV4:
+		ipAddressType = aws.IPAddressTypeIPV4
 	}
 
 	sslPolicy := getAnnotationsString(annotations, ingressSSLPolicyAnnotation, a.ingressDefaultSSLPolicy)
@@ -242,11 +258,6 @@ func (a *Adapter) newIngress(typ IngressType, metadata kubeItemMetadata, host st
 
 	// convert to the internal naming e.g. nlb -> network
 	loadBalancerType = loadBalancerTypesIngressToAWS[loadBalancerType]
-
-	if loadBalancerType == aws.LoadBalancerTypeNetwork {
-		// ensure ipv4 for network load balancers
-		ipAddressType = aws.IPAddressTypeIPV4
-	}
 
 	http2 := true
 	if getAnnotationsString(annotations, ingressHTTP2Annotation, "") == "false" {
