@@ -180,6 +180,8 @@ Overview of configuration which can be set via Ingress annotations.
 
 The defaults can also be configured globally via a flag on the controller.
 
+Note that the annotation `alb.ingress.kubernetes.io/ip-address-type` can be used for both ALB and NLB. We use the same annotation for compatibility with external DNS. The `kubernetes-sigs/external-dns` project (see [PR #1079](https://github.com/kubernetes-sigs/external-dns/pull/1079)) only recognizes this specific annotation for DNS record management. If we were to change the annotation, external-dns would not adopt it, resulting in missing or incorrect DNS records. This constraint was discussed in the [Kubernetes Slack channel](https://kubernetes.slack.com/archives/C0LRMHZ1T/p1764951540935419), and changing it is not considered necessary at this time.
+
 ## Load Balancers types
 
 The controller supports both [Application Load Balancers][alb] and [Network
