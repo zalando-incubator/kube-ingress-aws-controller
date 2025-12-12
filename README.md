@@ -37,6 +37,9 @@ This information is used to manage AWS resources for each ingress objects of the
    - enable and disable cross zone traffic: `--nlb-cross-zone=false`
    - set zone affinity to resolve DNS to same zone: `--nlb-zone-affinity=availability_zone_affinity`, see also [NLB attributes](https://docs.aws.amazon.com/elasticloadbalancing/latest/network/network-load-balancers.html\#load-balancer-attributes) and [NLB zonal DNS affinity](https://docs.aws.amazon.com/elasticloadbalancing/latest/network/network-load-balancers.html\#zonal-dns-affinity)
 - Support for explicitly enable certificates by using certificate Tags `--cert-filter-tag=key=value`
+- Suppport for `ipv4` and `dualstack` ip address types for ALB and NLB
+    - set default ip address type for both ALB and NLB using `--ip-addr-type=dualstack`
+    - set specific ip address type for a particular ALB or NLB by using the annotation `alb.ingress.kubernetes.io/ip-address-type: dualstack` in the ingress of the resource
 
 ## Upgrade
 
@@ -179,6 +182,8 @@ Overview of configuration which can be set via Ingress annotations.
 |`kubernetes.io/ingress.class`|`string`|N/A|
 
 The defaults can also be configured globally via a flag on the controller.
+
+Note that the annotation `alb.ingress.kubernetes.io/ip-address-type` can be used for both ALB and NLB. We use the same annotation for compatibility with external DNS. The `kubernetes-sigs/external-dns` project (see [PR #1079](https://github.com/kubernetes-sigs/external-dns/pull/1079)) only recognizes this specific annotation for DNS record management. If we were to change the annotation, external-dns would not adopt it, resulting in missing or incorrect DNS records. This constraint was discussed in the [Kubernetes Slack channel](https://kubernetes.slack.com/archives/C0LRMHZ1T/p1764951540935419), and changing it is not considered necessary at this time.
 
 ## Load Balancers types
 
