@@ -50,6 +50,11 @@
             "Default": "5",
             "Description": "The healthcheck timeout"
         },
+        "TargetGroupIPAddressTypeParameter": {
+            "Type": "String",
+            "Default": "ipv4",
+            "Description": "Target group IP Address Type, 'ipv4' or 'ipv6'"
+        },
         "TargetGroupTargetPortParameter": {
             "Type": "Number",
             "Default": "9999",
@@ -158,6 +163,9 @@
                 },
                 "HealthCheckProtocol": "HTTP",
                 "HealthyThresholdCount": 0,
+                "IpAddressType": {
+                    "Ref": "TargetGroupIPAddressTypeParameter"
+                },
                 "Port": {
                     "Ref": "TargetGroupTargetPortParameter"
                 },
