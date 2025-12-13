@@ -449,7 +449,8 @@ func (a *Adapter) WithIpAddressType(ipAddressType string) *Adapter {
 
 // WithTargetGroupIPAddressType returns the receiver with ipv4 or ipv6 configuration for target groups, defaults to ipv4.
 func (a *Adapter) WithTargetGroupIPAddressType(ipAddressType string) *Adapter {
-	if ipAddressType == IPAddressTypeIPv6 {
+	switch ipAddressType {
+	case IPAddressTypeIPV4, IPAddressTypeIPv6:
 		a.targetGroupIPAddressType = ipAddressType
 	}
 	return a
