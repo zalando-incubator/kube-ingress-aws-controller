@@ -1,0 +1,12 @@
+[
+  {
+    "key": "kubernetes:application",
+    "value": ""
+  },{
+    "key": "kubernetes.io/cluster/aws:123:eu-central-1:kube-1",
+    "value": "owned"
+  },{
+    "key": "ingress:certificate-arn/DUMMY",
+    "value": "0001-01-01T00:00:00Z"
+  }
+]
