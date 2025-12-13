@@ -49,8 +49,9 @@ func TestResourceConversionOneToOne(tt *testing.T) {
 	}
 
 	for _, scenario := range []struct {
-		name   string
-		typeLB string
+		name          string
+		typeLB        string
+		ipAddressType string
 		// mock
 		responsesEC2   fake.EC2Outputs
 		responsesASG   fake.ASGOutputs
@@ -61,8 +62,9 @@ func TestResourceConversionOneToOne(tt *testing.T) {
 		problems []string
 	}{
 		{
-			name:   "ingress_alb",
-			typeLB: aws.LoadBalancerTypeApplication,
+			name:          "ingress_alb",
+			typeLB:        aws.LoadBalancerTypeApplication,
+			ipAddressType: aws.IPAddressTypeIPV4,
 			responsesEC2: fake.EC2Outputs{DescribeInstances: fake.R(fake.MockDescribeInstancesOutput(
 				fake.TestInstance{
 					Id:        "i0",
@@ -114,164 +116,9 @@ func TestResourceConversionOneToOne(tt *testing.T) {
 			certsProvider: certsProvider,
 		},
 		{
-			name:   "ingress_nlb",
-			typeLB: aws.LoadBalancerTypeNetwork,
-			responsesEC2: fake.EC2Outputs{DescribeInstances: fake.R(fake.MockDescribeInstancesOutput(
-				fake.TestInstance{
-					Id:        "i0",
-					Tags:      fake.Tags{"aws:autoscaling:groupName": "asg1", clusterIDTagPrefix + clusterID: "owned"},
-					PrivateIp: "1.2.3.3",
-					VpcId:     vpcID,
-					State:     running,
-				},
-				fake.TestInstance{
-					Id:        "i1",
-					Tags:      fake.Tags{"aws:autoscaling:groupName": "asg1", clusterIDTagPrefix + clusterID: "owned"},
-					PrivateIp: "1.2.3.4",
-					VpcId:     vpcID,
-					State:     running,
-				},
-				fake.TestInstance{
-					Id:        "i2",
-					Tags:      fake.Tags{"aws:autoscaling:groupName": "asg1", clusterIDTagPrefix + clusterID: "owned"},
-					PrivateIp: "1.2.3.5",
-					VpcId:     vpcID,
-					State:     running,
-				}), nil),
-				DescribeSecurityGroups: fake.R(fake.MockDescribeSecurityGroupsOutput(map[string]string{"id": securityGroupID}), nil),
-				DescribeSubnets: fake.R(fake.MockDescribeSubnetsOutput(
-					fake.TestSubnet{Id: "foo1", Name: "bar1", Az: "baz1", Tags: map[string]string{"kubernetes.io/role/elb": ""}}), nil),
-				DescribeRouteTables: fake.R(fake.MockDescribeRouteTableOutput(
-					fake.TestRouteTable{SubnetID: "foo1", GatewayIds: []string{"igw-foo1"}},
-					fake.TestRouteTable{SubnetID: "mismatch", GatewayIds: []string{"igw-foo2"}, Main: true},
-				), nil),
-			},
-			responsesASG: fake.ASGOutputs{
-				DescribeAutoScalingGroups: fake.R(fake.MockDescribeAutoScalingGroupOutput(map[string]fake.ASGtags{"asg1": {
-					clusterIDTagPrefix + clusterID: "owned",
-				}}), nil),
-				DescribeLoadBalancerTargetGroups: fake.R(&autoscaling.DescribeLoadBalancerTargetGroupsOutput{
-					LoadBalancerTargetGroups: []autoScalingTypes.LoadBalancerTargetGroupState{},
-				}, nil),
-				AttachLoadBalancerTargetGroups: fake.R(nil, nil),
-			},
-			responsesELBv2: fake.ELBv2Outputs{
-				DescribeTargetGroups:  fake.R(fake.MockDescribeTargetGroupsOutput(), nil),
-				DescribeTags:          fake.R(nil, nil),
-				DescribeLoadBalancers: fake.R(fake.MockDescribeLoadBalancersOutput(), nil),
-			},
-			responsesCF: fake.CFOutputs{
-				DescribeStacks: fake.R(fake.MockDescribeStacksOutput(nil), nil),
-				CreateStack:    fake.R(fake.MockCSOutput("42"), nil),
-			},
-			certsProvider: certsProvider,
-		}, {
-			name:   "rg_alb",
-			typeLB: aws.LoadBalancerTypeApplication,
-			responsesEC2: fake.EC2Outputs{DescribeInstances: fake.R(fake.MockDescribeInstancesOutput(
-				fake.TestInstance{
-					Id:        "i0",
-					Tags:      fake.Tags{"aws:autoscaling:groupName": "asg1", clusterIDTagPrefix + clusterID: "owned"},
-					PrivateIp: "1.2.3.3",
-					VpcId:     vpcID,
-					State:     running,
-				},
-				fake.TestInstance{
-					Id:        "i1",
-					Tags:      fake.Tags{"aws:autoscaling:groupName": "asg1", clusterIDTagPrefix + clusterID: "owned"},
-					PrivateIp: "1.2.3.4",
-					VpcId:     vpcID,
-					State:     running,
-				},
-				fake.TestInstance{
-					Id:        "i2",
-					Tags:      fake.Tags{"aws:autoscaling:groupName": "asg1", clusterIDTagPrefix + clusterID: "owned"},
-					PrivateIp: "1.2.3.5",
-					VpcId:     vpcID,
-					State:     running,
-				}), nil),
-				DescribeSecurityGroups: fake.R(fake.MockDescribeSecurityGroupsOutput(map[string]string{"id": securityGroupID}), nil),
-				DescribeSubnets: fake.R(fake.MockDescribeSubnetsOutput(
-					fake.TestSubnet{Id: "foo1", Name: "bar1", Az: "baz1", Tags: map[string]string{"kubernetes.io/role/elb": ""}}), nil),
-				DescribeRouteTables: fake.R(fake.MockDescribeRouteTableOutput(
-					fake.TestRouteTable{SubnetID: "foo1", GatewayIds: []string{"igw-foo1"}},
-					fake.TestRouteTable{SubnetID: "mismatch", GatewayIds: []string{"igw-foo2"}, Main: true},
-				), nil),
-			},
-			responsesASG: fake.ASGOutputs{
-				DescribeAutoScalingGroups: fake.R(fake.MockDescribeAutoScalingGroupOutput(map[string]fake.ASGtags{"asg1": {
-					clusterIDTagPrefix + clusterID: "owned",
-				}}), nil),
-				DescribeLoadBalancerTargetGroups: fake.R(&autoscaling.DescribeLoadBalancerTargetGroupsOutput{
-					LoadBalancerTargetGroups: []autoScalingTypes.LoadBalancerTargetGroupState{},
-				}, nil),
-				AttachLoadBalancerTargetGroups: fake.R(nil, nil),
-			},
-			responsesELBv2: fake.ELBv2Outputs{
-				DescribeTargetGroups:  fake.R(fake.MockDescribeTargetGroupsOutput(), nil),
-				DescribeTags:          fake.R(nil, nil),
-				DescribeLoadBalancers: fake.R(fake.MockDescribeLoadBalancersOutput(), nil),
-			},
-			responsesCF: fake.CFOutputs{
-				DescribeStacks: fake.R(fake.MockDescribeStacksOutput(nil), nil),
-				CreateStack:    fake.R(fake.MockCSOutput("42"), nil),
-			},
-			certsProvider: certsProvider,
-		}, {
-			name:   "rg_nlb",
-			typeLB: aws.LoadBalancerTypeNetwork,
-			responsesEC2: fake.EC2Outputs{DescribeInstances: fake.R(fake.MockDescribeInstancesOutput(
-				fake.TestInstance{
-					Id:        "i0",
-					Tags:      fake.Tags{"aws:autoscaling:groupName": "asg1", clusterIDTagPrefix + clusterID: "owned"},
-					PrivateIp: "1.2.3.3",
-					VpcId:     vpcID,
-					State:     running,
-				},
-				fake.TestInstance{
-					Id:        "i1",
-					Tags:      fake.Tags{"aws:autoscaling:groupName": "asg1", clusterIDTagPrefix + clusterID: "owned"},
-					PrivateIp: "1.2.3.4",
-					VpcId:     vpcID,
-					State:     running,
-				},
-				fake.TestInstance{
-					Id:        "i2",
-					Tags:      fake.Tags{"aws:autoscaling:groupName": "asg1", clusterIDTagPrefix + clusterID: "owned"},
-					PrivateIp: "1.2.3.5",
-					VpcId:     vpcID,
-					State:     running,
-				}), nil),
-				DescribeSecurityGroups: fake.R(fake.MockDescribeSecurityGroupsOutput(map[string]string{"id": securityGroupID}), nil),
-				DescribeSubnets: fake.R(fake.MockDescribeSubnetsOutput(
-					fake.TestSubnet{Id: "foo1", Name: "bar1", Az: "baz1", Tags: map[string]string{"kubernetes.io/role/elb": ""}}), nil),
-				DescribeRouteTables: fake.R(fake.MockDescribeRouteTableOutput(
-					fake.TestRouteTable{SubnetID: "foo1", GatewayIds: []string{"igw-foo1"}},
-					fake.TestRouteTable{SubnetID: "mismatch", GatewayIds: []string{"igw-foo2"}, Main: true},
-				), nil),
-			},
-			responsesASG: fake.ASGOutputs{
-				DescribeAutoScalingGroups: fake.R(fake.MockDescribeAutoScalingGroupOutput(map[string]fake.ASGtags{"asg1": {
-					clusterIDTagPrefix + clusterID: "owned",
-				}}), nil),
-				DescribeLoadBalancerTargetGroups: fake.R(&autoscaling.DescribeLoadBalancerTargetGroupsOutput{
-					LoadBalancerTargetGroups: []autoScalingTypes.LoadBalancerTargetGroupState{},
-				}, nil),
-				AttachLoadBalancerTargetGroups: fake.R(nil, nil),
-			},
-			responsesELBv2: fake.ELBv2Outputs{
-				DescribeTargetGroups:  fake.R(fake.MockDescribeTargetGroupsOutput(), nil),
-				DescribeTags:          fake.R(nil, nil),
-				DescribeLoadBalancers: fake.R(fake.MockDescribeLoadBalancersOutput(), nil),
-			},
-			responsesCF: fake.CFOutputs{
-				DescribeStacks: fake.R(fake.MockDescribeStacksOutput(nil), nil),
-				CreateStack:    fake.R(fake.MockCSOutput("42"), nil),
-			},
-			certsProvider: certsProvider,
-		}, {
-			name:   "ing_shared_rg_notshared_alb",
-			typeLB: aws.LoadBalancerTypeApplication,
+			name:          "ingress_alb_dualstack",
+			typeLB:        aws.LoadBalancerTypeApplication,
+			ipAddressType: aws.IPAddressTypeDualstack,
 			responsesEC2: fake.EC2Outputs{DescribeInstances: fake.R(fake.MockDescribeInstancesOutput(
 				fake.TestInstance{
 					Id:        "i0",
@@ -323,8 +170,328 @@ func TestResourceConversionOneToOne(tt *testing.T) {
 			certsProvider: certsProvider,
 		},
 		{
-			name:   "no_certificates",
-			typeLB: aws.LoadBalancerTypeApplication,
+			name:          "ingress_nlb",
+			typeLB:        aws.LoadBalancerTypeNetwork,
+			ipAddressType: aws.IPAddressTypeIPV4,
+			responsesEC2: fake.EC2Outputs{DescribeInstances: fake.R(fake.MockDescribeInstancesOutput(
+				fake.TestInstance{
+					Id:        "i0",
+					Tags:      fake.Tags{"aws:autoscaling:groupName": "asg1", clusterIDTagPrefix + clusterID: "owned"},
+					PrivateIp: "1.2.3.3",
+					VpcId:     vpcID,
+					State:     running,
+				},
+				fake.TestInstance{
+					Id:        "i1",
+					Tags:      fake.Tags{"aws:autoscaling:groupName": "asg1", clusterIDTagPrefix + clusterID: "owned"},
+					PrivateIp: "1.2.3.4",
+					VpcId:     vpcID,
+					State:     running,
+				},
+				fake.TestInstance{
+					Id:        "i2",
+					Tags:      fake.Tags{"aws:autoscaling:groupName": "asg1", clusterIDTagPrefix + clusterID: "owned"},
+					PrivateIp: "1.2.3.5",
+					VpcId:     vpcID,
+					State:     running,
+				}), nil),
+				DescribeSecurityGroups: fake.R(fake.MockDescribeSecurityGroupsOutput(map[string]string{"id": securityGroupID}), nil),
+				DescribeSubnets: fake.R(fake.MockDescribeSubnetsOutput(
+					fake.TestSubnet{Id: "foo1", Name: "bar1", Az: "baz1", Tags: map[string]string{"kubernetes.io/role/elb": ""}}), nil),
+				DescribeRouteTables: fake.R(fake.MockDescribeRouteTableOutput(
+					fake.TestRouteTable{SubnetID: "foo1", GatewayIds: []string{"igw-foo1"}},
+					fake.TestRouteTable{SubnetID: "mismatch", GatewayIds: []string{"igw-foo2"}, Main: true},
+				), nil),
+			},
+			responsesASG: fake.ASGOutputs{
+				DescribeAutoScalingGroups: fake.R(fake.MockDescribeAutoScalingGroupOutput(map[string]fake.ASGtags{"asg1": {
+					clusterIDTagPrefix + clusterID: "owned",
+				}}), nil),
+				DescribeLoadBalancerTargetGroups: fake.R(&autoscaling.DescribeLoadBalancerTargetGroupsOutput{
+					LoadBalancerTargetGroups: []autoScalingTypes.LoadBalancerTargetGroupState{},
+				}, nil),
+				AttachLoadBalancerTargetGroups: fake.R(nil, nil),
+			},
+			responsesELBv2: fake.ELBv2Outputs{
+				DescribeTargetGroups:  fake.R(fake.MockDescribeTargetGroupsOutput(), nil),
+				DescribeTags:          fake.R(nil, nil),
+				DescribeLoadBalancers: fake.R(fake.MockDescribeLoadBalancersOutput(), nil),
+			},
+			responsesCF: fake.CFOutputs{
+				DescribeStacks: fake.R(fake.MockDescribeStacksOutput(nil), nil),
+				CreateStack:    fake.R(fake.MockCSOutput("42"), nil),
+			},
+			certsProvider: certsProvider,
+		}, {
+			name:          "ingress_nlb_dualstack",
+			typeLB:        aws.LoadBalancerTypeNetwork,
+			ipAddressType: aws.IPAddressTypeDualstack,
+			responsesEC2: fake.EC2Outputs{DescribeInstances: fake.R(fake.MockDescribeInstancesOutput(
+				fake.TestInstance{
+					Id:        "i0",
+					Tags:      fake.Tags{"aws:autoscaling:groupName": "asg1", clusterIDTagPrefix + clusterID: "owned"},
+					PrivateIp: "1.2.3.3",
+					VpcId:     vpcID,
+					State:     running,
+				},
+				fake.TestInstance{
+					Id:        "i1",
+					Tags:      fake.Tags{"aws:autoscaling:groupName": "asg1", clusterIDTagPrefix + clusterID: "owned"},
+					PrivateIp: "1.2.3.4",
+					VpcId:     vpcID,
+					State:     running,
+				},
+				fake.TestInstance{
+					Id:        "i2",
+					Tags:      fake.Tags{"aws:autoscaling:groupName": "asg1", clusterIDTagPrefix + clusterID: "owned"},
+					PrivateIp: "1.2.3.5",
+					VpcId:     vpcID,
+					State:     running,
+				}), nil),
+				DescribeSecurityGroups: fake.R(fake.MockDescribeSecurityGroupsOutput(map[string]string{"id": securityGroupID}), nil),
+				DescribeSubnets: fake.R(fake.MockDescribeSubnetsOutput(
+					fake.TestSubnet{Id: "foo1", Name: "bar1", Az: "baz1", Tags: map[string]string{"kubernetes.io/role/elb": ""}}), nil),
+				DescribeRouteTables: fake.R(fake.MockDescribeRouteTableOutput(
+					fake.TestRouteTable{SubnetID: "foo1", GatewayIds: []string{"igw-foo1"}},
+					fake.TestRouteTable{SubnetID: "mismatch", GatewayIds: []string{"igw-foo2"}, Main: true},
+				), nil),
+			},
+			responsesASG: fake.ASGOutputs{
+				DescribeAutoScalingGroups: fake.R(fake.MockDescribeAutoScalingGroupOutput(map[string]fake.ASGtags{"asg1": {
+					clusterIDTagPrefix + clusterID: "owned",
+				}}), nil),
+				DescribeLoadBalancerTargetGroups: fake.R(&autoscaling.DescribeLoadBalancerTargetGroupsOutput{
+					LoadBalancerTargetGroups: []autoScalingTypes.LoadBalancerTargetGroupState{},
+				}, nil),
+				AttachLoadBalancerTargetGroups: fake.R(nil, nil),
+			},
+			responsesELBv2: fake.ELBv2Outputs{
+				DescribeTargetGroups:  fake.R(fake.MockDescribeTargetGroupsOutput(), nil),
+				DescribeTags:          fake.R(nil, nil),
+				DescribeLoadBalancers: fake.R(fake.MockDescribeLoadBalancersOutput(), nil),
+			},
+			responsesCF: fake.CFOutputs{
+				DescribeStacks: fake.R(fake.MockDescribeStacksOutput(nil), nil),
+				CreateStack:    fake.R(fake.MockCSOutput("42"), nil),
+			},
+			certsProvider: certsProvider,
+		}, {
+			name:          "ingress_nlb_dualstack_annotation",
+			typeLB:        aws.LoadBalancerTypeNetwork,
+			ipAddressType: aws.IPAddressTypeIPV4,
+			responsesEC2: fake.EC2Outputs{DescribeInstances: fake.R(fake.MockDescribeInstancesOutput(
+				fake.TestInstance{
+					Id:        "i0",
+					Tags:      fake.Tags{"aws:autoscaling:groupName": "asg1", clusterIDTagPrefix + clusterID: "owned"},
+					PrivateIp: "1.2.3.3",
+					VpcId:     vpcID,
+					State:     running,
+				},
+				fake.TestInstance{
+					Id:        "i1",
+					Tags:      fake.Tags{"aws:autoscaling:groupName": "asg1", clusterIDTagPrefix + clusterID: "owned"},
+					PrivateIp: "1.2.3.4",
+					VpcId:     vpcID,
+					State:     running,
+				},
+				fake.TestInstance{
+					Id:        "i2",
+					Tags:      fake.Tags{"aws:autoscaling:groupName": "asg1", clusterIDTagPrefix + clusterID: "owned"},
+					PrivateIp: "1.2.3.5",
+					VpcId:     vpcID,
+					State:     running,
+				}), nil),
+				DescribeSecurityGroups: fake.R(fake.MockDescribeSecurityGroupsOutput(map[string]string{"id": securityGroupID}), nil),
+				DescribeSubnets: fake.R(fake.MockDescribeSubnetsOutput(
+					fake.TestSubnet{Id: "foo1", Name: "bar1", Az: "baz1", Tags: map[string]string{"kubernetes.io/role/elb": ""}}), nil),
+				DescribeRouteTables: fake.R(fake.MockDescribeRouteTableOutput(
+					fake.TestRouteTable{SubnetID: "foo1", GatewayIds: []string{"igw-foo1"}},
+					fake.TestRouteTable{SubnetID: "mismatch", GatewayIds: []string{"igw-foo2"}, Main: true},
+				), nil),
+			},
+			responsesASG: fake.ASGOutputs{
+				DescribeAutoScalingGroups: fake.R(fake.MockDescribeAutoScalingGroupOutput(map[string]fake.ASGtags{"asg1": {
+					clusterIDTagPrefix + clusterID: "owned",
+				}}), nil),
+				DescribeLoadBalancerTargetGroups: fake.R(&autoscaling.DescribeLoadBalancerTargetGroupsOutput{
+					LoadBalancerTargetGroups: []autoScalingTypes.LoadBalancerTargetGroupState{},
+				}, nil),
+				AttachLoadBalancerTargetGroups: fake.R(nil, nil),
+			},
+			responsesELBv2: fake.ELBv2Outputs{
+				DescribeTargetGroups:  fake.R(fake.MockDescribeTargetGroupsOutput(), nil),
+				DescribeTags:          fake.R(nil, nil),
+				DescribeLoadBalancers: fake.R(fake.MockDescribeLoadBalancersOutput(), nil),
+			},
+			responsesCF: fake.CFOutputs{
+				DescribeStacks: fake.R(fake.MockDescribeStacksOutput(nil), nil),
+				CreateStack:    fake.R(fake.MockCSOutput("42"), nil),
+			},
+			certsProvider: certsProvider,
+		}, {
+			name:          "rg_alb",
+			typeLB:        aws.LoadBalancerTypeApplication,
+			ipAddressType: aws.IPAddressTypeIPV4,
+			responsesEC2: fake.EC2Outputs{DescribeInstances: fake.R(fake.MockDescribeInstancesOutput(
+				fake.TestInstance{
+					Id:        "i0",
+					Tags:      fake.Tags{"aws:autoscaling:groupName": "asg1", clusterIDTagPrefix + clusterID: "owned"},
+					PrivateIp: "1.2.3.3",
+					VpcId:     vpcID,
+					State:     running,
+				},
+				fake.TestInstance{
+					Id:        "i1",
+					Tags:      fake.Tags{"aws:autoscaling:groupName": "asg1", clusterIDTagPrefix + clusterID: "owned"},
+					PrivateIp: "1.2.3.4",
+					VpcId:     vpcID,
+					State:     running,
+				},
+				fake.TestInstance{
+					Id:        "i2",
+					Tags:      fake.Tags{"aws:autoscaling:groupName": "asg1", clusterIDTagPrefix + clusterID: "owned"},
+					PrivateIp: "1.2.3.5",
+					VpcId:     vpcID,
+					State:     running,
+				}), nil),
+				DescribeSecurityGroups: fake.R(fake.MockDescribeSecurityGroupsOutput(map[string]string{"id": securityGroupID}), nil),
+				DescribeSubnets: fake.R(fake.MockDescribeSubnetsOutput(
+					fake.TestSubnet{Id: "foo1", Name: "bar1", Az: "baz1", Tags: map[string]string{"kubernetes.io/role/elb": ""}}), nil),
+				DescribeRouteTables: fake.R(fake.MockDescribeRouteTableOutput(
+					fake.TestRouteTable{SubnetID: "foo1", GatewayIds: []string{"igw-foo1"}},
+					fake.TestRouteTable{SubnetID: "mismatch", GatewayIds: []string{"igw-foo2"}, Main: true},
+				), nil),
+			},
+			responsesASG: fake.ASGOutputs{
+				DescribeAutoScalingGroups: fake.R(fake.MockDescribeAutoScalingGroupOutput(map[string]fake.ASGtags{"asg1": {
+					clusterIDTagPrefix + clusterID: "owned",
+				}}), nil),
+				DescribeLoadBalancerTargetGroups: fake.R(&autoscaling.DescribeLoadBalancerTargetGroupsOutput{
+					LoadBalancerTargetGroups: []autoScalingTypes.LoadBalancerTargetGroupState{},
+				}, nil),
+				AttachLoadBalancerTargetGroups: fake.R(nil, nil),
+			},
+			responsesELBv2: fake.ELBv2Outputs{
+				DescribeTargetGroups:  fake.R(fake.MockDescribeTargetGroupsOutput(), nil),
+				DescribeTags:          fake.R(nil, nil),
+				DescribeLoadBalancers: fake.R(fake.MockDescribeLoadBalancersOutput(), nil),
+			},
+			responsesCF: fake.CFOutputs{
+				DescribeStacks: fake.R(fake.MockDescribeStacksOutput(nil), nil),
+				CreateStack:    fake.R(fake.MockCSOutput("42"), nil),
+			},
+			certsProvider: certsProvider,
+		}, {
+			name:          "rg_nlb",
+			typeLB:        aws.LoadBalancerTypeNetwork,
+			ipAddressType: aws.IPAddressTypeIPV4,
+			responsesEC2: fake.EC2Outputs{DescribeInstances: fake.R(fake.MockDescribeInstancesOutput(
+				fake.TestInstance{
+					Id:        "i0",
+					Tags:      fake.Tags{"aws:autoscaling:groupName": "asg1", clusterIDTagPrefix + clusterID: "owned"},
+					PrivateIp: "1.2.3.3",
+					VpcId:     vpcID,
+					State:     running,
+				},
+				fake.TestInstance{
+					Id:        "i1",
+					Tags:      fake.Tags{"aws:autoscaling:groupName": "asg1", clusterIDTagPrefix + clusterID: "owned"},
+					PrivateIp: "1.2.3.4",
+					VpcId:     vpcID,
+					State:     running,
+				},
+				fake.TestInstance{
+					Id:        "i2",
+					Tags:      fake.Tags{"aws:autoscaling:groupName": "asg1", clusterIDTagPrefix + clusterID: "owned"},
+					PrivateIp: "1.2.3.5",
+					VpcId:     vpcID,
+					State:     running,
+				}), nil),
+				DescribeSecurityGroups: fake.R(fake.MockDescribeSecurityGroupsOutput(map[string]string{"id": securityGroupID}), nil),
+				DescribeSubnets: fake.R(fake.MockDescribeSubnetsOutput(
+					fake.TestSubnet{Id: "foo1", Name: "bar1", Az: "baz1", Tags: map[string]string{"kubernetes.io/role/elb": ""}}), nil),
+				DescribeRouteTables: fake.R(fake.MockDescribeRouteTableOutput(
+					fake.TestRouteTable{SubnetID: "foo1", GatewayIds: []string{"igw-foo1"}},
+					fake.TestRouteTable{SubnetID: "mismatch", GatewayIds: []string{"igw-foo2"}, Main: true},
+				), nil),
+			},
+			responsesASG: fake.ASGOutputs{
+				DescribeAutoScalingGroups: fake.R(fake.MockDescribeAutoScalingGroupOutput(map[string]fake.ASGtags{"asg1": {
+					clusterIDTagPrefix + clusterID: "owned",
+				}}), nil),
+				DescribeLoadBalancerTargetGroups: fake.R(&autoscaling.DescribeLoadBalancerTargetGroupsOutput{
+					LoadBalancerTargetGroups: []autoScalingTypes.LoadBalancerTargetGroupState{},
+				}, nil),
+				AttachLoadBalancerTargetGroups: fake.R(nil, nil),
+			},
+			responsesELBv2: fake.ELBv2Outputs{
+				DescribeTargetGroups:  fake.R(fake.MockDescribeTargetGroupsOutput(), nil),
+				DescribeTags:          fake.R(nil, nil),
+				DescribeLoadBalancers: fake.R(fake.MockDescribeLoadBalancersOutput(), nil),
+			},
+			responsesCF: fake.CFOutputs{
+				DescribeStacks: fake.R(fake.MockDescribeStacksOutput(nil), nil),
+				CreateStack:    fake.R(fake.MockCSOutput("42"), nil),
+			},
+			certsProvider: certsProvider,
+		}, {
+			name:          "ing_shared_rg_notshared_alb",
+			typeLB:        aws.LoadBalancerTypeApplication,
+			ipAddressType: aws.IPAddressTypeIPV4,
+			responsesEC2: fake.EC2Outputs{DescribeInstances: fake.R(fake.MockDescribeInstancesOutput(
+				fake.TestInstance{
+					Id:        "i0",
+					Tags:      fake.Tags{"aws:autoscaling:groupName": "asg1", clusterIDTagPrefix + clusterID: "owned"},
+					PrivateIp: "1.2.3.3",
+					VpcId:     vpcID,
+					State:     running,
+				},
+				fake.TestInstance{
+					Id:        "i1",
+					Tags:      fake.Tags{"aws:autoscaling:groupName": "asg1", clusterIDTagPrefix + clusterID: "owned"},
+					PrivateIp: "1.2.3.4",
+					VpcId:     vpcID,
+					State:     running,
+				},
+				fake.TestInstance{
+					Id:        "i2",
+					Tags:      fake.Tags{"aws:autoscaling:groupName": "asg1", clusterIDTagPrefix + clusterID: "owned"},
+					PrivateIp: "1.2.3.5",
+					VpcId:     vpcID,
+					State:     running,
+				}), nil),
+				DescribeSecurityGroups: fake.R(fake.MockDescribeSecurityGroupsOutput(map[string]string{"id": securityGroupID}), nil),
+				DescribeSubnets: fake.R(fake.MockDescribeSubnetsOutput(
+					fake.TestSubnet{Id: "foo1", Name: "bar1", Az: "baz1", Tags: map[string]string{"kubernetes.io/role/elb": ""}}), nil),
+				DescribeRouteTables: fake.R(fake.MockDescribeRouteTableOutput(
+					fake.TestRouteTable{SubnetID: "foo1", GatewayIds: []string{"igw-foo1"}},
+					fake.TestRouteTable{SubnetID: "mismatch", GatewayIds: []string{"igw-foo2"}, Main: true},
+				), nil),
+			},
+			responsesASG: fake.ASGOutputs{
+				DescribeAutoScalingGroups: fake.R(fake.MockDescribeAutoScalingGroupOutput(map[string]fake.ASGtags{"asg1": {
+					clusterIDTagPrefix + clusterID: "owned",
+				}}), nil),
+				DescribeLoadBalancerTargetGroups: fake.R(&autoscaling.DescribeLoadBalancerTargetGroupsOutput{
+					LoadBalancerTargetGroups: []autoScalingTypes.LoadBalancerTargetGroupState{},
+				}, nil),
+				AttachLoadBalancerTargetGroups: fake.R(nil, nil),
+			},
+			responsesELBv2: fake.ELBv2Outputs{
+				DescribeTargetGroups:  fake.R(fake.MockDescribeTargetGroupsOutput(), nil),
+				DescribeTags:          fake.R(nil, nil),
+				DescribeLoadBalancers: fake.R(fake.MockDescribeLoadBalancersOutput(), nil),
+			},
+			responsesCF: fake.CFOutputs{
+				DescribeStacks: fake.R(fake.MockDescribeStacksOutput(nil), nil),
+				CreateStack:    fake.R(fake.MockCSOutput("42"), nil),
+			},
+			certsProvider: certsProvider,
+		},
+		{
+			name:          "no_certificates",
+			typeLB:        aws.LoadBalancerTypeApplication,
+			ipAddressType: aws.IPAddressTypeIPV4,
 			responsesEC2: fake.EC2Outputs{DescribeInstances: fake.R(fake.MockDescribeInstancesOutput(
 				fake.TestInstance{
 					Id:        "i0",
@@ -366,8 +533,9 @@ func TestResourceConversionOneToOne(tt *testing.T) {
 			problems: []string{"failed to get certificates: something went wrong"},
 		},
 		{
-			name:   "no_certificates",
-			typeLB: aws.LoadBalancerTypeApplication,
+			name:          "no_certificates",
+			typeLB:        aws.LoadBalancerTypeApplication,
+			ipAddressType: aws.IPAddressTypeIPV4,
 			responsesEC2: fake.EC2Outputs{DescribeInstances: fake.R(fake.MockDescribeInstancesOutput(
 				fake.TestInstance{
 					Id:        "i0",
@@ -424,6 +592,7 @@ func TestResourceConversionOneToOne(tt *testing.T) {
 				WithCustomEc2Client(clientEC2).
 				WithCustomElbv2Client(clientELBv2).
 				WithCustomCloudFormationClient(clientCF).
+				WithIpAddressType(scenario.ipAddressType).
 				WithNLBZoneAffinity(aws.DefaultZoneAffinity)
 
 			a, err = a.UpdateManifest(ctx, clusterID, vpcID)
@@ -469,7 +638,7 @@ func TestResourceConversionOneToOne(tt *testing.T) {
 				sslPolicy,
 				scenario.typeLB,
 				clusterLocalDomain,
-				aws.DefaultIpAddressType,
+				scenario.ipAddressType,
 				true)
 			if err != nil {
 				t.Fatal(err)

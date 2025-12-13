@@ -260,6 +260,74 @@ func TestNewIngressFromKube(tt *testing.T) {
 			},
 		},
 		{
+			msg:                     "test NLB with dualstack ip annotation",
+			defaultLoadBalancerType: aws.LoadBalancerTypeNetwork,
+			ingress: &Ingress{
+				ResourceType:     TypeIngress,
+				Namespace:        "default",
+				Name:             "foo",
+				Hostname:         "bar",
+				Scheme:           "internet-facing",
+				Shared:           true,
+				HTTP2:            true,
+				ClusterLocal:     true,
+				SSLPolicy:        testSSLPolicy,
+				IPAddressType:    aws.IPAddressTypeDualstack,
+				LoadBalancerType: aws.LoadBalancerTypeNetwork,
+				SecurityGroup:    testIngressDefaultSecurityGroup,
+			},
+			kubeIngress: &ingress{
+				Metadata: kubeItemMetadata{
+					Namespace: "default",
+					Name:      "foo",
+					Annotations: map[string]string{
+						ingressALBIPAddressType: aws.IPAddressTypeDualstack,
+					},
+				},
+				Status: ingressStatus{
+					LoadBalancer: ingressLoadBalancerStatus{
+						Ingress: []ingressLoadBalancer{
+							{Hostname: "bar"},
+						},
+					},
+				},
+			},
+		},
+		{
+			msg:                     "test ALB with dualstack ip annotation",
+			defaultLoadBalancerType: aws.LoadBalancerTypeApplication,
+			ingress: &Ingress{
+				ResourceType:     TypeIngress,
+				Namespace:        "default",
+				Name:             "foo",
+				Hostname:         "bar",
+				Scheme:           "internet-facing",
+				Shared:           true,
+				HTTP2:            true,
+				ClusterLocal:     true,
+				SSLPolicy:        testSSLPolicy,
+				IPAddressType:    aws.IPAddressTypeDualstack,
+				LoadBalancerType: aws.LoadBalancerTypeApplication,
+				SecurityGroup:    testIngressDefaultSecurityGroup,
+			},
+			kubeIngress: &ingress{
+				Metadata: kubeItemMetadata{
+					Namespace: "default",
+					Name:      "foo",
+					Annotations: map[string]string{
+						ingressALBIPAddressType: aws.IPAddressTypeDualstack,
+					},
+				},
+				Status: ingressStatus{
+					LoadBalancer: ingressLoadBalancerStatus{
+						Ingress: []ingressLoadBalancer{
+							{Hostname: "bar"},
+						},
+					},
+				},
+			},
+		},
+		{
 			msg:                     "test default NLB with security group fallbacks to ALB",
 			defaultLoadBalancerType: aws.LoadBalancerTypeNetwork,
 			ingress: &Ingress{

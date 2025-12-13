@@ -202,10 +202,7 @@ func (a *Adapter) newIngress(typ IngressType, metadata kubeItemMetadata, host st
 		shared = false
 	}
 
-	ipAddressType := a.ingressIpAddressType
-	if getAnnotationsString(annotations, ingressALBIPAddressType, "") == aws.IPAddressTypeDualstack {
-		ipAddressType = aws.IPAddressTypeDualstack
-	}
+	ipAddressType := getAnnotationsString(annotations, ingressALBIPAddressType, a.ingressIpAddressType)
 
 	sslPolicy := getAnnotationsString(annotations, ingressSSLPolicyAnnotation, a.ingressDefaultSSLPolicy)
 	if _, ok := aws.SSLPolicies[sslPolicy]; !ok {
