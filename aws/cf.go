@@ -21,23 +21,24 @@ const (
 
 // Stack is a simple wrapper around a CloudFormation Stack.
 type Stack struct {
-	Name              string
-	status            types.StackStatus
-	statusReason      string
-	LoadBalancerARN   string
-	DNSName           string
-	Scheme            string
-	SecurityGroup     string
-	SSLPolicy         string
-	IpAddressType     string
-	LoadBalancerType  string
-	HTTP2             bool
-	OwnerIngress      string
-	CWAlarmConfigHash string
-	TargetGroupARNs   []string
-	WAFWebACLID       string
-	CertificateARNs   map[string]time.Time
-	tags              map[string]string
+	Name                     string
+	status                   types.StackStatus
+	statusReason             string
+	LoadBalancerARN          string
+	DNSName                  string
+	Scheme                   string
+	SecurityGroup            string
+	SSLPolicy                string
+	IpAddressType            string
+	LoadBalancerType         string
+	HTTP2                    bool
+	OwnerIngress             string
+	CWAlarmConfigHash        string
+	TargetGroupARNs          []string
+	WAFWebACLID              string
+	CertificateARNs          map[string]time.Time
+	tags                     map[string]string
+	targetGroupIPAddressType string
 }
 
 // IsComplete returns true if the stack status is a complete state.
@@ -151,6 +152,7 @@ const (
 	parameterTargetGroupTargetPortParameter          = "TargetGroupTargetPortParameter"
 	parameterTargetGroupHTTPTargetPortParameter      = "TargetGroupHTTPTargetPortParameter"
 	parameterTargetGroupVPCIDParameter               = "TargetGroupVPCIDParameter"
+	parameterTargetGroupIPAddressTypeParameter       = "TargetGroupIPAddressTypeParameter"
 	parameterListenerSslPolicyParameter              = "ListenerSslPolicyParameter"
 	parameterIpAddressTypeParameter                  = "IpAddressType"
 	parameterLoadBalancerTypeParameter               = "Type"
@@ -183,6 +185,7 @@ type stackSpec struct {
 	controllerID                      string
 	sslPolicy                         string
 	ipAddressType                     string
+	targetGroupIPAddressType          string
 	loadbalancerType                  string
 	albLogsS3Bucket                   string
 	albLogsS3Prefix                   string
@@ -241,6 +244,7 @@ func createStack(ctx context.Context, svc CloudFormationAPI, spec *stackSpec) (s
 			cfParam(parameterLoadBalancerSubnetsParameter, strings.Join(spec.subnets, ",")),
 			cfParam(parameterTargetGroupVPCIDParameter, spec.vpcID),
 			cfParam(parameterTargetGroupTargetPortParameter, fmt.Sprintf("%d", spec.targetPort)),
+			cfParam(parameterTargetGroupIPAddressTypeParameter, spec.targetGroupIPAddressType),
 			cfParam(parameterListenerSslPolicyParameter, spec.sslPolicy),
 			cfParam(parameterIpAddressTypeParameter, spec.ipAddressType),
 			cfParam(parameterLoadBalancerTypeParameter, spec.loadbalancerType),
@@ -317,6 +321,7 @@ func updateStack(ctx context.Context, svc CloudFormationAPI, spec *stackSpec) (s
 			cfParam(parameterTargetGroupVPCIDParameter, spec.vpcID),
 			cfParam(parameterTargetGroupTargetPortParameter, fmt.Sprintf("%d", spec.targetPort)),
 			cfParam(parameterListenerSslPolicyParameter, spec.sslPolicy),
+			cfParam(parameterTargetGroupIPAddressTypeParameter, spec.targetGroupIPAddressType),
 			cfParam(parameterIpAddressTypeParameter, spec.ipAddressType),
 			cfParam(parameterLoadBalancerTypeParameter, spec.loadbalancerType),
 			cfParam(parameterHTTP2Parameter, fmt.Sprintf("%t", spec.http2)),
@@ -490,24 +495,30 @@ func mapToManagedStack(stack *types.Stack) *Stack {
 		http2 = false
 	}
 
+	targetGroupIPAddressType := parameters[parameterTargetGroupIPAddressTypeParameter]
+	if targetGroupIPAddressType == "" {
+		targetGroupIPAddressType = DefaultTargetGroupIPAddressType
+	}
+
 	return &Stack{
-		Name:              aws.ToString(stack.StackName),
-		LoadBalancerARN:   outputs.loadBalancerARN(),
-		DNSName:           outputs.dnsName(),
-		TargetGroupARNs:   outputs.targetGroupARNs(),
-		Scheme:            parameters[parameterLoadBalancerSchemeParameter],
-		SecurityGroup:     parameters[parameterLoadBalancerSecurityGroupParameter],
-		SSLPolicy:         parameters[parameterListenerSslPolicyParameter],
-		IpAddressType:     parameters[parameterIpAddressTypeParameter],
-		LoadBalancerType:  parameters[parameterLoadBalancerTypeParameter],
-		HTTP2:             http2,
-		CertificateARNs:   certificateARNs,
-		tags:              tags,
-		OwnerIngress:      ownerIngress,
-		status:            stack.StackStatus,
-		statusReason:      aws.ToString(stack.StackStatusReason),
-		CWAlarmConfigHash: tags[cwAlarmConfigHashTag],
-		WAFWebACLID:       parameters[parameterLoadBalancerWAFWebACLIDParameter],
+		Name:                     aws.ToString(stack.StackName),
+		LoadBalancerARN:          outputs.loadBalancerARN(),
+		DNSName:                  outputs.dnsName(),
+		TargetGroupARNs:          outputs.targetGroupARNs(),
+		Scheme:                   parameters[parameterLoadBalancerSchemeParameter],
+		SecurityGroup:            parameters[parameterLoadBalancerSecurityGroupParameter],
+		SSLPolicy:                parameters[parameterListenerSslPolicyParameter],
+		IpAddressType:            parameters[parameterIpAddressTypeParameter],
+		LoadBalancerType:         parameters[parameterLoadBalancerTypeParameter],
+		HTTP2:                    http2,
+		CertificateARNs:          certificateARNs,
+		tags:                     tags,
+		OwnerIngress:             ownerIngress,
+		status:                   stack.StackStatus,
+		statusReason:             aws.ToString(stack.StackStatusReason),
+		CWAlarmConfigHash:        tags[cwAlarmConfigHashTag],
+		WAFWebACLID:              parameters[parameterLoadBalancerWAFWebACLIDParameter],
+		targetGroupIPAddressType: targetGroupIPAddressType,
 	}
 }
 

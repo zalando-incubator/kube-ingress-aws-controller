@@ -478,7 +478,8 @@ func TestFindManagedStacks(t *testing.T) {
 					CertificateARNs: map[string]time.Time{
 						"cert-arn": {},
 					},
-					TargetGroupARNs: []string{"tg-arn"},
+					TargetGroupARNs:          []string{"tg-arn"},
+					targetGroupIPAddressType: DefaultTargetGroupIPAddressType,
 					tags: map[string]string{
 						kubernetesCreatorTag:                 DefaultControllerID,
 						clusterIDTagPrefix + "test-cluster":  resourceLifecycleOwned,
@@ -493,7 +494,8 @@ func TestFindManagedStacks(t *testing.T) {
 					CertificateARNs: map[string]time.Time{
 						"cert-arn": {},
 					},
-					TargetGroupARNs: []string{"tg-arn"},
+					TargetGroupARNs:          []string{"tg-arn"},
+					targetGroupIPAddressType: DefaultTargetGroupIPAddressType,
 					tags: map[string]string{
 						kubernetesCreatorTag:                 DefaultControllerID,
 						clusterIDTagPrefix + "test-cluster":  resourceLifecycleOwned,
@@ -508,7 +510,8 @@ func TestFindManagedStacks(t *testing.T) {
 					CertificateARNs: map[string]time.Time{
 						"cert-arn": {},
 					},
-					TargetGroupARNs: []string{"tg-arn", "http-tg-arn"},
+					TargetGroupARNs:          []string{"tg-arn", "http-tg-arn"},
+					targetGroupIPAddressType: DefaultTargetGroupIPAddressType,
 					tags: map[string]string{
 						kubernetesCreatorTag:                 DefaultControllerID,
 						clusterIDTagPrefix + "test-cluster":  resourceLifecycleOwned,
@@ -518,8 +521,9 @@ func TestFindManagedStacks(t *testing.T) {
 					HTTP2:  true,
 				},
 				{
-					Name:            "managed-stack-not-ready",
-					CertificateARNs: map[string]time.Time{},
+					Name:                     "managed-stack-not-ready",
+					CertificateARNs:          map[string]time.Time{},
+					targetGroupIPAddressType: DefaultTargetGroupIPAddressType,
 					tags: map[string]string{
 						kubernetesCreatorTag:                DefaultControllerID,
 						clusterIDTagPrefix + "test-cluster": resourceLifecycleOwned,
@@ -554,6 +558,7 @@ func TestFindManagedStacks(t *testing.T) {
 					CertificateARNs: map[string]time.Time{
 						"cert-arn": {},
 					},
+					targetGroupIPAddressType: DefaultTargetGroupIPAddressType,
 					tags: map[string]string{
 						kubernetesCreatorTag:                 DefaultControllerID,
 						clusterIDTagPrefix + "test-cluster":  resourceLifecycleOwned,
@@ -598,10 +603,11 @@ func TestFindManagedStacks(t *testing.T) {
 			},
 			want: []*Stack{
 				{
-					Name:            "managed-stack-not-ready",
-					DNSName:         "example-notready.com",
-					TargetGroupARNs: []string{"tg-arn"},
-					CertificateARNs: map[string]time.Time{},
+					Name:                     "managed-stack-not-ready",
+					DNSName:                  "example-notready.com",
+					TargetGroupARNs:          []string{"tg-arn"},
+					CertificateARNs:          map[string]time.Time{},
+					targetGroupIPAddressType: DefaultTargetGroupIPAddressType,
 					tags: map[string]string{
 						kubernetesCreatorTag:                DefaultControllerID,
 						clusterIDTagPrefix + "test-cluster": resourceLifecycleOwned,
@@ -610,10 +616,11 @@ func TestFindManagedStacks(t *testing.T) {
 					HTTP2:  true,
 				},
 				{
-					Name:            "managed-stack",
-					DNSName:         "example.com",
-					TargetGroupARNs: []string{"tg-arn"},
-					CertificateARNs: map[string]time.Time{},
+					Name:                     "managed-stack",
+					DNSName:                  "example.com",
+					TargetGroupARNs:          []string{"tg-arn"},
+					CertificateARNs:          map[string]time.Time{},
+					targetGroupIPAddressType: DefaultTargetGroupIPAddressType,
 					tags: map[string]string{
 						kubernetesCreatorTag:                DefaultControllerID,
 						clusterIDTagPrefix + "test-cluster": resourceLifecycleOwned,
@@ -686,12 +693,11 @@ func TestGetStack(t *testing.T) {
 				}, nil),
 			},
 			want: &Stack{
-				Name:    "managed-stack",
-				DNSName: "example.com",
-				CertificateARNs: map[string]time.Time{
-					"cert-arn": {},
-				},
-				TargetGroupARNs: []string{"tg-arn"},
+				Name:                     "managed-stack",
+				DNSName:                  "example.com",
+				CertificateARNs:          map[string]time.Time{"cert-arn": {}},
+				TargetGroupARNs:          []string{"tg-arn"},
+				targetGroupIPAddressType: DefaultTargetGroupIPAddressType,
 				tags: map[string]string{
 					kubernetesCreatorTag:                 DefaultControllerID,
 					clusterIDTagPrefix + "test-cluster":  resourceLifecycleOwned,
@@ -725,12 +731,11 @@ func TestGetStack(t *testing.T) {
 				}, nil),
 			},
 			want: &Stack{
-				Name:    "managed-stack",
-				DNSName: "example.com",
-				CertificateARNs: map[string]time.Time{
-					"cert-arn": {},
-				},
-				TargetGroupARNs: []string{"tg-arn", "tg-http-arn"},
+				Name:                     "managed-stack",
+				DNSName:                  "example.com",
+				CertificateARNs:          map[string]time.Time{"cert-arn": {}},
+				TargetGroupARNs:          []string{"tg-arn", "tg-http-arn"},
+				targetGroupIPAddressType: DefaultTargetGroupIPAddressType,
 				tags: map[string]string{
 					kubernetesCreatorTag:                 DefaultControllerID,
 					clusterIDTagPrefix + "test-cluster":  resourceLifecycleOwned,

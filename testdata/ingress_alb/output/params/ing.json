@@ -24,6 +24,10 @@
     "parameterValue": "ELBSecurityPolicy-2016-08"
   },
   {
+    "parameterKey": "TargetGroupIPAddressTypeParameter",
+    "parameterValue": "ipv4"
+  },
+  {
     "parameterKey": "IpAddressType",
     "parameterValue": "ipv4"
   },

@@ -593,6 +593,7 @@ func TestResourceConversionOneToOne(tt *testing.T) {
 				WithCustomElbv2Client(clientELBv2).
 				WithCustomCloudFormationClient(clientCF).
 				WithIpAddressType(scenario.ipAddressType).
+				WithTargetGroupIPAddressType(aws.DefaultTargetGroupIPAddressType).
 				WithNLBZoneAffinity(aws.DefaultZoneAffinity)
 
 			a, err = a.UpdateManifest(ctx, clusterID, vpcID)
