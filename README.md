@@ -43,6 +43,10 @@ This information is used to manage AWS resources for each ingress objects of the
 
 ## Upgrade
 
+### <v0.18.14 to >=v0.18.14
+
+Version `v0.18.14` adds support for IPv6 target group IP address type. When using IPv6 targets, ensure your load balancer is configured as dualstack (`--ip-addr-type=dualstack` or `alb.ingress.kubernetes.io/ip-address-type: dualstack`). IPv4-only load balancers cannot route to IPv6 targets and will fail with a clear error message.
+
 ### <v0.18.0 to >=v0.18.0
 
 Version `v0.18.0` vendors-in https://github.com/mweagle/go-cloudformation library to enable addition of missing CloudFormation features.
