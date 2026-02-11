@@ -641,7 +641,7 @@ func TestResourceConversionOneToOne(tt *testing.T) {
 				CreateStack:    fake.R(fake.MockCSOutput("42"), nil),
 			},
 			certsProvider: certsProvider,
-			problems:      []string{"failed to create stack [\"DUMMY\"]: invalid TargetGroupIPAddressType 'ipv6' defined for IPAddressType 'ipv4'"},
+			problems:      []string{"failed to create stack [\"DUMMY\"]: cannot use ipv6 target group with ipv4 load balancer; use dualstack load balancer for IPv6 targets"},
 		},
 		{
 			name:                     "ingress_alb_dualstack_ipv6_tg",
@@ -752,7 +752,7 @@ func TestResourceConversionOneToOne(tt *testing.T) {
 				CreateStack:    fake.R(fake.MockCSOutput("42"), nil),
 			},
 			certsProvider: certsProvider,
-			problems:      []string{"failed to create stack [\"DUMMY\"]: invalid TargetGroupIPAddressType 'ipv6' defined for IPAddressType 'ipv4'"},
+			problems:      []string{"failed to create stack [\"DUMMY\"]: cannot use ipv6 target group with ipv4 load balancer; use dualstack load balancer for IPv6 targets"},
 		},
 		{
 			name:                     "ingress_nlb_dualstack_ipv6_tg",
