@@ -141,7 +141,7 @@ const (
 	LoadBalancerTypeApplication = "application"
 	LoadBalancerTypeNetwork     = "network"
 	IPAddressTypeIPV4           = "ipv4"
-	IPAddressTypeIPv6           = "ipv6"
+	IPAddressTypeIPV6           = "ipv6"
 	IPAddressTypeDualstack      = "dualstack"
 
 	TargetAccessModeAWSCNI   = "AWSCNI"
@@ -450,7 +450,7 @@ func (a *Adapter) WithIpAddressType(ipAddressType string) *Adapter {
 // WithTargetGroupIPAddressType returns the receiver with ipv4 or ipv6 configuration for target groups, defaults to ipv4.
 func (a *Adapter) WithTargetGroupIPAddressType(ipAddressType string) *Adapter {
 	switch ipAddressType {
-	case IPAddressTypeIPV4, IPAddressTypeIPv6:
+	case IPAddressTypeIPV4, IPAddressTypeIPV6:
 		a.targetGroupIPAddressType = ipAddressType
 	}
 	return a
@@ -798,7 +798,7 @@ func (a *Adapter) CreateStack(ctx context.Context, certificateARNs []string, sch
 		return "", fmt.Errorf("invalid SSLPolicy '%s' defined", sslPolicy)
 	}
 
-	if ipAddressType == IPAddressTypeIPV4 && a.targetGroupIPAddressType == IPAddressTypeIPv6 {
+	if ipAddressType == IPAddressTypeIPV4 && a.targetGroupIPAddressType == IPAddressTypeIPV6 {
 		return "", fmt.Errorf("invalid TargetGroupIPAddressType '%s' defined for IPAddressType '%s'", a.targetGroupIPAddressType, ipAddressType)
 	}
 
@@ -860,7 +860,7 @@ func (a *Adapter) UpdateStack(ctx context.Context, stackName string, certificate
 		return "", fmt.Errorf("invalid SSLPolicy '%s' defined", sslPolicy)
 	}
 
-	if ipAddressType == IPAddressTypeIPV4 && a.targetGroupIPAddressType == IPAddressTypeIPv6 {
+	if ipAddressType == IPAddressTypeIPV4 && a.targetGroupIPAddressType == IPAddressTypeIPV6 {
 		return "", fmt.Errorf("invalid TargetGroupIPAddressType '%s' defined for IPAddressType '%s'", a.targetGroupIPAddressType, ipAddressType)
 	}
 

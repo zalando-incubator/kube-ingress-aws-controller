@@ -381,14 +381,14 @@ func TestConvertStackParameters(t *testing.T) {
 		{"with-ipv6-target-group", []types.Parameter{
 			{
 				ParameterKey:   aws.String(parameterTargetGroupIPAddressTypeParameter),
-				ParameterValue: aws.String(IPAddressTypeIPv6),
+				ParameterValue: aws.String(IPAddressTypeIPV6),
 			},
 			{
 				ParameterKey:   aws.String("LoadBalancerSchemeParameter"),
 				ParameterValue: aws.String("internet-facing"),
 			},
 		}, map[string]string{
-			parameterTargetGroupIPAddressTypeParameter: IPAddressTypeIPv6,
+			parameterTargetGroupIPAddressTypeParameter: IPAddressTypeIPV6,
 			"LoadBalancerSchemeParameter":              "internet-facing",
 		}},
 	} {
@@ -678,7 +678,7 @@ func TestFindManagedStacks(t *testing.T) {
 								{OutputKey: aws.String(outputTargetGroupARN), OutputValue: aws.String("tg-ipv6-arn")},
 							},
 							Parameters: []types.Parameter{
-								{ParameterKey: aws.String(parameterTargetGroupIPAddressTypeParameter), ParameterValue: aws.String(IPAddressTypeIPv6)},
+								{ParameterKey: aws.String(parameterTargetGroupIPAddressTypeParameter), ParameterValue: aws.String(IPAddressTypeIPV6)},
 							},
 						},
 					},
@@ -692,7 +692,7 @@ func TestFindManagedStacks(t *testing.T) {
 						"cert-arn": {},
 					},
 					TargetGroupARNs:          []string{"tg-ipv6-arn"},
-					targetGroupIPAddressType: IPAddressTypeIPv6,
+					targetGroupIPAddressType: IPAddressTypeIPV6,
 					tags: map[string]string{
 						kubernetesCreatorTag:                 DefaultControllerID,
 						clusterIDTagPrefix + "test-cluster":  resourceLifecycleOwned,
@@ -847,7 +847,7 @@ func TestGetStack(t *testing.T) {
 								{OutputKey: aws.String(outputTargetGroupARN), OutputValue: aws.String("tg-ipv6-arn")},
 							},
 							Parameters: []types.Parameter{
-								{ParameterKey: aws.String(parameterTargetGroupIPAddressTypeParameter), ParameterValue: aws.String(IPAddressTypeIPv6)},
+								{ParameterKey: aws.String(parameterTargetGroupIPAddressTypeParameter), ParameterValue: aws.String(IPAddressTypeIPV6)},
 							},
 						},
 					},
@@ -858,7 +858,7 @@ func TestGetStack(t *testing.T) {
 				DNSName:                  "example-ipv6.com",
 				CertificateARNs:          map[string]time.Time{"cert-arn": {}},
 				TargetGroupARNs:          []string{"tg-ipv6-arn"},
-				targetGroupIPAddressType: IPAddressTypeIPv6,
+				targetGroupIPAddressType: IPAddressTypeIPV6,
 				tags: map[string]string{
 					kubernetesCreatorTag:                 DefaultControllerID,
 					clusterIDTagPrefix + "test-cluster":  resourceLifecycleOwned,
