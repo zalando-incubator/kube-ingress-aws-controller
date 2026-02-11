@@ -799,7 +799,7 @@ func (a *Adapter) CreateStack(ctx context.Context, certificateARNs []string, sch
 	}
 
 	if ipAddressType == IPAddressTypeIPV4 && a.targetGroupIPAddressType == IPAddressTypeIPV6 {
-		return "", fmt.Errorf("invalid TargetGroupIPAddressType '%s' defined for IPAddressType '%s'", a.targetGroupIPAddressType, ipAddressType)
+		return "", fmt.Errorf("cannot use %s target group with %s load balancer; use dualstack load balancer for IPv6 targets", a.targetGroupIPAddressType, ipAddressType)
 	}
 
 	spec := &stackSpec{
