@@ -87,6 +87,11 @@ func generateTemplate(spec *stackSpec) (string, error) {
 			Type:        "AWS::EC2::VPC::Id",
 			Description: "The VPCID for the TargetGroup",
 		},
+		parameterTargetGroupIPAddressTypeParameter: {
+			Type:        "String",
+			Description: "Target group IP Address Type, 'ipv4' or 'ipv6'",
+			Default:     IPAddressTypeIPV4,
+		},
 		parameterListenerSslPolicyParameter: {
 			Type:        "String",
 			Description: "The HTTPS SSL Security Policy Name",
@@ -495,6 +500,7 @@ func newTargetGroup(spec *stackSpec, targetPortParameter string) *cloudformation
 		HealthCheckProtocol:        cloudformation.String(healthCheckProtocol),
 		HealthyThresholdCount:      cloudformation.Integer(int64(healthyThresholdCount)),
 		UnhealthyThresholdCount:    cloudformation.Integer(int64(unhealthyThresholdCount)),
+		IPAddressType:              cloudformation.Ref(parameterTargetGroupIPAddressTypeParameter).String(),
 		Port:                       cloudformation.Ref(targetPortParameter).Integer(),
 		Protocol:                   cloudformation.String(protocol),
 		TargetType:                 targetType,
