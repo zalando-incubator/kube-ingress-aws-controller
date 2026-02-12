@@ -88,7 +88,8 @@ func (l *loadBalancer) Status() int {
 func (l *loadBalancer) inSync() bool {
 	return reflect.DeepEqual(l.CertificateARNs(), l.stack.CertificateARNs) &&
 		l.stack.CWAlarmConfigHash == l.cwAlarms.Hash() &&
-		l.wafWebACLID == l.stack.WAFWebACLID
+		l.wafWebACLID == l.stack.WAFWebACLID &&
+		l.sslPolicy == l.stack.SSLPolicy
 }
 
 // addIngress adds an ingress object to the load balancer.
@@ -132,7 +133,7 @@ func (l *loadBalancer) addIngress(certificateARNs []string, ingress *kubernetes.
 	// settings that can be changed on an existing load balancer if it's
 	// NOT shared.
 	if ingress.Shared && (l.securityGroup != ingress.SecurityGroup ||
-		l.sslPolicy != ingress.SSLPolicy ||
+		(ingress.HasSSLPolicyAnnotation && l.sslPolicy != ingress.SSLPolicy) ||
 		l.wafWebACLID != ingress.WAFWebACLID) {
 		return false
 	}
@@ -158,6 +159,7 @@ func (l *loadBalancer) addIngress(certificateARNs []string, ingress *kubernetes.
 	}
 
 	l.shared = ingress.Shared
+	l.sslPolicy = ingress.SSLPolicy
 	return true
 }
 
