@@ -1,0 +1,58 @@
+[
+  {
+    "parameterKey": "LoadBalancerSchemeParameter",
+    "parameterValue": "internet-facing"
+  },
+  {
+    "parameterKey": "LoadBalancerSecurityGroupParameter",
+    "parameterValue": "42"
+  },
+  {
+    "parameterKey": "LoadBalancerSubnetsParameter",
+    "parameterValue": "foo1"
+  },
+  {
+    "parameterKey": "TargetGroupVPCIDParameter",
+    "parameterValue": "1"
+  },
+  {
+    "parameterKey": "TargetGroupTargetPortParameter",
+    "parameterValue": "0"
+  },
+  {
+    "parameterKey": "ListenerSslPolicyParameter",
+    "parameterValue": "ELBSecurityPolicy-2016-08"
+  },
+  {
+    "parameterKey": "IpAddressType",
+    "parameterValue": "dualstack"
+  },
+  {
+    "parameterKey": "Type",
+    "parameterValue": "network"
+  },
+  {
+    "parameterKey": "HTTP2",
+    "parameterValue": "true"
+  },
+  {
+    "parameterKey": "TargetGroupHealthCheckPathParameter",
+    "parameterValue": ""
+  },
+  {
+    "parameterKey": "TargetGroupHealthCheckPortParameter",
+    "parameterValue": "0"
+  },
+  {
+    "parameterKey": "TargetGroupHealthCheckIntervalParameter",
+    "parameterValue": "0"
+  },
+  {
+    "parameterKey": "TargetGroupHealthCheckTimeoutParameter",
+    "parameterValue": "0"
+  },
+  {
+    "parameterKey": "TargetGroupIPAddressTypeParameter",
+    "parameterValue": "ipv6"
+  }
+]
