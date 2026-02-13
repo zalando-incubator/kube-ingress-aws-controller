@@ -40,12 +40,15 @@ This information is used to manage AWS resources for each ingress objects of the
 - Suppport for `ipv4` and `dualstack` ip address types for ALB and NLB
     - set default ip address type for both ALB and NLB using `--ip-addr-type=dualstack`
     - set specific ip address type for a particular ALB or NLB by using the annotation `alb.ingress.kubernetes.io/ip-address-type: dualstack` in the ingress of the resource
+- Support for `ipv4` and `ipv6` target group IP address types for ALB and NLB
+    - set default target group IP address type using `--target-group-ip-address-type=ipv6`
+    - IPv6 targets require dualstack load balancers (`--ip-addr-type=dualstack`)
 
 ## Upgrade
 
-### <v0.18.18 to >=v0.18.18
+### <v0.19 to >=v0.19
 
-Version `v0.18.18` adds support for IPv6 target group IP address type. When using IPv6 targets, ensure your load balancer is configured as dualstack (`--ip-addr-type=dualstack` or `alb.ingress.kubernetes.io/ip-address-type: dualstack`). IPv4-only load balancers cannot route to IPv6 targets and will fail with a clear error message.
+Version `v0.19` adds support for IPv6 target group IP address type. When using IPv6 targets, ensure your load balancer is configured as dualstack (`--ip-addr-type=dualstack` or `alb.ingress.kubernetes.io/ip-address-type: dualstack`). IPv4-only load balancers cannot route to IPv6 targets and will fail with a clear error message.
 
 ### <v0.18.0 to >=v0.18.0
 

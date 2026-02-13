@@ -861,7 +861,7 @@ func (a *Adapter) UpdateStack(ctx context.Context, stackName string, certificate
 	}
 
 	if ipAddressType == IPAddressTypeIPV4 && a.targetGroupIPAddressType == IPAddressTypeIPV6 {
-		return "", fmt.Errorf("invalid TargetGroupIPAddressType '%s' defined for IPAddressType '%s'", a.targetGroupIPAddressType, ipAddressType)
+		return "", fmt.Errorf("invalid TargetGroupIPAddressType %q defined for IPAddressType %q", a.targetGroupIPAddressType, ipAddressType)
 	}
 
 	spec := &stackSpec{
