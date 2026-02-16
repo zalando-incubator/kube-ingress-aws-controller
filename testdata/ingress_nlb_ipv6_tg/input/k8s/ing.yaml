@@ -1,0 +1,18 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: myingress
+  annotations:
+    zalando.org/aws-load-balancer-type: nlb
+spec:
+  rules:
+  - host: foo.bar.org
+    http:
+      paths:
+      - backend:
+          service:
+            name: foo-bar-service
+            port:
+              name: main-port
+        path: /
+        pathType: ImplementationSpecific
