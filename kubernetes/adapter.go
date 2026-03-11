@@ -88,22 +88,22 @@ var (
 // Ingress is the ingress-controller's business object. It is used to
 // store Kubernetes ingress and routegroup resources.
 type Ingress struct {
-	ResourceType     IngressType
-	Namespace        string
-	Name             string
-	Shared           bool
-	HTTP2            bool
+	ResourceType           IngressType
+	Namespace              string
+	Name                   string
+	Shared                 bool
+	HTTP2                  bool
 	ClusterLocal           bool
-	CertificateARN          string
-	Hostname                string
-	Scheme                  string
-	SecurityGroup           string
-	SSLPolicy               string
-	HasSSLPolicyAnnotation  bool
-	IPAddressType    string
-	LoadBalancerType string
-	WAFWebACLID      string
-	Hostnames        []string
+	CertificateARN         string
+	Hostname               string
+	Scheme                 string
+	SecurityGroup          string
+	SSLPolicy              string
+	HasSSLPolicyAnnotation bool
+	IPAddressType          string
+	LoadBalancerType       string
+	WAFWebACLID            string
+	Hostnames              []string
 }
 
 // String returns a string representation of the Ingress instance containing the type, namespace and the resource name.

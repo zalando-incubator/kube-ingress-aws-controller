@@ -490,13 +490,32 @@ func newTargetGroup(spec *stackSpec, targetPortParameter string) *cloudformation
 		protocolVersion = cloudformation.String(spec.targetGroupProtocolVersion)
 	}
 
-	targetGroup := &cloudformation.ElasticLoadBalancingV2TargetGroup{
-		TargetGroupAttributes: &cloudformation.ElasticLoadBalancingV2TargetGroupTargetGroupAttributeList{
-			{
-				Key:   cloudformation.String("deregistration_delay.timeout_seconds"),
-				Value: cloudformation.String(fmt.Sprintf("%d", spec.deregistrationDelayTimeoutSeconds)),
-			},
+	// Build target group attributes
+	attrsList := cloudformation.ElasticLoadBalancingV2TargetGroupTargetGroupAttributeList{
+		{
+			Key:   cloudformation.String("deregistration_delay.timeout_seconds"),
+			Value: cloudformation.String(fmt.Sprintf("%d", spec.deregistrationDelayTimeoutSeconds)),
 		},
+	}
+
+	// Add NLB-specific attributes
+	if spec.loadbalancerType == LoadBalancerTypeNetwork {
+		if spec.nlbProxyProtocolV2Enabled {
+			attrsList = append(attrsList, cloudformation.ElasticLoadBalancingV2TargetGroupTargetGroupAttribute{
+				Key:   cloudformation.String("proxy_protocol_v2.enabled"),
+				Value: cloudformation.String("true"),
+			})
+		}
+		if spec.nlbPreserveClientIPEnabled {
+			attrsList = append(attrsList, cloudformation.ElasticLoadBalancingV2TargetGroupTargetGroupAttribute{
+				Key:   cloudformation.String("preserve_client_ip.enabled"),
+				Value: cloudformation.String("true"),
+			})
+		}
+	}
+
+	targetGroup := &cloudformation.ElasticLoadBalancingV2TargetGroup{
+		TargetGroupAttributes:      &attrsList,
 		HealthCheckIntervalSeconds: cloudformation.Ref(parameterTargetGroupHealthCheckIntervalParameter).Integer(),
 		HealthCheckPath:            cloudformation.Ref(parameterTargetGroupHealthCheckPathParameter).String(),
 		HealthCheckPort:            cloudformation.Ref(parameterTargetGroupHealthCheckPortParameter).String(),

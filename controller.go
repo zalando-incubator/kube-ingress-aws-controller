@@ -81,6 +81,8 @@ var (
 	nlbZoneAffinity               string
 	nlbCrossZone                  bool
 	nlbHTTPEnabled                bool
+	nlbProxyProtocolV2Enabled     bool
+	nlbPreserveClientIPEnabled    bool
 	ingressAPIVersion             string
 	internalDomains               []string
 	targetAccessMode              string
@@ -184,6 +186,10 @@ func loadSettings() error {
 		Default("false").BoolVar(&nlbCrossZone)
 	kingpin.Flag("nlb-http-enabled", "Enable HTTP (port 80) for Network Load Balancers. By default this is disabled as NLB can't provide HTTP -> HTTPS redirect.").
 		Default("false").BoolVar(&nlbHTTPEnabled)
+	kingpin.Flag("nlb-proxy-protocol-v2", "Enable Proxy Protocol v2 for Network Load Balancers. This setting only applies to 'network' Load Balancers.").
+		Default("false").BoolVar(&nlbProxyProtocolV2Enabled)
+	kingpin.Flag("nlb-preserve-client-ip", "Enable preserve client IP address for Network Load Balancers. This setting only applies to 'network' Load Balancers.").
+		Default("true").BoolVar(&nlbPreserveClientIPEnabled)
 	kingpin.Flag("deny-internal-domains", "Sets a rule on ALB's Listeners that denies requests with the Host header as a internal domain. Domains can be set with the -internal-domains flag.").
 		Default("false").BoolVar(&denyInternalDomains)
 	kingpin.Flag("internal-domains", "Define the internal domains to be blocked when -deny-internal-domains is set to true. Set it multiple times for multiple domains. The maximum size of each name is 128 characters. The following wildcard characters are supported: * (matches 0 or more characters) and ? (matches exactly 1 character).").
@@ -349,6 +355,8 @@ func main() {
 		WithNLBCrossZone(nlbCrossZone).
 		WithNLBZoneAffinity(nlbZoneAffinity).
 		WithNLBHTTPEnabled(nlbHTTPEnabled).
+		WithNLBProxyProtocolV2(nlbProxyProtocolV2Enabled).
+		WithNLBPreserveClientIP(nlbPreserveClientIPEnabled).
 		WithCustomFilter(customFilter).
 		WithStackTags(additionalStackTags).
 		WithInternalDomains(internalDomains).
