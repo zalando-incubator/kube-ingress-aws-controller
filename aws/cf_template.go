@@ -500,18 +500,14 @@ func newTargetGroup(spec *stackSpec, targetPortParameter string) *cloudformation
 
 	// Add NLB-specific attributes
 	if spec.loadbalancerType == LoadBalancerTypeNetwork {
-		if spec.nlbProxyProtocolV2Enabled {
-			attrsList = append(attrsList, cloudformation.ElasticLoadBalancingV2TargetGroupTargetGroupAttribute{
-				Key:   cloudformation.String("proxy_protocol_v2.enabled"),
-				Value: cloudformation.String("true"),
-			})
-		}
-		if spec.nlbPreserveClientIPEnabled {
-			attrsList = append(attrsList, cloudformation.ElasticLoadBalancingV2TargetGroupTargetGroupAttribute{
-				Key:   cloudformation.String("preserve_client_ip.enabled"),
-				Value: cloudformation.String("true"),
-			})
-		}
+		attrsList = append(attrsList, cloudformation.ElasticLoadBalancingV2TargetGroupTargetGroupAttribute{
+			Key:   cloudformation.String("proxy_protocol_v2.enabled"),
+			Value: cloudformation.String(fmt.Sprintf("%v", spec.nlbProxyProtocolV2Enabled)),
+		})
+		attrsList = append(attrsList, cloudformation.ElasticLoadBalancingV2TargetGroupTargetGroupAttribute{
+			Key:   cloudformation.String("preserve_client_ip.enabled"),
+			Value: cloudformation.String(fmt.Sprintf("%v", spec.nlbPreserveClientIPEnabled)),
+		})
 	}
 
 	targetGroup := &cloudformation.ElasticLoadBalancingV2TargetGroup{

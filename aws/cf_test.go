@@ -957,7 +957,7 @@ func TestNLBTargetGroupAttributes(t *testing.T) {
 				nlbPreserveClientIPEnabled:        false,
 				deregistrationDelayTimeoutSeconds: 30,
 			},
-			expectedAttrCount: 2, // deregistration delay + proxy protocol v2
+			expectedAttrCount: 3, // deregistration delay + proxy protocol v2 + preserve client ip
 		},
 		{
 			name: "NLB-with-preserve-client-ip",
@@ -967,7 +967,7 @@ func TestNLBTargetGroupAttributes(t *testing.T) {
 				nlbPreserveClientIPEnabled:        true,
 				deregistrationDelayTimeoutSeconds: 30,
 			},
-			expectedAttrCount: 2, // deregistration delay + preserve client ip
+			expectedAttrCount: 3, // deregistration delay + proxy protocol v2 + preserve client ip
 		},
 		{
 			name: "NLB-with-both-attributes",
@@ -987,7 +987,7 @@ func TestNLBTargetGroupAttributes(t *testing.T) {
 				nlbPreserveClientIPEnabled:        false,
 				deregistrationDelayTimeoutSeconds: 30,
 			},
-			expectedAttrCount: 1, // only deregistration delay
+			expectedAttrCount: 3, // deregistration delay + both NLB attributes (set to false)
 		},
 	} {
 		t.Run(ti.name, func(t *testing.T) {
