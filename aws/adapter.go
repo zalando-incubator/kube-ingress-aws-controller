@@ -77,6 +77,7 @@ type Adapter struct {
 	denyInternalRespContentType string
 	denyInternalRespStatusCode  int
 	TargetCNI                   *TargetCNIconfig
+	targetGroupProtocolVersion  string
 }
 
 type TargetCNIconfig struct {
@@ -136,6 +137,7 @@ const (
 	// It it is safe to change as per https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-elasticloadbalancingv2-loadbalancer-loadbalancerattribute.html#aws-properties-elasticloadbalancingv2-loadbalancer-loadbalancerattribute-properties
 	DefaultNLBCrossZone   = false
 	DefaultNLBHTTPEnabled = false
+	DefaultTargetGroupProtocolVersion = "HTTP1"
 
 	nameTag                     = "Name"
 	LoadBalancerTypeApplication = "application"
@@ -278,6 +280,7 @@ func NewAdapter(ctx context.Context, clusterID, newControllerID, vpcID string, d
 			Enabled:       false,
 			TargetGroupCh: make(chan []string, 10),
 		},
+		targetGroupProtocolVersion: DefaultTargetGroupProtocolVersion,
 	}
 
 	adapter.manifest, err = buildManifest(ctx, adapter, clusterID, vpcID)
@@ -589,6 +592,13 @@ func (a *Adapter) WithCustomCloudFormationClient(c CloudFormationAPI) *Adapter {
 	return a
 }
 
+// WithTargetGroupProtocolVersion returns the receiver
+// adapter after setting targetGroupProtocolVersion config.
+func (a *Adapter) WithTargetGroupProtocolVersion(pv string) *Adapter {
+	a.targetGroupProtocolVersion = pv
+	return a
+}
+
 // ClusterID returns the ClusterID tag that all resources from the same Kubernetes cluster share.
 // It's taken from the current ec2 instance.
 func (a *Adapter) ClusterID() string {
@@ -850,6 +860,7 @@ func (a *Adapter) CreateStack(ctx context.Context, certificateARNs []string, sch
 			statusCode:  a.denyInternalRespStatusCode,
 			contentType: a.denyInternalRespContentType,
 		},
+		targetGroupProtocolVersion: a.targetGroupProtocolVersion,
 	}
 
 	return createStack(ctx, a.cloudformation, spec)
@@ -912,6 +923,7 @@ func (a *Adapter) UpdateStack(ctx context.Context, stackName string, certificate
 			statusCode:  a.denyInternalRespStatusCode,
 			contentType: a.denyInternalRespContentType,
 		},
+		targetGroupProtocolVersion: a.targetGroupProtocolVersion,
 	}
 
 	return updateStack(ctx, a.cloudformation, spec)

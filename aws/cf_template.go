@@ -477,14 +477,17 @@ func newTargetGroup(spec *stackSpec, targetPortParameter string) *cloudformation
 	protocol := "HTTP"
 	healthCheckProtocol := "HTTP"
 	healthyThresholdCount, unhealthyThresholdCount := spec.albHealthyThresholdCount, spec.albUnhealthyThresholdCount
+	var protocolVersion *cloudformation.StringExpr
 	if spec.loadbalancerType == LoadBalancerTypeNetwork {
 		protocol = "TCP"
 		healthCheckProtocol = "HTTP"
 		// For NLBs the healthy and unhealthy threshold count value must be equal
 		healthyThresholdCount, unhealthyThresholdCount = spec.nlbHealthyThresholdCount, spec.nlbHealthyThresholdCount
+		protocolVersion = nil
 	} else if spec.targetHTTPS {
 		protocol = "HTTPS"
 		healthCheckProtocol = "HTTPS"
+		protocolVersion = cloudformation.String(spec.targetGroupProtocolVersion)
 	}
 
 	targetGroup := &cloudformation.ElasticLoadBalancingV2TargetGroup{
@@ -504,6 +507,7 @@ func newTargetGroup(spec *stackSpec, targetPortParameter string) *cloudformation
 		Port:                       cloudformation.Ref(targetPortParameter).Integer(),
 		Protocol:                   cloudformation.String(protocol),
 		TargetType:                 targetType,
+		ProtocolVersion:            protocolVersion,
 		VPCID:                      cloudformation.Ref(parameterTargetGroupVPCIDParameter).String(),
 	}
 

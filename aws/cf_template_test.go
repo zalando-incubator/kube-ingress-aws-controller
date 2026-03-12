@@ -357,6 +357,7 @@ func TestGenerateTemplate(t *testing.T) {
 				attributes := []cloudformation.ElasticLoadBalancingV2LoadBalancerLoadBalancerAttribute(*properties.LoadBalancerAttributes)
 				require.Equal(t, attributes[1].Key.Literal, "routing.http2.enabled")
 				require.Equal(t, attributes[1].Value.Literal, "true")
+				require.Nil(t, template.Resources["TG"].Properties.(*cloudformation.ElasticLoadBalancingV2TargetGroup).ProtocolVersion)
 			},
 		},
 		{
@@ -371,6 +372,7 @@ func TestGenerateTemplate(t *testing.T) {
 				attributes := []cloudformation.ElasticLoadBalancingV2LoadBalancerLoadBalancerAttribute(*properties.LoadBalancerAttributes)
 				require.Equal(t, attributes[1].Key.Literal, "routing.http2.enabled")
 				require.Equal(t, attributes[1].Value.Literal, "false")
+				require.Nil(t, template.Resources["TG"].Properties.(*cloudformation.ElasticLoadBalancingV2TargetGroup).ProtocolVersion)
 			},
 		},
 		{
@@ -589,6 +591,7 @@ func TestGenerateTemplate(t *testing.T) {
 				require.Equal(t, cloudformation.Ref(parameterTargetGroupTargetPortParameter).Integer(), tg.Port)
 				require.Equal(t, cloudformation.String("TCP"), tg.Protocol)
 				require.Equal(t, cloudformation.String("HTTP"), tg.HealthCheckProtocol)
+				require.Empty(t, tg.ProtocolVersion)
 
 				validateTargetGroupListener(t, template, "TG", "HTTPSListener", 443, "TLS")
 				validateTargetGroupOutput(t, template, "TG", "TargetGroupARN")
@@ -707,6 +710,53 @@ func TestGenerateTemplate(t *testing.T) {
 				tg := template.Resources["TG"].Properties.(*cloudformation.ElasticLoadBalancingV2TargetGroup)
 
 				assert.Equal(t, cloudformation.String("ip"), tg.TargetType)
+			},
+		},
+		{
+			name: "target protocol http2 when https listener and configured",
+			spec: &stackSpec{
+				loadbalancerType:           LoadBalancerTypeApplication,
+				http2:                      true,
+				targetHTTPS:                true,
+				targetGroupProtocolVersion: "HTTP2",
+			},
+			validate: func(t *testing.T, template *cloudformation.Template) {
+				require.NotNil(t, template.Resources["LB"])
+				properties := template.Resources["LB"].Properties.(*cloudformation.ElasticLoadBalancingV2LoadBalancer)
+				attributes := []cloudformation.ElasticLoadBalancingV2LoadBalancerLoadBalancerAttribute(*properties.LoadBalancerAttributes)
+				require.Equal(t, attributes[1].Key.Literal, "routing.http2.enabled")
+				require.Equal(t, attributes[1].Value.Literal, "true")
+				require.Equal(t, cloudformation.String("HTTP2"), template.Resources["TG"].Properties.(*cloudformation.ElasticLoadBalancingV2TargetGroup).ProtocolVersion)
+			},
+		},
+		{
+			name: "target protocol grpc when https listener and configured",
+			spec: &stackSpec{
+				loadbalancerType:           LoadBalancerTypeApplication,
+				http2:                      true,
+				targetHTTPS:                true,
+				targetGroupProtocolVersion: "GRPC",
+			},
+			validate: func(t *testing.T, template *cloudformation.Template) {
+				require.NotNil(t, template.Resources["LB"])
+				properties := template.Resources["LB"].Properties.(*cloudformation.ElasticLoadBalancingV2LoadBalancer)
+				attributes := []cloudformation.ElasticLoadBalancingV2LoadBalancerLoadBalancerAttribute(*properties.LoadBalancerAttributes)
+				require.Equal(t, attributes[1].Key.Literal, "routing.http2.enabled")
+				require.Equal(t, attributes[1].Value.Literal, "true")
+				require.Equal(t, cloudformation.String("GRPC"), template.Resources["TG"].Properties.(*cloudformation.ElasticLoadBalancingV2TargetGroup).ProtocolVersion)
+			},
+		},
+		{
+			name: "For Nlbs target protocol is undefined",
+			spec: &stackSpec{
+				loadbalancerType:           LoadBalancerTypeNetwork,
+				http2:                      true,
+				targetGroupProtocolVersion: "HTTP2",
+				targetHTTPS:                true,
+			},
+			validate: func(t *testing.T, template *cloudformation.Template) {
+				require.NotNil(t, template.Resources["LB"])
+				require.Nil(t, template.Resources["TG"].Properties.(*cloudformation.ElasticLoadBalancingV2TargetGroup).ProtocolVersion)
 			},
 		},
 	} {

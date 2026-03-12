@@ -199,6 +199,7 @@ type stackSpec struct {
 	denyInternalDomainsResponse       denyResp
 	internalDomains                   []string
 	tags                              map[string]string
+	targetGroupProtocolVersion        string
 }
 
 type healthCheck struct {

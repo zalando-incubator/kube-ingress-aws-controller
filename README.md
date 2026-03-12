@@ -32,6 +32,7 @@ This information is used to manage AWS resources for each ingress objects of the
 - [Support Multiple TLS Certificates per ALB (SNI)](https://aws.amazon.com/blogs/aws/new-application-load-balancer-sni/).
 - Support for AWS WAF and WAFv2
 - Support for AWS CNI pod direct access
+- Support for end-to-end HTTP/2 and gRPC on Application Load Balancers via `--target-group-protocol-version`
 - Support for Kubernetes CRD [RouteGroup](https://opensource.zalando.com/skipper/kubernetes/routegroups/)
 - Support for zone aware traffic (defaults to cross zone traffic and no zone affinity)
    - enable and disable cross zone traffic: `--nlb-cross-zone=false`
@@ -209,7 +210,9 @@ the individual Load Balancer types.
 | [Idle Timeout][idle_timeout]            | :heavy_check_mark: `--idle-connection-timeout` | :heavy_multiplication_x:                 |
 | Custom Security Group                   | :heavy_check_mark:                             | :heavy_multiplication_x:                 |
 | Web Application Firewall (WAF)          | :heavy_check_mark:                             | :heavy_multiplication_x:                 |
-| HTTP/2 Support                          | :white_check_mark:                             | (not relevant)                           |
+| HTTP/2 (front-end)                      | :heavy_check_mark:                             | (not relevant)                           |
+| End-to-End HTTP/2                       | :heavy_check_mark: `--target-group-protocol-version=HTTP2` | :heavy_multiplication_x:     |
+| gRPC                                    | :heavy_check_mark: `--target-group-protocol-version=GRPC`  | :heavy_multiplication_x:     |
 
 To facilitate default load balancer type switch from Application to Network when the default load balancer type is Network
 (`--load-balancer-type="network"`) and Custom Security Group (`zalando.org/aws-load-balancer-security-group`) or
@@ -698,6 +701,42 @@ To make `kube-ingress-aws-controller` manage both specific ingress class and an 
 Ingress classes defined in the spec of ingresses at `spec.ingressClassName` ([Kubernetes Documentation](https://kubernetes.io/docs/reference/kubernetes-api/service-resources/ingress-v1/#IngressSpec)) will take priority over the annotation, if both are supplied.
 In order to match the default (empty) ingress group, both must be empty."
 
+## End-to-End HTTP/2 and gRPC
+
+By default, ALB target groups use the `HTTP1` protocol version: HTTP/2 connections from clients are terminated at the load balancer and forwarded to targets as HTTP/1.1. You can enable end-to-end HTTP/2 or gRPC by setting the `--target-group-protocol-version` flag.
+
+| Value   | Description                                                                                                              |
+|---------|--------------------------------------------------------------------------------------------------------------------------|
+| `HTTP1` | Default. HTTP/2 is terminated at the ALB; targets receive HTTP/1.1.                                                      |
+| `HTTP2` | The ALB forwards requests to targets using HTTP/2. Targets must support HTTP/2 and serve TLS (requires `--target-https`). |
+| `GRPC`  | The ALB forwards requests to targets using gRPC. Targets must support gRPC and serve TLS (requires `--target-https`).     |
+
+**Prerequisites:**
+
+- **ALB only** — this setting has no effect on Network Load Balancers (NLBs).
+- **HTTPS targets required** — `--target-https` must be enabled when using `HTTP2` or `GRPC`.
+- **HTTP/2 on the ALB front-end** is controlled separately by the annotation `zalando.org/aws-load-balancer-http2` (defaults to `true`). Both front-end HTTP/2 and end-to-end HTTP/2 can be enabled simultaneously.
+
+Example controller flags for end-to-end HTTP/2:
+
+```
+kube-ingress-aws-controller \
+  --target-https \
+  --target-group-protocol-version=HTTP2
+```
+
+Example controller flags for gRPC:
+
+```
+kube-ingress-aws-controller \
+  --target-https \
+  --target-group-protocol-version=GRPC
+```
+
+For more details on protocol versions see the [AWS documentation on target group protocol version][tg_protocol_version].
+
+[tg_protocol_version]: https://docs.aws.amazon.com/elasticloadbalancing/latest/application/load-balancer-target-groups.html#target-group-protocol-version
+
 ## Target and Health Check Ports
 
 By default the port 9999 is used as both health check and target port. This
@@ -708,7 +747,9 @@ If you want to change the default ports, you can control it using the
 `-target-port` and `-health-check-port` flags.
 
 If you want to use an HTTPS enabled target port, use the `-target-https` flag.
-This will only affect ALBs, NLBs ignore this flag.
+This will only affect ALBs, NLBs ignore this flag. When combined with
+`--target-group-protocol-version`, this also enables end-to-end HTTP/2 or gRPC
+(see [End-to-End HTTP/2 and gRPC](#end-to-end-http2-and-grpc)).
 
 ## HTTP to HTTPS Redirection
 
