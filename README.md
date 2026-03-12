@@ -54,15 +54,15 @@ This information is used to manage AWS resources for each ingress objects of the
 
 Version `v0.20` adds support for NLB target group attributes:
 
-- **Proxy Protocol v2**: Enable with `--nlb-proxy-protocol-v2` flag (default: false, disabled)
+- **Proxy Protocol v2**: Enable with `--nlb-proxy-protocol-v2-enabled` flag (default: false, disabled)
   - Enables Proxy Protocol v2 for Network Load Balancer target groups
   - Only applies to NLBs; ALBs do not support this feature
 
-- **Preserve Client IP**: Configure with `--nlb-preserve-client-ip` flag (default: true, enabled)
+- **Preserve Client IP**: Disable with `--nlb-preserve-client-ip-disabled` flag (default: false, enabled)
   - Preserves client IP address in NLB target group connections
-  - Defaults to true, matching AWS NLB default behavior
-  - Set to false to override and disable this feature
-  - **Breaking change**: Previously this attribute was not explicitly set. Updating to v0.20 will set `preserve_client_ip.enabled=true` on all NLB target groups. For setups that require it disabled, use `--nlb-preserve-client-ip=false` flag
+  - Defaults to true (enabled), matching AWS NLB default behavior
+  - Set the flag to disable this feature
+  - **Breaking change**: Previously this attribute was not explicitly set. Updating to v0.20 will set `preserve_client_ip.enabled=true` on all NLB target groups. For setups that require it disabled, use `--nlb-preserve-client-ip-disabled` flag
 
 These attributes are only applied to Network Load Balancer target groups. Application Load Balancers are not affected.
 
