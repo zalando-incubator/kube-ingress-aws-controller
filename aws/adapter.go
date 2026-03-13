@@ -137,9 +137,11 @@ const (
 	// DefaultNLBCrossZone specifies the default configuration for cross
 	// zone load balancing: https://docs.aws.amazon.com/elasticloadbalancing/latest/network/network-load-balancers.html#load-balancer-attributes
 	// It it is safe to change as per https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-elasticloadbalancingv2-loadbalancer-loadbalancerattribute.html#aws-properties-elasticloadbalancingv2-loadbalancer-loadbalancerattribute-properties
-	DefaultNLBCrossZone   = false
-	DefaultNLBHTTPEnabled = false
-	DefaultTargetGroupProtocolVersion = "HTTP1"
+	DefaultNLBCrossZone                = false
+	DefaultNLBHTTPEnabled              = false
+	DefaultTargetGroupProtocolVersion  = "HTTP1"
+	DefaultNLBProxyProtocolV2Enabled   = false
+	DefaultNLBPreserveClientIPEnabled  = true
 
 	nameTag                     = "Name"
 	LoadBalancerTypeApplication = "application"
