@@ -174,6 +174,14 @@
                     {
                         "Key": "deregistration_delay.timeout_seconds",
                         "Value": "0"
+                    },
+                    {
+                        "Key": "proxy_protocol_v2.enabled",
+                        "Value": "false"
+                    },
+                    {
+                        "Key": "preserve_client_ip.enabled",
+                        "Value": "true"
                     }
                 ],
                 "UnhealthyThresholdCount": 0,

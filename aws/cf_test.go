@@ -932,3 +932,69 @@ func TestShouldDelete(t *testing.T) {
 	}
 
 }
+
+func TestNLBTargetGroupAttributes(t *testing.T) {
+	for _, ti := range []struct {
+		name              string
+		givenSpec         stackSpec
+		expectedAttrCount int
+	}{
+		{
+			name: "ALB-with-nlb-flags-ignored",
+			givenSpec: stackSpec{
+				loadbalancerType:                  LoadBalancerTypeApplication,
+				nlbProxyProtocolV2Enabled:         true,
+				nlbPreserveClientIPEnabled:        true,
+				deregistrationDelayTimeoutSeconds: 30,
+			},
+			expectedAttrCount: 1, // only deregistration delay
+		},
+		{
+			name: "NLB-with-proxy-protocol-v2",
+			givenSpec: stackSpec{
+				loadbalancerType:                  LoadBalancerTypeNetwork,
+				nlbProxyProtocolV2Enabled:         true,
+				nlbPreserveClientIPEnabled:        false,
+				deregistrationDelayTimeoutSeconds: 30,
+			},
+			expectedAttrCount: 3, // deregistration delay + proxy protocol v2 + preserve client ip
+		},
+		{
+			name: "NLB-with-preserve-client-ip",
+			givenSpec: stackSpec{
+				loadbalancerType:                  LoadBalancerTypeNetwork,
+				nlbProxyProtocolV2Enabled:         false,
+				nlbPreserveClientIPEnabled:        true,
+				deregistrationDelayTimeoutSeconds: 30,
+			},
+			expectedAttrCount: 3, // deregistration delay + proxy protocol v2 + preserve client ip
+		},
+		{
+			name: "NLB-with-both-attributes",
+			givenSpec: stackSpec{
+				loadbalancerType:                  LoadBalancerTypeNetwork,
+				nlbProxyProtocolV2Enabled:         true,
+				nlbPreserveClientIPEnabled:        true,
+				deregistrationDelayTimeoutSeconds: 30,
+			},
+			expectedAttrCount: 3, // deregistration delay + both NLB attributes
+		},
+		{
+			name: "NLB-with-no-extra-attributes",
+			givenSpec: stackSpec{
+				loadbalancerType:                  LoadBalancerTypeNetwork,
+				nlbProxyProtocolV2Enabled:         false,
+				nlbPreserveClientIPEnabled:        false,
+				deregistrationDelayTimeoutSeconds: 30,
+			},
+			expectedAttrCount: 3, // deregistration delay + both NLB attributes (set to false)
+		},
+	} {
+		t.Run(ti.name, func(t *testing.T) {
+			tg := newTargetGroup(&ti.givenSpec, "TargetPort")
+			assert.NotNil(t, tg)
+			assert.NotNil(t, tg.TargetGroupAttributes)
+			assert.Equal(t, ti.expectedAttrCount, len(*tg.TargetGroupAttributes), "target group attributes count mismatch")
+		})
+	}
+}

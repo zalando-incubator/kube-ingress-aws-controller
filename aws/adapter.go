@@ -70,6 +70,8 @@ type Adapter struct {
 	httpRedirectToHTTPS         bool
 	nlbCrossZone                bool
 	nlbHTTPEnabled              bool
+	nlbProxyProtocolV2Enabled   bool
+	nlbPreserveClientIPEnabled  bool
 	customFilter                string
 	internalDomains             []string
 	denyInternalDomains         bool
@@ -135,9 +137,11 @@ const (
 	// DefaultNLBCrossZone specifies the default configuration for cross
 	// zone load balancing: https://docs.aws.amazon.com/elasticloadbalancing/latest/network/network-load-balancers.html#load-balancer-attributes
 	// It it is safe to change as per https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-elasticloadbalancingv2-loadbalancer-loadbalancerattribute.html#aws-properties-elasticloadbalancingv2-loadbalancer-loadbalancerattribute-properties
-	DefaultNLBCrossZone   = false
-	DefaultNLBHTTPEnabled = false
-	DefaultTargetGroupProtocolVersion = "HTTP1"
+	DefaultNLBCrossZone                = false
+	DefaultNLBHTTPEnabled              = false
+	DefaultTargetGroupProtocolVersion  = "HTTP1"
+	DefaultNLBProxyProtocolV2Enabled   = false
+	DefaultNLBPreserveClientIPEnabled  = true
 
 	nameTag                     = "Name"
 	LoadBalancerTypeApplication = "application"
@@ -498,6 +502,20 @@ func (a *Adapter) WithNLBHTTPEnabled(nlbHTTPEnabled bool) *Adapter {
 	return a
 }
 
+// WithNLBProxyProtocolV2 returns the receiver adapter after setting the
+// nlbProxyProtocolV2Enabled config.
+func (a *Adapter) WithNLBProxyProtocolV2(nlbProxyProtocolV2Enabled bool) *Adapter {
+	a.nlbProxyProtocolV2Enabled = nlbProxyProtocolV2Enabled
+	return a
+}
+
+// WithNLBPreserveClientIP returns the receiver adapter after setting the
+// nlbPreserveClientIPEnabled config.
+func (a *Adapter) WithNLBPreserveClientIP(nlbPreserveClientIPEnabled bool) *Adapter {
+	a.nlbPreserveClientIPEnabled = nlbPreserveClientIPEnabled
+	return a
+}
+
 // WithCustomFilter returns the receiver adapter after setting a custom filter expression
 func (a *Adapter) WithCustomFilter(customFilter string) *Adapter {
 	a.customFilter = customFilter
@@ -851,6 +869,8 @@ func (a *Adapter) CreateStack(ctx context.Context, certificateARNs []string, sch
 		httpRedirectToHTTPS:               a.httpRedirectToHTTPS,
 		nlbCrossZone:                      a.nlbCrossZone,
 		nlbZoneAffinity:                   a.nlbZoneAffinity,
+		nlbProxyProtocolV2Enabled:         a.nlbProxyProtocolV2Enabled,
+		nlbPreserveClientIPEnabled:        a.nlbPreserveClientIPEnabled,
 		http2:                             http2,
 		tags:                              a.stackTags,
 		internalDomains:                   a.internalDomains,
@@ -914,6 +934,8 @@ func (a *Adapter) UpdateStack(ctx context.Context, stackName string, certificate
 		httpRedirectToHTTPS:               a.httpRedirectToHTTPS,
 		nlbCrossZone:                      a.nlbCrossZone,
 		nlbZoneAffinity:                   a.nlbZoneAffinity,
+		nlbProxyProtocolV2Enabled:         a.nlbProxyProtocolV2Enabled,
+		nlbPreserveClientIPEnabled:        a.nlbPreserveClientIPEnabled,
 		http2:                             http2,
 		tags:                              a.stackTags,
 		internalDomains:                   a.internalDomains,

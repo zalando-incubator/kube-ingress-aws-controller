@@ -191,6 +191,8 @@ type stackSpec struct {
 	albLogsS3Prefix                   string
 	wafWebAclId                       string
 	nlbZoneAffinity                   string
+	nlbProxyProtocolV2Enabled         bool
+	nlbPreserveClientIPEnabled        bool
 	cwAlarms                          CloudWatchAlarmList
 	httpRedirectToHTTPS               bool
 	nlbCrossZone                      bool

@@ -11,20 +11,20 @@ import (
 
 func TestSSLPolicyAnnotationLoadBalancerMatching(t *testing.T) {
 	tests := []struct {
-		name                      string
-		existingLB                *loadBalancer
-		incomingIngress           *kubernetes.Ingress
-		maxCerts                  int
-		shouldAdd                 bool
-		description               string
+		name            string
+		existingLB      *loadBalancer
+		incomingIngress *kubernetes.Ingress
+		maxCerts        int
+		shouldAdd       bool
+		description     string
 	}{
 		{
 			name: "shared LB - no annotation - should share despite different policy",
 			existingLB: &loadBalancer{
-				shared:    true,
-				sslPolicy: "ELBSecurityPolicy-2016-08",
-				ingresses: make(map[string][]*kubernetes.Ingress),
-				scheme:    "internet-facing",
+				shared:           true,
+				sslPolicy:        "ELBSecurityPolicy-2016-08",
+				ingresses:        make(map[string][]*kubernetes.Ingress),
+				scheme:           "internet-facing",
 				loadBalancerType: aws.LoadBalancerTypeApplication,
 			},
 			incomingIngress: &kubernetes.Ingress{
@@ -41,10 +41,10 @@ func TestSSLPolicyAnnotationLoadBalancerMatching(t *testing.T) {
 		{
 			name: "shared LB - with annotation - matching policy - should share",
 			existingLB: &loadBalancer{
-				shared:    true,
-				sslPolicy: "ELBSecurityPolicy-TLS-1-2-2017-01",
-				ingresses: make(map[string][]*kubernetes.Ingress),
-				scheme:    "internet-facing",
+				shared:           true,
+				sslPolicy:        "ELBSecurityPolicy-TLS-1-2-2017-01",
+				ingresses:        make(map[string][]*kubernetes.Ingress),
+				scheme:           "internet-facing",
 				loadBalancerType: aws.LoadBalancerTypeApplication,
 			},
 			incomingIngress: &kubernetes.Ingress{
@@ -61,10 +61,10 @@ func TestSSLPolicyAnnotationLoadBalancerMatching(t *testing.T) {
 		{
 			name: "shared LB - with annotation - different policy - should NOT share",
 			existingLB: &loadBalancer{
-				shared:    true,
-				sslPolicy: "ELBSecurityPolicy-2016-08",
-				ingresses: make(map[string][]*kubernetes.Ingress),
-				scheme:    "internet-facing",
+				shared:           true,
+				sslPolicy:        "ELBSecurityPolicy-2016-08",
+				ingresses:        make(map[string][]*kubernetes.Ingress),
+				scheme:           "internet-facing",
 				loadBalancerType: aws.LoadBalancerTypeApplication,
 			},
 			incomingIngress: &kubernetes.Ingress{
@@ -81,10 +81,10 @@ func TestSSLPolicyAnnotationLoadBalancerMatching(t *testing.T) {
 		{
 			name: "non-shared LB - always allows different SSL policies",
 			existingLB: &loadBalancer{
-				shared:    false,
-				sslPolicy: "ELBSecurityPolicy-2016-08",
-				ingresses: make(map[string][]*kubernetes.Ingress),
-				scheme:    "internet-facing",
+				shared:           false,
+				sslPolicy:        "ELBSecurityPolicy-2016-08",
+				ingresses:        make(map[string][]*kubernetes.Ingress),
+				scheme:           "internet-facing",
 				loadBalancerType: aws.LoadBalancerTypeApplication,
 				stack: &aws.Stack{
 					OwnerIngress: "default/test",

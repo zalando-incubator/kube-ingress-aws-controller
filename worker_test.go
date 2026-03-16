@@ -882,7 +882,9 @@ func TestResourceConversionOneToOne(tt *testing.T) {
 				WithCustomCloudFormationClient(clientCF).
 				WithIpAddressType(scenario.ipAddressType).
 				WithTargetGroupIPAddressType(scenario.targetGroupIPAddressType).
-				WithNLBZoneAffinity(aws.DefaultZoneAffinity)
+				WithNLBZoneAffinity(aws.DefaultZoneAffinity).
+				WithNLBProxyProtocolV2(aws.DefaultNLBProxyProtocolV2Enabled).
+				WithNLBPreserveClientIP(aws.DefaultNLBPreserveClientIPEnabled)
 
 			a, err = a.UpdateManifest(ctx, clusterID, vpcID)
 			if err != nil {

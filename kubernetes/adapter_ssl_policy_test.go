@@ -12,10 +12,10 @@ func TestHasSSLPolicyAnnotation(t *testing.T) {
 	customSSLPolicy := "ELBSecurityPolicy-TLS-1-2-2017-01"
 
 	tests := []struct {
-		name                      string
-		annotations               map[string]string
-		expectedSSLPolicy         string
-		expectedHasAnnotation     bool
+		name                  string
+		annotations           map[string]string
+		expectedSSLPolicy     string
+		expectedHasAnnotation bool
 	}{
 		{
 			name:                  "no SSL policy annotation - uses default",
