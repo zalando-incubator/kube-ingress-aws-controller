@@ -33,7 +33,7 @@ func TestAdapter_PodInformer(t *testing.T) {
 			PodIP:             "1.1.1.1",
 		},
 	}
-	client := fake.NewSimpleClientset()
+	client := fake.NewClientset()
 
 	a.clientset = client
 	pods := make(chan []string, 10)
