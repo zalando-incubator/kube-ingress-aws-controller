@@ -4,6 +4,10 @@ on:
     tags:
       - "*"
 
+permissions:
+  contents: read   # for actions/checkout
+  packages: write  # for pushing to GHCR (docker image + helm chart)
+
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: "${{ github.repository }}"
