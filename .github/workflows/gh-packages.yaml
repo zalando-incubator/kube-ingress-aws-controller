@@ -66,3 +66,32 @@ jobs:
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+
+  helm-chart:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Extract chart version
+        id: chart-version
+        run: |
+          # Strip leading 'v' from the git tag (e.g. v0.20.1 -> 0.20.1)
+          echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Login to GitHub Container Registry
+        run: |
+          helm registry login ghcr.io \
+            --username ${{ github.actor }} \
+            --password ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Package Helm chart
+        run: |
+          helm package helm/kube-ingress-aws-controller \
+            --version ${{ steps.chart-version.outputs.version }} \
+            --app-version ${{ github.ref_name }}
+
+      - name: Push Helm chart to GHCR
+        run: |
+          helm push kube-ingress-aws-controller-${{ steps.chart-version.outputs.version }}.tgz \
+            oci://ghcr.io/${{ github.repository_owner }}
