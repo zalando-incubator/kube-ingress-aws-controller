@@ -21,6 +21,7 @@ type CFClient struct {
 	templateCreationHistory []string
 	paramCreationHistory    [][]types.Parameter
 	tagCreationHistory      [][]types.Tag
+	tagUpdateHistory        [][]types.Tag
 	Outputs                 CFOutputs
 }
 
@@ -39,6 +40,7 @@ func (m *CFClient) GetTagCreationHistory() [][]types.Tag {
 func (m *CFClient) CleanCreationHistory() {
 	m.paramCreationHistory = [][]types.Parameter{}
 	m.tagCreationHistory = [][]types.Tag{}
+	m.tagUpdateHistory = [][]types.Tag{}
 	m.templateCreationHistory = []string{}
 }
 
@@ -84,16 +86,18 @@ func MockCSOutput(stackId string) *cloudformation.CreateStackOutput {
 	}
 }
 
-func (m *CFClient) UpdateStack(context.Context, *cloudformation.UpdateStackInput, ...func(*cloudformation.Options)) (*cloudformation.UpdateStackOutput, error) {
-	// TODO: https://github.com/zalando-incubator/kube-ingress-aws-controller/issues/653
-	// Update stack needs to use different variable to register change history,
-	// so createStack and updateStack mocks don't mess with each other states.
+func (m *CFClient) UpdateStack(_ context.Context, params *cloudformation.UpdateStackInput, _ ...func(*cloudformation.Options)) (*cloudformation.UpdateStackOutput, error) {
+	m.tagUpdateHistory = append(m.tagUpdateHistory, params.Tags)
 
 	out, ok := m.Outputs.UpdateStack.response.(*cloudformation.UpdateStackOutput)
 	if !ok {
 		return nil, m.Outputs.UpdateStack.err
 	}
 	return out, m.Outputs.UpdateStack.err
+}
+
+func (m *CFClient) GetTagUpdateHistory() [][]types.Tag {
+	return m.tagUpdateHistory
 }
 
 func MockUSOutput(stackId string) *cloudformation.UpdateStackOutput {

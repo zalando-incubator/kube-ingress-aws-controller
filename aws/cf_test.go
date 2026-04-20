@@ -933,6 +933,117 @@ func TestShouldDelete(t *testing.T) {
 
 }
 
+func TestSSLPolicyExplicitTag(t *testing.T) {
+	t.Run("createStack writes tag when sslPolicyIsExplicit=true", func(t *testing.T) {
+		c := &fake.CFClient{Outputs: fake.CFOutputs{
+			CreateStack: fake.R(fake.MockCSOutput("stack-id"), nil),
+		}}
+		_, err := createStack(context.Background(), c, &stackSpec{
+			name:                "foo",
+			securityGroupID:     "sg-1",
+			vpcID:               "vpc-1",
+			sslPolicy:           "ELBSecurityPolicy-TLS-1-2-2017-01",
+			sslPolicyIsExplicit: true,
+		})
+		assert.NoError(t, err)
+		tags := convertCloudFormationTags(c.GetTagCreationHistory()[0])
+		assert.Equal(t, "true", tags[sslPolicyExplicitTag], "sslPolicyExplicitTag must be written when sslPolicyIsExplicit=true")
+	})
+
+	t.Run("createStack omits tag when sslPolicyIsExplicit=false", func(t *testing.T) {
+		c := &fake.CFClient{Outputs: fake.CFOutputs{
+			CreateStack: fake.R(fake.MockCSOutput("stack-id"), nil),
+		}}
+		_, err := createStack(context.Background(), c, &stackSpec{
+			name:                "foo",
+			securityGroupID:     "sg-1",
+			vpcID:               "vpc-1",
+			sslPolicy:           "ELBSecurityPolicy-TLS-1-2-2017-01",
+			sslPolicyIsExplicit: false,
+		})
+		assert.NoError(t, err)
+		tags := convertCloudFormationTags(c.GetTagCreationHistory()[0])
+		_, present := tags[sslPolicyExplicitTag]
+		assert.False(t, present, "sslPolicyExplicitTag must NOT be written when sslPolicyIsExplicit=false")
+	})
+
+	t.Run("updateStack writes tag when sslPolicyIsExplicit=true", func(t *testing.T) {
+		c := &fake.CFClient{Outputs: fake.CFOutputs{
+			UpdateStack: fake.R(fake.MockUSOutput("stack-id"), nil),
+		}}
+		_, err := updateStack(context.Background(), c, &stackSpec{
+			name:                "foo",
+			securityGroupID:     "sg-1",
+			vpcID:               "vpc-1",
+			sslPolicy:           "ELBSecurityPolicy-TLS-1-2-2017-01",
+			sslPolicyIsExplicit: true,
+		})
+		assert.NoError(t, err)
+		tags := convertCloudFormationTags(c.GetTagUpdateHistory()[0])
+		assert.Equal(t, "true", tags[sslPolicyExplicitTag], "sslPolicyExplicitTag must be written on update when sslPolicyIsExplicit=true")
+	})
+
+	t.Run("updateStack omits tag when sslPolicyIsExplicit=false", func(t *testing.T) {
+		c := &fake.CFClient{Outputs: fake.CFOutputs{
+			UpdateStack: fake.R(fake.MockUSOutput("stack-id"), nil),
+		}}
+		_, err := updateStack(context.Background(), c, &stackSpec{
+			name:                "foo",
+			securityGroupID:     "sg-1",
+			vpcID:               "vpc-1",
+			sslPolicy:           "ELBSecurityPolicy-TLS-1-2-2017-01",
+			sslPolicyIsExplicit: false,
+		})
+		assert.NoError(t, err)
+		tags := convertCloudFormationTags(c.GetTagUpdateHistory()[0])
+		_, present := tags[sslPolicyExplicitTag]
+		assert.False(t, present, "sslPolicyExplicitTag must NOT be written on update when sslPolicyIsExplicit=false")
+	})
+
+	t.Run("mapToManagedStack sets SSLPolicyIsExplicit=true when tag present", func(t *testing.T) {
+		c := &fake.CFClient{Outputs: fake.CFOutputs{
+			DescribeStacks: fake.R(&cloudformation.DescribeStacksOutput{
+				Stacks: []types.Stack{
+					{
+						StackName:   aws.String("my-stack"),
+						StackStatus: types.StackStatusCreateComplete,
+						Tags: []types.Tag{
+							cfTag(kubernetesCreatorTag, DefaultControllerID),
+							cfTag(clusterIDTagPrefix+"test-cluster", resourceLifecycleOwned),
+							cfTag(sslPolicyExplicitTag, "true"),
+						},
+					},
+				},
+			}, nil),
+		}}
+		stacks, err := findManagedStacks(context.Background(), c, "test-cluster", DefaultControllerID)
+		assert.NoError(t, err)
+		assert.Len(t, stacks, 1)
+		assert.True(t, stacks[0].SSLPolicyIsExplicit, "SSLPolicyIsExplicit must be true when tag is present")
+	})
+
+	t.Run("mapToManagedStack sets SSLPolicyIsExplicit=false when tag absent", func(t *testing.T) {
+		c := &fake.CFClient{Outputs: fake.CFOutputs{
+			DescribeStacks: fake.R(&cloudformation.DescribeStacksOutput{
+				Stacks: []types.Stack{
+					{
+						StackName:   aws.String("my-stack"),
+						StackStatus: types.StackStatusCreateComplete,
+						Tags: []types.Tag{
+							cfTag(kubernetesCreatorTag, DefaultControllerID),
+							cfTag(clusterIDTagPrefix+"test-cluster", resourceLifecycleOwned),
+						},
+					},
+				},
+			}, nil),
+		}}
+		stacks, err := findManagedStacks(context.Background(), c, "test-cluster", DefaultControllerID)
+		assert.NoError(t, err)
+		assert.Len(t, stacks, 1)
+		assert.False(t, stacks[0].SSLPolicyIsExplicit, "SSLPolicyIsExplicit must be false when tag is absent")
+	})
+}
+
 func TestNLBTargetGroupAttributes(t *testing.T) {
 	for _, ti := range []struct {
 		name              string

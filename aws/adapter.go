@@ -812,7 +812,7 @@ func (a *Adapter) UpdateTargetGroupsAndAutoScalingGroups(ctx context.Context, st
 // All the required resources (listeners and target group) are created in a
 // transactional fashion.
 // Failure to create the stack causes it to be deleted automatically.
-func (a *Adapter) CreateStack(ctx context.Context, certificateARNs []string, scheme, securityGroup, owner, sslPolicy, ipAddressType, wafWebACLID string, cwAlarms CloudWatchAlarmList, loadBalancerType string, http2 bool) (string, error) {
+func (a *Adapter) CreateStack(ctx context.Context, certificateARNs []string, scheme, securityGroup, owner, sslPolicy, ipAddressType, wafWebACLID string, cwAlarms CloudWatchAlarmList, loadBalancerType string, http2 bool, sslPolicyIsExplicit bool) (string, error) {
 	certARNs := make(map[string]time.Time, len(certificateARNs))
 	for _, arn := range certificateARNs {
 		certARNs[arn] = time.Time{}
@@ -859,6 +859,7 @@ func (a *Adapter) CreateStack(ctx context.Context, certificateARNs []string, sch
 		deregistrationDelayTimeoutSeconds: uint(a.deregistrationDelayTimeout.Seconds()),
 		controllerID:                      a.controllerID,
 		sslPolicy:                         sslPolicy,
+		sslPolicyIsExplicit:               sslPolicyIsExplicit,
 		ipAddressType:                     ipAddressType,
 		targetGroupIPAddressType:          a.targetGroupIPAddressType,
 		loadbalancerType:                  loadBalancerType,
@@ -886,7 +887,7 @@ func (a *Adapter) CreateStack(ctx context.Context, certificateARNs []string, sch
 	return createStack(ctx, a.cloudformation, spec)
 }
 
-func (a *Adapter) UpdateStack(ctx context.Context, stackName string, certificateARNs map[string]time.Time, scheme, securityGroup, owner, sslPolicy, ipAddressType, wafWebACLID string, cwAlarms CloudWatchAlarmList, loadBalancerType string, http2 bool) (string, error) {
+func (a *Adapter) UpdateStack(ctx context.Context, stackName string, certificateARNs map[string]time.Time, scheme, securityGroup, owner, sslPolicy, ipAddressType, wafWebACLID string, cwAlarms CloudWatchAlarmList, loadBalancerType string, http2 bool, sslPolicyIsExplicit bool) (string, error) {
 	if _, ok := SSLPolicies[sslPolicy]; !ok {
 		return "", fmt.Errorf("invalid SSLPolicy '%s' defined", sslPolicy)
 	}
@@ -924,6 +925,7 @@ func (a *Adapter) UpdateStack(ctx context.Context, stackName string, certificate
 		deregistrationDelayTimeoutSeconds: uint(a.deregistrationDelayTimeout.Seconds()),
 		controllerID:                      a.controllerID,
 		sslPolicy:                         sslPolicy,
+		sslPolicyIsExplicit:               sslPolicyIsExplicit,
 		ipAddressType:                     ipAddressType,
 		targetGroupIPAddressType:          a.targetGroupIPAddressType,
 		loadbalancerType:                  loadBalancerType,

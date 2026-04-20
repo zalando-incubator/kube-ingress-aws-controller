@@ -13,10 +13,11 @@ import (
 )
 
 const (
-	certificateARNTagLegacy = "ingress:certificate-arn"
-	certificateARNTagPrefix = "ingress:certificate-arn/"
-	ingressOwnerTag         = "ingress:owner"
-	cwAlarmConfigHashTag    = "cloudwatch:alarm-config-hash"
+	certificateARNTagLegacy   = "ingress:certificate-arn"
+	certificateARNTagPrefix   = "ingress:certificate-arn/"
+	ingressOwnerTag           = "ingress:owner"
+	cwAlarmConfigHashTag      = "cloudwatch:alarm-config-hash"
+	sslPolicyExplicitTag      = "ingress:ssl-policy-explicit"
 )
 
 // Stack is a simple wrapper around a CloudFormation Stack.
@@ -29,6 +30,7 @@ type Stack struct {
 	Scheme                   string
 	SecurityGroup            string
 	SSLPolicy                string
+	SSLPolicyIsExplicit      bool
 	IpAddressType            string
 	LoadBalancerType         string
 	HTTP2                    bool
@@ -184,6 +186,7 @@ type stackSpec struct {
 	deregistrationDelayTimeoutSeconds uint
 	controllerID                      string
 	sslPolicy                         string
+	sslPolicyIsExplicit               bool
 	ipAddressType                     string
 	targetGroupIPAddressType          string
 	loadbalancerType                  string
@@ -294,6 +297,10 @@ func createStack(ctx context.Context, svc CloudFormationAPI, spec *stackSpec) (s
 		params.Tags = append(params.Tags, cfTag(cwAlarmConfigHashTag, spec.cwAlarms.Hash()))
 	}
 
+	if spec.sslPolicyIsExplicit {
+		params.Tags = append(params.Tags, cfTag(sslPolicyExplicitTag, "true"))
+	}
+
 	resp, err := svc.CreateStack(ctx, params)
 	if err != nil {
 		return spec.name, err
@@ -366,6 +373,10 @@ func updateStack(ctx context.Context, svc CloudFormationAPI, spec *stackSpec) (s
 
 	if len(spec.cwAlarms) > 0 {
 		params.Tags = append(params.Tags, cfTag(cwAlarmConfigHashTag, spec.cwAlarms.Hash()))
+	}
+
+	if spec.sslPolicyIsExplicit {
+		params.Tags = append(params.Tags, cfTag(sslPolicyExplicitTag, "true"))
 	}
 
 	if spec.stackTerminationProtection {
@@ -472,6 +483,7 @@ func mapToManagedStack(stack *types.Stack) *Stack {
 
 	certificateARNs := make(map[string]time.Time, len(tags))
 	ownerIngress := ""
+	sslPolicyIsExplicit := false
 	for key, value := range tags {
 		if strings.HasPrefix(key, certificateARNTagPrefix) {
 			arn := strings.TrimPrefix(key, certificateARNTagPrefix)
@@ -490,6 +502,10 @@ func mapToManagedStack(stack *types.Stack) *Stack {
 
 		if key == ingressOwnerTag {
 			ownerIngress = value
+		}
+
+		if key == sslPolicyExplicitTag && value == "true" {
+			sslPolicyIsExplicit = true
 		}
 	}
 
@@ -511,6 +527,7 @@ func mapToManagedStack(stack *types.Stack) *Stack {
 		Scheme:                   parameters[parameterLoadBalancerSchemeParameter],
 		SecurityGroup:            parameters[parameterLoadBalancerSecurityGroupParameter],
 		SSLPolicy:                parameters[parameterListenerSslPolicyParameter],
+		SSLPolicyIsExplicit:      sslPolicyIsExplicit,
 		IpAddressType:            parameters[parameterIpAddressTypeParameter],
 		LoadBalancerType:         parameters[parameterLoadBalancerTypeParameter],
 		HTTP2:                    http2,
