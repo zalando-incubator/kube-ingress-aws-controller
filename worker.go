@@ -133,7 +133,6 @@ func (l *loadBalancer) addIngress(certificateARNs []string, ingress *kubernetes.
 	// settings that can be changed on an existing load balancer if it's
 	// NOT shared.
 	if ingress.Shared && (l.securityGroup != ingress.SecurityGroup ||
-		(ingress.HasSSLPolicyAnnotation && l.sslPolicy != ingress.SSLPolicy) ||
 		l.wafWebACLID != ingress.WAFWebACLID) {
 		return false
 	}

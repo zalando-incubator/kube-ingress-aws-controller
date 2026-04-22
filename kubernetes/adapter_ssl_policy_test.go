@@ -12,40 +12,40 @@ func TestHasSSLPolicyAnnotation(t *testing.T) {
 	customSSLPolicy := "ELBSecurityPolicy-TLS-1-2-2017-01"
 
 	tests := []struct {
-		name                  string
-		annotations           map[string]string
-		expectedSSLPolicy     string
-		expectedHasAnnotation bool
+		name                string
+		annotations         map[string]string
+		expectedSSLPolicy   string
+		expectedSharedState bool
 	}{
 		{
-			name:                  "no SSL policy annotation - uses default",
-			annotations:           map[string]string{},
-			expectedSSLPolicy:     defaultSSLPolicy,
-			expectedHasAnnotation: false,
+			name:                "no SSL policy annotation - uses default and marked as shared",
+			annotations:         map[string]string{},
+			expectedSSLPolicy:   defaultSSLPolicy,
+			expectedSharedState: true,
 		},
 		{
-			name: "explicit SSL policy annotation",
+			name: "explicit non-defaultSSL policy annotation",
 			annotations: map[string]string{
 				ingressSSLPolicyAnnotation: customSSLPolicy,
 			},
-			expectedSSLPolicy:     customSSLPolicy,
-			expectedHasAnnotation: true,
+			expectedSSLPolicy:   customSSLPolicy,
+			expectedSharedState: false,
 		},
 		{
-			name: "invalid SSL policy annotation - falls back to default",
+			name: "invalid SSL policy annotation - falls back to default and marked as shared",
 			annotations: map[string]string{
 				ingressSSLPolicyAnnotation: "InvalidPolicy",
 			},
-			expectedSSLPolicy:     defaultSSLPolicy,
-			expectedHasAnnotation: false,
+			expectedSSLPolicy:   defaultSSLPolicy,
+			expectedSharedState: true,
 		},
 		{
-			name: "valid SSL policy same as default - still marked as annotation",
+			name: "valid SSL policy same as default - marked as shared",
 			annotations: map[string]string{
 				ingressSSLPolicyAnnotation: defaultSSLPolicy,
 			},
-			expectedSSLPolicy:     defaultSSLPolicy,
-			expectedHasAnnotation: true,
+			expectedSSLPolicy:   defaultSSLPolicy,
+			expectedSharedState: true,
 		},
 	}
 
@@ -80,7 +80,7 @@ func TestHasSSLPolicyAnnotation(t *testing.T) {
 			result, err := adapter.newIngressFromKube(kubeIngress)
 			assert.NoError(t, err)
 			assert.Equal(t, tt.expectedSSLPolicy, result.SSLPolicy, "SSL policy mismatch")
-			assert.Equal(t, tt.expectedHasAnnotation, result.HasSSLPolicyAnnotation, "HasSSLPolicyAnnotation mismatch")
+			assert.Equal(t, tt.expectedSharedState, result.Shared, "Shared state mismatch")
 		})
 	}
 }

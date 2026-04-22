@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"reflect"
+	"sort"
 	"sync"
 	"testing"
 	"time"
@@ -2015,6 +2016,135 @@ func TestBuildModel(t *testing.T) {
 					require.Equal(t, 0, len(lb.cwAlarms))
 					require.Equal(t, "foo-bar-baz", lb.wafWebACLID)
 				}
+			},
+		},
+		{
+			title: "Non-Default SSL Policy Annotated Ingresses can update its owning LB's SSL Policy",
+			certs: func() CertificatesFinder {
+				const certARN = "arn:aws:acm:eu-central-1:123456789012:certificate/abc"
+				ca, err := certsfake.NewCA()
+				if err != nil {
+					panic(err)
+				}
+				cs, err := ca.NewCertificateSummary(certARN)
+				if err != nil {
+					panic(err)
+				}
+				return certsfake.NewCert([]*certs.CertificateSummary{cs})
+			}(),
+			ingresses: []*kubernetes.Ingress{
+				{
+					Namespace:        "default",
+					Name:             "ingress-a",
+					Shared:           false, // adapter set to false because of non-default SSL policy annotated
+					Scheme:           "internet-facing",
+					SSLPolicy:        "ELBSecurityPolicy-FS-1-2-2019-08",
+					LoadBalancerType: aws.LoadBalancerTypeApplication,
+					CertificateARN:   "arn:aws:acm:eu-central-1:123456789012:certificate/abc",
+					HTTP2:            true,
+				},
+			},
+			stacks: []*aws.StackLBState{
+				{
+					Stack: &aws.Stack{
+						Name:      "kube-ingress-aws-stack-a",
+						Scheme:    "internet-facing",
+						SSLPolicy: "ELBSecurityPolicy-TLS-1-2-2017-01",
+						CertificateARNs: map[string]time.Time{
+							"arn:aws:acm:eu-central-1:123456789012:certificate/abc": {},
+						},
+						LoadBalancerType: aws.LoadBalancerTypeApplication,
+						HTTP2:            true,
+						OwnerIngress:     "default/ingress-a",
+					},
+				},
+			},
+			validate: func(t *testing.T, lbs []*loadBalancer) {
+				var generatedLBs []*loadBalancer
+				for _, lb := range lbs {
+					if !lb.clusterLocal {
+						generatedLBs = append(generatedLBs, lb)
+					}
+				}
+				require.Len(t, generatedLBs, 1, "ingressA should not trigger creation of a new LB")
+
+				lbA := generatedLBs[0]
+				assert.Equal(t, "ELBSecurityPolicy-FS-1-2-2019-08", lbA.sslPolicy, "existing LB's SSL policy must be updated to the annotated one")
+				lbA.cwAlarms = aws.CloudWatchAlarmList{}
+				assert.False(t, lbA.inSync(), "existing LB must be out-of-sync as its SSL policy has been updated")
+			},
+		},
+		{
+			title: "Two Ingresses with the same SSL Policy annotation value must have dedicated LBs with the same SSL Policy",
+			certs: func() CertificatesFinder {
+				const certARN = "arn:aws:acm:eu-central-1:123456789012:certificate/abc"
+				ca, err := certsfake.NewCA()
+				if err != nil {
+					panic(err)
+				}
+				cs, err := ca.NewCertificateSummary(certARN)
+				if err != nil {
+					panic(err)
+				}
+				return certsfake.NewCert([]*certs.CertificateSummary{cs})
+			}(),
+			ingresses: []*kubernetes.Ingress{
+				{
+					Namespace:        "default",
+					Name:             "ingress-a",
+					Shared:           false, // adapter set to false because of non-default SSL policy annotated
+					Scheme:           "internet-facing",
+					SSLPolicy:        "ELBSecurityPolicy-TLS-1-2-2017-01",
+					LoadBalancerType: aws.LoadBalancerTypeApplication,
+					CertificateARN:   "arn:aws:acm:eu-central-1:123456789012:certificate/abc",
+					HTTP2:            true,
+				},
+				{
+					Namespace:        "default",
+					Name:             "ingress-b",
+					Shared:           false, // adapter set to false because of non-default SSL policy annotated
+					Scheme:           "internet-facing",
+					SSLPolicy:        "ELBSecurityPolicy-TLS-1-2-2017-01",
+					LoadBalancerType: aws.LoadBalancerTypeApplication,
+					CertificateARN:   "arn:aws:acm:eu-central-1:123456789012:certificate/abc",
+					HTTP2:            true,
+				},
+			},
+			stacks: []*aws.StackLBState{
+				{
+					Stack: &aws.Stack{
+						Name:      "kube-ingress-aws-stack-a",
+						Scheme:    "internet-facing",
+						SSLPolicy: "ELBSecurityPolicy-TLS-1-2-2017-01",
+						CertificateARNs: map[string]time.Time{
+							"arn:aws:acm:eu-central-1:123456789012:certificate/abc": {},
+						},
+						LoadBalancerType: aws.LoadBalancerTypeApplication,
+						HTTP2:            true,
+						OwnerIngress:     "default/ingress-a",
+					},
+				},
+			},
+			validate: func(t *testing.T, lbs []*loadBalancer) {
+				var generatedLBs []*loadBalancer
+				for _, lb := range lbs {
+					if !lb.clusterLocal {
+						generatedLBs = append(generatedLBs, lb)
+					}
+				}
+				require.Len(t, generatedLBs, 2, "ingressB should trigger creation of a new LB")
+
+				sort.Slice(generatedLBs, func(i, j int) bool {
+					return generatedLBs[i].stack != nil && generatedLBs[j].stack == nil && generatedLBs[i].stack.Name < generatedLBs[j].stack.Name
+				})
+
+				lbA, lbB := generatedLBs[0], generatedLBs[1]
+
+				assert.Equal(t, "default/ingress-a", lbA.stack.OwnerIngress, "existing LB must be owned by ingressA")
+				lbA.cwAlarms = aws.CloudWatchAlarmList{}
+				assert.True(t, lbA.inSync(), "existing LB must be in-sync as there is no change should occur to it")
+
+				assert.Equal(t, "ELBSecurityPolicy-TLS-1-2-2017-01", lbB.sslPolicy, "new LB must have the correct SSL policy set")
 			},
 		},
 		{

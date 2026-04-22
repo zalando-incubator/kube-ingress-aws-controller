@@ -88,22 +88,21 @@ var (
 // Ingress is the ingress-controller's business object. It is used to
 // store Kubernetes ingress and routegroup resources.
 type Ingress struct {
-	ResourceType           IngressType
-	Namespace              string
-	Name                   string
-	Shared                 bool
-	HTTP2                  bool
-	ClusterLocal           bool
-	CertificateARN         string
-	Hostname               string
-	Scheme                 string
-	SecurityGroup          string
-	SSLPolicy              string
-	HasSSLPolicyAnnotation bool
-	IPAddressType          string
-	LoadBalancerType       string
-	WAFWebACLID            string
-	Hostnames              []string
+	ResourceType     IngressType
+	Namespace        string
+	Name             string
+	Shared           bool
+	HTTP2            bool
+	ClusterLocal     bool
+	CertificateARN   string
+	Hostname         string
+	Scheme           string
+	SecurityGroup    string
+	SSLPolicy        string
+	IPAddressType    string
+	LoadBalancerType string
+	WAFWebACLID      string
+	Hostnames        []string
 }
 
 // String returns a string representation of the Ingress instance containing the type, namespace and the resource name.
@@ -205,14 +204,13 @@ func (a *Adapter) newIngress(typ IngressType, metadata kubeItemMetadata, host st
 
 	ipAddressType := getAnnotationsString(annotations, ingressALBIPAddressType, a.ingressIpAddressType)
 
-	sslPolicy := getAnnotationsString(annotations, ingressSSLPolicyAnnotation, a.ingressDefaultSSLPolicy)
+	sslPolicy := a.ingressDefaultSSLPolicy
 	hasSSLPolicyAnnotation := false
-	if _, ok := annotations[ingressSSLPolicyAnnotation]; ok {
-		hasSSLPolicyAnnotation = true
-	}
-	if _, ok := aws.SSLPolicies[sslPolicy]; !ok {
-		sslPolicy = a.ingressDefaultSSLPolicy
-		hasSSLPolicyAnnotation = false
+	if annotatedPolicy, ok := annotations[ingressSSLPolicyAnnotation]; ok {
+		if _, ok := aws.SSLPolicies[annotatedPolicy]; ok {
+			sslPolicy = annotatedPolicy
+			hasSSLPolicyAnnotation = annotatedPolicy != a.ingressDefaultSSLPolicy
+		}
 	}
 
 	loadBalancerType, hasLB := annotations[ingressLoadBalancerTypeAnnotation]
@@ -254,22 +252,21 @@ func (a *Adapter) newIngress(typ IngressType, metadata kubeItemMetadata, host st
 	}
 
 	return &Ingress{
-		ResourceType:           typ,
-		Namespace:              metadata.Namespace,
-		Name:                   metadata.Name,
-		Hostname:               host,
-		Hostnames:              hostnames,
-		ClusterLocal:           len(hostnames) < 1,
-		CertificateARN:         getAnnotationsString(annotations, ingressCertificateARNAnnotation, ""),
-		Scheme:                 string(scheme),
-		Shared:                 shared,
-		SecurityGroup:          securityGroup,
-		SSLPolicy:              sslPolicy,
-		HasSSLPolicyAnnotation: hasSSLPolicyAnnotation,
-		IPAddressType:          ipAddressType,
-		LoadBalancerType:       loadBalancerType,
-		WAFWebACLID:            wafWebAclId,
-		HTTP2:                  http2,
+		ResourceType:     typ,
+		Namespace:        metadata.Namespace,
+		Name:             metadata.Name,
+		Hostname:         host,
+		Hostnames:        hostnames,
+		ClusterLocal:     len(hostnames) < 1,
+		CertificateARN:   getAnnotationsString(annotations, ingressCertificateARNAnnotation, ""),
+		Scheme:           string(scheme),
+		Shared:           shared && !hasSSLPolicyAnnotation,
+		SecurityGroup:    securityGroup,
+		SSLPolicy:        sslPolicy,
+		IPAddressType:    ipAddressType,
+		LoadBalancerType: loadBalancerType,
+		WAFWebACLID:      wafWebAclId,
+		HTTP2:            http2,
 	}, nil
 }
 
