@@ -19,10 +19,52 @@ func TestSSLPolicyAnnotationLoadBalancerMatching(t *testing.T) {
 		description     string
 	}{
 		{
-			name: "shared LB - no annotation - should share despite different policy",
+			name: "shared LB - explicit policy on LB - no annotation on ingress - different policy - should NOT share",
+			existingLB: &loadBalancer{
+				shared:              true,
+				sslPolicy:           "ELBSecurityPolicy-2016-08",
+				sslPolicyIsExplicit: true, // LB was created with an explicit annotation
+				ingresses:           make(map[string][]*kubernetes.Ingress),
+				scheme:              "internet-facing",
+				loadBalancerType:    aws.LoadBalancerTypeApplication,
+			},
+			incomingIngress: &kubernetes.Ingress{
+				SSLPolicy:              "ELBSecurityPolicy-TLS-1-2-2017-01",
+				HasSSLPolicyAnnotation: false, // Using default from command line
+				Shared:                 true,
+				Scheme:                 "internet-facing",
+				LoadBalancerType:       aws.LoadBalancerTypeApplication,
+			},
+			maxCerts:    10,
+			shouldAdd:   false,
+			description: "Ingress without annotation must NOT share LB whose policy was set explicitly; adding it would overwrite the LB policy and cause an update loop",
+		},
+		{
+			name: "shared LB - default policy on LB - no annotation on ingress - different policy - should share (allows in-place update)",
+			existingLB: &loadBalancer{
+				shared:              true,
+				sslPolicy:           "ELBSecurityPolicy-2016-08",
+				sslPolicyIsExplicit: false, // LB was created with the global default
+				ingresses:           make(map[string][]*kubernetes.Ingress),
+				scheme:              "internet-facing",
+				loadBalancerType:    aws.LoadBalancerTypeApplication,
+			},
+			incomingIngress: &kubernetes.Ingress{
+				SSLPolicy:              "ELBSecurityPolicy-TLS-1-2-2017-01",
+				HasSSLPolicyAnnotation: false, // Using global default (which changed)
+				Shared:                 true,
+				Scheme:                 "internet-facing",
+				LoadBalancerType:       aws.LoadBalancerTypeApplication,
+			},
+			maxCerts:    10,
+			shouldAdd:   true,
+			description: "When both sides use the global default and the default changes, the unannotated ingress should join the existing LB for an in-place update",
+		},
+		{
+			name: "shared LB - no annotation - same policy - should share",
 			existingLB: &loadBalancer{
 				shared:           true,
-				sslPolicy:        "ELBSecurityPolicy-2016-08",
+				sslPolicy:        "ELBSecurityPolicy-TLS-1-2-2017-01",
 				ingresses:        make(map[string][]*kubernetes.Ingress),
 				scheme:           "internet-facing",
 				loadBalancerType: aws.LoadBalancerTypeApplication,
@@ -36,7 +78,7 @@ func TestSSLPolicyAnnotationLoadBalancerMatching(t *testing.T) {
 			},
 			maxCerts:    10,
 			shouldAdd:   true,
-			description: "Ingress without annotation should share LB even with different SSL policy",
+			description: "Ingress without annotation should share LB when SSL policies are identical",
 		},
 		{
 			name: "shared LB - with annotation - matching policy - should share",
@@ -77,6 +119,90 @@ func TestSSLPolicyAnnotationLoadBalancerMatching(t *testing.T) {
 			maxCerts:    10,
 			shouldAdd:   false,
 			description: "Ingress with different SSL policy annotation should NOT share LB",
+		},
+		{
+			name: "shared LB - default policy on LB - annotated ingress - different policy - should NOT share",
+			existingLB: &loadBalancer{
+				shared:              true,
+				sslPolicy:           "ELBSecurityPolicy-2016-08",
+				sslPolicyIsExplicit: false, // LB was created with the global default
+				ingresses:           make(map[string][]*kubernetes.Ingress),
+				scheme:              "internet-facing",
+				loadBalancerType:    aws.LoadBalancerTypeApplication,
+			},
+			incomingIngress: &kubernetes.Ingress{
+				SSLPolicy:              "ELBSecurityPolicy-TLS-1-2-2017-01",
+				HasSSLPolicyAnnotation: true, // Ingress has an explicit annotation
+				Shared:                 true,
+				Scheme:                 "internet-facing",
+				LoadBalancerType:       aws.LoadBalancerTypeApplication,
+			},
+			maxCerts:    10,
+			shouldAdd:   false,
+			description: "Annotated ingress must NOT join a default-policy LB when policies differ",
+		},
+		{
+			name: "shared LB - both sides explicit - same policy - should share",
+			existingLB: &loadBalancer{
+				shared:              true,
+				sslPolicy:           "ELBSecurityPolicy-TLS-1-2-2017-01",
+				sslPolicyIsExplicit: true,
+				ingresses:           make(map[string][]*kubernetes.Ingress),
+				scheme:              "internet-facing",
+				loadBalancerType:    aws.LoadBalancerTypeApplication,
+			},
+			incomingIngress: &kubernetes.Ingress{
+				SSLPolicy:              "ELBSecurityPolicy-TLS-1-2-2017-01",
+				HasSSLPolicyAnnotation: true,
+				Shared:                 true,
+				Scheme:                 "internet-facing",
+				LoadBalancerType:       aws.LoadBalancerTypeApplication,
+			},
+			maxCerts:    10,
+			shouldAdd:   true,
+			description: "Two ingresses with identical explicit SSL policy annotations should share the LB",
+		},
+		{
+			name: "shared LB - both sides explicit - different policy - should NOT share",
+			existingLB: &loadBalancer{
+				shared:              true,
+				sslPolicy:           "ELBSecurityPolicy-2016-08",
+				sslPolicyIsExplicit: true,
+				ingresses:           make(map[string][]*kubernetes.Ingress),
+				scheme:              "internet-facing",
+				loadBalancerType:    aws.LoadBalancerTypeApplication,
+			},
+			incomingIngress: &kubernetes.Ingress{
+				SSLPolicy:              "ELBSecurityPolicy-TLS-1-2-2017-01",
+				HasSSLPolicyAnnotation: true,
+				Shared:                 true,
+				Scheme:                 "internet-facing",
+				LoadBalancerType:       aws.LoadBalancerTypeApplication,
+			},
+			maxCerts:    10,
+			shouldAdd:   false,
+			description: "Two ingresses with different explicit SSL policy annotations must NOT share the LB",
+		},
+		{
+			name: "shared LB - both sides default - same policy - should share",
+			existingLB: &loadBalancer{
+				shared:              true,
+				sslPolicy:           "ELBSecurityPolicy-TLS-1-2-2017-01",
+				sslPolicyIsExplicit: false,
+				ingresses:           make(map[string][]*kubernetes.Ingress),
+				scheme:              "internet-facing",
+				loadBalancerType:    aws.LoadBalancerTypeApplication,
+			},
+			incomingIngress: &kubernetes.Ingress{
+				SSLPolicy:              "ELBSecurityPolicy-TLS-1-2-2017-01",
+				HasSSLPolicyAnnotation: false,
+				Shared:                 true,
+				Scheme:                 "internet-facing",
+				LoadBalancerType:       aws.LoadBalancerTypeApplication,
+			},
+			maxCerts:    10,
+			shouldAdd:   true,
+			description: "Two unannotated ingresses with the same global default policy should share the LB",
 		},
 		{
 			name: "non-shared LB - always allows different SSL policies",

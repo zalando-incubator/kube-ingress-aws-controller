@@ -48,6 +48,7 @@ type loadBalancer struct {
 	clusterLocal                 bool
 	securityGroup                string
 	sslPolicy                    string
+	sslPolicyIsExplicit          bool
 	ipAddressType                string
 	wafWebACLID                  string
 	certTTL                      time.Duration
@@ -130,10 +131,13 @@ func (l *loadBalancer) addIngress(certificateARNs []string, ingress *kubernetes.
 		return false
 	}
 
-	// settings that can be changed on an existing load balancer if it's
-	// NOT shared.
+	// settings that can be changed on an existing load balancer if it's NOT
+	// shared. For shared LBs the SSL policy guard only fires when at least one
+	// side has an explicit annotation, which prevents an unannotated ingress
+	// from overwriting an explicitly-set policy while still
+	// allowing in-place updates when both sides use the global default.
 	if ingress.Shared && (l.securityGroup != ingress.SecurityGroup ||
-		(ingress.HasSSLPolicyAnnotation && l.sslPolicy != ingress.SSLPolicy) ||
+		(l.sslPolicy != ingress.SSLPolicy && (ingress.HasSSLPolicyAnnotation || l.sslPolicyIsExplicit)) ||
 		l.wafWebACLID != ingress.WAFWebACLID) {
 		return false
 	}
@@ -394,6 +398,7 @@ func getAllLoadBalancers(certs CertificatesFinder, certTTL time.Duration, stackL
 			shared:                       sl.Stack.OwnerIngress == "",
 			securityGroup:                sl.Stack.SecurityGroup,
 			sslPolicy:                    sl.Stack.SSLPolicy,
+			sslPolicyIsExplicit:          sl.Stack.SSLPolicyIsExplicit,
 			ipAddressType:                sl.Stack.IpAddressType,
 			loadBalancerType:             sl.Stack.LoadBalancerType,
 			http2:                        sl.Stack.HTTP2,
@@ -481,15 +486,16 @@ func matchIngressesToLoadBalancers(
 			loadBalancers = append(
 				loadBalancers,
 				&loadBalancer{
-					ingresses:        i,
-					scheme:           ingress.Scheme,
-					shared:           ingress.Shared,
-					securityGroup:    ingress.SecurityGroup,
-					sslPolicy:        ingress.SSLPolicy,
-					ipAddressType:    ingress.IPAddressType,
-					loadBalancerType: ingress.LoadBalancerType,
-					http2:            ingress.HTTP2,
-					wafWebACLID:      ingress.WAFWebACLID,
+					ingresses:           i,
+					scheme:              ingress.Scheme,
+					shared:              ingress.Shared,
+					securityGroup:       ingress.SecurityGroup,
+					sslPolicy:           ingress.SSLPolicy,
+					sslPolicyIsExplicit: ingress.HasSSLPolicyAnnotation,
+					ipAddressType:       ingress.IPAddressType,
+					loadBalancerType:    ingress.LoadBalancerType,
+					http2:               ingress.HTTP2,
+					wafWebACLID:         ingress.WAFWebACLID,
 				},
 			)
 		}
@@ -547,7 +553,7 @@ func (w *worker) createStack(ctx context.Context, lb *loadBalancer, problems *pr
 
 	log.Infof("Creating stack for certificates %q / ingress %q", certificates, lb.ingresses)
 
-	stackId, err := w.awsAdapter.CreateStack(ctx, certificates, lb.scheme, lb.securityGroup, lb.Owner(), lb.sslPolicy, lb.ipAddressType, lb.wafWebACLID, lb.cwAlarms, lb.loadBalancerType, lb.http2)
+	stackId, err := w.awsAdapter.CreateStack(ctx, certificates, lb.scheme, lb.securityGroup, lb.Owner(), lb.sslPolicy, lb.ipAddressType, lb.wafWebACLID, lb.cwAlarms, lb.loadBalancerType, lb.http2, lb.sslPolicyIsExplicit)
 	if err != nil {
 		if isAlreadyExistsError(err) {
 			lb.stack, err = w.awsAdapter.GetStack(ctx, stackId)
@@ -567,7 +573,7 @@ func (w *worker) updateStack(ctx context.Context, lb *loadBalancer, problems *pr
 
 	log.Infof("Updating %q stack for %d certificates / %d ingresses", lb.scheme, len(certificates), len(lb.ingresses))
 
-	stackId, err := w.awsAdapter.UpdateStack(ctx, lb.stack.Name, certificates, lb.scheme, lb.securityGroup, lb.Owner(), lb.sslPolicy, lb.ipAddressType, lb.wafWebACLID, lb.cwAlarms, lb.loadBalancerType, lb.http2)
+	stackId, err := w.awsAdapter.UpdateStack(ctx, lb.stack.Name, certificates, lb.scheme, lb.securityGroup, lb.Owner(), lb.sslPolicy, lb.ipAddressType, lb.wafWebACLID, lb.cwAlarms, lb.loadBalancerType, lb.http2, lb.sslPolicyIsExplicit)
 	if isNoUpdatesToBePerformedError(err) {
 		log.Debugf("Stack(%q) is already up to date", certificates)
 	} else if err != nil {
