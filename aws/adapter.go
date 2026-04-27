@@ -137,11 +137,11 @@ const (
 	// DefaultNLBCrossZone specifies the default configuration for cross
 	// zone load balancing: https://docs.aws.amazon.com/elasticloadbalancing/latest/network/network-load-balancers.html#load-balancer-attributes
 	// It it is safe to change as per https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-elasticloadbalancingv2-loadbalancer-loadbalancerattribute.html#aws-properties-elasticloadbalancingv2-loadbalancer-loadbalancerattribute-properties
-	DefaultNLBCrossZone                = false
-	DefaultNLBHTTPEnabled              = false
-	DefaultTargetGroupProtocolVersion  = "HTTP1"
-	DefaultNLBProxyProtocolV2Enabled   = false
-	DefaultNLBPreserveClientIPEnabled  = true
+	DefaultNLBCrossZone               = false
+	DefaultNLBHTTPEnabled             = false
+	DefaultTargetGroupProtocolVersion = "HTTP1"
+	DefaultNLBProxyProtocolV2Enabled  = false
+	DefaultNLBPreserveClientIPEnabled = true
 
 	nameTag                     = "Name"
 	LoadBalancerTypeApplication = "application"
@@ -173,24 +173,29 @@ var (
 	// SSLPolicies is a map of valid ALB SSL Policies
 	// https://docs.aws.amazon.com/elasticloadbalancing/latest/application/create-https-listener.html#describe-ssl-policies
 	SSLPolicies = map[string]bool{
-		"ELBSecurityPolicy-2016-08":                true,
-		"ELBSecurityPolicy-FS-2018-06":             true,
-		"ELBSecurityPolicy-TLS-1-2-2017-01":        true,
-		"ELBSecurityPolicy-TLS-1-2-Ext-2018-06":    true,
-		"ELBSecurityPolicy-TLS-1-1-2017-01":        true,
-		"ELBSecurityPolicy-2015-05":                true,
-		"ELBSecurityPolicy-TLS-1-0-2015-04":        true,
-		"ELBSecurityPolicy-FS-1-1-2019-08":         true,
-		"ELBSecurityPolicy-FS-1-2-2019-08":         true,
-		"ELBSecurityPolicy-FS-1-2-Res-2019-08":     true,
-		"ELBSecurityPolicy-FS-1-2-Res-2020-10":     true,
-		"ELBSecurityPolicy-TLS13-1-2-2021-06":      true,
-		"ELBSecurityPolicy-TLS13-1-2-Res-2021-06":  true,
-		"ELBSecurityPolicy-TLS13-1-2-Ext1-2021-06": true,
-		"ELBSecurityPolicy-TLS13-1-2-Ext2-2021-06": true,
-		"ELBSecurityPolicy-TLS13-1-1-2021-06":      true,
-		"ELBSecurityPolicy-TLS13-1-0-2021-06":      true,
-		"ELBSecurityPolicy-TLS13-1-3-2021-06":      true,
+		"ELBSecurityPolicy-2016-08":                   true,
+		"ELBSecurityPolicy-FS-2018-06":                true,
+		"ELBSecurityPolicy-TLS-1-2-2017-01":           true,
+		"ELBSecurityPolicy-TLS-1-2-Ext-2018-06":       true,
+		"ELBSecurityPolicy-TLS-1-1-2017-01":           true,
+		"ELBSecurityPolicy-2015-05":                   true,
+		"ELBSecurityPolicy-TLS-1-0-2015-04":           true,
+		"ELBSecurityPolicy-FS-1-1-2019-08":            true,
+		"ELBSecurityPolicy-FS-1-2-2019-08":            true,
+		"ELBSecurityPolicy-FS-1-2-Res-2019-08":        true,
+		"ELBSecurityPolicy-FS-1-2-Res-2020-10":        true,
+		"ELBSecurityPolicy-TLS13-1-2-2021-06":         true,
+		"ELBSecurityPolicy-TLS13-1-2-Res-2021-06":     true,
+		"ELBSecurityPolicy-TLS13-1-2-Ext1-2021-06":    true,
+		"ELBSecurityPolicy-TLS13-1-2-Ext2-2021-06":    true,
+		"ELBSecurityPolicy-TLS13-1-1-2021-06":         true,
+		"ELBSecurityPolicy-TLS13-1-0-2021-06":         true,
+		"ELBSecurityPolicy-TLS13-1-3-2021-06":         true,
+		"ELBSecurityPolicy-TLS13-1-3-PQ-2025-09":      true,
+		"ELBSecurityPolicy-TLS13-1-2-PQ-2025-09":      true,
+		"ELBSecurityPolicy-TLS13-1-2-Res-PQ-2025-09":  true,
+		"ELBSecurityPolicy-TLS13-1-2-Ext2-PQ-2025-09": true,
+		"ELBSecurityPolicy-TLS13-1-2-Ext1-PQ-2025-09": true,
 	}
 	SSLPoliciesList = []string{
 		"ELBSecurityPolicy-2016-08",
@@ -211,6 +216,11 @@ var (
 		"ELBSecurityPolicy-TLS13-1-1-2021-06",
 		"ELBSecurityPolicy-TLS13-1-0-2021-06",
 		"ELBSecurityPolicy-TLS13-1-3-2021-06",
+		"ELBSecurityPolicy-TLS13-1-3-PQ-2025-09",
+		"ELBSecurityPolicy-TLS13-1-2-PQ-2025-09",
+		"ELBSecurityPolicy-TLS13-1-2-Res-PQ-2025-09",
+		"ELBSecurityPolicy-TLS13-1-2-Ext2-PQ-2025-09",
+		"ELBSecurityPolicy-TLS13-1-2-Ext1-PQ-2025-09",
 	}
 )
 
