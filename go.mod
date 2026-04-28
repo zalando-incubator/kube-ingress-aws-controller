@@ -1,6 +1,6 @@
 module github.com/zalando-incubator/kube-ingress-aws-controller
 
-go 1.25.8
+go 1.26.2
 
 require (
 	github.com/alecthomas/kingpin/v2 v2.4.0
