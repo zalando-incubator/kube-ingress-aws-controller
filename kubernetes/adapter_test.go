@@ -24,6 +24,7 @@ var (
 	testIPAddressTypeDefault        = aws.IPAddressTypeIPV4
 	testLoadBalancerTypeIngress     = loadBalancerTypeALB
 	testWAFWebACLID                 = "zbr-1234"
+	testLoadBalancerTypeNone        = loadBalancerTypeNone
 )
 
 func TestNewIngressFromKube(tt *testing.T) {
@@ -513,6 +514,28 @@ func TestNewIngressFromKube(tt *testing.T) {
 				},
 			},
 		},
+		{
+			msg:                     "test load balancer type none",
+			defaultLoadBalancerType: aws.LoadBalancerTypeApplication,
+			ingress:                 nil,
+			ingressError:            false,
+			kubeIngress: &ingress{
+				Metadata: kubeItemMetadata{
+					Namespace: "default",
+					Name:      "foo",
+					Annotations: map[string]string{
+						ingressLoadBalancerTypeAnnotation: testLoadBalancerTypeNone,
+					},
+				},
+				Status: ingressStatus{
+					LoadBalancer: ingressLoadBalancerStatus{
+						Ingress: []ingressLoadBalancer{
+							{Hostname: "bar"},
+						},
+					},
+				},
+			},
+		},
 	} {
 		tt.Run(tc.msg, func(t *testing.T) {
 			a, err := NewAdapter(testConfig, IngressAPIVersionNetworking, testIngressFilter, testIngressDefaultSecurityGroup, testSSLPolicy, tc.defaultLoadBalancerType, DefaultClusterLocalDomain, aws.DefaultIpAddressType, false)
@@ -527,10 +550,35 @@ func TestNewIngressFromKube(tt *testing.T) {
 			} else {
 				assert.NoError(t, err)
 				assert.Equal(t, tc.ingress, got, "mapping from kubernetes ingress to adapter failed")
-				assert.Equal(t, got.String(), fmt.Sprintf("%s %s/%s", tc.ingress.ResourceType, tc.ingress.Namespace, tc.ingress.Name), "wrong value from String()")
+				if got != nil {
+					assert.Equal(t, got.String(), fmt.Sprintf("%s %s/%s", tc.ingress.ResourceType, tc.ingress.Namespace, tc.ingress.Name), "wrong value from String()")
+				} else {
+					assert.Nil(t, tc.ingress, "expected nil ingress")
+				}
 			}
 		})
 	}
+}
+
+func TestNewIngressFromRouteGroup(t *testing.T) {
+	a, err := NewAdapter(testConfig, IngressAPIVersionNetworking, testIngressFilter, testIngressDefaultSecurityGroup, testSSLPolicy, aws.LoadBalancerTypeApplication, DefaultClusterLocalDomain, aws.DefaultIpAddressType, false)
+	if err != nil {
+		t.Fatalf("cannot create kubernetes adapter: %v", err)
+	}
+
+	kubeRG := &routegroup{
+		Metadata: kubeItemMetadata{
+			Namespace: "default",
+			Name:      "foo",
+			Annotations: map[string]string{
+				ingressLoadBalancerTypeAnnotation: testLoadBalancerTypeNone,
+			},
+		},
+	}
+
+	got, err := a.newIngressFromRouteGroup(kubeRG)
+	assert.NoError(t, err)
+	assert.Nil(t, got, "expected nil ingress for routegroup with load balancer type none")
 }
 
 func TestInsecureConfig(t *testing.T) {
@@ -602,6 +650,24 @@ func TestListIngress(t *testing.T) {
 	}
 	client.broken = true
 	_, err = a.ListIngress()
+	if err == nil {
+		t.Error("expected an error")
+	}
+}
+
+func TestListRoutegroup(t *testing.T) {
+	a, _ := NewAdapter(testConfig, IngressAPIVersionNetworking, testIngressFilter, testIngressDefaultSecurityGroup, testSSLPolicy, aws.LoadBalancerTypeApplication, DefaultClusterLocalDomain, aws.DefaultIpAddressType, false)
+	client := &mockClient{}
+	a.kubeClient = client
+	routegroups, err := a.ListRoutegroups()
+	if err != nil {
+		t.Error(err)
+	}
+	if len(routegroups) != 1 {
+		t.Fatal("unexpected count of routegroup resources")
+	}
+	client.broken = true
+	_, err = a.ListRoutegroups()
 	if err == nil {
 		t.Error("expected an error")
 	}

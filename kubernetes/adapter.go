@@ -54,6 +54,7 @@ const (
 	DefaultClusterLocalDomain = ".cluster.local"
 	loadBalancerTypeNLB       = "nlb"
 	loadBalancerTypeALB       = "alb"
+	loadBalancerTypeNone      = "none"
 )
 
 var (
@@ -226,6 +227,15 @@ func (a *Adapter) newIngress(typ IngressType, metadata kubeItemMetadata, host st
 		}
 	}
 
+	if loadBalancerType == loadBalancerTypeNone {
+		log.WithFields(log.Fields{
+			"type": typ,
+			"ns":   metadata.Namespace,
+			"name": metadata.Name,
+		}).Infof("ingress resource is annotated with %s=%s, skipping load balancer provisioning", ingressLoadBalancerTypeAnnotation, loadBalancerTypeNone)
+		return nil, nil
+	}
+
 	securityGroup, hasSG := annotations[ingressSecurityGroupAnnotation]
 	if !hasSG {
 		securityGroup = a.ingressDefaultSecurityGroup
@@ -321,14 +331,14 @@ func (a *Adapter) ListIngress() ([]*Ingress, error) {
 			continue
 		}
 		ing, err := a.newIngressFromKube(ingress)
-		if err == nil {
-			ret = append(ret, ing)
-		} else {
+		if err != nil {
 			log.WithFields(log.Fields{
 				"type": TypeIngress,
 				"ns":   ingress.Metadata.Namespace,
 				"name": ingress.Metadata.Name,
 			}).Errorf("%v", err)
+		} else if ing != nil {
+			ret = append(ret, ing)
 		}
 	}
 	return ret, nil
@@ -350,14 +360,14 @@ func (a *Adapter) ListRoutegroups() ([]*Ingress, error) {
 			continue
 		}
 		ing, err := a.newIngressFromRouteGroup(rg)
-		if err == nil {
-			ret = append(ret, ing)
-		} else {
+		if err != nil {
 			log.WithFields(log.Fields{
 				"type": TypeRouteGroup,
 				"ns":   rg.Metadata.Namespace,
 				"name": rg.Metadata.Name,
 			}).Errorf("%v", err)
+		} else if ing != nil {
+			ret = append(ret, ing)
 		}
 	}
 	return ret, nil

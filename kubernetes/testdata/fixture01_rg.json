@@ -70,6 +70,28 @@
           ]
         }
       }
+    },
+    {
+      "metadata": {
+        "name": "fixture-rg04",
+        "namespace": "default",
+        "selfLink": "/apis/zalando.org/v1/namespaces/default/routegroups/fixture-rg04",
+        "uid": "fixture-rg04",
+        "resourceVersion": "42",
+        "generation": 1,
+        "creationTimestamp": "2016-11-29T14:53:42Z",
+        "annotations": {
+          "kubernetes.io/ingress.class": "skipper",
+          "zalando.org/aws-load-balancer-type": "none"
+        }
+      },
+      "status": {
+        "loadBalancer": {
+          "routegroup": [
+            {"hostname": "skipper.example.org"}
+          ]
+        }
+      }
     }
   ]
 }
