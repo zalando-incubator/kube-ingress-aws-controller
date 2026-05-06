@@ -92,6 +92,27 @@
           ]
         }
       }
+    },
+    {
+      "metadata": {
+        "name": "fixture-rg05",
+        "namespace": "default",
+        "selfLink": "/apis/zalando.org/v1/namespaces/default/routegroups/fixture-rg05",
+        "uid": "fixture-rg05",
+        "resourceVersion": "42",
+        "generation": 1,
+        "creationTimestamp": "2016-11-29T14:53:42Z",
+        "annotations": {
+          "zalando.org/aws-load-balancer-type": "none"
+        }
+      },
+      "status": {
+        "loadBalancer": {
+          "routegroup": [
+            {"hostname": "example.org"}
+          ]
+        }
+      }
     }
   ]
 }

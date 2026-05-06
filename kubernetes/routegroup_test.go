@@ -29,6 +29,7 @@ func TestListRoutegroups(t *testing.T) {
 		newRoutegroup("fixture-rg02", map[string]string{ingressClassAnnotation: "skipper"}, "skipper.example.org", "fixture-rg02"),
 		newRoutegroup("fixture-rg03", map[string]string{ingressClassAnnotation: "other"}, "other.example.org", "fixture-rg03"),
 		newRoutegroup("fixture-rg04", map[string]string{ingressClassAnnotation: "skipper", ingressLoadBalancerTypeAnnotation: "none"}, "skipper.example.org", ""),
+		newRoutegroup("fixture-rg05", map[string]string{ingressLoadBalancerTypeAnnotation: "none"}, "example.org", ""),
 	)
 	got, err := listRoutegroups(kubeClient)
 	if err != nil {

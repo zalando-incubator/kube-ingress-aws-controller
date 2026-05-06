@@ -50,6 +50,15 @@ This information is used to manage AWS resources for each ingress objects of the
 
 ## Upgrade
 
+### <v0.21 to >=v0.21
+
+Version `v0.21` adds opt-out support for `zalando.org/aws-load-balancer-type: none`:
+
+- **Opt-out annotation**: Setting `zalando.org/aws-load-balancer-type: none` on an Ingress or RouteGroup instructs the controller to exclude that resource from reconciliation entirely.
+  - Skipper continues to read the resource for routing as normal
+  - Useful for resources that should be fronted by a Service-type LoadBalancer rather than one provisioned by this controller 
+  - **Non-breaking**: existing Ingresses and RouteGroups without the annotation are unaffected
+
 ### <v0.20 to >=v0.20
 
 Version `v0.20` adds support for NLB target group attributes:
@@ -203,7 +212,7 @@ Overview of configuration which can be set via Ingress annotations.
 |`zalando.org/aws-load-balancer-shared`|`true` \| `false`|`true`|
 |`zalando.org/aws-load-balancer-security-group`|`string`|N/A|
 |`zalando.org/aws-load-balancer-ssl-policy`|`string`|`ELBSecurityPolicy-2016-08`|
-|`zalando.org/aws-load-balancer-type`| `nlb` \| `alb`|`alb`|
+|`zalando.org/aws-load-balancer-type`| `nlb` \| `alb` \| `none`|`alb`|
 |`zalando.org/aws-load-balancer-http2`| `true` \| `false`|`true`|
 |`zalando.org/aws-waf-web-acl-id` | `string` | N/A |
 |`kubernetes.io/ingress.class`|`string`|N/A|
@@ -214,9 +223,9 @@ Note that the annotation `alb.ingress.kubernetes.io/ip-address-type` can be used
 
 ## Load Balancers types
 
-The controller supports both [Application Load Balancers][alb] and [Network
-Load Balancers][nlb]. Below is an overview of which features can be used with
-the individual Load Balancer types.
+The controller supports [Application Load Balancers][alb], [Network
+Load Balancers][nlb] and `none`. Below is an overview of which features can be used with
+`alb` and `nlb`.
 
 | Feature                                 | Application Load Balancer                      | Network Load Balancer                    |
 |-----------------------------------------|------------------------------------------------|------------------------------------------|
@@ -237,6 +246,7 @@ To facilitate default load balancer type switch from Application to Network when
 (`--load-balancer-type="network"`) and Custom Security Group (`zalando.org/aws-load-balancer-security-group`) or
 Web Application Firewall (`zalando.org/aws-waf-web-acl-id`) annotation is present the controller configures Application Load Balancer.
 If `zalando.org/aws-load-balancer-type: nlb` annotation is also present then controller ignores the configuration and logs an error.
+If `zalando.org/aws-load-balancer-type: none` annotation is present then controller excludes the resource from reconciliation entirely — no load balancer is provisioned regardless of other annotations.
 
 [cross_zone]: https://docs.aws.amazon.com/elasticloadbalancing/latest/network/network-load-balancers.html#availability-zones
 [zone_affinity]: https://docs.aws.amazon.com/elasticloadbalancing/latest/network/network-load-balancers.html#zonal-dns-affinity
