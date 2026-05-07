@@ -2,7 +2,7 @@
 
 BINARY        ?= kube-ingress-aws-controller
 VERSION       ?= $(shell git describe --tags --always --dirty)
-IMAGE         ?= registry-write.opensource.zalan.do/teapot/$(BINARY)
+IMAGE         ?= ghcr.io/zalando-incubator/$(BINARY)
 TAG           ?= $(VERSION)
 SOURCES       = $(shell find . -name '*.go')
 DOCKERFILE    ?= Dockerfile
