@@ -607,6 +607,24 @@ func TestListIngress(t *testing.T) {
 	}
 }
 
+func TestListRoutegroup(t *testing.T) {
+	a, _ := NewAdapter(testConfig, IngressAPIVersionNetworking, testIngressFilter, testIngressDefaultSecurityGroup, testSSLPolicy, aws.LoadBalancerTypeApplication, DefaultClusterLocalDomain, aws.DefaultIpAddressType, false)
+	client := &mockClient{}
+	a.kubeClient = client
+	routegroups, err := a.ListRoutegroups()
+	if err != nil {
+		t.Error(err)
+	}
+	if len(routegroups) != 1 {
+		t.Fatal("unexpected count of routegroup resources")
+	}
+	client.broken = true
+	_, err = a.ListRoutegroups()
+	if err == nil {
+		t.Error("expected an error")
+	}
+}
+
 func TestAdapterUpdateIngressLoadBalancer(t *testing.T) {
 	a, _ := NewAdapter(testConfig, IngressAPIVersionNetworking, testIngressFilter, testSecurityGroup, testSSLPolicy, aws.LoadBalancerTypeApplication, DefaultClusterLocalDomain, aws.DefaultIpAddressType, false)
 	client := &mockClient{}

@@ -54,6 +54,7 @@ const (
 	DefaultClusterLocalDomain = ".cluster.local"
 	loadBalancerTypeNLB       = "nlb"
 	loadBalancerTypeALB       = "alb"
+	loadBalancerTypeNone      = "none"
 )
 
 var (
@@ -320,15 +321,23 @@ func (a *Adapter) ListIngress() ([]*Ingress, error) {
 		if !a.supportedIngress(ingress) {
 			continue
 		}
+		if hasLoadBalancerTypeNone(ingress.Metadata) {
+			log.WithFields(log.Fields{
+				"type": TypeIngress,
+				"ns":   ingress.Metadata.Namespace,
+				"name": ingress.Metadata.Name,
+			}).Infof("ingress resource is annotated with %s=%s, skipping load balancer provisioning", ingressLoadBalancerTypeAnnotation, loadBalancerTypeNone)
+			continue
+		}
 		ing, err := a.newIngressFromKube(ingress)
-		if err == nil {
-			ret = append(ret, ing)
-		} else {
+		if err != nil {
 			log.WithFields(log.Fields{
 				"type": TypeIngress,
 				"ns":   ingress.Metadata.Namespace,
 				"name": ingress.Metadata.Name,
 			}).Errorf("%v", err)
+		} else if ing != nil {
+			ret = append(ret, ing)
 		}
 	}
 	return ret, nil
@@ -349,15 +358,23 @@ func (a *Adapter) ListRoutegroups() ([]*Ingress, error) {
 		if !a.supportedCRD(rg.Metadata) {
 			continue
 		}
+		if hasLoadBalancerTypeNone(rg.Metadata) {
+			log.WithFields(log.Fields{
+				"type": TypeRouteGroup,
+				"ns":   rg.Metadata.Namespace,
+				"name": rg.Metadata.Name,
+			}).Infof("ingress resource is annotated with %s=%s, skipping load balancer provisioning", ingressLoadBalancerTypeAnnotation, loadBalancerTypeNone)
+			continue
+		}
 		ing, err := a.newIngressFromRouteGroup(rg)
-		if err == nil {
-			ret = append(ret, ing)
-		} else {
+		if err != nil {
 			log.WithFields(log.Fields{
 				"type": TypeRouteGroup,
 				"ns":   rg.Metadata.Namespace,
 				"name": rg.Metadata.Name,
 			}).Errorf("%v", err)
+		} else if ing != nil {
+			ret = append(ret, ing)
 		}
 	}
 	return ret, nil
@@ -436,4 +453,13 @@ func (a *Adapter) GetConfigMap(namespace, name string) (*ConfigMap, error) {
 func (a *Adapter) WithTargetCNIPodSelector(ns string, selector string) *Adapter {
 	a.cniPodNamespace, a.cniPodLabelSelector = ns, selector
 	return a
+}
+
+func hasLoadBalancerTypeNone(metadata kubeItemMetadata) bool {
+	annotations := metadata.Annotations
+	loadBalancerType, hasLB := annotations[ingressLoadBalancerTypeAnnotation]
+	if !hasLB {
+		return false
+	}
+	return loadBalancerType == loadBalancerTypeNone
 }

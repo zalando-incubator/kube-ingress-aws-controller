@@ -119,6 +119,49 @@
           ]
         }
       }
+    },
+    {
+      "metadata": {
+        "name": "fixture06",
+        "namespace": "default",
+        "selfLink": "/apis/networking.k8s.io/v1/namespaces/default/ingresses/fixture06",
+        "uid": "fixture06",
+        "resourceVersion": "42",
+        "generation": 1,
+        "creationTimestamp": "2016-11-29T14:53:42Z",
+        "annotations": {
+          "kubernetes.io/ingress.class": "skipper",
+          "zalando.org/aws-load-balancer-type": "none"
+        }
+      },
+      "status": {
+        "loadBalancer": {
+          "ingress": [
+            {"hostname": "skipper.example.org"}
+          ]
+        }
+      }
+    },
+    {
+      "metadata": {
+        "name": "fixture07",
+        "namespace": "default",
+        "selfLink": "/apis/networking.k8s.io/v1/namespaces/default/ingresses/fixture07",
+        "uid": "fixture07",
+        "resourceVersion": "42",
+        "generation": 1,
+        "creationTimestamp": "2016-11-29T14:53:42Z",
+        "annotations": {
+          "zalando.org/aws-load-balancer-type": "none"
+        }
+      },
+      "status": {
+        "loadBalancer": {
+          "ingress": [
+            {"hostname": "example.org"}
+          ]
+        }
+      }
     }
   ]
 }
