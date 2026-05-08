@@ -227,15 +227,6 @@ func (a *Adapter) newIngress(typ IngressType, metadata kubeItemMetadata, host st
 		}
 	}
 
-	if loadBalancerType == loadBalancerTypeNone {
-		log.WithFields(log.Fields{
-			"type": typ,
-			"ns":   metadata.Namespace,
-			"name": metadata.Name,
-		}).Infof("ingress resource is annotated with %s=%s, skipping load balancer provisioning", ingressLoadBalancerTypeAnnotation, loadBalancerTypeNone)
-		return nil, nil
-	}
-
 	securityGroup, hasSG := annotations[ingressSecurityGroupAnnotation]
 	if !hasSG {
 		securityGroup = a.ingressDefaultSecurityGroup
@@ -330,6 +321,14 @@ func (a *Adapter) ListIngress() ([]*Ingress, error) {
 		if !a.supportedIngress(ingress) {
 			continue
 		}
+		if hasLoadBalancerTypeNone(ingress.Metadata) {
+			log.WithFields(log.Fields{
+				"type": TypeIngress,
+				"ns":   ingress.Metadata.Namespace,
+				"name": ingress.Metadata.Name,
+			}).Infof("ingress resource is annotated with %s=%s, skipping load balancer provisioning", ingressLoadBalancerTypeAnnotation, loadBalancerTypeNone)
+			continue
+		}
 		ing, err := a.newIngressFromKube(ingress)
 		if err != nil {
 			log.WithFields(log.Fields{
@@ -357,6 +356,14 @@ func (a *Adapter) ListRoutegroups() ([]*Ingress, error) {
 	var ret []*Ingress
 	for _, rg := range rgs.Items {
 		if !a.supportedCRD(rg.Metadata) {
+			continue
+		}
+		if hasLoadBalancerTypeNone(rg.Metadata) {
+			log.WithFields(log.Fields{
+				"type": TypeRouteGroup,
+				"ns":   rg.Metadata.Namespace,
+				"name": rg.Metadata.Name,
+			}).Infof("ingress resource is annotated with %s=%s, skipping load balancer provisioning", ingressLoadBalancerTypeAnnotation, loadBalancerTypeNone)
 			continue
 		}
 		ing, err := a.newIngressFromRouteGroup(rg)
@@ -446,4 +453,13 @@ func (a *Adapter) GetConfigMap(namespace, name string) (*ConfigMap, error) {
 func (a *Adapter) WithTargetCNIPodSelector(ns string, selector string) *Adapter {
 	a.cniPodNamespace, a.cniPodLabelSelector = ns, selector
 	return a
+}
+
+func hasLoadBalancerTypeNone(metadata kubeItemMetadata) bool {
+	annotations := metadata.Annotations
+	loadBalancerType, hasLB := annotations[ingressLoadBalancerTypeAnnotation]
+	if !hasLB {
+		return false
+	}
+	return loadBalancerType == loadBalancerTypeNone
 }
