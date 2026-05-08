@@ -24,7 +24,6 @@ var (
 	testIPAddressTypeDefault        = aws.IPAddressTypeIPV4
 	testLoadBalancerTypeIngress     = loadBalancerTypeALB
 	testWAFWebACLID                 = "zbr-1234"
-	testLoadBalancerTypeNone        = loadBalancerTypeNone
 )
 
 func TestNewIngressFromKube(tt *testing.T) {
