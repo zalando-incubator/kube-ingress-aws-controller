@@ -12,7 +12,7 @@ spec:
     spec:
       containers:
       - name: skipper-demo
-        image: registry.opensource.zalan.do/pathfinder/skipper:latest
+        image: ghcr.io/zalando/skipper:latest
         args:
           - "skipper"
           - "-inline-routes"
