@@ -199,10 +199,7 @@ func (a *Adapter) newIngress(typ IngressType, metadata kubeItemMetadata, host st
 		scheme = elbv2Types.LoadBalancerSchemeEnumInternetFacing
 	}
 
-	shared := true
-	if getAnnotationsString(annotations, ingressSharedAnnotation, "") == "false" {
-		shared = false
-	}
+	shared := getAnnotationsString(annotations, ingressSharedAnnotation, "") != "false"
 
 	ipAddressType := getAnnotationsString(annotations, ingressALBIPAddressType, a.ingressIpAddressType)
 
@@ -249,10 +246,7 @@ func (a *Adapter) newIngress(typ IngressType, metadata kubeItemMetadata, host st
 	// convert to the internal naming e.g. nlb -> network
 	loadBalancerType = loadBalancerTypesIngressToAWS[loadBalancerType]
 
-	http2 := true
-	if getAnnotationsString(annotations, ingressHTTP2Annotation, "") == "false" {
-		http2 = false
-	}
+	http2 := getAnnotationsString(annotations, ingressHTTP2Annotation, "") != "false"
 
 	return &Ingress{
 		ResourceType:           typ,

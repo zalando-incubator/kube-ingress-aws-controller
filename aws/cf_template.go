@@ -157,7 +157,8 @@ func generateTemplate(spec *stackSpec) (string, error) {
 		}
 
 		// Add an HTTP Listener resource
-		if spec.loadbalancerType == LoadBalancerTypeApplication {
+		switch spec.loadbalancerType {
+		case LoadBalancerTypeApplication:
 			if spec.httpRedirectToHTTPS {
 				template.AddResource("HTTPListener", &cloudformation.ElasticLoadBalancingV2Listener{
 					DefaultActions: &cloudformation.ElasticLoadBalancingV2ListenerActionList{
@@ -201,7 +202,7 @@ func generateTemplate(spec *stackSpec) (string, error) {
 					)
 				}
 			}
-		} else if spec.loadbalancerType == LoadBalancerTypeNetwork {
+		case LoadBalancerTypeNetwork:
 			template.AddResource("HTTPListener", &cloudformation.ElasticLoadBalancingV2Listener{
 				DefaultActions: &cloudformation.ElasticLoadBalancingV2ListenerActionList{
 					{
@@ -227,7 +228,8 @@ func generateTemplate(spec *stackSpec) (string, error) {
 		})
 
 		// Add an HTTPS Listener resource with the first certificate as the default one
-		if spec.loadbalancerType == LoadBalancerTypeApplication {
+		switch spec.loadbalancerType {
+		case LoadBalancerTypeApplication:
 			template.AddResource("HTTPSListener", &cloudformation.ElasticLoadBalancingV2Listener{
 				DefaultActions: &cloudformation.ElasticLoadBalancingV2ListenerActionList{
 					{
@@ -256,7 +258,7 @@ func generateTemplate(spec *stackSpec) (string, error) {
 					),
 				)
 			}
-		} else if spec.loadbalancerType == LoadBalancerTypeNetwork {
+		case LoadBalancerTypeNetwork:
 			template.AddResource("HTTPSListener", &cloudformation.ElasticLoadBalancingV2Listener{
 				DefaultActions: &cloudformation.ElasticLoadBalancingV2ListenerActionList{
 					{

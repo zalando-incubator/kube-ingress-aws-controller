@@ -46,8 +46,8 @@ const (
 func newSimpleClient(cfg *Config, disableInstrumentedHttpClient bool) (client, error) {
 	var (
 		tlsConfig *tls.Config
-		transport http.RoundTripper = http.DefaultTransport
-		c         *http.Client      = http.DefaultClient
+		transport = http.DefaultTransport
+		c         = http.DefaultClient
 	)
 	if cfg.CAFile != "" {
 		fileData, err := os.ReadFile(cfg.CAFile)
@@ -67,10 +67,10 @@ func newSimpleClient(cfg *Config, disableInstrumentedHttpClient bool) (client, e
 		transport = &http.Transport{
 			TLSHandshakeTimeout: tlsHandshakeTimeout,
 			TLSClientConfig:     tlsConfig,
-			Dial: (&net.Dialer{
+			DialContext: (&net.Dialer{
 				Timeout:   timeout,
 				KeepAlive: timeout,
-			}).Dial,
+			}).DialContext,
 		}
 	}
 
