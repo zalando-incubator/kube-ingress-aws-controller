@@ -509,10 +509,7 @@ func mapToManagedStack(stack *types.Stack) *Stack {
 		}
 	}
 
-	http2 := true
-	if parameters[parameterHTTP2Parameter] == "false" {
-		http2 = false
-	}
+	http2 := parameters[parameterHTTP2Parameter] != "false"
 
 	targetGroupIPAddressType := parameters[parameterTargetGroupIPAddressTypeParameter]
 	if targetGroupIPAddressType == "" {
