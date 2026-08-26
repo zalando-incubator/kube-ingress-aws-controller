@@ -31,9 +31,20 @@ test:
 		profile.cov > profile.cov.tmp
 	mv profile.cov.tmp profile.cov
 
-## lint: runs golangci-lint
-lint:
-	golangci-lint run --timeout 5m ./...
+## lint: runs vet and staticcheck
+lint: vet staticcheck
+
+.PHONY: vet
+vet: $(SOURCES) ## run Go vet
+	go vet ./...
+
+.PHONY: staticcheck
+# -ST1000 generated files
+# -ST1003 wrong naming convention Api vs API, Id vs ID
+# -ST1020 too many wrong comments on exported functions to fix right away
+staticcheck: $(SOURCES) ## run staticcheck
+	staticcheck -checks "all,-ST1000,-ST1003,-ST1020" ./...
+
 
 ## fmt: formats all go files
 fmt:
