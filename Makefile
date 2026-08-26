@@ -19,6 +19,12 @@ clean:
 	rm -rf build
 	rm -rf profile.cov
 
+.PHONY: deps
+deps: ## install dependencies to run everything
+	go env
+	@go install github.com/mattn/goveralls@latest
+	@go install honnef.co/go/tools/cmd/staticcheck@v0.8.0-rc.1
+
 ## test: runs go test
 test:
 	go test -v -race -coverprofile=profile.cov -cover $(GOPKGS)

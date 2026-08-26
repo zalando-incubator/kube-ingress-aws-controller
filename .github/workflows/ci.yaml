@@ -9,9 +9,7 @@ jobs:
       with:
         go-version: "^1.27"
         check-latest: true
-    - run: go version
-    - run: go install github.com/mattn/goveralls@latest
-    - run: go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+    - run: make deps
     - run: make test
     - run: make lint
     - run: goveralls -coverprofile=profile.cov -service=github
