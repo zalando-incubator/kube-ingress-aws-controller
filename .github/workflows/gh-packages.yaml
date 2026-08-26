@@ -18,7 +18,7 @@ jobs:
       - uses: actions/setup-go@v7
         with:
           # https://www.npmjs.com/package/semver#caret-ranges-123-025-004
-          go-version: '^1.26'
+          go-version: '^1.27'
           check-latest: true
 
       - name: Login to Github Container Registry
