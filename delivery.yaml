@@ -80,7 +80,6 @@ pipeline:
       git gh-release --message-from-file "${tf}" $VERSION
 
 - id: llm-code-review
-  depends_on: []
   when:
     event: pull_request
   type: script
