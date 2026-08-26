@@ -1,4 +1,6 @@
 name: gh-package-deploy
+permissions: {}
+
 on:
   push:
     tags:
@@ -11,9 +13,15 @@ env:
 jobs:
   docker:
     runs-on: ubuntu-latest
+    # Adding this block will override default values to None if not specified in the block
+    # https://docs.github.com/en/actions/using-jobs/assigning-permissions-to-jobs
+    permissions:
+      contents: read
+      actions: read
+      packages: write # to push packages
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - uses: actions/setup-go@v7
         with:
