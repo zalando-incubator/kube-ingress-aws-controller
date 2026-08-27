@@ -131,7 +131,7 @@ func (m *CertificateProvider) GetCertificates(_ context.Context) ([]*certs.Certi
 	return m.Summaries, m.Error
 }
 
-// certmock implements CertificatesFinder for testing, without validating
+// Cert is a mock that implements CertificatesFinder for testing, without validating
 // a real certificate in x509.
 type Cert struct {
 	summaries []*certs.CertificateSummary
