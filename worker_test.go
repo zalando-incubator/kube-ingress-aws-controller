@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/x509"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"io"
 	"net/http/httptest"
@@ -30,6 +31,8 @@ import (
 	"github.com/zalando-incubator/kube-ingress-aws-controller/aws/fake"
 	certsfake "github.com/zalando-incubator/kube-ingress-aws-controller/certs/fake"
 )
+
+var updateGolden = flag.Bool("update", false, "update golden test files")
 
 func TestResourceConversionOneToOne(tt *testing.T) {
 	clusterIDTagPrefix := "kubernetes.io/cluster/"
@@ -928,6 +931,7 @@ func TestResourceConversionOneToOne(tt *testing.T) {
 				ingressClassFilterList,
 				securityGroupID,
 				sslPolicy,
+				aws.DefaultAlpnPolicy,
 				scenario.typeLB,
 				clusterLocalDomain,
 				scenario.ipAddressType,
@@ -1006,6 +1010,31 @@ func TestResourceConversionOneToOne(tt *testing.T) {
 					t.Fatal(err)
 				}
 				tags = append(tags, content)
+			}
+
+			if *updateGolden {
+				for i, file := range templateFiles {
+					if i < len(clientCF.GetTemplateCreationHistory()) {
+						path := "./testdata/" + scenario.name + "/output/templates/" + file.Name()
+						if err := os.WriteFile(path, []byte(clientCF.GetTemplateCreationHistory()[i]), 0600); err != nil {
+							t.Fatal(err)
+						}
+					}
+				}
+				for i, file := range paramFiles {
+					if i < len(clientCF.GetParamCreationHistory()) {
+						b, err := json.MarshalIndent(clientCF.GetParamCreationHistory()[i], "", "  ")
+						if err != nil {
+							t.Fatal(err)
+						}
+						path := "./testdata/" + scenario.name + "/output/params/" + file.Name()
+						if err := os.WriteFile(path, append(b, '\n'), 0600); err != nil {
+							t.Fatal(err)
+						}
+					}
+				}
+				clientCF.CleanCreationHistory()
+				return
 			}
 
 			assert.Equal(t, len(clientCF.GetTagCreationHistory()), len(tags))

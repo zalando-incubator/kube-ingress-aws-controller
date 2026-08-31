@@ -57,6 +57,7 @@ func TestHasSSLPolicyAnnotation(t *testing.T) {
 				[]string{},
 				"sg-123",
 				defaultSSLPolicy,
+				aws.DefaultAlpnPolicy,
 				aws.LoadBalancerTypeApplication,
 				"",
 				aws.IPAddressTypeIPV4,

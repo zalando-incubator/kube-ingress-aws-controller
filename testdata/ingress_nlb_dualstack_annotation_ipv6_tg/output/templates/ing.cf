@@ -12,6 +12,11 @@
             "Default": "ipv4",
             "Description": "IP Address Type, 'ipv4' or 'dualstack'"
         },
+        "ListenerAlpnPolicyParameter": {
+            "Type": "String",
+            "Default": "HTTP1Only",
+            "Description": "The ALPN policy for NLB TLS listeners"
+        },
         "ListenerSslPolicyParameter": {
             "Type": "String",
             "Default": "ELBSecurityPolicy-2016-08",
@@ -74,6 +79,11 @@
         "HTTPSListener": {
             "Type": "AWS::ElasticLoadBalancingV2::Listener",
             "Properties": {
+                "AlpnPolicy": [
+                    {
+                        "Ref": "ListenerAlpnPolicyParameter"
+                    }
+                ],
                 "Certificates": [
                     {
                         "CertificateArn": "DUMMY"

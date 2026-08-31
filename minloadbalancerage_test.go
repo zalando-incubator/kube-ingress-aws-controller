@@ -235,6 +235,7 @@ func (suite *MinLoadBalancerAgeTestSuite) SetupTest() {
 			HTTP2:            true,
 			ClusterLocal:     false,
 			SSLPolicy:        aws.DefaultSslPolicy,
+			ALPNPolicy:       aws.DefaultAlpnPolicy,
 			IPAddressType:    aws.IPAddressTypeIPV4,
 			SecurityGroup:    "sg-12345678",
 			LoadBalancerType: aws.LoadBalancerTypeNetwork,

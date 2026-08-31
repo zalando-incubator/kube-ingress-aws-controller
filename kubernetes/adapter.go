@@ -35,6 +35,7 @@ type Adapter struct {
 	ingressFilters                 []string
 	ingressDefaultSecurityGroup    string
 	ingressDefaultSSLPolicy        string
+	ingressDefaultAlpnPolicy       string
 	ingressDefaultLoadBalancerType string
 	ingressIpAddressType           string
 	clusterLocalDomain             string
@@ -101,6 +102,8 @@ type Ingress struct {
 	SecurityGroup          string
 	SSLPolicy              string
 	HasSSLPolicyAnnotation bool
+	ALPNPolicy             string
+	HasALPNPolicyAnnotation bool
 	IPAddressType          string
 	LoadBalancerType       string
 	WAFWebACLID            string
@@ -126,7 +129,7 @@ func (c *ConfigMap) String() string {
 }
 
 // NewAdapter creates an Adapter for Kubernetes using a given configuration.
-func NewAdapter(config *Config, ingressAPIVersion string, ingressClassFilters []string, ingressDefaultSecurityGroup, ingressDefaultSSLPolicy, ingressDefaultLoadBalancerType, clusterLocalDomain, ingressIpAddressType string, disableInstrumentedHttpClient bool) (*Adapter, error) {
+func NewAdapter(config *Config, ingressAPIVersion string, ingressClassFilters []string, ingressDefaultSecurityGroup, ingressDefaultSSLPolicy, ingressDefaultAlpnPolicy, ingressDefaultLoadBalancerType, clusterLocalDomain, ingressIpAddressType string, disableInstrumentedHttpClient bool) (*Adapter, error) {
 	if config == nil || config.BaseURL == "" {
 		return nil, ErrInvalidConfiguration
 	}
@@ -141,6 +144,7 @@ func NewAdapter(config *Config, ingressAPIVersion string, ingressClassFilters []
 		ingressFilters:                 ingressClassFilters,
 		ingressDefaultSecurityGroup:    ingressDefaultSecurityGroup,
 		ingressDefaultSSLPolicy:        ingressDefaultSSLPolicy,
+		ingressDefaultAlpnPolicy:       ingressDefaultAlpnPolicy,
 		ingressDefaultLoadBalancerType: loadBalancerTypesAWSToIngress[ingressDefaultLoadBalancerType],
 		ingressIpAddressType:           ingressIpAddressType,
 		clusterLocalDomain:             clusterLocalDomain,
@@ -213,6 +217,16 @@ func (a *Adapter) newIngress(typ IngressType, metadata kubeItemMetadata, host st
 		hasSSLPolicyAnnotation = false
 	}
 
+	alpnPolicy := getAnnotationsString(annotations, ingressALPNPolicyAnnotation, a.ingressDefaultAlpnPolicy)
+	hasALPNPolicyAnnotation := false
+	if _, ok := annotations[ingressALPNPolicyAnnotation]; ok {
+		hasALPNPolicyAnnotation = true
+	}
+	if _, ok := aws.AlpnPolicies[alpnPolicy]; !ok {
+		alpnPolicy = a.ingressDefaultAlpnPolicy
+		hasALPNPolicyAnnotation = false
+	}
+
 	loadBalancerType, hasLB := annotations[ingressLoadBalancerTypeAnnotation]
 	if !hasLB {
 		// internal load balancers should be ALB if user do not override the decision
@@ -259,9 +273,11 @@ func (a *Adapter) newIngress(typ IngressType, metadata kubeItemMetadata, host st
 		Scheme:                 string(scheme),
 		Shared:                 shared,
 		SecurityGroup:          securityGroup,
-		SSLPolicy:              sslPolicy,
-		HasSSLPolicyAnnotation: hasSSLPolicyAnnotation,
-		IPAddressType:          ipAddressType,
+		SSLPolicy:               sslPolicy,
+		HasSSLPolicyAnnotation:  hasSSLPolicyAnnotation,
+		ALPNPolicy:              alpnPolicy,
+		HasALPNPolicyAnnotation: hasALPNPolicyAnnotation,
+		IPAddressType:           ipAddressType,
 		LoadBalancerType:       loadBalancerType,
 		WAFWebACLID:            wafWebAclId,
 		HTTP2:                  http2,

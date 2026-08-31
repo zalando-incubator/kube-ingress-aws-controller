@@ -62,6 +62,7 @@ type Adapter struct {
 	stackTags                   map[string]string
 	controllerID                string
 	sslPolicy                   string
+	alpnPolicy                  string
 	ipAddressType               string
 	targetGroupIPAddressType    string
 	albLogsS3Bucket             string
@@ -120,6 +121,9 @@ const (
 	// accepted by an SSL endpoint.
 	// See; https://docs.aws.amazon.com/elasticloadbalancing/latest/application/create-https-listener.html#describe-ssl-policies
 	DefaultSslPolicy = "ELBSecurityPolicy-2016-08"
+	// DefaultAlpnPolicy defines the ALPN policy for NLB TLS listeners.
+	// See: https://docs.aws.amazon.com/elasticloadbalancing/latest/network/create-tls-listener.html#alpn-policies
+	DefaultAlpnPolicy = "HTTP1Only"
 	// DefaultIpAddressType sets IpAddressType to "ipv4", it is either ipv4 or dualstack
 	DefaultIpAddressType = "ipv4"
 	// DefaultTargetGroupIPAddressType sets TargetGroupIPAddressType to "ipv4", it is either ipv4 or ipv6
@@ -170,6 +174,22 @@ var (
 	ErrMissingAutoScalingGroupTag = errors.New(`instance is missing the "` + autoScalingGroupNameTag + `" tag`)
 	// ErrNoRunningInstances is used to signal that no instances were found in the running state
 	ErrNoRunningInstances = errors.New("no reservations or instances in the running state")
+	// AlpnPolicies is a map of valid ALPN policies for NLB TLS listeners.
+	// https://docs.aws.amazon.com/elasticloadbalancing/latest/network/create-tls-listener.html#alpn-policies
+	AlpnPolicies = map[string]bool{
+		"HTTP1Only":      true,
+		"HTTP2Only":      true,
+		"HTTP2Optional":  true,
+		"HTTP2Preferred": true,
+		"None":           true,
+	}
+	AlpnPoliciesList = []string{
+		"HTTP1Only",
+		"HTTP2Only",
+		"HTTP2Optional",
+		"HTTP2Preferred",
+		"None",
+	}
 	// SSLPolicies is a map of valid ALB SSL Policies
 	// https://docs.aws.amazon.com/elasticloadbalancing/latest/application/create-https-listener.html#describe-ssl-policies
 	SSLPolicies = map[string]bool{
@@ -282,6 +302,7 @@ func NewAdapter(ctx context.Context, clusterID, newControllerID, vpcID string, d
 		obsoleteInstances:          make([]string, 0),
 		controllerID:               newControllerID,
 		sslPolicy:                  DefaultSslPolicy,
+		alpnPolicy:                 DefaultAlpnPolicy,
 		ipAddressType:              DefaultIpAddressType,
 		targetGroupIPAddressType:   DefaultTargetGroupIPAddressType,
 		albLogsS3Bucket:            DefaultAlbS3LogsBucket,
@@ -439,6 +460,12 @@ func (a *Adapter) WithControllerID(id string) *Adapter {
 // to create Load Balancer stacks
 func (a *Adapter) WithSslPolicy(policy string) *Adapter {
 	a.sslPolicy = policy
+	return a
+}
+
+// WithAlpnPolicy returns the receiver adapter after changing the ALPN policy for NLB TLS listeners.
+func (a *Adapter) WithAlpnPolicy(policy string) *Adapter {
+	a.alpnPolicy = policy
 	return a
 }
 
@@ -822,7 +849,7 @@ func (a *Adapter) UpdateTargetGroupsAndAutoScalingGroups(ctx context.Context, st
 // All the required resources (listeners and target group) are created in a
 // transactional fashion.
 // Failure to create the stack causes it to be deleted automatically.
-func (a *Adapter) CreateStack(ctx context.Context, certificateARNs []string, scheme, securityGroup, owner, sslPolicy, ipAddressType, wafWebACLID string, cwAlarms CloudWatchAlarmList, loadBalancerType string, http2 bool, sslPolicyIsExplicit bool) (string, error) {
+func (a *Adapter) CreateStack(ctx context.Context, certificateARNs []string, scheme, securityGroup, owner, sslPolicy, ipAddressType, wafWebACLID string, cwAlarms CloudWatchAlarmList, loadBalancerType string, http2 bool, sslPolicyIsExplicit bool, alpnPolicy string, alpnPolicyIsExplicit bool) (string, error) {
 	certARNs := make(map[string]time.Time, len(certificateARNs))
 	for _, arn := range certificateARNs {
 		certARNs[arn] = time.Time{}
@@ -870,6 +897,8 @@ func (a *Adapter) CreateStack(ctx context.Context, certificateARNs []string, sch
 		controllerID:                      a.controllerID,
 		sslPolicy:                         sslPolicy,
 		sslPolicyIsExplicit:               sslPolicyIsExplicit,
+		alpnPolicy:                        alpnPolicy,
+		alpnPolicyIsExplicit:              alpnPolicyIsExplicit,
 		ipAddressType:                     ipAddressType,
 		targetGroupIPAddressType:          a.targetGroupIPAddressType,
 		loadbalancerType:                  loadBalancerType,
@@ -897,7 +926,7 @@ func (a *Adapter) CreateStack(ctx context.Context, certificateARNs []string, sch
 	return createStack(ctx, a.cloudformation, spec)
 }
 
-func (a *Adapter) UpdateStack(ctx context.Context, stackName string, certificateARNs map[string]time.Time, scheme, securityGroup, owner, sslPolicy, ipAddressType, wafWebACLID string, cwAlarms CloudWatchAlarmList, loadBalancerType string, http2 bool, sslPolicyIsExplicit bool) (string, error) {
+func (a *Adapter) UpdateStack(ctx context.Context, stackName string, certificateARNs map[string]time.Time, scheme, securityGroup, owner, sslPolicy, ipAddressType, wafWebACLID string, cwAlarms CloudWatchAlarmList, loadBalancerType string, http2 bool, sslPolicyIsExplicit bool, alpnPolicy string, alpnPolicyIsExplicit bool) (string, error) {
 	if _, ok := SSLPolicies[sslPolicy]; !ok {
 		return "", fmt.Errorf("invalid SSLPolicy '%s' defined", sslPolicy)
 	}
@@ -936,6 +965,8 @@ func (a *Adapter) UpdateStack(ctx context.Context, stackName string, certificate
 		controllerID:                      a.controllerID,
 		sslPolicy:                         sslPolicy,
 		sslPolicyIsExplicit:               sslPolicyIsExplicit,
+		alpnPolicy:                        alpnPolicy,
+		alpnPolicyIsExplicit:              alpnPolicyIsExplicit,
 		ipAddressType:                     ipAddressType,
 		targetGroupIPAddressType:          a.targetGroupIPAddressType,
 		loadbalancerType:                  loadBalancerType,
