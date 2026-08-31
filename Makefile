@@ -63,7 +63,7 @@ govulncheck: $(SOURCES) ## run govulncheck (reliable) see https://go.dev/blog/go
 	govulncheck ./...
 
 .PHONY: capslock
-capslock: ## run capslock
+capslock: $(SOURCES) ## run capslock
 	capslock -output=v -packages=./...
 
 .PHONY: osv-scanner
@@ -71,11 +71,9 @@ osv-scanner: $(SOURCES) ## run osv-scanner (reliable) see https://osv.dev/
 	osv-scanner -r ./
 
 .PHONY: build.local
-build.local: ## builds a local binary in build directory
-	build/$(BINARY)
+build.local: build/$(BINARY) ## builds a local binary in build directory
 
-build.linux: ## builds a binary for linux/amd64 in build directory
-	build/linux/$(BINARY)
+build.linux: build/linux/$(BINARY) ## builds a binary for linux/amd64 in build directory
 
 build.linux.amd64: build/linux/amd64/$(BINARY)
 build.linux.arm64: build/linux/arm64/$(BINARY)
@@ -92,12 +90,10 @@ build/linux/amd64/$(BINARY): go.mod $(SOURCES)
 build/linux/arm64/$(BINARY): go.mod $(SOURCES)
 	GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build $(BUILD_FLAGS) -o build/linux/arm64/$(BINARY) -ldflags "$(LDFLAGS)" .
 
-build.docker: ## builds docker image
-	build.linux
+build.docker: build.linux ## builds docker image
 	docker build --rm -t "$(IMAGE):$(TAG)" -f $(DOCKERFILE) --build-arg TARGETARCH= .
 
-build.push: ## pushes docker image to registry
-	build.docker
+build.push: build.docker ## pushes docker image to registry
 	docker push "$(IMAGE):$(TAG)"
 
 define TEST_CNF
@@ -127,8 +123,7 @@ DNS.1 = *.domain.name
 IP.1  = 127.0.0.1
 endef
 
-recreate.ca: ## recreates a signed local test certificate
-	recreate.cnf
+recreate.ca: recreate.cnf ## recreates a signed local test certificate
 	openssl req -config kubernetes/testdata/test.cnf -new -x509 -sha256 -nodes -keyout kubernetes/testdata/key.pem -days $$((10*365)) -out kubernetes/testdata/ca.crt -subj "/"
 	cp kubernetes/testdata/ca.crt kubernetes/testdata/cert.pem
 
@@ -136,8 +131,7 @@ export TEST_CNF
 recreate.cnf:
 	@echo "$$TEST_CNF" > kubernetes/testdata/test.cnf
 
-recreate.schema: ## recreate AWS CloudFormation schema
-	internal/aws/cloudformation/scraper/aws_schema_test.go
+recreate.schema: internal/aws/cloudformation/scraper/aws_schema_test.go ## recreate AWS CloudFormation schema
 	CF_SCHEMA=$(CF_SCHEMA) go test ./internal/aws/cloudformation/scraper -run=TestSchema -tags=scraper -v
 	go fmt ./internal/aws/cloudformation/schema.go
 
