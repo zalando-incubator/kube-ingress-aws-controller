@@ -836,6 +836,14 @@ func (a *Adapter) CreateStack(ctx context.Context, certificateARNs []string, sch
 		return "", fmt.Errorf("invalid SSLPolicy '%s' defined", sslPolicy)
 	}
 
+	if alpnPolicy == "" {
+		alpnPolicy = a.alpnPolicy
+	}
+
+	if _, ok := AlpnPolicies[alpnPolicy]; !ok {
+		return "", fmt.Errorf("invalid ALPNPolicy '%s' defined", alpnPolicy)
+	}
+
 	if ipAddressType == IPAddressTypeIPV4 && a.targetGroupIPAddressType == IPAddressTypeIPV6 {
 		return "", fmt.Errorf("cannot use %s target group with %s load balancer; use dualstack load balancer for IPv6 targets", a.targetGroupIPAddressType, ipAddressType)
 	}
@@ -902,6 +910,10 @@ func (a *Adapter) CreateStack(ctx context.Context, certificateARNs []string, sch
 func (a *Adapter) UpdateStack(ctx context.Context, stackName string, certificateARNs map[string]time.Time, scheme, securityGroup, owner, sslPolicy, ipAddressType, wafWebACLID string, cwAlarms CloudWatchAlarmList, loadBalancerType string, http2 bool, sslPolicyIsExplicit bool, alpnPolicy string, alpnPolicyIsExplicit bool) (string, error) {
 	if _, ok := SSLPolicies[sslPolicy]; !ok {
 		return "", fmt.Errorf("invalid SSLPolicy '%s' defined", sslPolicy)
+	}
+
+	if _, ok := AlpnPolicies[alpnPolicy]; !ok {
+		return "", fmt.Errorf("invalid ALPNPolicy '%s' defined", alpnPolicy)
 	}
 
 	if ipAddressType == IPAddressTypeIPV4 && a.targetGroupIPAddressType == IPAddressTypeIPV6 {
