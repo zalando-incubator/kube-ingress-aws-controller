@@ -5,7 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"net/http"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -183,13 +185,8 @@ var (
 		"HTTP2Preferred": true,
 		"None":           true,
 	}
-	AlpnPoliciesList = []string{
-		"HTTP1Only",
-		"HTTP2Only",
-		"HTTP2Optional",
-		"HTTP2Preferred",
-		"None",
-	}
+	AlpnPoliciesList = slices.Collect(maps.Keys(AlpnPolicies))
+
 	// SSLPolicies is a map of valid ALB SSL Policies
 	// https://docs.aws.amazon.com/elasticloadbalancing/latest/application/create-https-listener.html#describe-ssl-policies
 	SSLPolicies = map[string]bool{
@@ -217,31 +214,7 @@ var (
 		"ELBSecurityPolicy-TLS13-1-2-Ext2-PQ-2025-09": true,
 		"ELBSecurityPolicy-TLS13-1-2-Ext1-PQ-2025-09": true,
 	}
-	SSLPoliciesList = []string{
-		"ELBSecurityPolicy-2016-08",
-		"ELBSecurityPolicy-FS-2018-06",
-		"ELBSecurityPolicy-TLS-1-2-2017-01",
-		"ELBSecurityPolicy-TLS-1-2-Ext-2018-06",
-		"ELBSecurityPolicy-TLS-1-1-2017-01",
-		"ELBSecurityPolicy-2015-05",
-		"ELBSecurityPolicy-TLS-1-0-2015-04",
-		"ELBSecurityPolicy-FS-1-1-2019-08",
-		"ELBSecurityPolicy-FS-1-2-2019-08",
-		"ELBSecurityPolicy-FS-1-2-Res-2019-08",
-		"ELBSecurityPolicy-FS-1-2-Res-2020-10",
-		"ELBSecurityPolicy-TLS13-1-2-2021-06",
-		"ELBSecurityPolicy-TLS13-1-2-Res-2021-06",
-		"ELBSecurityPolicy-TLS13-1-2-Ext1-2021-06",
-		"ELBSecurityPolicy-TLS13-1-2-Ext2-2021-06",
-		"ELBSecurityPolicy-TLS13-1-1-2021-06",
-		"ELBSecurityPolicy-TLS13-1-0-2021-06",
-		"ELBSecurityPolicy-TLS13-1-3-2021-06",
-		"ELBSecurityPolicy-TLS13-1-3-PQ-2025-09",
-		"ELBSecurityPolicy-TLS13-1-2-PQ-2025-09",
-		"ELBSecurityPolicy-TLS13-1-2-Res-PQ-2025-09",
-		"ELBSecurityPolicy-TLS13-1-2-Ext2-PQ-2025-09",
-		"ELBSecurityPolicy-TLS13-1-2-Ext1-PQ-2025-09",
-	}
+	SSLPoliciesList = slices.Collect(maps.Keys(SSLPolicies))
 )
 
 func newConfigProvider(ctx context.Context, debug, disableInstrumentedHttpClient bool) (*aws.Config, error) {
