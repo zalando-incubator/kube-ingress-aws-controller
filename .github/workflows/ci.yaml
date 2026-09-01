@@ -11,9 +11,10 @@ jobs:
       with:
         go-version: "^1.27"
         check-latest: true
+    - run: go version
     - run: make deps
-    - run: make test
     - run: make lint
+    - run: make test
     - run: goveralls -coverprofile=profile.cov -service=github
       env:
         COVERALLS_TOKEN: ${{ secrets.GITHUB_TOKEN }}

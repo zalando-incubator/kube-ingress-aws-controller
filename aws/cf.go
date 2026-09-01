@@ -13,11 +13,11 @@ import (
 )
 
 const (
-	certificateARNTagLegacy   = "ingress:certificate-arn"
-	certificateARNTagPrefix   = "ingress:certificate-arn/"
-	ingressOwnerTag           = "ingress:owner"
-	cwAlarmConfigHashTag      = "cloudwatch:alarm-config-hash"
-	sslPolicyExplicitTag      = "ingress:ssl-policy-explicit"
+	certificateARNTagLegacy = "ingress:certificate-arn"
+	certificateARNTagPrefix = "ingress:certificate-arn/"
+	ingressOwnerTag         = "ingress:owner"
+	cwAlarmConfigHashTag    = "cloudwatch:alarm-config-hash"
+	sslPolicyExplicitTag    = "ingress:ssl-policy-explicit"
 )
 
 // Stack is a simple wrapper around a CloudFormation Stack.
