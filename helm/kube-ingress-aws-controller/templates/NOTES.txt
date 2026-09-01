@@ -1,0 +1,22 @@
+kube-ingress-aws-controller has been deployed.
+
+Controller: {{ include "kube-ingress-aws-controller.fullname" . }}
+Namespace:  {{ .Values.namespace }}
+Image:      {{ .Values.image.repository }}:{{ .Values.image.tag }}
+
+Configuration:
+  Load Balancer Type:  {{ .Values.controller.loadBalancerType }}
+  Target Access Mode:  {{ .Values.controller.targetAccessMode }}
+  SSL Policy:          {{ .Values.controller.sslPolicy }}
+  RouteGroups RBAC:    {{ .Values.rbac.routegroups.enabled }}
+  VPA:                 {{ .Values.vpa.enabled }}
+
+To attach an IAM role to the service account, set:
+
+  EKS IRSA:
+    serviceAccount.annotations."eks.amazonaws.com/role-arn"=arn:aws:iam::<account>:role/<role-name>
+
+  kiam / kube2iam:
+    serviceAccount.annotations."iam.amazonaws.com/role"=<role-name>
+
+Metrics are exposed on port 7979 at /metrics.
