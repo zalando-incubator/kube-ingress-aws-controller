@@ -185,7 +185,7 @@ var (
 		"HTTP2Preferred": true,
 		"None":           true,
 	}
-	AlpnPoliciesList = slices.Collect(maps.Keys(AlpnPolicies))
+	AlpnPoliciesList = slices.Sorted(maps.Keys(AlpnPolicies))
 
 	// SSLPolicies is a map of valid ALB SSL Policies
 	// https://docs.aws.amazon.com/elasticloadbalancing/latest/application/create-https-listener.html#describe-ssl-policies
@@ -214,7 +214,7 @@ var (
 		"ELBSecurityPolicy-TLS13-1-2-Ext2-PQ-2025-09": true,
 		"ELBSecurityPolicy-TLS13-1-2-Ext1-PQ-2025-09": true,
 	}
-	SSLPoliciesList = slices.Collect(maps.Keys(SSLPolicies))
+	SSLPoliciesList = slices.Sorted(maps.Keys(SSLPolicies))
 )
 
 func newConfigProvider(ctx context.Context, debug, disableInstrumentedHttpClient bool) (*aws.Config, error) {
