@@ -125,7 +125,7 @@ const (
 	DefaultSslPolicy = "ELBSecurityPolicy-2016-08"
 	// DefaultAlpnPolicy defines the ALPN policy for NLB TLS listeners.
 	// See: https://docs.aws.amazon.com/elasticloadbalancing/latest/network/load-balancer-listeners.html#alpn-policies
-	DefaultAlpnPolicy = "HTTP1Only"
+	DefaultAlpnPolicy = "None"
 	// DefaultIpAddressType sets IpAddressType to "ipv4", it is either ipv4 or dualstack
 	DefaultIpAddressType = "ipv4"
 	// DefaultTargetGroupIPAddressType sets TargetGroupIPAddressType to "ipv4", it is either ipv4 or ipv6
