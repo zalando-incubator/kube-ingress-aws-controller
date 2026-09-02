@@ -121,10 +121,10 @@ const (
 	DefaultMaxCertsPerALB = 24
 	// DefaultSslPolicy defines the set of protocols and ciphers that will be
 	// accepted by an SSL endpoint.
-	// See; https://docs.aws.amazon.com/elasticloadbalancing/latest/application/create-https-listener.html#describe-ssl-policies
+	// See; https://docs.aws.amazon.com/elasticloadbalancing/latest/network/describe-ssl-policies.html
 	DefaultSslPolicy = "ELBSecurityPolicy-2016-08"
 	// DefaultAlpnPolicy defines the ALPN policy for NLB TLS listeners.
-	// See: https://docs.aws.amazon.com/elasticloadbalancing/latest/network/create-tls-listener.html#alpn-policies
+	// See: https://docs.aws.amazon.com/elasticloadbalancing/latest/network/load-balancer-listeners.html#alpn-policies
 	DefaultAlpnPolicy = "HTTP1Only"
 	// DefaultIpAddressType sets IpAddressType to "ipv4", it is either ipv4 or dualstack
 	DefaultIpAddressType = "ipv4"
