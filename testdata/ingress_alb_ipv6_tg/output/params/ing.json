@@ -24,6 +24,10 @@
     "parameterValue": "ELBSecurityPolicy-2016-08"
   },
   {
+    "parameterKey": "ListenerAlpnPolicyParameter",
+    "parameterValue": "HTTP1Only"
+  },
+  {
     "parameterKey": "TargetGroupIPAddressTypeParameter",
     "parameterValue": "ipv6"
   },

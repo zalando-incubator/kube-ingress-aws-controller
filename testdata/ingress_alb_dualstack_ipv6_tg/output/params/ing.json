@@ -1,58 +1,92 @@
 [
   {
-    "parameterKey": "LoadBalancerSchemeParameter",
-    "parameterValue": "internet-facing"
+    "ParameterKey": "LoadBalancerSchemeParameter",
+    "ParameterValue": "internet-facing",
+    "ResolvedValue": null,
+    "UsePreviousValue": null
   },
   {
-    "parameterKey": "LoadBalancerSecurityGroupParameter",
-    "parameterValue": "42"
+    "ParameterKey": "LoadBalancerSecurityGroupParameter",
+    "ParameterValue": "42",
+    "ResolvedValue": null,
+    "UsePreviousValue": null
   },
   {
-    "parameterKey": "LoadBalancerSubnetsParameter",
-    "parameterValue": "foo1"
+    "ParameterKey": "LoadBalancerSubnetsParameter",
+    "ParameterValue": "foo1",
+    "ResolvedValue": null,
+    "UsePreviousValue": null
   },
   {
-    "parameterKey": "TargetGroupVPCIDParameter",
-    "parameterValue": "1"
+    "ParameterKey": "TargetGroupVPCIDParameter",
+    "ParameterValue": "1",
+    "ResolvedValue": null,
+    "UsePreviousValue": null
   },
   {
-    "parameterKey": "TargetGroupTargetPortParameter",
-    "parameterValue": "0"
+    "ParameterKey": "TargetGroupTargetPortParameter",
+    "ParameterValue": "0",
+    "ResolvedValue": null,
+    "UsePreviousValue": null
   },
   {
-    "parameterKey": "ListenerSslPolicyParameter",
-    "parameterValue": "ELBSecurityPolicy-2016-08"
+    "ParameterKey": "TargetGroupIPAddressTypeParameter",
+    "ParameterValue": "ipv6",
+    "ResolvedValue": null,
+    "UsePreviousValue": null
   },
   {
-    "parameterKey": "IpAddressType",
-    "parameterValue": "dualstack"
+    "ParameterKey": "ListenerSslPolicyParameter",
+    "ParameterValue": "ELBSecurityPolicy-2016-08",
+    "ResolvedValue": null,
+    "UsePreviousValue": null
   },
   {
-    "parameterKey": "Type",
-    "parameterValue": "application"
+    "ParameterKey": "ListenerAlpnPolicyParameter",
+    "ParameterValue": "None",
+    "ResolvedValue": null,
+    "UsePreviousValue": null
   },
   {
-    "parameterKey": "HTTP2",
-    "parameterValue": "true"
+    "ParameterKey": "IpAddressType",
+    "ParameterValue": "dualstack",
+    "ResolvedValue": null,
+    "UsePreviousValue": null
   },
   {
-    "parameterKey": "TargetGroupHealthCheckPathParameter",
-    "parameterValue": ""
+    "ParameterKey": "Type",
+    "ParameterValue": "application",
+    "ResolvedValue": null,
+    "UsePreviousValue": null
   },
   {
-    "parameterKey": "TargetGroupHealthCheckPortParameter",
-    "parameterValue": "0"
+    "ParameterKey": "HTTP2",
+    "ParameterValue": "true",
+    "ResolvedValue": null,
+    "UsePreviousValue": null
   },
   {
-    "parameterKey": "TargetGroupHealthCheckIntervalParameter",
-    "parameterValue": "0"
+    "ParameterKey": "TargetGroupHealthCheckPathParameter",
+    "ParameterValue": "",
+    "ResolvedValue": null,
+    "UsePreviousValue": null
   },
   {
-    "parameterKey": "TargetGroupHealthCheckTimeoutParameter",
-    "parameterValue": "0"
+    "ParameterKey": "TargetGroupHealthCheckPortParameter",
+    "ParameterValue": "0",
+    "ResolvedValue": null,
+    "UsePreviousValue": null
   },
   {
-    "parameterKey": "TargetGroupIPAddressTypeParameter",
-    "parameterValue": "ipv6"
+    "ParameterKey": "TargetGroupHealthCheckIntervalParameter",
+    "ParameterValue": "0",
+    "ResolvedValue": null,
+    "UsePreviousValue": null
+  },
+  {
+    "ParameterKey": "TargetGroupHealthCheckTimeoutParameter",
+    "ParameterValue": "0",
+    "ResolvedValue": null,
+    "UsePreviousValue": null
   }
 ]

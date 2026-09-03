@@ -64,6 +64,7 @@ var (
 	clusterLocalDomain            string
 	maxCertsPerALB                int
 	sslPolicy                     string
+	nlbAlpnPolicy                 string
 	blacklistCertARNs             []string
 	blacklistCertArnMap           map[string]bool
 	ipAddressType                 string
@@ -163,6 +164,8 @@ func loadSettings() error {
 		Default(strconv.Itoa(aws.DefaultMaxCertsPerALB)).IntVar(&maxCertsPerALB) // TODO: max
 	kingpin.Flag("ssl-policy", "Security policy that will define the protocols/ciphers accepts by the SSL listener").
 		Default(aws.DefaultSslPolicy).EnumVar(&sslPolicy, aws.SSLPoliciesList...)
+	kingpin.Flag("nlb-alpn-policy", "ALPN policy for NLB TLS listeners. Only applies to Network Load Balancers.").
+		Default(aws.DefaultAlpnPolicy).EnumVar(&nlbAlpnPolicy, aws.AlpnPoliciesList...)
 	kingpin.Flag("blacklist-certificate-arns", "Certificate ARNs to not consider by the controller.").StringsVar(&blacklistCertARNs)
 	kingpin.Flag("ip-addr-type", "IP Address type to use.").
 		Default(aws.DefaultIpAddressType).EnumVar(&ipAddressType, aws.IPAddressTypeIPV4, aws.IPAddressTypeDualstack)
@@ -347,6 +350,7 @@ func main() {
 		WithDeregistrationDelayTimeout(deregistrationDelayTimeout).
 		WithControllerID(controllerID).
 		WithSslPolicy(sslPolicy).
+		WithAlpnPolicy(nlbAlpnPolicy).
 		WithIpAddressType(ipAddressType).
 		WithTargetGroupIPAddressType(targetGroupIPAddressType).
 		WithAlbLogsS3Bucket(albLogsS3Bucket).
@@ -396,7 +400,7 @@ func main() {
 	}
 
 	log.Debug("kubernetes.NewAdapter")
-	kubeAdapter, err = kubernetes.NewAdapter(kubeConfig, ingressAPIVersion, ingressClassFiltersList, awsAdapter.SecurityGroupID(), sslPolicy, loadBalancerType, clusterLocalDomain, ipAddressType, disableInstrumentedHttpClient)
+	kubeAdapter, err = kubernetes.NewAdapter(kubeConfig, ingressAPIVersion, ingressClassFiltersList, awsAdapter.SecurityGroupID(), sslPolicy, nlbAlpnPolicy, loadBalancerType, clusterLocalDomain, ipAddressType, disableInstrumentedHttpClient)
 	if err != nil {
 		log.Fatal(err)
 	}

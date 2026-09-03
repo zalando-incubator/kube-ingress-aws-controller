@@ -18,6 +18,7 @@ const (
 	ingressOwnerTag         = "ingress:owner"
 	cwAlarmConfigHashTag    = "cloudwatch:alarm-config-hash"
 	sslPolicyExplicitTag    = "ingress:ssl-policy-explicit"
+	alpnPolicyExplicitTag   = "ingress:alpn-policy-explicit"
 )
 
 // Stack is a simple wrapper around a CloudFormation Stack.
@@ -31,6 +32,8 @@ type Stack struct {
 	SecurityGroup            string
 	SSLPolicy                string
 	SSLPolicyIsExplicit      bool
+	ALPNPolicy               string
+	ALPNPolicyIsExplicit     bool
 	IpAddressType            string
 	LoadBalancerType         string
 	HTTP2                    bool
@@ -156,6 +159,7 @@ const (
 	parameterTargetGroupVPCIDParameter               = "TargetGroupVPCIDParameter"
 	parameterTargetGroupIPAddressTypeParameter       = "TargetGroupIPAddressTypeParameter"
 	parameterListenerSslPolicyParameter              = "ListenerSslPolicyParameter"
+	parameterListenerAlpnPolicyParameter             = "ListenerAlpnPolicyParameter"
 	parameterIpAddressTypeParameter                  = "IpAddressType"
 	parameterLoadBalancerTypeParameter               = "Type"
 	parameterLoadBalancerWAFWebACLIDParameter        = "LoadBalancerWAFWebACLIDParameter"
@@ -187,6 +191,8 @@ type stackSpec struct {
 	controllerID                      string
 	sslPolicy                         string
 	sslPolicyIsExplicit               bool
+	alpnPolicy                        string
+	alpnPolicyIsExplicit              bool
 	ipAddressType                     string
 	targetGroupIPAddressType          string
 	loadbalancerType                  string
@@ -252,6 +258,7 @@ func createStack(ctx context.Context, svc CloudFormationAPI, spec *stackSpec) (s
 			cfParam(parameterTargetGroupTargetPortParameter, fmt.Sprintf("%d", spec.targetPort)),
 			cfParam(parameterTargetGroupIPAddressTypeParameter, spec.targetGroupIPAddressType),
 			cfParam(parameterListenerSslPolicyParameter, spec.sslPolicy),
+			cfParam(parameterListenerAlpnPolicyParameter, spec.alpnPolicy),
 			cfParam(parameterIpAddressTypeParameter, spec.ipAddressType),
 			cfParam(parameterLoadBalancerTypeParameter, spec.loadbalancerType),
 			cfParam(parameterHTTP2Parameter, fmt.Sprintf("%t", spec.http2)),
@@ -301,6 +308,10 @@ func createStack(ctx context.Context, svc CloudFormationAPI, spec *stackSpec) (s
 		params.Tags = append(params.Tags, cfTag(sslPolicyExplicitTag, "true"))
 	}
 
+	if spec.alpnPolicyIsExplicit {
+		params.Tags = append(params.Tags, cfTag(alpnPolicyExplicitTag, "true"))
+	}
+
 	resp, err := svc.CreateStack(ctx, params)
 	if err != nil {
 		return spec.name, err
@@ -331,6 +342,7 @@ func updateStack(ctx context.Context, svc CloudFormationAPI, spec *stackSpec) (s
 			cfParam(parameterTargetGroupVPCIDParameter, spec.vpcID),
 			cfParam(parameterTargetGroupTargetPortParameter, fmt.Sprintf("%d", spec.targetPort)),
 			cfParam(parameterListenerSslPolicyParameter, spec.sslPolicy),
+			cfParam(parameterListenerAlpnPolicyParameter, spec.alpnPolicy),
 			cfParam(parameterTargetGroupIPAddressTypeParameter, spec.targetGroupIPAddressType),
 			cfParam(parameterIpAddressTypeParameter, spec.ipAddressType),
 			cfParam(parameterLoadBalancerTypeParameter, spec.loadbalancerType),
@@ -377,6 +389,10 @@ func updateStack(ctx context.Context, svc CloudFormationAPI, spec *stackSpec) (s
 
 	if spec.sslPolicyIsExplicit {
 		params.Tags = append(params.Tags, cfTag(sslPolicyExplicitTag, "true"))
+	}
+
+	if spec.alpnPolicyIsExplicit {
+		params.Tags = append(params.Tags, cfTag(alpnPolicyExplicitTag, "true"))
 	}
 
 	if spec.stackTerminationProtection {
@@ -484,6 +500,7 @@ func mapToManagedStack(stack *types.Stack) *Stack {
 	certificateARNs := make(map[string]time.Time, len(tags))
 	ownerIngress := ""
 	sslPolicyIsExplicit := false
+	alpnPolicyIsExplicit := false
 	for key, value := range tags {
 		if strings.HasPrefix(key, certificateARNTagPrefix) {
 			arn := strings.TrimPrefix(key, certificateARNTagPrefix)
@@ -507,6 +524,10 @@ func mapToManagedStack(stack *types.Stack) *Stack {
 		if key == sslPolicyExplicitTag && value == "true" {
 			sslPolicyIsExplicit = true
 		}
+
+		if key == alpnPolicyExplicitTag && value == "true" {
+			alpnPolicyIsExplicit = true
+		}
 	}
 
 	http2 := parameters[parameterHTTP2Parameter] != "false"
@@ -514,6 +535,11 @@ func mapToManagedStack(stack *types.Stack) *Stack {
 	targetGroupIPAddressType := parameters[parameterTargetGroupIPAddressTypeParameter]
 	if targetGroupIPAddressType == "" {
 		targetGroupIPAddressType = DefaultTargetGroupIPAddressType
+	}
+
+	alpnPolicy := parameters[parameterListenerAlpnPolicyParameter]
+	if alpnPolicy == "" {
+		alpnPolicy = DefaultAlpnPolicy
 	}
 
 	return &Stack{
@@ -525,6 +551,8 @@ func mapToManagedStack(stack *types.Stack) *Stack {
 		SecurityGroup:            parameters[parameterLoadBalancerSecurityGroupParameter],
 		SSLPolicy:                parameters[parameterListenerSslPolicyParameter],
 		SSLPolicyIsExplicit:      sslPolicyIsExplicit,
+		ALPNPolicy:               alpnPolicy,
+		ALPNPolicyIsExplicit:     alpnPolicyIsExplicit,
 		IpAddressType:            parameters[parameterIpAddressTypeParameter],
 		LoadBalancerType:         parameters[parameterLoadBalancerTypeParameter],
 		HTTP2:                    http2,

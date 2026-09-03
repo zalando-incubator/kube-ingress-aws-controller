@@ -97,6 +97,11 @@ func generateTemplate(spec *stackSpec) (string, error) {
 			Description: "The HTTPS SSL Security Policy Name",
 			Default:     "ELBSecurityPolicy-2016-08",
 		},
+		parameterListenerAlpnPolicyParameter: {
+			Type:        "String",
+			Description: "The ALPN policy for NLB TLS listeners",
+			Default:     "HTTP1Only",
+		},
 		parameterIpAddressTypeParameter: {
 			Type:        "String",
 			Description: "IP Address Type, 'ipv4' or 'dualstack'",
@@ -275,6 +280,7 @@ func generateTemplate(spec *stackSpec) (string, error) {
 				Port:            cloudformation.Integer(443),
 				Protocol:        cloudformation.String("TLS"),
 				SslPolicy:       cloudformation.Ref(parameterListenerSslPolicyParameter).String(),
+				AlpnPolicy:      cloudformation.StringList(cloudformation.Ref(parameterListenerAlpnPolicyParameter).String()),
 			})
 		}
 

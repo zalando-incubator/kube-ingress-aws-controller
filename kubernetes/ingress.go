@@ -71,6 +71,7 @@ const (
 	ingressSharedAnnotation           = "zalando.org/aws-load-balancer-shared"
 	ingressSecurityGroupAnnotation    = "zalando.org/aws-load-balancer-security-group"
 	ingressSSLPolicyAnnotation        = "zalando.org/aws-load-balancer-ssl-policy"
+	ingressALPNPolicyAnnotation       = "zalando.org/aws-load-balancer-alpn-policy"
 	ingressLoadBalancerTypeAnnotation = "zalando.org/aws-load-balancer-type"
 	ingressHTTP2Annotation            = "zalando.org/aws-load-balancer-http2"
 	ingressWAFWebACLIDAnnotation      = "zalando.org/aws-waf-web-acl-id"

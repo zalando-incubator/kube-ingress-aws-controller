@@ -49,6 +49,8 @@ type loadBalancer struct {
 	securityGroup                string
 	sslPolicy                    string
 	sslPolicyIsExplicit          bool
+	alpnPolicy                   string
+	alpnPolicyIsExplicit         bool
 	ipAddressType                string
 	wafWebACLID                  string
 	certTTL                      time.Duration
@@ -90,7 +92,8 @@ func (l *loadBalancer) inSync() bool {
 	return reflect.DeepEqual(l.CertificateARNs(), l.stack.CertificateARNs) &&
 		l.stack.CWAlarmConfigHash == l.cwAlarms.Hash() &&
 		l.wafWebACLID == l.stack.WAFWebACLID &&
-		l.sslPolicy == l.stack.SSLPolicy
+		l.sslPolicy == l.stack.SSLPolicy &&
+		l.alpnPolicy == l.stack.ALPNPolicy
 }
 
 // addIngress adds an ingress object to the load balancer.
@@ -138,6 +141,7 @@ func (l *loadBalancer) addIngress(certificateARNs []string, ingress *kubernetes.
 	// allowing in-place updates when both sides use the global default.
 	if ingress.Shared && (l.securityGroup != ingress.SecurityGroup ||
 		(l.sslPolicy != ingress.SSLPolicy && (ingress.HasSSLPolicyAnnotation || l.sslPolicyIsExplicit)) ||
+		(l.alpnPolicy != ingress.ALPNPolicy && (ingress.HasALPNPolicyAnnotation || l.alpnPolicyIsExplicit)) ||
 		l.wafWebACLID != ingress.WAFWebACLID) {
 		return false
 	}
@@ -164,6 +168,7 @@ func (l *loadBalancer) addIngress(certificateARNs []string, ingress *kubernetes.
 
 	l.shared = ingress.Shared
 	l.sslPolicy = ingress.SSLPolicy
+	l.alpnPolicy = ingress.ALPNPolicy
 	return true
 }
 
@@ -399,6 +404,8 @@ func getAllLoadBalancers(certs CertificatesFinder, certTTL time.Duration, stackL
 			securityGroup:                sl.Stack.SecurityGroup,
 			sslPolicy:                    sl.Stack.SSLPolicy,
 			sslPolicyIsExplicit:          sl.Stack.SSLPolicyIsExplicit,
+			alpnPolicy:                   sl.Stack.ALPNPolicy,
+			alpnPolicyIsExplicit:         sl.Stack.ALPNPolicyIsExplicit,
 			ipAddressType:                sl.Stack.IpAddressType,
 			loadBalancerType:             sl.Stack.LoadBalancerType,
 			http2:                        sl.Stack.HTTP2,
@@ -490,9 +497,11 @@ func matchIngressesToLoadBalancers(
 					scheme:              ingress.Scheme,
 					shared:              ingress.Shared,
 					securityGroup:       ingress.SecurityGroup,
-					sslPolicy:           ingress.SSLPolicy,
-					sslPolicyIsExplicit: ingress.HasSSLPolicyAnnotation,
-					ipAddressType:       ingress.IPAddressType,
+					sslPolicy:            ingress.SSLPolicy,
+					sslPolicyIsExplicit:  ingress.HasSSLPolicyAnnotation,
+					alpnPolicy:           ingress.ALPNPolicy,
+					alpnPolicyIsExplicit: ingress.HasALPNPolicyAnnotation,
+					ipAddressType:        ingress.IPAddressType,
 					loadBalancerType:    ingress.LoadBalancerType,
 					http2:               ingress.HTTP2,
 					wafWebACLID:         ingress.WAFWebACLID,
@@ -553,7 +562,7 @@ func (w *worker) createStack(ctx context.Context, lb *loadBalancer, problems *pr
 
 	log.Infof("Creating stack for certificates %q / ingress %q", certificates, lb.ingresses)
 
-	stackId, err := w.awsAdapter.CreateStack(ctx, certificates, lb.scheme, lb.securityGroup, lb.Owner(), lb.sslPolicy, lb.ipAddressType, lb.wafWebACLID, lb.cwAlarms, lb.loadBalancerType, lb.http2, lb.sslPolicyIsExplicit)
+	stackId, err := w.awsAdapter.CreateStack(ctx, certificates, lb.scheme, lb.securityGroup, lb.Owner(), lb.sslPolicy, lb.ipAddressType, lb.wafWebACLID, lb.cwAlarms, lb.loadBalancerType, lb.http2, lb.sslPolicyIsExplicit, lb.alpnPolicy, lb.alpnPolicyIsExplicit)
 	if err != nil {
 		if isAlreadyExistsError(err) {
 			lb.stack, err = w.awsAdapter.GetStack(ctx, stackId)
@@ -573,7 +582,7 @@ func (w *worker) updateStack(ctx context.Context, lb *loadBalancer, problems *pr
 
 	log.Infof("Updating %q stack for %d certificates / %d ingresses", lb.scheme, len(certificates), len(lb.ingresses))
 
-	stackId, err := w.awsAdapter.UpdateStack(ctx, lb.stack.Name, certificates, lb.scheme, lb.securityGroup, lb.Owner(), lb.sslPolicy, lb.ipAddressType, lb.wafWebACLID, lb.cwAlarms, lb.loadBalancerType, lb.http2, lb.sslPolicyIsExplicit)
+	stackId, err := w.awsAdapter.UpdateStack(ctx, lb.stack.Name, certificates, lb.scheme, lb.securityGroup, lb.Owner(), lb.sslPolicy, lb.ipAddressType, lb.wafWebACLID, lb.cwAlarms, lb.loadBalancerType, lb.http2, lb.sslPolicyIsExplicit, lb.alpnPolicy, lb.alpnPolicyIsExplicit)
 	if isNoUpdatesToBePerformedError(err) {
 		log.Debugf("Stack(%q) is already up to date", certificates)
 	} else if err != nil {

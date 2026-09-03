@@ -212,6 +212,7 @@ Overview of configuration which can be set via Ingress annotations.
 |`zalando.org/aws-load-balancer-shared`|`true` \| `false`|`true`|
 |`zalando.org/aws-load-balancer-security-group`|`string`|N/A|
 |`zalando.org/aws-load-balancer-ssl-policy`|`string`|`ELBSecurityPolicy-2016-08`|
+|`zalando.org/aws-load-balancer-alpn-policy`|`HTTP1Only` \| `HTTP2Only` \| `HTTP2Optional` \| `HTTP2Preferred` \| `None`|`HTTP1Only`|
 |`zalando.org/aws-load-balancer-type`| `nlb` \| `alb` \| `none`|`alb`|
 |`zalando.org/aws-load-balancer-http2`| `true` \| `false`|`true`|
 |`zalando.org/aws-waf-web-acl-id` | `string` | N/A |
@@ -241,6 +242,7 @@ Load Balancers][nlb] and `none`. Below is an overview of which features can be u
 | HTTP/2 (front-end)                      | :heavy_check_mark:                             | (not relevant)                           |
 | End-to-End HTTP/2                       | :heavy_check_mark: `--target-group-protocol-version=HTTP2` | :heavy_multiplication_x:     |
 | gRPC                                    | :heavy_check_mark: `--target-group-protocol-version=GRPC`  | :heavy_multiplication_x:     |
+| ALPN Policy                             | :heavy_multiplication_x:                       | :heavy_check_mark: `--nlb-alpn-policy`   |
 
 To facilitate default load balancer type switch from Application to Network when the default load balancer type is Network
 (`--load-balancer-type="network"`) and Custom Security Group (`zalando.org/aws-load-balancer-security-group`) or
@@ -580,6 +582,41 @@ metadata:
   name: myingress
   annotations:
     zalando.org/aws-load-balancer-ssl-policy: ELBSecurityPolicy-FS-2018-06
+spec:
+  rules:
+  - host: test-app.example.org
+    http:
+      paths:
+      - backend:
+          service:
+            name: test-app-service
+            port:
+              name: main-port
+        path: /
+        pathType: ImplementationSpecific
+```
+
+#### Create NLB with ALPN Policy
+
+For Network Load Balancers, you can configure the
+[ALPN policy](https://docs.aws.amazon.com/elasticloadbalancing/latest/network/create-tls-listener.html#alpn-policies)
+with the flag `--nlb-alpn-policy=HTTP1Only`. This choice can be overridden per
+Ingress or RouteGroup by the annotation `zalando.org/aws-load-balancer-alpn-policy`.
+Valid values: `HTTP1Only`, `HTTP2Only`, `HTTP2Optional`, `HTTP2Preferred`, `None`.
+This annotation only has effect on NLB (TLS listener); it is ignored for ALB.
+
+Ingresses and RouteGroups with different ALPN policies are placed on separate
+load balancers, following the same grouping logic as `ssl-policy`.
+
+Example:
+
+```yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: myingress
+  annotations:
+    zalando.org/aws-load-balancer-alpn-policy: HTTP2Preferred
 spec:
   rules:
   - host: test-app.example.org
