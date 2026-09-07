@@ -907,7 +907,7 @@ func (a *Adapter) CreateStack(ctx context.Context, certificateARNs []string, sch
 	return createStack(ctx, a.cloudformation, spec)
 }
 
-func (a *Adapter) UpdateStack(ctx context.Context, stackName string, certificateARNs map[string]time.Time, scheme, securityGroup, owner, sslPolicy, ipAddressType, wafWebACLID string, cwAlarms CloudWatchAlarmList, loadBalancerType string, http2 bool, sslPolicyIsExplicit bool, alpnPolicy string, alpnPolicyIsExplicit bool) (string, error) {
+func (a *Adapter) UpdateStack(ctx context.Context, stackName string, certificateARNs map[string]time.Time, scheme, securityGroup, owner, sslPolicy, ipAddressType, wafWebACLID string, cwAlarms CloudWatchAlarmList, loadBalancerType string, http2 bool, sslPolicyIsExplicit bool, alpnPolicy string, alpnPolicyIsExplicit bool, currentSubnetIDs []string) (string, error) {
 	if _, ok := SSLPolicies[sslPolicy]; !ok {
 		return "", fmt.Errorf("invalid SSLPolicy '%s' defined", sslPolicy)
 	}
@@ -926,7 +926,7 @@ func (a *Adapter) UpdateStack(ctx context.Context, stackName string, certificate
 		ownerIngress:    owner,
 		certificateARNs: certificateARNs,
 		securityGroupID: securityGroup,
-		subnets:         a.FindLBSubnets(scheme),
+		subnets:         a.FindLBSubnetsPreferExisting(scheme, currentSubnetIDs),
 		vpcID:           a.VpcID(),
 		clusterID:       a.ClusterID(),
 		healthCheck: &healthCheck{
@@ -1065,6 +1065,49 @@ func buildManifest(ctx context.Context, awsAdapter *Adapter, clusterID, vpcID st
 		clusterID:     clusterID,
 		vpcID:         vpcID,
 	}, nil
+}
+
+// FindLBSubnetsPreferExisting selects one subnet per AZ like FindLBSubnets, but
+// prefers any subnet already associated with the load balancer
+// so that an update never swaps the subnet of an
+// already-enabled Availability Zone. ELBv2 rejects such swaps with
+// "You cannot specify an additional subnet from an Availability Zone that is
+// already associated with the load balancer", leaving the stack in
+// UPDATE_FAILED.
+func (a *Adapter) FindLBSubnetsPreferExisting(scheme string, currentSubnetIDs []string) []string {
+	current := make(map[string]struct{}, len(currentSubnetIDs))
+	for _, id := range currentSubnetIDs {
+		current[id] = struct{}{}
+	}
+
+	subnetsByAZ := make(map[string]string)
+	for _, subnet := range a.manifest.subnets {
+		if _, ok := current[subnet.id]; ok {
+			subnetsByAZ[subnet.availabilityZone] = subnet.id
+		}
+	}
+
+	selected := a.FindLBSubnets(scheme)
+	if len(subnetsByAZ) == 0 {
+		return selected
+	}
+
+	azBySubnetID := make(map[string]string, len(a.manifest.subnets))
+	for _, subnet := range a.manifest.subnets {
+		azBySubnetID[subnet.id] = subnet.availabilityZone
+	}
+
+	result := make([]string, 0, len(selected))
+	for _, id := range selected {
+		if pinned, ok := subnetsByAZ[azBySubnetID[id]]; ok {
+			result = append(result, pinned)
+			continue
+		}
+		result = append(result, id)
+	}
+
+	sort.Strings(result)
+	return result
 }
 
 // FindLBSubnets finds subnets for a load balancer based on the scheme.

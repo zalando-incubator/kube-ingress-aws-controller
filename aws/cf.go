@@ -29,6 +29,7 @@ type Stack struct {
 	LoadBalancerARN          string
 	DNSName                  string
 	Scheme                   string
+	Subnets                  []string
 	SecurityGroup            string
 	SSLPolicy                string
 	SSLPolicyIsExplicit      bool
@@ -542,12 +543,18 @@ func mapToManagedStack(stack *types.Stack) *Stack {
 		alpnPolicy = DefaultAlpnPolicy
 	}
 
+	var subnets []string
+	if v := parameters[parameterLoadBalancerSubnetsParameter]; v != "" {
+		subnets = strings.Split(v, ",")
+	}
+
 	return &Stack{
 		Name:                     aws.ToString(stack.StackName),
 		LoadBalancerARN:          outputs.loadBalancerARN(),
 		DNSName:                  outputs.dnsName(),
 		TargetGroupARNs:          outputs.targetGroupARNs(),
 		Scheme:                   parameters[parameterLoadBalancerSchemeParameter],
+		Subnets:                  subnets,
 		SecurityGroup:            parameters[parameterLoadBalancerSecurityGroupParameter],
 		SSLPolicy:                parameters[parameterListenerSslPolicyParameter],
 		SSLPolicyIsExplicit:      sslPolicyIsExplicit,

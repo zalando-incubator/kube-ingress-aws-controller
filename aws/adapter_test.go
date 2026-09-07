@@ -787,6 +787,122 @@ func TestFindLBSubnets(tt *testing.T) {
 	}
 }
 
+func TestFindLBSubnetsPreferExisting(tt *testing.T) {
+	for _, test := range []struct {
+		name            string
+		subnets         []*subnetDetails
+		scheme          string
+		currentSubnets  []string
+		expectedSubnets []string
+	}{
+		{
+			// Reproduces the UPDATE_FAILED scenario: an AZ already
+			// associated with the LB gains a newly elb-tagged subnet.
+			// The already-associated subnet must be kept so the update
+			// does not try to swap the subnet of an enabled AZ.
+			name: "should keep the already-associated subnet in an AZ",
+			subnets: []*subnetDetails{
+				{
+					availabilityZone: "a",
+					public:           true,
+					id:               "1",
+				},
+				{
+					availabilityZone: "a",
+					public:           true,
+					id:               "2",
+					tags: map[string]string{
+						elbRoleTagName: "",
+					},
+				},
+			},
+			scheme:          string(elbv2Types.LoadBalancerSchemeEnumInternetFacing),
+			currentSubnets:  []string{"1"},
+			expectedSubnets: []string{"1"},
+		},
+		{
+			name: "should keep existing AZ subnet and add newly available AZ",
+			subnets: []*subnetDetails{
+				{
+					availabilityZone: "a",
+					public:           true,
+					id:               "1",
+				},
+				{
+					availabilityZone: "b",
+					public:           true,
+					id:               "3",
+				},
+			},
+			scheme:          string(elbv2Types.LoadBalancerSchemeEnumInternetFacing),
+			currentSubnets:  []string{"1"},
+			expectedSubnets: []string{"1", "3"},
+		},
+		{
+			name: "should fall back to create-time selection when no current subnets",
+			subnets: []*subnetDetails{
+				{
+					availabilityZone: "a",
+					public:           true,
+					id:               "1",
+				},
+				{
+					availabilityZone: "a",
+					public:           true,
+					id:               "2",
+					tags: map[string]string{
+						elbRoleTagName: "",
+					},
+				},
+			},
+			scheme:          string(elbv2Types.LoadBalancerSchemeEnumInternetFacing),
+			currentSubnets:  nil,
+			expectedSubnets: []string{"2"},
+		},
+		{
+			name: "should fall back when current subnet no longer present in manifest",
+			subnets: []*subnetDetails{
+				{
+					availabilityZone: "a",
+					public:           true,
+					id:               "1",
+				},
+				{
+					availabilityZone: "a",
+					public:           true,
+					id:               "2",
+					tags: map[string]string{
+						elbRoleTagName: "",
+					},
+				},
+			},
+			scheme:          string(elbv2Types.LoadBalancerSchemeEnumInternetFacing),
+			currentSubnets:  []string{"9"},
+			expectedSubnets: []string{"2"},
+		},
+	} {
+		tt.Run(test.name, func(t *testing.T) {
+			a := &Adapter{
+				manifest: &manifest{
+					subnets: test.subnets,
+				},
+			}
+
+			subnets := a.FindLBSubnetsPreferExisting(test.scheme, test.currentSubnets)
+
+			if len(subnets) != len(test.expectedSubnets) {
+				t.Errorf("unexpected number of subnets %d, expected %d", len(subnets), len(test.expectedSubnets))
+			}
+
+			for i, subnet := range subnets {
+				if subnet != test.expectedSubnets[i] {
+					t.Errorf("expected subnet %v, got %v", test.expectedSubnets[i], subnet)
+				}
+			}
+		})
+	}
+}
+
 func TestParseFilterTagsDefault(t *testing.T) {
 	for _, test := range []struct {
 		name         string

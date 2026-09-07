@@ -582,7 +582,7 @@ func (w *worker) updateStack(ctx context.Context, lb *loadBalancer, problems *pr
 
 	log.Infof("Updating %q stack for %d certificates / %d ingresses", lb.scheme, len(certificates), len(lb.ingresses))
 
-	stackId, err := w.awsAdapter.UpdateStack(ctx, lb.stack.Name, certificates, lb.scheme, lb.securityGroup, lb.Owner(), lb.sslPolicy, lb.ipAddressType, lb.wafWebACLID, lb.cwAlarms, lb.loadBalancerType, lb.http2, lb.sslPolicyIsExplicit, lb.alpnPolicy, lb.alpnPolicyIsExplicit)
+	stackId, err := w.awsAdapter.UpdateStack(ctx, lb.stack.Name, certificates, lb.scheme, lb.securityGroup, lb.Owner(), lb.sslPolicy, lb.ipAddressType, lb.wafWebACLID, lb.cwAlarms, lb.loadBalancerType, lb.http2, lb.sslPolicyIsExplicit, lb.alpnPolicy, lb.alpnPolicyIsExplicit, lb.stack.Subnets)
 	if isNoUpdatesToBePerformedError(err) {
 		log.Debugf("Stack(%q) is already up to date", certificates)
 	} else if err != nil {
