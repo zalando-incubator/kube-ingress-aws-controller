@@ -1,0 +1,113 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "kube-ingress-aws-controller.fullname" . }}
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "kube-ingress-aws-controller.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "kube-ingress-aws-controller.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "kube-ingress-aws-controller.selectorLabels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- if or .Values.metrics.podAnnotations.enabled .Values.podAnnotations }}
+      annotations:
+        {{- if .Values.metrics.podAnnotations.enabled }}
+        prometheus.io/scrape: "true"
+        prometheus.io/path: {{ .Values.metrics.path }}
+        prometheus.io/port: {{ .Values.metrics.port | quote }}
+        {{- end }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- end }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "kube-ingress-aws-controller.serviceAccountName" . }}
+      {{- with .Values.priorityClassName }}
+      priorityClassName: {{ . | quote }}
+      {{- end }}
+      {{- with .Values.dnsConfig }}
+      dnsConfig:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: controller
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args:
+            - --target-access-mode={{ .Values.controller.targetAccessMode }}
+            - --load-balancer-type={{ .Values.controller.loadBalancerType }}
+            - --ssl-policy={{ .Values.controller.sslPolicy }}
+            - --ip-addr-type={{ .Values.controller.ipAddrType }}
+            - --idle-connection-timeout={{ .Values.controller.idleConnectionTimeout }}
+            - --deregistration-delay-timeout={{ .Values.controller.deregistrationDelayTimeout }}
+            - --cert-polling-interval={{ .Values.controller.certPollingInterval }}
+            - --nlb-zone-affinity={{ .Values.controller.nlbZoneAffinity }}
+            {{- with .Values.controller.clusterLocalDomain }}
+            - --cluster-local-domain={{ . }}
+            {{- end }}
+            {{- if .Values.controller.stackTerminationProtection }}
+            - --stack-termination-protection
+            {{- end }}
+            {{- if .Values.controller.nlbCrossZone }}
+            - --nlb-cross-zone
+            {{- end }}
+            {{- if .Values.controller.nlbHttpEnabled }}
+            - --nlb-http-enabled
+            {{- end }}
+            {{- with .Values.controller.nlbHttpTargetPort }}
+            - --nlb-http-target-port={{ . }}
+            {{- end }}
+            {{- if .Values.controller.denyInternalDomains }}
+            - --deny-internal-domains
+            {{- end }}
+            {{- range $key, $value := .Values.controller.additionalStackTags }}
+            - --additional-stack-tags={{ $key }}={{ $value }}
+            {{- end }}
+            {{- with .Values.controller.certFilterTag }}
+            - --cert-filter-tag={{ . }}
+            {{- end }}
+            {{- with .Values.controller.clusterID }}
+            - --cluster-id={{ . }}
+            {{- end }}
+            {{- with .Values.controller.vpcID }}
+            - --vpc-id={{ . }}
+            {{- end }}
+          env:
+            {{- with .Values.aws.region }}
+            - name: AWS_REGION
+              value: {{ . | quote }}
+            {{- end }}
+            {{- with .Values.aws.customFilters }}
+            - name: CUSTOM_FILTERS
+              value: {{ . | quote }}
+            {{- end }}
+          ports:
+            - name: metrics
+              containerPort: 7979
+              protocol: TCP
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
