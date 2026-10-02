@@ -79,4 +79,25 @@ func TestExpiredCertTTLStacksWithIngresses(t *testing.T) {
 	require.False(t, live.inSync(), "expired TTL tags must trigger a stack update")
 	require.True(t, live.CertificateARNs()["wildcard"].IsZero(), "certificate in use must get a zero TTL")
 	require.Equal(t, delete, old.Status(), "the idle stack is still cleaned up")
+
+	require.True(t, live.deletionBlocked(), "keeping a stack marked for deletion must be reported")
+	require.False(t, old.deletionBlocked())
+}
+
+// Without any status hostname (e.g. a new cluster) the order from sortStacks is kept.
+func TestInUseFirstKeepsOrderWithoutStatus(t *testing.T) {
+	a := &loadBalancer{stack: &aws.Stack{Name: "a", DNSName: "a.elb.amazonaws.com"}}
+	b := &loadBalancer{stack: &aws.Stack{Name: "b", DNSName: "b.elb.amazonaws.com"}}
+	c := &loadBalancer{stack: &aws.Stack{Name: "c", DNSName: "c.elb.amazonaws.com"}}
+
+	require.Equal(t, []*loadBalancer{a, b, c},
+		inUseFirst([]*loadBalancer{a, b, c}, []*kubernetes.Ingress{{Name: "new"}}))
+
+	// Load balancers in use move to the front, in their previous relative order.
+	require.Equal(t, []*loadBalancer{b, c, a},
+		inUseFirst([]*loadBalancer{a, b, c}, []*kubernetes.Ingress{
+			{Name: "x", Hostname: "C.elb.amazonaws.com"},
+			{Name: "y", Hostname: "b.elb.amazonaws.com"},
+			{Name: "new"},
+		}))
 }

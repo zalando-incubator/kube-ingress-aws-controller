@@ -73,10 +73,9 @@ func (l *loadBalancer) Status() int {
 	if l.clusterLocal {
 		return ready
 	}
-	// A stack is only deleted once no ingress is assigned to it anymore.
-	// Its certificate TTL tags may have expired while ingresses were still
-	// (or again) assigned; in that case the stack is updated, which
-	// refreshes the tags, instead of being deleted with live traffic on it.
+	// A stack is only deleted once no ingress is assigned to it anymore. If
+	// its certificate TTLs expired while ingresses are still assigned, it is
+	// updated instead (see deletionBlocked).
 	if l.stack.ShouldDelete() && !l.hasIngresses() {
 		return delete
 	}
@@ -99,6 +98,16 @@ func (l *loadBalancer) hasIngresses() bool {
 		}
 	}
 	return false
+}
+
+// deletionBlocked returns true if the stack is marked for deletion but
+// ingresses are still assigned to it. This is not expected to happen: either
+// the ingresses should have moved to another load balancer or a new load
+// balancer should have been created for them. The stack is kept and updated
+// instead of being deleted with traffic on it, and the situation is reported
+// so an operator can check it.
+func (l *loadBalancer) deletionBlocked() bool {
+	return l.stack.ShouldDelete() && l.hasIngresses()
 }
 
 // inSync checks if the loadBalancer is in sync with the backing CF stack. It's
@@ -372,7 +381,13 @@ func (w *worker) doWork(ctx context.Context) (problems *problem.List) {
 	certs := NewCertificates(certificateSummaries)
 	model := buildManagedModel(certs, w.certsPerALB, w.certTTL, ingresses, stackELBs, cwAlarms, w.globalWAFACL)
 	log.Debugf("Have %d model(s)", len(model))
+	deletionBlocked := 0
 	for _, loadBalancer := range model {
+		if loadBalancer.deletionBlocked() {
+			deletionBlocked++
+			log.WithField("stack", loadBalancer.stack.Name).Warn("Stack is marked for deletion but still has ingresses assigned; " +
+				"keeping it. This is unexpected, please check the load balancers of this cluster and report it.")
+		}
 		switch loadBalancer.Status() {
 		case delete:
 			w.deleteStack(ctx, loadBalancer, problems)
@@ -386,6 +401,7 @@ func (w *worker) doWork(ctx context.Context) (problems *problem.List) {
 			w.updateIngress(loadBalancer, problems)
 		}
 	}
+	w.metrics.deletionBlockedStacksTotal.Set(float64(deletionBlocked))
 	return
 }
 
@@ -456,10 +472,7 @@ func matchIngressesToLoadBalancers(
 	}
 	loadBalancers = append(loadBalancers, clusterLocalLB)
 
-	// Ingresses already served by a load balancer are matched first, so they
-	// stay on it and new ingresses join load balancers that are in use
-	// instead of stacks that are about to be deleted.
-	for _, ingress := range stickyIngressesFirst(ingresses) {
+	for _, ingress := range ingresses {
 		if ingress.ClusterLocal {
 			clusterLocalLB.addIngress(nil, ingress, math.MaxInt64)
 			continue
@@ -484,7 +497,7 @@ func matchIngressesToLoadBalancers(
 		// try to add ingress to existing ALB stacks until certificate
 		// limit is exeeded.
 		added := false
-		for _, lb := range candidateLoadBalancers(loadBalancers, ingress) {
+		for _, lb := range loadBalancers {
 			// TODO(mlarsen): hack to phase out old load balancers
 			// which can't be updated to include type
 			// specification.
@@ -532,35 +545,27 @@ func matchIngressesToLoadBalancers(
 	return loadBalancers
 }
 
-// stickyIngressesFirst returns the ingresses with those that already have a
-// load balancer hostname in their status first, keeping the relative order.
-func stickyIngressesFirst(ingresses []*kubernetes.Ingress) []*kubernetes.Ingress {
-	sorted := make([]*kubernetes.Ingress, len(ingresses))
-	copy(sorted, ingresses)
-	sort.SliceStable(sorted, func(i, j int) bool {
-		return sorted[i].Hostname != "" && sorted[j].Hostname == ""
-	})
-	return sorted
-}
-
-// candidateLoadBalancers returns the order in which load balancers are tried
-// for an ingress: the one currently serving it, then the ones that already
-// have ingresses assigned, then all others.
-func candidateLoadBalancers(loadBalancers []*loadBalancer, ingress *kubernetes.Ingress) []*loadBalancer {
-	current := make([]*loadBalancer, 0, 1)
-	inUse := make([]*loadBalancer, 0, len(loadBalancers))
-	rest := make([]*loadBalancer, 0, len(loadBalancers))
-	for _, lb := range loadBalancers {
-		switch {
-		case ingress.Hostname != "" && lb.stack != nil && strings.EqualFold(lb.stack.DNSName, ingress.Hostname):
-			current = append(current, lb)
-		case lb.hasIngresses():
-			inUse = append(inUse, lb)
-		default:
-			rest = append(rest, lb)
+// inUseFirst moves the load balancers that ingresses currently point to (their
+// status hostname) to the front, keeping the order otherwise. Without this, an
+// ingress can be matched to an idle stack that only sorts first by name, e.g.
+// one left over from a certificate or SSL policy rotation, and its traffic
+// would move to that load balancer.
+func inUseFirst(loadBalancers []*loadBalancer, ingresses []*kubernetes.Ingress) []*loadBalancer {
+	inUse := make(map[string]bool, len(ingresses))
+	for _, ingress := range ingresses {
+		if ingress.Hostname != "" {
+			inUse[strings.ToLower(ingress.Hostname)] = true
 		}
 	}
-	return append(append(current, inUse...), rest...)
+	isInUse := func(lb *loadBalancer) bool {
+		return lb.stack != nil && inUse[strings.ToLower(lb.stack.DNSName)]
+	}
+	sorted := make([]*loadBalancer, len(loadBalancers))
+	copy(sorted, loadBalancers)
+	sort.SliceStable(sorted, func(i, j int) bool {
+		return isInUse(sorted[i]) && !isInUse(sorted[j])
+	})
+	return sorted
 }
 
 // addCloudWatchAlarms attaches CloudWatch Alarms to each load balancer model
@@ -598,6 +603,7 @@ func buildManagedModel(
 	sortStacks(stackLBStates)
 	attachGlobalWAFACL(ingresses, globalWAFACL)
 	model := getAllLoadBalancers(certs, certTTL, stackLBStates)
+	model = inUseFirst(model, ingresses)
 	model = matchIngressesToLoadBalancers(model, certs, certsPerALB, ingresses)
 	attachCloudWatchAlarms(model, cwAlarms)
 
