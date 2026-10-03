@@ -19,7 +19,7 @@ type metrics struct {
 	standaloneInstancesTotal       prometheus.Gauge
 	certificatesTotal              prometheus.Gauge
 	cloudWatchAlarmsTotal          prometheus.Gauge
-	deletionBlockedStacksTotal     prometheus.Gauge
+	deletionBlockedTotal           prometheus.Counter
 	changesTotal                   changeCounter
 }
 
@@ -105,12 +105,12 @@ func newMetrics() *metrics {
 				Help:      "Number of Cloud Watch Alarms",
 			},
 		),
-		deletionBlockedStacksTotal: prometheus.NewGauge(
-			prometheus.GaugeOpts{
+		deletionBlockedTotal: prometheus.NewCounter(
+			prometheus.CounterOpts{
 				Namespace: "kube_ingress_aws",
 				Subsystem: "controller",
-				Name:      "deletion_blocked_stacks_total",
-				Help:      "Number of Cloud Formation stacks marked for deletion that are kept because ingresses are still assigned to them. Should be 0; please report otherwise.",
+				Name:      "deletion_blocked_total",
+				Help:      "Number of times a Cloud Formation stack marked for deletion was kept because ingresses are still assigned to it. Should not increase; please report otherwise.",
 			},
 		),
 		changesTotal: changeCounter{prometheus.NewCounterVec(
@@ -152,7 +152,7 @@ func (metrics *metrics) serve(address string) {
 	prometheus.MustRegister(metrics.standaloneInstancesTotal)
 	prometheus.MustRegister(metrics.certificatesTotal)
 	prometheus.MustRegister(metrics.cloudWatchAlarmsTotal)
-	prometheus.MustRegister(metrics.deletionBlockedStacksTotal)
+	prometheus.MustRegister(metrics.deletionBlockedTotal)
 	prometheus.MustRegister(metrics.changesTotal)
 
 	http.Handle("/metrics", promhttp.Handler())

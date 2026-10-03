@@ -381,10 +381,9 @@ func (w *worker) doWork(ctx context.Context) (problems *problem.List) {
 	certs := NewCertificates(certificateSummaries)
 	model := buildManagedModel(certs, w.certsPerALB, w.certTTL, ingresses, stackELBs, cwAlarms, w.globalWAFACL)
 	log.Debugf("Have %d model(s)", len(model))
-	deletionBlocked := 0
 	for _, loadBalancer := range model {
 		if loadBalancer.deletionBlocked() {
-			deletionBlocked++
+			w.metrics.deletionBlockedTotal.Inc()
 			log.WithField("stack", loadBalancer.stack.Name).Warn("Stack is marked for deletion but still has ingresses assigned; " +
 				"keeping it. This is unexpected, please check the load balancers of this cluster and report it.")
 		}
@@ -401,7 +400,6 @@ func (w *worker) doWork(ctx context.Context) (problems *problem.List) {
 			w.updateIngress(loadBalancer, problems)
 		}
 	}
-	w.metrics.deletionBlockedStacksTotal.Set(float64(deletionBlocked))
 	return
 }
 
