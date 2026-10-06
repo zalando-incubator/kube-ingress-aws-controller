@@ -73,7 +73,10 @@ func (l *loadBalancer) Status() int {
 	if l.clusterLocal {
 		return ready
 	}
-	if l.stack.ShouldDelete() {
+	// A stack is only deleted once no ingress is assigned to it anymore. If
+	// its certificate TTLs expired while ingresses are still assigned, it is
+	// updated instead (see deletionBlocked).
+	if l.stack.ShouldDelete() && !l.hasIngresses() {
 		return delete
 	}
 	if len(l.ingresses) != 0 && l.stack == nil {
@@ -83,6 +86,28 @@ func (l *loadBalancer) Status() int {
 		return update
 	}
 	return ready
+}
+
+// hasIngresses returns true if at least one ingress is assigned to the load
+// balancer. Certificates carried over from the stack are initialized with an
+// empty ingress list, so the map itself can't be used for this check.
+func (l *loadBalancer) hasIngresses() bool {
+	for _, ingresses := range l.ingresses {
+		if len(ingresses) > 0 {
+			return true
+		}
+	}
+	return false
+}
+
+// deletionBlocked returns true if the stack is marked for deletion but
+// ingresses are still assigned to it. This is not expected to happen: either
+// the ingresses should have moved to another load balancer or a new load
+// balancer should have been created for them. The stack is kept and updated
+// instead of being deleted with traffic on it, and the situation is reported
+// so an operator can check it.
+func (l *loadBalancer) deletionBlocked() bool {
+	return l.stack.ShouldDelete() && l.hasIngresses()
 }
 
 // inSync checks if the loadBalancer is in sync with the backing CF stack. It's
@@ -357,6 +382,11 @@ func (w *worker) doWork(ctx context.Context) (problems *problem.List) {
 	model := buildManagedModel(certs, w.certsPerALB, w.certTTL, ingresses, stackELBs, cwAlarms, w.globalWAFACL)
 	log.Debugf("Have %d model(s)", len(model))
 	for _, loadBalancer := range model {
+		if loadBalancer.deletionBlocked() {
+			w.metrics.deletionBlockedTotal.Inc()
+			log.WithField("stack", loadBalancer.stack.Name).Warn("Stack is marked for deletion but still has ingresses assigned; " +
+				"keeping it. This is unexpected, please check the load balancers of this cluster and report it.")
+		}
 		switch loadBalancer.Status() {
 		case delete:
 			w.deleteStack(ctx, loadBalancer, problems)
@@ -513,6 +543,29 @@ func matchIngressesToLoadBalancers(
 	return loadBalancers
 }
 
+// inUseFirst moves the load balancers that ingresses currently point to (their
+// status hostname) to the front, keeping the order otherwise. Without this, an
+// ingress can be matched to an idle stack that only sorts first by name, e.g.
+// one left over from a certificate or SSL policy rotation, and its traffic
+// would move to that load balancer.
+func inUseFirst(loadBalancers []*loadBalancer, ingresses []*kubernetes.Ingress) []*loadBalancer {
+	inUse := make(map[string]bool, len(ingresses))
+	for _, ingress := range ingresses {
+		if ingress.Hostname != "" {
+			inUse[strings.ToLower(ingress.Hostname)] = true
+		}
+	}
+	isInUse := func(lb *loadBalancer) bool {
+		return lb.stack != nil && inUse[strings.ToLower(lb.stack.DNSName)]
+	}
+	sorted := make([]*loadBalancer, len(loadBalancers))
+	copy(sorted, loadBalancers)
+	sort.SliceStable(sorted, func(i, j int) bool {
+		return isInUse(sorted[i]) && !isInUse(sorted[j])
+	})
+	return sorted
+}
+
 // addCloudWatchAlarms attaches CloudWatch Alarms to each load balancer model
 // in the list. It ensures that the alarm config is copied so that it can be
 // adjusted safely for each load balancer.
@@ -548,6 +601,7 @@ func buildManagedModel(
 	sortStacks(stackLBStates)
 	attachGlobalWAFACL(ingresses, globalWAFACL)
 	model := getAllLoadBalancers(certs, certTTL, stackLBStates)
+	model = inUseFirst(model, ingresses)
 	model = matchIngressesToLoadBalancers(model, certs, certsPerALB, ingresses)
 	attachCloudWatchAlarms(model, cwAlarms)
 
