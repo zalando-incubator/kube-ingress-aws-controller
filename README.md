@@ -51,6 +51,15 @@ This information is used to manage AWS resources for each ingress objects of the
 
 ## Upgrade
 
+### <v0.22 to >=v0.22
+
+Version `v0.22` adds support for the [ARC zonal shift][zonal_shift] integration:
+
+- **Zonal shift**: Enable with `--zonal-shift-enabled` flag (default: false, disabled)
+  - Sets `zonal_shift.config.enabled` on Application and Network Load Balancers
+  - Required to start a zonal shift or configure zonal autoshift for the load balancers
+  - **Breaking change**: Previously this attribute was not explicitly set. Updating to v0.22 will set `zonal_shift.config.enabled=false` on all load balancers with an in-place stack update. If you enabled zonal shift outside of the controller, use `--zonal-shift-enabled` flag to keep it enabled
+
 ### <v0.21 to >=v0.21
 
 Version `v0.21` adds opt-out support for `zalando.org/aws-load-balancer-type: none`:
