@@ -75,6 +75,7 @@ type Adapter struct {
 	nlbHTTPEnabled              bool
 	nlbProxyProtocolV2Enabled   bool
 	nlbPreserveClientIPEnabled  bool
+	zonalShiftEnabled           bool
 	customFilter                string
 	internalDomains             []string
 	denyInternalDomains         bool
@@ -148,6 +149,12 @@ const (
 	DefaultTargetGroupProtocolVersion = "HTTP1"
 	DefaultNLBProxyProtocolV2Enabled  = false
 	DefaultNLBPreserveClientIPEnabled = true
+
+	// DefaultZonalShiftEnabled specifies the default configuration for
+	// the ARC zonal shift integration (zonal_shift.config.enabled) of
+	// Application and Network Load Balancers:
+	// https://docs.aws.amazon.com/r53recovery/latest/dg/arc-zonal-shift.resource-types.html
+	DefaultZonalShiftEnabled = false
 
 	nameTag                     = "Name"
 	LoadBalancerTypeApplication = "application"
@@ -283,6 +290,7 @@ func NewAdapter(ctx context.Context, clusterID, newControllerID, vpcID string, d
 		nlbCrossZone:               DefaultNLBCrossZone,
 		nlbZoneAffinity:            DefaultZoneAffinity,
 		nlbHTTPEnabled:             DefaultNLBHTTPEnabled,
+		zonalShiftEnabled:          DefaultZonalShiftEnabled,
 		customFilter:               DefaultCustomFilter,
 		TargetCNI: &TargetCNIconfig{
 			Enabled:       false,
@@ -523,6 +531,13 @@ func (a *Adapter) WithNLBProxyProtocolV2(nlbProxyProtocolV2Enabled bool) *Adapte
 // nlbPreserveClientIPEnabled config.
 func (a *Adapter) WithNLBPreserveClientIP(nlbPreserveClientIPEnabled bool) *Adapter {
 	a.nlbPreserveClientIPEnabled = nlbPreserveClientIPEnabled
+	return a
+}
+
+// WithZonalShiftEnabled returns the receiver adapter after setting the
+// zonalShiftEnabled config.
+func (a *Adapter) WithZonalShiftEnabled(zonalShiftEnabled bool) *Adapter {
+	a.zonalShiftEnabled = zonalShiftEnabled
 	return a
 }
 
@@ -890,6 +905,7 @@ func (a *Adapter) CreateStack(ctx context.Context, certificateARNs []string, sch
 		httpRedirectToHTTPS:               a.httpRedirectToHTTPS,
 		nlbCrossZone:                      a.nlbCrossZone,
 		nlbZoneAffinity:                   a.nlbZoneAffinity,
+		zonalShiftEnabled:                 a.zonalShiftEnabled,
 		nlbProxyProtocolV2Enabled:         a.nlbProxyProtocolV2Enabled,
 		nlbPreserveClientIPEnabled:        a.nlbPreserveClientIPEnabled,
 		http2:                             http2,
@@ -962,6 +978,7 @@ func (a *Adapter) UpdateStack(ctx context.Context, stackName string, certificate
 		httpRedirectToHTTPS:               a.httpRedirectToHTTPS,
 		nlbCrossZone:                      a.nlbCrossZone,
 		nlbZoneAffinity:                   a.nlbZoneAffinity,
+		zonalShiftEnabled:                 a.zonalShiftEnabled,
 		nlbProxyProtocolV2Enabled:         a.nlbProxyProtocolV2Enabled,
 		nlbPreserveClientIPEnabled:        a.nlbPreserveClientIPEnabled,
 		http2:                             http2,

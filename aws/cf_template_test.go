@@ -334,6 +334,78 @@ func TestGenerateTemplate(t *testing.T) {
 			},
 		},
 		{
+			name: "zonal shift can be enabled for Application load balancers",
+			spec: &stackSpec{
+				loadbalancerType:  LoadBalancerTypeApplication,
+				zonalShiftEnabled: true,
+			},
+			validate: func(t *testing.T, template *cloudformation.Template) {
+				require.NotNil(t, template.Resources[LoadBalancerResourceLogicalID])
+				properties := template.Resources[LoadBalancerResourceLogicalID].Properties.(*cloudformation.ElasticLoadBalancingV2LoadBalancer)
+				attributes := []cloudformation.ElasticLoadBalancingV2LoadBalancerLoadBalancerAttribute(*properties.LoadBalancerAttributes)
+				require.Equal(t, attributes[len(attributes)-1].Key.Literal, "zonal_shift.config.enabled")
+				require.Equal(t, attributes[len(attributes)-1].Value.Literal, "true")
+			},
+		},
+		{
+			name: "zonal shift is explicitly disabled for Application load balancers by default",
+			spec: &stackSpec{
+				loadbalancerType: LoadBalancerTypeApplication,
+			},
+			validate: func(t *testing.T, template *cloudformation.Template) {
+				require.NotNil(t, template.Resources[LoadBalancerResourceLogicalID])
+				properties := template.Resources[LoadBalancerResourceLogicalID].Properties.(*cloudformation.ElasticLoadBalancingV2LoadBalancer)
+				attributes := []cloudformation.ElasticLoadBalancingV2LoadBalancerLoadBalancerAttribute(*properties.LoadBalancerAttributes)
+				require.Equal(t, attributes[len(attributes)-1].Key.Literal, "zonal_shift.config.enabled")
+				require.Equal(t, attributes[len(attributes)-1].Value.Literal, "false")
+			},
+		},
+		{
+			name: "zonal shift can be enabled for Network load balancers",
+			spec: &stackSpec{
+				loadbalancerType:  LoadBalancerTypeNetwork,
+				zonalShiftEnabled: true,
+			},
+			validate: func(t *testing.T, template *cloudformation.Template) {
+				require.NotNil(t, template.Resources[LoadBalancerResourceLogicalID])
+				properties := template.Resources[LoadBalancerResourceLogicalID].Properties.(*cloudformation.ElasticLoadBalancingV2LoadBalancer)
+				attributes := []cloudformation.ElasticLoadBalancingV2LoadBalancerLoadBalancerAttribute(*properties.LoadBalancerAttributes)
+				require.Equal(t, attributes[len(attributes)-1].Key.Literal, "zonal_shift.config.enabled")
+				require.Equal(t, attributes[len(attributes)-1].Value.Literal, "true")
+			},
+		},
+		{
+			name: "zonal shift is explicitly disabled for Network load balancers by default",
+			spec: &stackSpec{
+				loadbalancerType: LoadBalancerTypeNetwork,
+			},
+			validate: func(t *testing.T, template *cloudformation.Template) {
+				require.NotNil(t, template.Resources[LoadBalancerResourceLogicalID])
+				properties := template.Resources[LoadBalancerResourceLogicalID].Properties.(*cloudformation.ElasticLoadBalancingV2LoadBalancer)
+				attributes := []cloudformation.ElasticLoadBalancingV2LoadBalancerLoadBalancerAttribute(*properties.LoadBalancerAttributes)
+				require.Equal(t, attributes[len(attributes)-1].Key.Literal, "zonal_shift.config.enabled")
+				require.Equal(t, attributes[len(attributes)-1].Value.Literal, "false")
+			},
+		},
+		{
+			name: "zonal shift is set after the access log attributes",
+			spec: &stackSpec{
+				loadbalancerType:  LoadBalancerTypeApplication,
+				albLogsS3Bucket:   "bucket",
+				albLogsS3Prefix:   "prefix",
+				zonalShiftEnabled: true,
+			},
+			validate: func(t *testing.T, template *cloudformation.Template) {
+				require.NotNil(t, template.Resources[LoadBalancerResourceLogicalID])
+				properties := template.Resources[LoadBalancerResourceLogicalID].Properties.(*cloudformation.ElasticLoadBalancingV2LoadBalancer)
+				attributes := []cloudformation.ElasticLoadBalancingV2LoadBalancerLoadBalancerAttribute(*properties.LoadBalancerAttributes)
+				require.Len(t, attributes, 6)
+				require.Equal(t, attributes[4].Key.Literal, "access_logs.s3.prefix")
+				require.Equal(t, attributes[5].Key.Literal, "zonal_shift.config.enabled")
+				require.Equal(t, attributes[5].Value.Literal, "true")
+			},
+		},
+		{
 			name: "nlb HTTP listener should not be enabled when HTTP is disabled",
 			spec: &stackSpec{
 				loadbalancerType: LoadBalancerTypeNetwork,

@@ -84,6 +84,7 @@ var (
 	nlbHTTPEnabled                bool
 	nlbProxyProtocolV2Enabled     bool
 	nlbPreserveClientIPDisabled   bool
+	zonalShiftEnabled             bool
 	ingressAPIVersion             string
 	internalDomains               []string
 	targetAccessMode              string
@@ -193,6 +194,8 @@ func loadSettings() error {
 		Default("false").BoolVar(&nlbProxyProtocolV2Enabled)
 	kingpin.Flag("nlb-preserve-client-ip-disabled", "Disable preserve client IP address for Network Load Balancers. By default this is enabled. This setting only applies to 'network' Load Balancers.").
 		Default("false").BoolVar(&nlbPreserveClientIPDisabled)
+	kingpin.Flag("zonal-shift-enabled", "Enable the ARC zonal shift integration (zonal_shift.config.enabled) on Load Balancers, which is required to start a zonal shift or configure zonal autoshift for them. By default this is disabled. This setting applies to 'application' and 'network' Load Balancers.").
+		Default("false").BoolVar(&zonalShiftEnabled)
 	kingpin.Flag("deny-internal-domains", "Sets a rule on ALB's Listeners that denies requests with the Host header as a internal domain. Domains can be set with the -internal-domains flag.").
 		Default("false").BoolVar(&denyInternalDomains)
 	kingpin.Flag("internal-domains", "Define the internal domains to be blocked when -deny-internal-domains is set to true. Set it multiple times for multiple domains. The maximum size of each name is 128 characters. The following wildcard characters are supported: * (matches 0 or more characters) and ? (matches exactly 1 character).").
@@ -361,6 +364,7 @@ func main() {
 		WithNLBHTTPEnabled(nlbHTTPEnabled).
 		WithNLBProxyProtocolV2(nlbProxyProtocolV2Enabled).
 		WithNLBPreserveClientIP(!nlbPreserveClientIPDisabled).
+		WithZonalShiftEnabled(zonalShiftEnabled).
 		WithCustomFilter(customFilter).
 		WithStackTags(additionalStackTags).
 		WithInternalDomains(internalDomains).
@@ -434,6 +438,7 @@ func main() {
 	log.Infof("Target access mode: %s", targetAccessMode)
 	log.Infof("NLB Cross Zone: %t", nlbCrossZone)
 	log.Infof("NLB Zone Affinity: %s", nlbZoneAffinity)
+	log.Infof("Zonal Shift: %t", zonalShiftEnabled)
 
 	metrics := newMetrics()
 
