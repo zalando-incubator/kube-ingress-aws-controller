@@ -202,6 +202,7 @@ type stackSpec struct {
 	nlbZoneAffinity                   string
 	nlbProxyProtocolV2Enabled         bool
 	nlbPreserveClientIPEnabled        bool
+	zonalShiftEnabled                 bool
 	cwAlarms                          CloudWatchAlarmList
 	httpRedirectToHTTPS               bool
 	nlbCrossZone                      bool

@@ -303,7 +303,7 @@ func generateTemplate(spec *stackSpec) (string, error) {
 	}
 
 	// Build up the LoadBalancerAttributes list, as there is no way to make attributes conditional in the template
-	lbAttrList := make(cloudformation.ElasticLoadBalancingV2LoadBalancerLoadBalancerAttributeList, 0, 5)
+	lbAttrList := make(cloudformation.ElasticLoadBalancingV2LoadBalancerLoadBalancerAttributeList, 0, 6)
 
 	if spec.loadbalancerType == LoadBalancerTypeApplication {
 		lbAttrList = append(lbAttrList,
@@ -371,6 +371,16 @@ func generateTemplate(spec *stackSpec) (string, error) {
 			},
 		)
 	}
+
+	// Always set explicitly, so that disabling it also applies to existing load balancers.
+	// Supported by Application and Network Load Balancers:
+	// https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateReference/aws-properties-elasticloadbalancingv2-loadbalancer-loadbalancerattribute.html
+	lbAttrList = append(lbAttrList,
+		cloudformation.ElasticLoadBalancingV2LoadBalancerLoadBalancerAttribute{
+			Key:   cloudformation.String("zonal_shift.config.enabled"),
+			Value: cloudformation.String(fmt.Sprintf("%t", spec.zonalShiftEnabled)),
+		},
+	)
 
 	lb := &cloudformation.ElasticLoadBalancingV2LoadBalancer{
 		LoadBalancerAttributes: &lbAttrList,

@@ -37,6 +37,7 @@ This information is used to manage AWS resources for each ingress objects of the
 - Support for zone aware traffic (defaults to cross zone traffic and no zone affinity)
    - enable and disable cross zone traffic: `--nlb-cross-zone=false`
    - set zone affinity to resolve DNS to same zone: `--nlb-zone-affinity=availability_zone_affinity`, see also [NLB attributes](https://docs.aws.amazon.com/elasticloadbalancing/latest/network/network-load-balancers.html\#load-balancer-attributes) and [NLB zonal DNS affinity](https://docs.aws.amazon.com/elasticloadbalancing/latest/network/network-load-balancers.html\#zonal-dns-affinity)
+   - enable the [ARC zonal shift][zonal_shift] integration for ALB and NLB: `--zonal-shift-enabled`
 - Support for explicitly enable certificates by using certificate Tags `--cert-filter-tag=key=value`
 - Suppport for `ipv4` and `dualstack` ip address types for ALB and NLB
     - set default ip address type for both ALB and NLB using `--ip-addr-type=dualstack`
@@ -235,6 +236,7 @@ Load Balancers][nlb] and `none`. Below is an overview of which features can be u
 | HTTP -> HTTPS redirect                  | :heavy_check_mark: `--redirect-http-to-https`  | :heavy_multiplication_x:                 |
 | [Cross Zone Load Balancing][cross_zone] | :heavy_check_mark: (only option)               | :heavy_check_mark: `--nlb-cross-zone`    |
 | [Zone Affinity][zone_affinity]          | :heavy_multiplication_x:                       | :heavy_check_mark: `--nlb-zone-affinity` |
+| [Zonal Shift][zonal_shift]              | :heavy_check_mark: `--zonal-shift-enabled`     | :heavy_check_mark: `--zonal-shift-enabled` |
 | [Dualstack support][dualstack]          | :heavy_check_mark: `--ip-addr-type=dualstack`  | :heavy_multiplication_x:                 |
 | [Idle Timeout][idle_timeout]            | :heavy_check_mark: `--idle-connection-timeout` | :heavy_multiplication_x:                 |
 | Custom Security Group                   | :heavy_check_mark:                             | :heavy_multiplication_x:                 |
@@ -252,6 +254,7 @@ If `zalando.org/aws-load-balancer-type: none` annotation is present then control
 
 [cross_zone]: https://docs.aws.amazon.com/elasticloadbalancing/latest/network/network-load-balancers.html#availability-zones
 [zone_affinity]: https://docs.aws.amazon.com/elasticloadbalancing/latest/network/network-load-balancers.html#zonal-dns-affinity
+[zonal_shift]: https://docs.aws.amazon.com/r53recovery/latest/dg/arc-zonal-shift.resource-types.html
 [dualstack]: https://docs.aws.amazon.com/elasticloadbalancing/latest/application/application-load-balancers.html#ip-address-type
 [idle_timeout]: https://docs.aws.amazon.com/elasticloadbalancing/latest/application/application-load-balancers.html#load-balancer-attributes
 
@@ -840,6 +843,12 @@ If you want to have full zone aware traffic from client to the NLB target member
 3. `any_availability_zone`: 0% zonal affinity
 
 The default is to run with cross zone traffic enabled and any zone affinity.
+
+To shift traffic away from an impaired zone with [ARC zonal shift or zonal autoshift][zonal_shift],
+the integration has to be enabled on the load balancer. `--zonal-shift-enabled` sets
+`zonal_shift.config.enabled=true` on all Application and Network Load Balancers managed by the controller.
+The attribute is always set explicitly, so the default `false` also applies to existing load balancers:
+if you enabled zonal shift outside of the controller, set `--zonal-shift-enabled` to keep it enabled.
 
 ## AWS CNI Mode (experimental)
 

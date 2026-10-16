@@ -151,6 +151,10 @@
                     {
                         "Key": "access_logs.s3.enabled",
                         "Value": "false"
+                    },
+                    {
+                        "Key": "zonal_shift.config.enabled",
+                        "Value": "false"
                     }
                 ],
                 "Scheme": {
