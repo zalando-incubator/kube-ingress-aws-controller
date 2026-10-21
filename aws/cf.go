@@ -44,6 +44,11 @@ type Stack struct {
 	CertificateARNs          map[string]time.Time
 	tags                     map[string]string
 	targetGroupIPAddressType string
+	Subnets                  []string
+	// SubnetsOutdated is true for NLB stacks whose subnets differ from the
+	// currently desired subnets. NLB subnets can't be updated in place, so
+	// such stacks must be replaced.
+	SubnetsOutdated bool
 }
 
 // IsComplete returns true if the stack status is a complete state.
@@ -542,6 +547,11 @@ func mapToManagedStack(stack *types.Stack) *Stack {
 		alpnPolicy = DefaultAlpnPolicy
 	}
 
+	var subnets []string
+	if parameters[parameterLoadBalancerSubnetsParameter] != "" {
+		subnets = strings.Split(parameters[parameterLoadBalancerSubnetsParameter], ",")
+	}
+
 	return &Stack{
 		Name:                     aws.ToString(stack.StackName),
 		LoadBalancerARN:          outputs.loadBalancerARN(),
@@ -564,6 +574,7 @@ func mapToManagedStack(stack *types.Stack) *Stack {
 		CWAlarmConfigHash:        tags[cwAlarmConfigHashTag],
 		WAFWebACLID:              parameters[parameterLoadBalancerWAFWebACLIDParameter],
 		targetGroupIPAddressType: targetGroupIPAddressType,
+		Subnets:                  subnets,
 	}
 }
 

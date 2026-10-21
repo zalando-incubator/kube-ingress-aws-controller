@@ -506,6 +506,11 @@ func matchIngressesToLoadBalancers(
 				continue
 			}
 
+			// Ignore NLBs with outdated subnets, they have to be replaced
+			if lb.loadBalancerType == aws.LoadBalancerTypeNetwork && lb.stack != nil && lb.stack.SubnetsOutdated {
+				continue
+			}
+
 			if lb.addIngress(certificateARNs, ingress, certsPerALB) {
 				added = true
 				break
@@ -523,18 +528,18 @@ func matchIngressesToLoadBalancers(
 			loadBalancers = append(
 				loadBalancers,
 				&loadBalancer{
-					ingresses:           i,
-					scheme:              ingress.Scheme,
-					shared:              ingress.Shared,
-					securityGroup:       ingress.SecurityGroup,
+					ingresses:            i,
+					scheme:               ingress.Scheme,
+					shared:               ingress.Shared,
+					securityGroup:        ingress.SecurityGroup,
 					sslPolicy:            ingress.SSLPolicy,
 					sslPolicyIsExplicit:  ingress.HasSSLPolicyAnnotation,
 					alpnPolicy:           ingress.ALPNPolicy,
 					alpnPolicyIsExplicit: ingress.HasALPNPolicyAnnotation,
 					ipAddressType:        ingress.IPAddressType,
-					loadBalancerType:    ingress.LoadBalancerType,
-					http2:               ingress.HTTP2,
-					wafWebACLID:         ingress.WAFWebACLID,
+					loadBalancerType:     ingress.LoadBalancerType,
+					http2:                ingress.HTTP2,
+					wafWebACLID:          ingress.WAFWebACLID,
 				},
 			)
 		}
@@ -636,7 +641,7 @@ func (w *worker) updateStack(ctx context.Context, lb *loadBalancer, problems *pr
 
 	log.Infof("Updating %q stack for %d certificates / %d ingresses", lb.scheme, len(certificates), len(lb.ingresses))
 
-	stackId, err := w.awsAdapter.UpdateStack(ctx, lb.stack.Name, certificates, lb.scheme, lb.securityGroup, lb.Owner(), lb.sslPolicy, lb.ipAddressType, lb.wafWebACLID, lb.cwAlarms, lb.loadBalancerType, lb.http2, lb.sslPolicyIsExplicit, lb.alpnPolicy, lb.alpnPolicyIsExplicit)
+	stackId, err := w.awsAdapter.UpdateStack(ctx, lb.stack.Name, certificates, lb.scheme, lb.securityGroup, lb.Owner(), lb.sslPolicy, lb.ipAddressType, lb.wafWebACLID, lb.cwAlarms, lb.loadBalancerType, lb.http2, lb.sslPolicyIsExplicit, lb.alpnPolicy, lb.alpnPolicyIsExplicit, lb.stack.Subnets)
 	if isNoUpdatesToBePerformedError(err) {
 		log.Debugf("Stack(%q) is already up to date", certificates)
 	} else if err != nil {

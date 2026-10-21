@@ -1909,6 +1909,36 @@ func TestMatchIngressesToLoadbalancers(t *testing.T) {
 				require.Equal(t, 1, len(lb.ingresses["foo"]))
 			}
 		},
+	}, {
+		title: "load balancer with outdated subnets",
+		ingresses: []*kubernetes.Ingress{{
+			Name: "foo-ingress",
+			Hostnames: []string{
+				"foo.org",
+				"bar.org",
+			},
+			LoadBalancerType: aws.LoadBalancerTypeNetwork,
+			Shared:           true,
+		}},
+		lbs: []*loadBalancer{{
+			loadBalancerType: aws.LoadBalancerTypeNetwork,
+			ingresses:        make(map[string][]*kubernetes.Ingress),
+			stack:            &aws.Stack{Subnets: []string{"a", "b", "c"}, SubnetsOutdated: true},
+		}},
+		validate: func(t *testing.T, lbs []*loadBalancer) {
+			require.Equal(t, 3, len(lbs))
+			for _, lb := range lbs {
+				if lb.clusterLocal {
+					continue
+				}
+
+				if lb.stack != nil && lb.stack.SubnetsOutdated {
+					require.Len(t, lb.ingresses, 0)
+				} else {
+					require.Len(t, lb.ingresses, 1)
+				}
+			}
+		},
 	}} {
 		t.Run(test.title, func(t *testing.T) {
 			var certs CertificatesFinder = defaultCerts
