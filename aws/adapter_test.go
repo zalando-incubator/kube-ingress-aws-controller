@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/cloudformation"
 	"github.com/aws/aws-sdk-go-v2/service/ec2/types"
 	elbv2 "github.com/aws/aws-sdk-go-v2/service/elasticloadbalancingv2"
 	elbv2Types "github.com/aws/aws-sdk-go-v2/service/elasticloadbalancingv2/types"
@@ -1174,6 +1175,74 @@ func TestGetStackLBStates(t *testing.T) {
 					}
 				}
 			}
+		})
+	}
+}
+
+type updateStackCapture struct {
+	CloudFormationAPI
+	input *cloudformation.UpdateStackInput
+}
+
+func (c *updateStackCapture) UpdateStack(_ context.Context, params *cloudformation.UpdateStackInput, _ ...func(*cloudformation.Options)) (*cloudformation.UpdateStackOutput, error) {
+	c.input = params
+	return &cloudformation.UpdateStackOutput{StackId: aws.String("stack-id")}, nil
+}
+
+func TestUpdateStackSubnets(t *testing.T) {
+	for _, test := range []struct {
+		name            string
+		lbType          string
+		scheme          string
+		existingSubnets []string
+		expected        string
+	}{
+		{
+			name:            "NLB keeps the subnets of the existing stack",
+			lbType:          LoadBalancerTypeNetwork,
+			scheme:          string(elbv2Types.LoadBalancerSchemeEnumInternetFacing),
+			existingSubnets: []string{"old-1", "old-2"},
+			expected:        "old-1,old-2",
+		},
+		{
+			name:     "NLB without existing subnets uses the current subnets",
+			lbType:   LoadBalancerTypeNetwork,
+			scheme:   string(elbv2Types.LoadBalancerSchemeEnumInternetFacing),
+			expected: "new-1,new-2",
+		},
+		{
+			name:            "ALB uses the current subnets",
+			lbType:          LoadBalancerTypeApplication,
+			scheme:          string(elbv2Types.LoadBalancerSchemeEnumInternetFacing),
+			existingSubnets: []string{"old-1", "old-2"},
+			expected:        "new-1,new-2",
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			cf := &updateStackCapture{}
+			a := &Adapter{
+				cloudformation:           cf,
+				targetGroupIPAddressType: IPAddressTypeIPV4,
+				manifest: &manifest{
+					subnets: []*subnetDetails{
+						{id: "new-1", availabilityZone: "a", public: true},
+						{id: "new-2", availabilityZone: "b", public: true},
+					},
+				},
+			}
+
+			_, err := a.UpdateStack(context.Background(), "stack", nil, test.scheme, "sg", "owner",
+				DefaultSslPolicy, IPAddressTypeIPV4, "", nil, test.lbType, true, false, DefaultAlpnPolicy, false, test.existingSubnets)
+			require.NoError(t, err)
+			require.NotNil(t, cf.input)
+
+			var got string
+			for _, p := range cf.input.Parameters {
+				if aws.ToString(p.ParameterKey) == parameterLoadBalancerSubnetsParameter {
+					got = aws.ToString(p.ParameterValue)
+				}
+			}
+			assert.Equal(t, test.expected, got)
 		})
 	}
 }

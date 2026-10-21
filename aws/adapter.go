@@ -907,7 +907,7 @@ func (a *Adapter) CreateStack(ctx context.Context, certificateARNs []string, sch
 	return createStack(ctx, a.cloudformation, spec)
 }
 
-func (a *Adapter) UpdateStack(ctx context.Context, stackName string, certificateARNs map[string]time.Time, scheme, securityGroup, owner, sslPolicy, ipAddressType, wafWebACLID string, cwAlarms CloudWatchAlarmList, loadBalancerType string, http2 bool, sslPolicyIsExplicit bool, alpnPolicy string, alpnPolicyIsExplicit bool) (string, error) {
+func (a *Adapter) UpdateStack(ctx context.Context, stackName string, certificateARNs map[string]time.Time, scheme, securityGroup, owner, sslPolicy, ipAddressType, wafWebACLID string, cwAlarms CloudWatchAlarmList, loadBalancerType string, http2 bool, sslPolicyIsExplicit bool, alpnPolicy string, alpnPolicyIsExplicit bool, existingSubnets []string) (string, error) {
 	if _, ok := SSLPolicies[sslPolicy]; !ok {
 		return "", fmt.Errorf("invalid SSLPolicy '%s' defined", sslPolicy)
 	}
@@ -920,13 +920,21 @@ func (a *Adapter) UpdateStack(ctx context.Context, stackName string, certificate
 		return "", fmt.Errorf("invalid TargetGroupIPAddressType %q defined for IPAddressType %q", a.targetGroupIPAddressType, ipAddressType)
 	}
 
+	// Subnets of an NLB can't be changed once it is created, so keep the
+	// subnets of the existing stack. Changing them would make the update fail
+	// and the stack end up in a rollback state.
+	subnets := a.FindLBSubnets(scheme)
+	if loadBalancerType == LoadBalancerTypeNetwork && len(existingSubnets) > 0 {
+		subnets = existingSubnets
+	}
+
 	spec := &stackSpec{
 		name:            stackName,
 		scheme:          scheme,
 		ownerIngress:    owner,
 		certificateARNs: certificateARNs,
 		securityGroupID: securityGroup,
-		subnets:         a.FindLBSubnets(scheme),
+		subnets:         subnets,
 		vpcID:           a.VpcID(),
 		clusterID:       a.ClusterID(),
 		healthCheck: &healthCheck{
