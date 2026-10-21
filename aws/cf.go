@@ -45,6 +45,10 @@ type Stack struct {
 	tags                     map[string]string
 	targetGroupIPAddressType string
 	Subnets                  []string
+	// SubnetsOutdated is true for NLB stacks whose subnets differ from the
+	// currently desired subnets. NLB subnets can't be updated in place, so
+	// such stacks must be replaced.
+	SubnetsOutdated bool
 }
 
 // IsComplete returns true if the stack status is a complete state.

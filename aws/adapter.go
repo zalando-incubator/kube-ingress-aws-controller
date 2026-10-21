@@ -710,7 +710,21 @@ func (a *Adapter) FindManagedStacks(ctx context.Context) ([]*Stack, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	for _, stack := range stacks {
+		if stack.LoadBalancerType == LoadBalancerTypeNetwork {
+			stack.SubnetsOutdated = !sameElements(stack.Subnets, a.FindLBSubnets(stack.Scheme))
+		}
+	}
+
 	return stacks, nil
+}
+
+func sameElements(a, b []string) bool {
+	a, b = slices.Clone(a), slices.Clone(b)
+	slices.Sort(a)
+	slices.Sort(b)
+	return slices.Equal(a, b)
 }
 
 // GetStackLBStates returns the list of load balancers of the managed stacks.

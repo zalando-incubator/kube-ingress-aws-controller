@@ -9,6 +9,7 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/cloudformation"
+	cfTypes "github.com/aws/aws-sdk-go-v2/service/cloudformation/types"
 	"github.com/aws/aws-sdk-go-v2/service/ec2/types"
 	elbv2 "github.com/aws/aws-sdk-go-v2/service/elasticloadbalancingv2"
 	elbv2Types "github.com/aws/aws-sdk-go-v2/service/elasticloadbalancingv2/types"
@@ -1245,4 +1246,55 @@ func TestUpdateStackSubnets(t *testing.T) {
 			assert.Equal(t, test.expected, got)
 		})
 	}
+}
+
+func TestFindManagedStacksSubnetsOutdated(t *testing.T) {
+	stack := func(name, lbType, subnets string) cfTypes.Stack {
+		return cfTypes.Stack{
+			StackName:   aws.String(name),
+			StackStatus: cfTypes.StackStatusCreateComplete,
+			Tags: []cfTypes.Tag{
+				cfTag(kubernetesCreatorTag, DefaultControllerID),
+				cfTag(clusterIDTagPrefix+"test-cluster", resourceLifecycleOwned),
+			},
+			Parameters: []cfTypes.Parameter{
+				cfParam(parameterLoadBalancerTypeParameter, lbType),
+				cfParam(parameterLoadBalancerSchemeParameter, string(elbv2Types.LoadBalancerSchemeEnumInternetFacing)),
+				cfParam(parameterLoadBalancerSubnetsParameter, subnets),
+			},
+		}
+	}
+
+	a := &Adapter{
+		controllerID: DefaultControllerID,
+		cloudformation: &fake.CFClient{Outputs: fake.CFOutputs{
+			DescribeStacks: fake.R(&cloudformation.DescribeStacksOutput{
+				Stacks: []cfTypes.Stack{
+					stack("nlb-current", LoadBalancerTypeNetwork, "2,1"),
+					stack("nlb-outdated", LoadBalancerTypeNetwork, "1,3"),
+					stack("alb-different", LoadBalancerTypeApplication, "1,3"),
+				},
+			}, nil),
+		}},
+		manifest: &manifest{
+			clusterID: "test-cluster",
+			subnets: []*subnetDetails{
+				{id: "1", availabilityZone: "a", public: true},
+				{id: "2", availabilityZone: "b", public: true},
+			},
+		},
+	}
+
+	stacks, err := a.FindManagedStacks(context.Background())
+	require.NoError(t, err)
+
+	outdated := map[string]bool{}
+	for _, s := range stacks {
+		outdated[s.Name] = s.SubnetsOutdated
+	}
+	assert.Equal(t, map[string]bool{
+		"nlb-current":   false,
+		"nlb-outdated":  true,
+		"alb-different": false,
+	}, outdated)
 }

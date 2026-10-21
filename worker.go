@@ -5,7 +5,6 @@ import (
 	"errors"
 	"math"
 	"reflect"
-	"slices"
 	"sort"
 	"time"
 
@@ -380,7 +379,7 @@ func (w *worker) doWork(ctx context.Context) (problems *problem.List) {
 	w.awsAdapter.UpdateTargetGroupsAndAutoScalingGroups(ctx, stacks, problems)
 
 	certs := NewCertificates(certificateSummaries)
-	model := buildManagedModel(certs, w.certsPerALB, w.certTTL, ingresses, stackELBs, cwAlarms, w.globalWAFACL, w.awsAdapter.FindLBSubnets)
+	model := buildManagedModel(certs, w.certsPerALB, w.certTTL, ingresses, stackELBs, cwAlarms, w.globalWAFACL)
 	log.Debugf("Have %d model(s)", len(model))
 	for _, loadBalancer := range model {
 		if loadBalancer.deletionBlocked() {
@@ -464,7 +463,6 @@ func matchIngressesToLoadBalancers(
 	certs CertificatesFinder,
 	certsPerALB int,
 	ingresses []*kubernetes.Ingress,
-	subnetsByScheme func(scheme string) []string,
 ) []*loadBalancer {
 	clusterLocalLB := &loadBalancer{
 		clusterLocal: true,
@@ -508,15 +506,9 @@ func matchIngressesToLoadBalancers(
 				continue
 			}
 
-			// Ignore NLBs with a wrong set of subnets
-			if lb.loadBalancerType == aws.LoadBalancerTypeNetwork && lb.stack != nil {
-				subnets := subnetsByScheme(lb.scheme)
-				sort.Strings(subnets)
-				sort.Strings(lb.stack.Subnets)
-
-				if !slices.Equal(lb.stack.Subnets, subnets) {
-					continue
-				}
+			// Ignore NLBs with outdated subnets, they have to be replaced
+			if lb.loadBalancerType == aws.LoadBalancerTypeNetwork && lb.stack != nil && lb.stack.SubnetsOutdated {
+				continue
 			}
 
 			if lb.addIngress(certificateARNs, ingress, certsPerALB) {
@@ -610,13 +602,12 @@ func buildManagedModel(
 	stackLBStates []*aws.StackLBState,
 	cwAlarms aws.CloudWatchAlarmList,
 	globalWAFACL string,
-	subnetsByScheme func(scheme string) []string,
 ) []*loadBalancer {
 	sortStacks(stackLBStates)
 	attachGlobalWAFACL(ingresses, globalWAFACL)
 	model := getAllLoadBalancers(certs, certTTL, stackLBStates)
 	model = inUseFirst(model, ingresses)
-	model = matchIngressesToLoadBalancers(model, certs, certsPerALB, ingresses, subnetsByScheme)
+	model = matchIngressesToLoadBalancers(model, certs, certsPerALB, ingresses)
 	attachCloudWatchAlarms(model, cwAlarms)
 
 	return model

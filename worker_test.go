@@ -10,7 +10,6 @@ import (
 	"net/http/httptest"
 	"os"
 	"reflect"
-	"slices"
 	"sort"
 	"sync"
 	"testing"
@@ -1728,7 +1727,6 @@ func TestMatchIngressesToLoadbalancers(t *testing.T) {
 		maxCertsPerLB int
 		lbs           []*loadBalancer
 		ingresses     []*kubernetes.Ingress
-		subnets       []string
 		validate      func(*testing.T, []*loadBalancer)
 	}{{
 		title: "only cluster local",
@@ -1912,7 +1910,7 @@ func TestMatchIngressesToLoadbalancers(t *testing.T) {
 			}
 		},
 	}, {
-		title: "load balancer with invalid subnets",
+		title: "load balancer with outdated subnets",
 		ingresses: []*kubernetes.Ingress{{
 			Name: "foo-ingress",
 			Hostnames: []string{
@@ -1925,7 +1923,7 @@ func TestMatchIngressesToLoadbalancers(t *testing.T) {
 		lbs: []*loadBalancer{{
 			loadBalancerType: aws.LoadBalancerTypeNetwork,
 			ingresses:        make(map[string][]*kubernetes.Ingress),
-			stack:            &aws.Stack{Subnets: []string{"a", "b", "c"}},
+			stack:            &aws.Stack{Subnets: []string{"a", "b", "c"}, SubnetsOutdated: true},
 		}},
 		validate: func(t *testing.T, lbs []*loadBalancer) {
 			require.Equal(t, 3, len(lbs))
@@ -1934,14 +1932,13 @@ func TestMatchIngressesToLoadbalancers(t *testing.T) {
 					continue
 				}
 
-				if lb.stack != nil && slices.Equal(lb.stack.Subnets, []string{"a", "b", "c"}) {
+				if lb.stack != nil && lb.stack.SubnetsOutdated {
 					require.Len(t, lb.ingresses, 0)
 				} else {
 					require.Len(t, lb.ingresses, 1)
 				}
 			}
 		},
-		subnets: []string{"x", "y", "z"},
 	}} {
 		t.Run(test.title, func(t *testing.T) {
 			var certs CertificatesFinder = defaultCerts
@@ -1954,11 +1951,7 @@ func TestMatchIngressesToLoadbalancers(t *testing.T) {
 				maxCertsPerLB = test.maxCertsPerLB
 			}
 
-			subnetsByScheme := func(scheme string) []string {
-				return test.subnets
-			}
-
-			lbs := matchIngressesToLoadBalancers(test.lbs, certs, maxCertsPerLB, test.ingresses, subnetsByScheme)
+			lbs := matchIngressesToLoadBalancers(test.lbs, certs, maxCertsPerLB, test.ingresses)
 			test.validate(t, lbs)
 		})
 	}
@@ -1988,7 +1981,6 @@ func TestBuildModel(t *testing.T) {
 		stacks        []*aws.StackLBState
 		alarms        aws.CloudWatchAlarmList
 		globalWAFACL  string
-		subnets       []string
 		validate      func(*testing.T, []*loadBalancer)
 	}{
 		{
@@ -2211,10 +2203,6 @@ func TestBuildModel(t *testing.T) {
 				maxCertsPerLB = test.maxCertsPerLB
 			}
 
-			subnetsByScheme := func(scheme string) []string {
-				return test.subnets
-			}
-
 			m := buildManagedModel(
 				certs,
 				maxCertsPerLB,
@@ -2223,7 +2211,6 @@ func TestBuildModel(t *testing.T) {
 				test.stacks,
 				test.alarms,
 				test.globalWAFACL,
-				subnetsByScheme,
 			)
 
 			test.validate(t, m)
