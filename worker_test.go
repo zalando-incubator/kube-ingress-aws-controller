@@ -888,7 +888,8 @@ func TestResourceConversionOneToOne(tt *testing.T) {
 				WithTargetGroupIPAddressType(scenario.targetGroupIPAddressType).
 				WithNLBZoneAffinity(aws.DefaultZoneAffinity).
 				WithNLBProxyProtocolV2(aws.DefaultNLBProxyProtocolV2Enabled).
-				WithNLBPreserveClientIP(aws.DefaultNLBPreserveClientIPEnabled)
+				WithNLBPreserveClientIP(aws.DefaultNLBPreserveClientIPEnabled).
+				WithZonalShiftEnabled(aws.DefaultZonalShiftEnabled)
 
 			a, err = a.UpdateManifest(ctx, clusterID, vpcID)
 			if err != nil {

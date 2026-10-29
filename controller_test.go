@@ -70,6 +70,7 @@ func TestDefaultLoadSettings(t *testing.T) {
 	require.Equal(t, "any_availability_zone", nlbZoneAffinity)
 	require.Equal(t, false, nlbCrossZone)
 	require.Equal(t, false, nlbHTTPEnabled)
+	require.Equal(t, false, zonalShiftEnabled)
 	require.Equal(t, "networking.k8s.io/v1", ingressAPIVersion)
 	require.Equal(t, []string{"*.cluster.local"}, internalDomains)
 	require.Equal(t, "", targetCNINamespace)
