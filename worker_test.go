@@ -1195,6 +1195,21 @@ func TestAddIngress(tt *testing.T) {
 			added: true,
 		},
 		{
+			name: "second cluster local ingress is appended to the existing list",
+			loadBalancer: &loadBalancer{
+				ingresses: map[string][]*kubernetes.Ingress{
+					kubernetes.DefaultClusterLocalDomain: {
+						{ClusterLocal: true, Name: "first"},
+					},
+				},
+			},
+			ingress: &kubernetes.Ingress{
+				ClusterLocal: true,
+				Name:         "second",
+			},
+			added: true,
+		},
+		{
 			name: "with WAF ACL id",
 			loadBalancer: &loadBalancer{
 				ingresses:   make(map[string][]*kubernetes.Ingress),
@@ -1255,6 +1270,216 @@ func TestAddIngress(tt *testing.T) {
 				test.added,
 				test.loadBalancer.addIngress(test.certificateARNs, test.ingress, test.maxCerts),
 			)
+		})
+	}
+}
+
+func TestStatus(tt *testing.T) {
+	for _, test := range []struct {
+		name         string
+		loadBalancer *loadBalancer
+		firstRun     bool
+		expected     int
+	}{
+		{
+			name:         "cluster local load balancer is always ready",
+			loadBalancer: &loadBalancer{clusterLocal: true},
+			expected:     ready,
+		},
+		{
+			name: "stack should be deleted and has no ingresses",
+			loadBalancer: &loadBalancer{
+				ingresses: map[string][]*kubernetes.Ingress{},
+				stack: &aws.Stack{
+					CertificateARNs: map[string]time.Time{
+						"foo": time.Now().UTC().Add(-time.Hour),
+					},
+				},
+			},
+			expected: delete,
+		},
+		{
+			// deletionBlocked() would be true here (ShouldDelete but still
+			// has ingresses); the stack is kept and refreshed instead of
+			// deleted. firstRun simulates the "needs an update" condition,
+			// since Stack.IsComplete() depends on an unexported field that
+			// can't be set from this package.
+			name: "stack should be deleted but still has ingresses, so it's updated instead",
+			loadBalancer: &loadBalancer{
+				ingresses: map[string][]*kubernetes.Ingress{
+					"foo": {{}},
+				},
+				stack: &aws.Stack{
+					CertificateARNs: map[string]time.Time{
+						"foo": time.Now().UTC().Add(-time.Hour),
+					},
+				},
+			},
+			firstRun: true,
+			expected: update,
+		},
+		{
+			name: "ingresses assigned but no stack yet",
+			loadBalancer: &loadBalancer{
+				ingresses: map[string][]*kubernetes.Ingress{
+					"foo": {{}},
+				},
+				stack: nil,
+			},
+			expected: missing,
+		},
+		{
+			name: "first run forces an update even if nothing changed",
+			loadBalancer: &loadBalancer{
+				ingresses: map[string][]*kubernetes.Ingress{},
+				stack: &aws.Stack{
+					CertificateARNs: map[string]time.Time{
+						"foo": time.Now().UTC().Add(time.Hour),
+					},
+				},
+			},
+			firstRun: true,
+			expected: update,
+		},
+		{
+			name: "ready when nothing needs to change",
+			loadBalancer: &loadBalancer{
+				ingresses: map[string][]*kubernetes.Ingress{},
+				stack: &aws.Stack{
+					CertificateARNs: map[string]time.Time{
+						"foo": time.Now().UTC().Add(time.Hour),
+					},
+				},
+			},
+			expected: ready,
+		},
+	} {
+		tt.Run(test.name, func(t *testing.T) {
+			prevFirstRun := firstRun
+			firstRun = test.firstRun
+			t.Cleanup(func() { firstRun = prevFirstRun })
+
+			assert.Equal(t, test.expected, test.loadBalancer.Status())
+		})
+	}
+}
+
+func TestOwner(tt *testing.T) {
+	for _, test := range []struct {
+		name         string
+		loadBalancer *loadBalancer
+		expected     string
+	}{
+		{
+			name: "shared load balancer has no single owner",
+			loadBalancer: &loadBalancer{
+				shared: true,
+				ingresses: map[string][]*kubernetes.Ingress{
+					"foo": {{Namespace: "ns", Name: "ingress"}},
+				},
+			},
+			expected: "",
+		},
+		{
+			name:         "load balancer with no ingresses has no owner",
+			loadBalancer: &loadBalancer{ingresses: map[string][]*kubernetes.Ingress{}},
+			expected:     "",
+		},
+		{
+			name: "non-shared load balancer is owned by its ingress",
+			loadBalancer: &loadBalancer{
+				ingresses: map[string][]*kubernetes.Ingress{
+					"foo": {{Namespace: "ns", Name: "ingress"}},
+				},
+			},
+			expected: "ns/ingress",
+		},
+	} {
+		tt.Run(test.name, func(t *testing.T) {
+			assert.Equal(t, test.expected, test.loadBalancer.Owner())
+		})
+	}
+}
+
+func TestLoadBalancerCertificateARNs(tt *testing.T) {
+	now := time.Now().UTC()
+
+	for _, test := range []struct {
+		name         string
+		loadBalancer *loadBalancer
+		expected     map[string]time.Time
+	}{
+		{
+			name: "certificates required by ingresses are included",
+			loadBalancer: &loadBalancer{
+				ingresses: map[string][]*kubernetes.Ingress{
+					"foo": {{}},
+					"bar": {}, // no ingresses using this cert, should be excluded
+				},
+			},
+			expected: map[string]time.Time{
+				"foo": {},
+			},
+		},
+		{
+			name: "existing stack certificates without a TTL get a fresh TTL",
+			loadBalancer: &loadBalancer{
+				ingresses: map[string][]*kubernetes.Ingress{},
+				existingStackCertificateARNs: map[string]time.Time{
+					"foo": {},
+				},
+				certTTL: time.Hour,
+			},
+			expected: map[string]time.Time{
+				"foo": now.Add(time.Hour),
+			},
+		},
+		{
+			name: "existing stack certificates with a non-expired TTL are kept",
+			loadBalancer: &loadBalancer{
+				ingresses: map[string][]*kubernetes.Ingress{},
+				existingStackCertificateARNs: map[string]time.Time{
+					"foo": now.Add(time.Hour),
+				},
+			},
+			expected: map[string]time.Time{
+				"foo": now.Add(time.Hour),
+			},
+		},
+		{
+			name: "existing stack certificates with an expired TTL are dropped",
+			loadBalancer: &loadBalancer{
+				ingresses: map[string][]*kubernetes.Ingress{},
+				existingStackCertificateARNs: map[string]time.Time{
+					"foo": now.Add(-time.Hour),
+				},
+			},
+			expected: map[string]time.Time{},
+		},
+		{
+			name: "certificates already required by ingresses are not overridden by existing stack TTLs",
+			loadBalancer: &loadBalancer{
+				ingresses: map[string][]*kubernetes.Ingress{
+					"foo": {{}},
+				},
+				existingStackCertificateARNs: map[string]time.Time{
+					"foo": now.Add(time.Hour),
+				},
+			},
+			expected: map[string]time.Time{
+				"foo": {},
+			},
+		},
+	} {
+		tt.Run(test.name, func(t *testing.T) {
+			got := test.loadBalancer.CertificateARNs()
+
+			require.Len(t, got, len(test.expected))
+			for arn, expectedTTL := range test.expected {
+				gotTTL, ok := got[arn]
+				require.True(t, ok, "expected certificate %s to be present", arn)
+				assert.WithinDuration(t, expectedTTL, gotTTL, time.Second)
+			}
 		})
 	}
 }
@@ -1747,6 +1972,17 @@ func TestMatchIngressesToLoadbalancers(t *testing.T) {
 		validate: func(t *testing.T, lbs []*loadBalancer) {
 			require.Equal(t, 2, len(lbs))
 			require.False(t, lbs[0].clusterLocal == lbs[1].clusterLocal)
+		},
+	}, {
+		title: "explicit cluster local ingress is routed to the cluster-local load balancer",
+		ingresses: []*kubernetes.Ingress{{
+			Name:         "local-ingress",
+			ClusterLocal: true,
+		}},
+		validate: func(t *testing.T, lbs []*loadBalancer) {
+			require.Equal(t, 1, len(lbs))
+			require.True(t, lbs[0].clusterLocal)
+			require.Len(t, lbs[0].ingresses[kubernetes.DefaultClusterLocalDomain], 1)
 		},
 	}, {
 		title: "existing load balancer",
