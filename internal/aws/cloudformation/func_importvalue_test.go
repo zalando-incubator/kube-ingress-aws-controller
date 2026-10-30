@@ -35,3 +35,9 @@ func (testSuite *ImportValueFuncTest) TestFailures(c *C) {
 	_, err = unmarshalFunc([]byte(inputBuf))
 	c.Assert(err, ErrorMatches, "cannot decode function")
 }
+
+func (testSuite *ImportValueFuncTest) TestStringList(c *C) {
+	f := ImportValue(String("sharedValueToImport"))
+	sl := f.StringList()
+	c.Assert(sl, DeepEquals, &StringListExpr{Func: f})
+}
