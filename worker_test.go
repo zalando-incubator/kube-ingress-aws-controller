@@ -25,6 +25,7 @@ import (
 	"github.com/zalando-incubator/kube-ingress-aws-controller/certs"
 	cloudformation "github.com/zalando-incubator/kube-ingress-aws-controller/internal/aws/cloudformation"
 	"github.com/zalando-incubator/kube-ingress-aws-controller/kubernetes"
+	"github.com/zalando-incubator/kube-ingress-aws-controller/problem"
 	"github.com/zalando/skipper/dataclients/kubernetes/kubernetestest"
 	"k8s.io/apimachinery/pkg/util/wait"
 
@@ -2482,4 +2483,257 @@ func TestCountByIngressType(t *testing.T) {
 
 	assert.Equal(t, 3, counts[kubernetes.TypeIngress])
 	assert.Equal(t, 2, counts[kubernetes.TypeRouteGroup])
+}
+
+func TestIsAlreadyExistsError(t *testing.T) {
+	for _, test := range []struct {
+		name     string
+		err      error
+		expected bool
+	}{
+		{
+			name:     "nil error",
+			err:      nil,
+			expected: false,
+		},
+		{
+			name:     "already exists error",
+			err:      &cfTypes.AlreadyExistsException{},
+			expected: true,
+		},
+		{
+			name:     "other error",
+			err:      fmt.Errorf("some other error"),
+			expected: false,
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			assert.Equal(t, test.expected, isAlreadyExistsError(test.err))
+		})
+	}
+}
+
+func TestIsNoUpdatesToBePerformedError(t *testing.T) {
+	for _, test := range []struct {
+		name     string
+		err      error
+		expected bool
+	}{
+		{
+			name:     "nil error",
+			err:      nil,
+			expected: false,
+		},
+		{
+			name:     "no updates to be performed error",
+			err:      fmt.Errorf("ValidationError: No updates are to be performed."),
+			expected: true,
+		},
+		{
+			name:     "other error",
+			err:      fmt.Errorf("some other error"),
+			expected: false,
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			assert.Equal(t, test.expected, isNoUpdatesToBePerformedError(test.err))
+		})
+	}
+}
+
+func newWorkerForStackLifecycle(t *testing.T, cfOutputs fake.CFOutputs) *worker {
+	t.Helper()
+
+	a := (&aws.Adapter{}).
+		WithSslPolicy(aws.DefaultSslPolicy).
+		WithAlpnPolicy(aws.DefaultAlpnPolicy).
+		WithCustomCloudFormationClient(&fake.CFClient{Outputs: cfOutputs}).
+		WithCustomEc2Client(&fake.EC2Client{Outputs: fake.EC2Outputs{
+			DescribeSecurityGroups: fake.R(fake.MockDescribeSecurityGroupsOutput(map[string]string{"sg-1": "sg-1"}), nil),
+			DescribeSubnets: fake.R(fake.MockDescribeSubnetsOutput(
+				fake.TestSubnet{Id: "subnet-1", Az: "az1", Name: "subnet-1", Tags: map[string]string{"kubernetes.io/role/elb": ""}},
+			), nil),
+			DescribeRouteTables: fake.R(fake.MockDescribeRouteTableOutput(
+				fake.TestRouteTable{SubnetID: "subnet-1", GatewayIds: []string{"igw-1"}},
+			), nil),
+		}}).
+		WithCustomAutoScalingClient(&fake.ASGClient{})
+
+	a, err := a.UpdateManifest(context.Background(), "test-cluster", "vpc-123")
+	require.NoError(t, err)
+
+	return &worker{
+		awsAdapter: a,
+		metrics:    newMetrics(),
+	}
+}
+
+func TestWorkerCreateStack(t *testing.T) {
+	for _, test := range []struct {
+		name          string
+		cfOutputs     fake.CFOutputs
+		lb            *loadBalancer
+		expectProblem bool
+		expectStack   bool
+	}{
+		{
+			name: "successful create",
+			cfOutputs: fake.CFOutputs{
+				CreateStack: fake.R(fake.MockCSOutput("fake-stack-id"), nil),
+			},
+			lb: &loadBalancer{
+				ingresses: map[string][]*kubernetes.Ingress{"foo": {{}}},
+			},
+		},
+		{
+			name: "create fails with a generic error",
+			cfOutputs: fake.CFOutputs{
+				CreateStack: fake.R(nil, fake.ErrDummy),
+			},
+			lb: &loadBalancer{
+				ingresses: map[string][]*kubernetes.Ingress{"foo": {{}}},
+			},
+			expectProblem: true,
+		},
+		{
+			name: "stack already exists and can be fetched",
+			cfOutputs: fake.CFOutputs{
+				CreateStack: fake.R(nil, &cfTypes.AlreadyExistsException{}),
+				DescribeStacks: fake.R(fake.MockDescribeStacksOutput(func() *string {
+					s := "fake-stack-id"
+					return &s
+				}()), nil),
+			},
+			lb: &loadBalancer{
+				ingresses: map[string][]*kubernetes.Ingress{"foo": {{}}},
+			},
+			expectStack: true,
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			w := newWorkerForStackLifecycle(t, test.cfOutputs)
+			problems := &problem.List{}
+
+			w.createStack(context.Background(), test.lb, problems)
+
+			if test.expectProblem {
+				assert.NotEmpty(t, problems.Errors())
+			} else {
+				assert.Empty(t, problems.Errors())
+			}
+
+			if test.expectStack {
+				assert.NotNil(t, test.lb.stack)
+			}
+		})
+	}
+}
+
+func TestWorkerUpdateStack(t *testing.T) {
+	for _, test := range []struct {
+		name          string
+		cfOutputs     fake.CFOutputs
+		expectProblem bool
+	}{
+		{
+			name: "successful update",
+			cfOutputs: fake.CFOutputs{
+				UpdateStack: fake.R(fake.MockUSOutput("fake-stack-id"), nil),
+			},
+		},
+		{
+			name: "no updates to be performed is not a problem",
+			cfOutputs: fake.CFOutputs{
+				UpdateStack: fake.R(nil, fmt.Errorf("ValidationError: No updates are to be performed.")),
+			},
+		},
+		{
+			name: "update fails with a generic error",
+			cfOutputs: fake.CFOutputs{
+				UpdateStack: fake.R(nil, fake.ErrDummy),
+			},
+			expectProblem: true,
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			w := newWorkerForStackLifecycle(t, test.cfOutputs)
+			problems := &problem.List{}
+			lb := &loadBalancer{
+				ingresses:  map[string][]*kubernetes.Ingress{"foo": {{}}},
+				stack:      &aws.Stack{Name: "existing-stack"},
+				sslPolicy:  aws.DefaultSslPolicy,
+				alpnPolicy: aws.DefaultAlpnPolicy,
+			}
+
+			w.updateStack(context.Background(), lb, problems)
+
+			if test.expectProblem {
+				assert.NotEmpty(t, problems.Errors())
+			} else {
+				assert.Empty(t, problems.Errors())
+			}
+		})
+	}
+}
+
+func TestWorkerDeleteStack(t *testing.T) {
+	for _, test := range []struct {
+		name          string
+		cfOutputs     fake.CFOutputs
+		expectProblem bool
+	}{
+		{
+			name: "successful delete",
+			cfOutputs: fake.CFOutputs{
+				DeleteStack:                 fake.R(fake.MockDeleteStackOutput("stack-id"), nil),
+				UpdateTerminationProtection: fake.R(nil, nil),
+			},
+		},
+		{
+			name: "delete fails",
+			cfOutputs: fake.CFOutputs{
+				DeleteStack:                 fake.R(nil, fake.ErrDummy),
+				UpdateTerminationProtection: fake.R(nil, nil),
+			},
+			expectProblem: true,
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			w := newWorkerForStackLifecycle(t, test.cfOutputs)
+			problems := &problem.List{}
+			lb := &loadBalancer{stack: &aws.Stack{Name: "orphaned-stack"}}
+
+			w.deleteStack(context.Background(), lb, problems)
+
+			if test.expectProblem {
+				assert.NotEmpty(t, problems.Errors())
+			} else {
+				assert.Empty(t, problems.Errors())
+			}
+		})
+	}
+}
+
+func TestStartPolling(t *testing.T) {
+	w := &worker{metrics: newMetrics()}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	done := make(chan struct{})
+	go func() {
+		w.startPolling(ctx, time.Millisecond)
+		close(done)
+	}()
+
+	// doWork panics with a nil awsAdapter, which startPolling turns into a
+	// problem and logs; just verify startPolling returns once the context is
+	// cancelled, i.e. the polling loop is actually running and respects ctx.
+	cancel()
+
+	select {
+	case <-done:
+	case <-time.After(wait.ForeverTestTimeout):
+		t.Fatal("startPolling did not return after context cancellation")
+	}
 }
