@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"sort"
 	"testing"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/ec2/types"
@@ -1173,6 +1174,277 @@ func TestGetStackLBStates(t *testing.T) {
 						require.Equal(t, expected.LBState.stateCode, stackLBStates[i].LBState.stateCode)
 					}
 				}
+			}
+		})
+	}
+}
+
+func newTestAdapterForStackLifecycle(cfOutputs fake.CFOutputs) *Adapter {
+	return &Adapter{
+		cloudformation:           &fake.CFClient{Outputs: cfOutputs},
+		manifest:                 &manifest{clusterID: "test-cluster", vpcID: "vpc-123"},
+		sslPolicy:                "ELBSecurityPolicy-2016-08",
+		alpnPolicy:               "None",
+		targetGroupIPAddressType: IPAddressTypeIPV4,
+	}
+}
+
+func TestAdapterCreateStack(t *testing.T) {
+	for _, test := range []struct {
+		name             string
+		cfOutputs        fake.CFOutputs
+		sslPolicy        string
+		alpnPolicy       string
+		ipType           string
+		tgIPType         string
+		useEmptyPolicies bool
+		wantErr          bool
+		wantStackID      string
+	}{
+		{
+			name:        "successful create",
+			cfOutputs:   fake.CFOutputs{CreateStack: fake.R(fake.MockCSOutput("fake-stack-id"), nil)},
+			wantStackID: "fake-stack-id",
+		},
+		{
+			name:             "empty ssl/alpn policy falls back to adapter defaults",
+			cfOutputs:        fake.CFOutputs{CreateStack: fake.R(fake.MockCSOutput("fake-stack-id"), nil)},
+			useEmptyPolicies: true,
+			wantStackID:      "fake-stack-id",
+		},
+		{
+			name:      "cloudformation call fails",
+			cfOutputs: fake.CFOutputs{CreateStack: fake.R(nil, fake.ErrDummy)},
+			wantErr:   true,
+		},
+		{
+			name:      "invalid ssl policy",
+			sslPolicy: "not-a-real-policy",
+			wantErr:   true,
+		},
+		{
+			name:       "invalid alpn policy",
+			alpnPolicy: "not-a-real-policy",
+			wantErr:    true,
+		},
+		{
+			name:     "ipv4 load balancer with ipv6 target group is rejected",
+			ipType:   IPAddressTypeIPV4,
+			tgIPType: IPAddressTypeIPV6,
+			wantErr:  true,
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			a := newTestAdapterForStackLifecycle(test.cfOutputs)
+			if test.sslPolicy == "" && !test.useEmptyPolicies {
+				test.sslPolicy = a.sslPolicy
+			}
+			if test.alpnPolicy == "" && !test.useEmptyPolicies {
+				test.alpnPolicy = a.alpnPolicy
+			}
+			if test.tgIPType != "" {
+				a.targetGroupIPAddressType = test.tgIPType
+			}
+
+			gotStackID, err := a.CreateStack(
+				context.Background(),
+				[]string{"arn-1"},
+				"internal",
+				"sg-1",
+				"ns/owner",
+				test.sslPolicy,
+				test.ipType,
+				"",
+				nil,
+				LoadBalancerTypeApplication,
+				true,
+				false,
+				test.alpnPolicy,
+				false,
+			)
+
+			if test.wantErr {
+				assert.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				assert.Equal(t, test.wantStackID, gotStackID)
+			}
+		})
+	}
+}
+
+func TestAdapterUpdateStack(t *testing.T) {
+	for _, test := range []struct {
+		name        string
+		cfOutputs   fake.CFOutputs
+		sslPolicy   string
+		alpnPolicy  string
+		ipType      string
+		tgIPType    string
+		wantErr     bool
+		wantStackID string
+	}{
+		{
+			name:        "successful update",
+			cfOutputs:   fake.CFOutputs{UpdateStack: fake.R(fake.MockUSOutput("fake-stack-id"), nil)},
+			wantStackID: "fake-stack-id",
+		},
+		{
+			name:      "cloudformation call fails",
+			cfOutputs: fake.CFOutputs{UpdateStack: fake.R(nil, fake.ErrDummy)},
+			wantErr:   true,
+		},
+		{
+			name:      "invalid ssl policy",
+			sslPolicy: "not-a-real-policy",
+			wantErr:   true,
+		},
+		{
+			name:       "invalid alpn policy",
+			alpnPolicy: "not-a-real-policy",
+			wantErr:    true,
+		},
+		{
+			name:     "ipv4 load balancer with ipv6 target group is rejected",
+			ipType:   IPAddressTypeIPV4,
+			tgIPType: IPAddressTypeIPV6,
+			wantErr:  true,
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			a := newTestAdapterForStackLifecycle(test.cfOutputs)
+			if test.sslPolicy == "" {
+				test.sslPolicy = a.sslPolicy
+			}
+			if test.alpnPolicy == "" {
+				test.alpnPolicy = a.alpnPolicy
+			}
+			if test.tgIPType != "" {
+				a.targetGroupIPAddressType = test.tgIPType
+			}
+
+			gotStackID, err := a.UpdateStack(
+				context.Background(),
+				"existing-stack",
+				map[string]time.Time{"arn-1": {}},
+				"internal",
+				"sg-1",
+				"ns/owner",
+				test.sslPolicy,
+				test.ipType,
+				"",
+				nil,
+				LoadBalancerTypeApplication,
+				true,
+				false,
+				test.alpnPolicy,
+				false,
+			)
+
+			if test.wantErr {
+				assert.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				assert.Equal(t, test.wantStackID, gotStackID)
+			}
+		})
+	}
+}
+
+func TestAdapterGetStack(t *testing.T) {
+	for _, test := range []struct {
+		name      string
+		cfOutputs fake.CFOutputs
+		wantErr   bool
+	}{
+		{
+			name:      "stack found",
+			cfOutputs: fake.CFOutputs{DescribeStacks: fake.R(fake.MockDescribeStacksOutput(aws.String("found-stack-id")), nil)},
+		},
+		{
+			name:      "describe stacks call fails",
+			cfOutputs: fake.CFOutputs{DescribeStacks: fake.R(nil, fake.ErrDummy)},
+			wantErr:   true,
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			a := newTestAdapterForStackLifecycle(test.cfOutputs)
+
+			stack, err := a.GetStack(context.Background(), "some-stack-id")
+
+			if test.wantErr {
+				assert.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				assert.NotNil(t, stack)
+			}
+		})
+	}
+}
+
+func TestAdapterDeleteStack(t *testing.T) {
+	for _, test := range []struct {
+		name        string
+		cfOutputs   fake.CFOutputs
+		asgOutputs  fake.ASGOutputs
+		targetedASG map[string]*autoScalingGroupDetails
+		autoscaling AutoScalingAPI
+		wantErr     bool
+	}{
+		{
+			name: "successful delete, no targeted ASGs",
+			cfOutputs: fake.CFOutputs{
+				DeleteStack:                 fake.R(fake.MockDeleteStackOutput("stack-id"), nil),
+				UpdateTerminationProtection: fake.R(nil, nil),
+			},
+		},
+		{
+			name: "cloudformation delete call fails",
+			cfOutputs: fake.CFOutputs{
+				DeleteStack:                 fake.R(nil, fake.ErrDummy),
+				UpdateTerminationProtection: fake.R(nil, nil),
+			},
+			wantErr: true,
+		},
+		{
+			name: "detaches target groups from targeted ASGs before deleting the stack",
+			cfOutputs: fake.CFOutputs{
+				DeleteStack:                 fake.R(fake.MockDeleteStackOutput("stack-id"), nil),
+				UpdateTerminationProtection: fake.R(nil, nil),
+			},
+			targetedASG: map[string]*autoScalingGroupDetails{
+				"asg-1": {name: "asg-1"},
+			},
+			asgOutputs: fake.ASGOutputs{
+				DetachLoadBalancerTargetGroups: fake.R(nil, nil),
+			},
+		},
+		{
+			name: "fails when detaching target groups from a targeted ASG fails",
+			cfOutputs: fake.CFOutputs{
+				DeleteStack:                 fake.R(fake.MockDeleteStackOutput("stack-id"), nil),
+				UpdateTerminationProtection: fake.R(nil, nil),
+			},
+			targetedASG: map[string]*autoScalingGroupDetails{
+				"asg-1": {name: "asg-1"},
+			},
+			asgOutputs: fake.ASGOutputs{
+				DetachLoadBalancerTargetGroups: fake.R(nil, fake.ErrDummy),
+			},
+			wantErr: true,
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			a := newTestAdapterForStackLifecycle(test.cfOutputs)
+			a.TargetedAutoScalingGroups = test.targetedASG
+			a.autoscaling = &fake.ASGClient{Outputs: test.asgOutputs}
+
+			err := a.DeleteStack(context.Background(), &Stack{Name: "stack-to-delete", TargetGroupARNs: []string{"tg-1"}})
+
+			if test.wantErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
 			}
 		})
 	}
