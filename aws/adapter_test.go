@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/autoscaling"
 	"github.com/aws/aws-sdk-go-v2/service/ec2/types"
 	elbv2 "github.com/aws/aws-sdk-go-v2/service/elasticloadbalancingv2"
 	elbv2Types "github.com/aws/aws-sdk-go-v2/service/elasticloadbalancingv2/types"
@@ -17,7 +18,332 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/zalando-incubator/kube-ingress-aws-controller/aws/fake"
+	"github.com/zalando-incubator/kube-ingress-aws-controller/problem"
 )
+
+func TestAdapterSimpleGetters(t *testing.T) {
+	t.Run("InstanceID with manifest and instance", func(t *testing.T) {
+		a := &Adapter{manifest: &manifest{instance: &instanceDetails{id: "i-123"}}}
+		assert.Equal(t, "i-123", a.InstanceID())
+	})
+
+	t.Run("InstanceID without manifest", func(t *testing.T) {
+		a := &Adapter{}
+		assert.Equal(t, "<none>", a.InstanceID())
+	})
+
+	t.Run("InstanceID with manifest but no instance", func(t *testing.T) {
+		a := &Adapter{manifest: &manifest{}}
+		assert.Equal(t, "<none>", a.InstanceID())
+	})
+
+	t.Run("S3Bucket", func(t *testing.T) {
+		a := &Adapter{albLogsS3Bucket: "my-bucket"}
+		assert.Equal(t, "my-bucket", a.S3Bucket())
+	})
+
+	t.Run("S3Prefix", func(t *testing.T) {
+		a := &Adapter{albLogsS3Prefix: "my-prefix"}
+		assert.Equal(t, "my-prefix", a.S3Prefix())
+	})
+
+	t.Run("SecurityGroupID", func(t *testing.T) {
+		a := &Adapter{manifest: &manifest{securityGroup: &securityGroupDetails{id: "sg-123"}}}
+		assert.Equal(t, "sg-123", a.SecurityGroupID())
+	})
+}
+
+func TestHttpTargetPort(t *testing.T) {
+	for _, test := range []struct {
+		name              string
+		loadBalancerType  string
+		albHTTPTargetPort uint
+		nlbHTTPTargetPort uint
+		targetPort        uint
+		want              uint
+	}{
+		{
+			name:              "ALB with custom target port",
+			loadBalancerType:  LoadBalancerTypeApplication,
+			albHTTPTargetPort: 8080,
+			targetPort:        9999,
+			want:              8080,
+		},
+		{
+			name:             "ALB without custom target port falls back to default",
+			loadBalancerType: LoadBalancerTypeApplication,
+			targetPort:       9999,
+			want:             9999,
+		},
+		{
+			name:              "NLB with custom target port",
+			loadBalancerType:  LoadBalancerTypeNetwork,
+			nlbHTTPTargetPort: 8081,
+			targetPort:        9999,
+			want:              8081,
+		},
+		{
+			name:             "NLB without custom target port falls back to default",
+			loadBalancerType: LoadBalancerTypeNetwork,
+			targetPort:       9999,
+			want:             9999,
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			a := &Adapter{
+				albHTTPTargetPort: test.albHTTPTargetPort,
+				nlbHTTPTargetPort: test.nlbHTTPTargetPort,
+				targetPort:        test.targetPort,
+			}
+			assert.Equal(t, test.want, a.httpTargetPort(test.loadBalancerType))
+		})
+	}
+}
+
+func TestHttpDisabled(t *testing.T) {
+	for _, test := range []struct {
+		name             string
+		loadBalancerType string
+		nlbHTTPEnabled   bool
+		want             bool
+	}{
+		{"ALB is never disabled", LoadBalancerTypeApplication, false, false},
+		{"NLB with HTTP enabled", LoadBalancerTypeNetwork, true, false},
+		{"NLB with HTTP disabled", LoadBalancerTypeNetwork, false, true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			a := &Adapter{nlbHTTPEnabled: test.nlbHTTPEnabled}
+			assert.Equal(t, test.want, a.httpDisabled(test.loadBalancerType))
+		})
+	}
+}
+
+func TestUpdateTargetGroupsAndAutoScalingGroups(t *testing.T) {
+	for _, test := range []struct {
+		name                   string
+		stacks                 []*Stack
+		targetedASGs           map[string]*autoScalingGroupDetails
+		ownedASGs              map[string]*autoScalingGroupDetails
+		singleInstances        map[string]*instanceDetails
+		obsoleteInstances      []string
+		targetCNIEnabled       bool
+		elbv2Outputs           fake.ELBv2Outputs
+		asgOutputs             fake.ASGOutputs
+		wantProblem            bool
+		wantCNITargetGroupARN  []string
+		checkObsoleteInstances bool
+		wantObsoleteInstances  []string
+	}{
+		{
+			name: "no stacks, no ASGs, no instances - nothing to do",
+			elbv2Outputs: fake.ELBv2Outputs{
+				DescribeTargetGroups: fake.R(fake.MockDescribeTargetGroupsOutput(), nil),
+			},
+		},
+		{
+			name: "categorizing target groups fails adds a problem",
+			stacks: []*Stack{
+				{Name: "stack1", TargetGroupARNs: []string{"tg-1"}},
+			},
+			elbv2Outputs: fake.ELBv2Outputs{
+				DescribeTargetGroups: fake.R(nil, fake.ErrDummy),
+			},
+			wantProblem: true,
+		},
+		{
+			name: "targeted ASG with unknown target group logs and skips attach",
+			stacks: []*Stack{
+				{Name: "stack1", TargetGroupARNs: []string{"tg-1"}},
+			},
+			targetedASGs: map[string]*autoScalingGroupDetails{
+				"asg-1": {name: "asg-1"},
+			},
+			elbv2Outputs: fake.ELBv2Outputs{
+				DescribeTargetGroups: fake.R(fake.MockDescribeTargetGroupsOutput(), nil),
+				DescribeTags:         fake.R(&elbv2.DescribeTagsOutput{}, nil),
+			},
+			asgOutputs: fake.ASGOutputs{
+				DescribeLoadBalancerTargetGroups: fake.R(&autoscaling.DescribeLoadBalancerTargetGroupsOutput{}, nil),
+			},
+		},
+		{
+			name: "non-targeted owned ASG is cleaned up",
+			ownedASGs: map[string]*autoScalingGroupDetails{
+				"asg-owned": {name: "asg-owned"},
+			},
+			elbv2Outputs: fake.ELBv2Outputs{
+				DescribeTargetGroups: fake.R(fake.MockDescribeTargetGroupsOutput(), nil),
+			},
+			asgOutputs: fake.ASGOutputs{
+				DescribeLoadBalancerTargetGroups: fake.R(&autoscaling.DescribeLoadBalancerTargetGroupsOutput{}, nil),
+			},
+		},
+		{
+			name: "registers running single instances on target groups",
+			stacks: []*Stack{
+				{Name: "stack1", TargetGroupARNs: []string{"tg-1"}},
+			},
+			singleInstances: map[string]*instanceDetails{
+				"i-1": {id: "i-1", running: true},
+			},
+			elbv2Outputs: fake.ELBv2Outputs{
+				DescribeTargetGroups: fake.R(fake.MockDescribeTargetGroupsOutput(), nil),
+				RegisterTargets:      fake.R(fake.MockRTOutput(), nil),
+			},
+		},
+		{
+			name: "deregisters obsolete instances and clears the list on success",
+			stacks: []*Stack{
+				{Name: "stack1", TargetGroupARNs: []string{"tg-1"}},
+			},
+			obsoleteInstances: []string{"i-old"},
+			elbv2Outputs: fake.ELBv2Outputs{
+				DescribeTargetGroups: fake.R(fake.MockDescribeTargetGroupsOutput(), nil),
+				DeregisterTargets:    fake.R(fake.MockDeregisterTargetsOutput(), nil),
+			},
+			checkObsoleteInstances: true,
+			wantObsoleteInstances:  []string{},
+		},
+		{
+			name: "deregister failure keeps obsolete instances and adds a problem",
+			stacks: []*Stack{
+				{Name: "stack1", TargetGroupARNs: []string{"tg-1"}},
+			},
+			obsoleteInstances: []string{"i-old"},
+			elbv2Outputs: fake.ELBv2Outputs{
+				DescribeTargetGroups: fake.R(fake.MockDescribeTargetGroupsOutput(), nil),
+				DeregisterTargets:    fake.R(nil, fake.ErrDummy),
+			},
+			wantProblem:            true,
+			checkObsoleteInstances: true,
+			wantObsoleteInstances:  []string{"i-old"},
+		},
+		{
+			name: "CNI enabled sends IP target groups on the channel",
+			stacks: []*Stack{
+				{Name: "stack1", TargetGroupARNs: []string{"tg-ip-1"}},
+			},
+			targetCNIEnabled: true,
+			elbv2Outputs: fake.ELBv2Outputs{
+				DescribeTargetGroups: fake.R(&elbv2.DescribeTargetGroupsOutput{
+					TargetGroups: []elbv2Types.TargetGroup{
+						{TargetGroupArn: aws.String("tg-ip-1"), TargetType: elbv2Types.TargetTypeEnumIp},
+					},
+				}, nil),
+			},
+			wantCNITargetGroupARN: []string{"tg-ip-1"},
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			a := &Adapter{
+				elbv2:                     &fake.ELBv2Client{Outputs: test.elbv2Outputs},
+				autoscaling:               &fake.ASGClient{Outputs: test.asgOutputs},
+				TargetedAutoScalingGroups: test.targetedASGs,
+				OwnedAutoScalingGroups:    test.ownedASGs,
+				singleInstances:           test.singleInstances,
+				obsoleteInstances:         test.obsoleteInstances,
+				manifest: &manifest{
+					clusterID: "test-cluster",
+				},
+				TargetCNI: &TargetCNIconfig{
+					Enabled:       test.targetCNIEnabled,
+					TargetGroupCh: make(chan []string, 1),
+				},
+			}
+
+			problems := &problem.List{}
+			a.UpdateTargetGroupsAndAutoScalingGroups(context.Background(), test.stacks, problems)
+
+			if test.wantProblem {
+				assert.NotEmpty(t, problems.Errors())
+			} else {
+				assert.Empty(t, problems.Errors())
+			}
+
+			if test.wantCNITargetGroupARN != nil {
+				select {
+				case got := <-a.TargetCNI.TargetGroupCh:
+					assert.Equal(t, test.wantCNITargetGroupARN, got)
+				default:
+					t.Fatal("expected a value on TargetGroupCh but got none")
+				}
+			}
+
+			if test.checkObsoleteInstances {
+				assert.Equal(t, test.wantObsoleteInstances, a.obsoleteInstances)
+			}
+		})
+	}
+}
+
+func TestBuildManifest(t *testing.T) {
+	for _, test := range []struct {
+		name       string
+		ec2Outputs fake.EC2Outputs
+		wantErr    bool
+	}{
+		{
+			name: "security group lookup fails",
+			ec2Outputs: fake.EC2Outputs{
+				DescribeSecurityGroups: fake.R(nil, fake.ErrDummy),
+			},
+			wantErr: true,
+		},
+		{
+			name: "no security groups match",
+			ec2Outputs: fake.EC2Outputs{
+				DescribeSecurityGroups: fake.R(fake.MockDescribeSecurityGroupsOutput(map[string]string{}), nil),
+			},
+			wantErr: true,
+		},
+		{
+			name: "subnet lookup fails",
+			ec2Outputs: fake.EC2Outputs{
+				DescribeSecurityGroups: fake.R(fake.MockDescribeSecurityGroupsOutput(map[string]string{"sg-1": "sg-1"}), nil),
+				DescribeSubnets:        fake.R(nil, fake.ErrDummy),
+			},
+			wantErr: true,
+		},
+		{
+			name: "no subnets found",
+			ec2Outputs: fake.EC2Outputs{
+				DescribeSecurityGroups: fake.R(fake.MockDescribeSecurityGroupsOutput(map[string]string{"sg-1": "sg-1"}), nil),
+				DescribeSubnets:        fake.R(fake.MockDescribeSubnetsOutput(), nil),
+				DescribeRouteTables:    fake.R(fake.MockDescribeRouteTableOutput(), nil),
+			},
+			wantErr: true,
+		},
+		{
+			name: "successful build",
+			ec2Outputs: fake.EC2Outputs{
+				DescribeSecurityGroups: fake.R(fake.MockDescribeSecurityGroupsOutput(map[string]string{"sg-1": "sg-1"}), nil),
+				DescribeSubnets: fake.R(fake.MockDescribeSubnetsOutput(
+					fake.TestSubnet{Id: "subnet-1", Az: "az1", Name: "subnet-1"},
+				), nil),
+				DescribeRouteTables: fake.R(fake.MockDescribeRouteTableOutput(
+					fake.TestRouteTable{SubnetID: "subnet-1", GatewayIds: []string{"igw-1"}},
+				), nil),
+			},
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			a := &Adapter{
+				ec2: &fake.EC2Client{Outputs: test.ec2Outputs},
+			}
+
+			m, err := buildManifest(context.Background(), a, "test-cluster", "vpc-123")
+
+			if test.wantErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				require.NotNil(t, m)
+				assert.Equal(t, "test-cluster", m.clusterID)
+				assert.Equal(t, "vpc-123", m.vpcID)
+			}
+		})
+	}
+}
 
 func TestGenerateDefaultFilters(tt *testing.T) {
 	for _, test := range []struct {

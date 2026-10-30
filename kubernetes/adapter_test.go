@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/zalando-incubator/kube-ingress-aws-controller/aws"
 )
 
@@ -634,6 +635,85 @@ func TestListRoutegroup(t *testing.T) {
 	if err == nil {
 		t.Error("expected an error")
 	}
+}
+
+func TestString(t *testing.T) {
+	cm := &ConfigMap{Namespace: "foo-ns", Name: "foo-name"}
+	assert.Equal(t, "foo-ns/foo-name", cm.String())
+}
+
+func TestIngressFiltersString(t *testing.T) {
+	for _, test := range []struct {
+		name    string
+		filters []string
+		want    string
+	}{
+		{"no filters", nil, ""},
+		{"single filter", []string{"skipper"}, "skipper"},
+		{"multiple filters", []string{"skipper", "nginx"}, "skipper,nginx"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			a := &Adapter{ingressFilters: test.filters}
+			assert.Equal(t, test.want, a.IngressFiltersString())
+		})
+	}
+}
+
+func TestListResources(t *testing.T) {
+	t.Run("returns ingresses and routegroups combined", func(t *testing.T) {
+		a, _ := NewAdapter(testConfig, IngressAPIVersionNetworking, testIngressFilter, testIngressDefaultSecurityGroup, testSSLPolicy, aws.DefaultAlpnPolicy, aws.LoadBalancerTypeApplication, DefaultClusterLocalDomain, aws.DefaultIpAddressType, false)
+		a.kubeClient = &mockClient{}
+
+		resources, err := a.ListResources()
+		require.NoError(t, err)
+		assert.Equal(t, 2, len(resources))
+	})
+
+	t.Run("ingress listing failure is propagated", func(t *testing.T) {
+		a, _ := NewAdapter(testConfig, IngressAPIVersionNetworking, testIngressFilter, testIngressDefaultSecurityGroup, testSSLPolicy, aws.DefaultAlpnPolicy, aws.LoadBalancerTypeApplication, DefaultClusterLocalDomain, aws.DefaultIpAddressType, false)
+		a.kubeClient = &mockClient{broken: true}
+
+		_, err := a.ListResources()
+		require.Error(t, err)
+	})
+
+	t.Run("routegroup not found disables routegroup support without failing", func(t *testing.T) {
+		a, _ := NewAdapter(testConfig, IngressAPIVersionNetworking, testIngressFilter, testIngressDefaultSecurityGroup, testSSLPolicy, aws.DefaultAlpnPolicy, aws.LoadBalancerTypeApplication, DefaultClusterLocalDomain, aws.DefaultIpAddressType, false)
+		a.kubeClient = &routeGroupErrorClient{err: ErrResourceNotFound}
+		require.True(t, a.routeGroupSupport)
+
+		resources, err := a.ListResources()
+		require.NoError(t, err)
+		assert.Equal(t, 1, len(resources))
+		assert.False(t, a.routeGroupSupport)
+	})
+
+	t.Run("routegroup generic error is propagated", func(t *testing.T) {
+		a, _ := NewAdapter(testConfig, IngressAPIVersionNetworking, testIngressFilter, testIngressDefaultSecurityGroup, testSSLPolicy, aws.DefaultAlpnPolicy, aws.LoadBalancerTypeApplication, DefaultClusterLocalDomain, aws.DefaultIpAddressType, false)
+		a.kubeClient = &routeGroupErrorClient{err: errors.New("boom")}
+
+		_, err := a.ListResources()
+		require.Error(t, err)
+		assert.True(t, a.routeGroupSupport)
+	})
+}
+
+// routeGroupErrorClient behaves like mockClient for ingress listing but
+// returns a fixed error for routegroup listing, to exercise ListResources'
+// error-classification branches.
+type routeGroupErrorClient struct {
+	err error
+}
+
+func (c *routeGroupErrorClient) get(res string) (io.ReadCloser, error) {
+	if res == routegroupListResource {
+		return nil, c.err
+	}
+	return (&mockClient{}).get(res)
+}
+
+func (c *routeGroupErrorClient) patch(res string, payload []byte) (io.ReadCloser, error) {
+	return (&mockClient{}).patch(res, payload)
 }
 
 func TestAdapterUpdateIngressLoadBalancer(t *testing.T) {
