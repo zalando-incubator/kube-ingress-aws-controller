@@ -8,6 +8,7 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/ec2/types"
+	"github.com/stretchr/testify/assert"
 
 	"github.com/zalando-incubator/kube-ingress-aws-controller/aws/fake"
 )
@@ -29,6 +30,55 @@ func TestGetAutoScalingName(t *testing.T) {
 		})
 	}
 
+}
+
+func TestGetNameTag(t *testing.T) {
+	for _, test := range []struct {
+		tags      map[string]string
+		want      string
+		wantError bool
+	}{
+		{map[string]string{nameTag: "foo"}, "foo", false},
+		{map[string]string{"bar": "baz"}, "<no name tag>", true},
+		{nil, "<no name tag>", true},
+	} {
+		t.Run(fmt.Sprintf("want-%s", test.want), func(t *testing.T) {
+			got, err := getNameTag(test.tags)
+			assertResultAndError(t, test.want, got, test.wantError, err)
+		})
+	}
+}
+
+func TestGetTag(t *testing.T) {
+	for _, test := range []struct {
+		tags      map[string]string
+		tagName   string
+		want      string
+		wantError bool
+	}{
+		{map[string]string{"foo": "bar"}, "foo", "bar", false},
+		{map[string]string{"foo": "bar"}, "baz", "<missing tag>", true},
+		{nil, "foo", "<missing tag>", true},
+	} {
+		t.Run(fmt.Sprintf("want-%s", test.want), func(t *testing.T) {
+			got, err := getTag(test.tags, test.tagName)
+			assertResultAndError(t, test.want, got, test.wantError, err)
+		})
+	}
+}
+
+func TestSubnetDetailsNameAndString(t *testing.T) {
+	t.Run("name present", func(t *testing.T) {
+		sd := &subnetDetails{id: "subnet-1", availabilityZone: "eu-central-1a", public: true, tags: map[string]string{nameTag: "my-subnet"}}
+		assert.Equal(t, "my-subnet", sd.Name())
+		assert.Equal(t, "my-subnet (subnet-1) @ eu-central-1a (public: true)", sd.String())
+	})
+
+	t.Run("name missing falls back to unknown-subnet", func(t *testing.T) {
+		sd := &subnetDetails{id: "subnet-2", availabilityZone: "eu-central-1b", public: false, tags: nil}
+		assert.Equal(t, "unknown-subnet", sd.Name())
+		assert.Equal(t, "unknown-subnet (subnet-2) @ eu-central-1b (public: false)", sd.String())
+	})
 }
 
 func TestFindingSecurityGroup(t *testing.T) {

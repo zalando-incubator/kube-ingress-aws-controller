@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"sort"
 	"testing"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 
@@ -65,6 +66,18 @@ func TestGetLBStateString(t *testing.T) {
 			assert.Equal(t, tt.expected, tt.lbState.StateCodeString())
 		})
 	}
+}
+
+func TestLoadBalancerStateAge(t *testing.T) {
+	t.Run("nil state returns zero duration", func(t *testing.T) {
+		var ls *LoadBalancerState
+		assert.Equal(t, time.Duration(0), ls.Age())
+	})
+
+	t.Run("non-nil state returns time since created", func(t *testing.T) {
+		ls := &LoadBalancerState{createdTime: time.Now().Add(-time.Hour)}
+		assert.InDelta(t, time.Hour, ls.Age(), float64(time.Minute))
+	})
 }
 
 func TestRegisterTargetsOnTargetGroups(t *testing.T) {
