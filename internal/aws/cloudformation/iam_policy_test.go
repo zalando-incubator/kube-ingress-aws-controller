@@ -102,3 +102,18 @@ func (testSuite *IAMPolicyTest) TestIAMPolicyStatement(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(string(b), Equals, `{"Version":"2012-10-17","Statement":[{"Sid":" Grant a CloudFront Origin Identity access to support private content","Effect":"Allow","Principal":{"Service":["ec2.amazonaws.com","datapipeline.amazonaws.com"]},"Action":["s3:GetObject"],"Resource":["arn:aws:s3:::example-bucket/*"]}]}`)
 }
+
+func (testSuite *IAMPolicyTest) TestToJSON(c *C) {
+	v := IAMPolicyDocument{
+		Version: "2012-10-17",
+		Statement: []IAMPolicyStatement{
+			{
+				Effect:   "Allow",
+				Action:   StringList(String("s3:GetObject")),
+				Resource: StringList(String("arn:aws:s3:::examplebucket/*")),
+			},
+		},
+	}
+
+	c.Assert(v.ToJSON(), Equals, `{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Action":["s3:GetObject"],"Resource":["arn:aws:s3:::examplebucket/*"]}]}`)
+}
