@@ -15,9 +15,13 @@ import (
 	"testing"
 	"time"
 
+	awssdk "github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/autoscaling"
 	autoScalingTypes "github.com/aws/aws-sdk-go-v2/service/autoscaling/types"
+	cfsdk "github.com/aws/aws-sdk-go-v2/service/cloudformation"
 	cfTypes "github.com/aws/aws-sdk-go-v2/service/cloudformation/types"
+	elbv2 "github.com/aws/aws-sdk-go-v2/service/elasticloadbalancingv2"
+	elbv2Types "github.com/aws/aws-sdk-go-v2/service/elasticloadbalancingv2/types"
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -2735,5 +2739,278 @@ func TestStartPolling(t *testing.T) {
 	case <-done:
 	case <-time.After(wait.ForeverTestTimeout):
 		t.Fatal("startPolling did not return after context cancellation")
+	}
+}
+
+// mockKubeAPI is a minimal kubernetes.API implementation for tests that
+// only need to observe/control UpdateIngressLoadBalancer calls.
+type mockKubeAPI struct {
+	updateErr    error
+	updateCalls  []string // "<dnsName>" per call, in order
+	getConfigMap *kubernetes.ConfigMap
+	getConfigErr error
+}
+
+func (m *mockKubeAPI) ListResources() ([]*kubernetes.Ingress, error) { return nil, nil }
+
+func (m *mockKubeAPI) UpdateIngressLoadBalancer(ingress *kubernetes.Ingress, loadBalancerDNSName string) error {
+	m.updateCalls = append(m.updateCalls, loadBalancerDNSName)
+	return m.updateErr
+}
+
+func (m *mockKubeAPI) GetConfigMap(namespace, name string) (*kubernetes.ConfigMap, error) {
+	return m.getConfigMap, m.getConfigErr
+}
+
+// newStackWithStatus builds a real *aws.Stack with the given CloudFormation
+// status by round-tripping through a fake CF client and the exported
+// Adapter.GetStack method, since aws.Stack's status field is unexported and
+// worker_test.go (package main) cannot set it directly.
+func newStackWithStatus(t *testing.T, status cfTypes.StackStatus) *aws.Stack {
+	t.Helper()
+
+	a := (&aws.Adapter{}).WithCustomCloudFormationClient(&fake.CFClient{
+		Outputs: fake.CFOutputs{
+			DescribeStacks: fake.R(&cfsdk.DescribeStacksOutput{
+				Stacks: []cfTypes.Stack{
+					{
+						StackId:     awssdk.String("stack-id"),
+						StackName:   awssdk.String("stack-name"),
+						StackStatus: status,
+						Outputs: []cfTypes.Output{
+							{OutputKey: awssdk.String("LoadBalancerDNSName"), OutputValue: awssdk.String("lb-dns-name.example.com")},
+						},
+					},
+				},
+			}, nil),
+		},
+	})
+
+	stack, err := a.GetStack(context.Background(), "stack-id")
+	require.NoError(t, err)
+	return stack
+}
+
+// newActiveLoadBalancerState builds a real *aws.LoadBalancerState with the
+// given state and created time by round-tripping through a fake ELBv2
+// client and the exported Adapter.GetStackLBStates method, since
+// aws.LoadBalancerState's fields are unexported.
+func newLoadBalancerState(t *testing.T, stateCode elbv2Types.LoadBalancerStateEnum, createdTime time.Time) *aws.LoadBalancerState {
+	t.Helper()
+
+	a := &aws.Adapter{}
+	a = a.WithCustomElbv2Client(&fake.ELBv2Client{
+		Outputs: fake.ELBv2Outputs{
+			DescribeLoadBalancers: fake.R(&elbv2.DescribeLoadBalancersOutput{
+				LoadBalancers: []elbv2Types.LoadBalancer{
+					{
+						LoadBalancerArn: awssdk.String("lb-arn"),
+						CreatedTime:     awssdk.Time(createdTime),
+						State:           &elbv2Types.LoadBalancerState{Code: stateCode},
+					},
+				},
+			}, nil),
+		},
+	})
+
+	states, err := a.GetStackLBStates(context.Background(), []*aws.Stack{
+		{Name: "stack-name", LoadBalancerARN: "lb-arn"},
+	})
+	require.NoError(t, err)
+	require.Len(t, states, 1)
+	return states[0].LBState
+}
+
+func TestUpdateIngress(t *testing.T) {
+	completeStack := func(t *testing.T) *aws.Stack {
+		s := newStackWithStatus(t, cfTypes.StackStatusCreateComplete)
+		s.DNSName = "LB-DNS-NAME.EXAMPLE.COM"
+		return s
+	}
+	activeState := func(t *testing.T) *aws.LoadBalancerState {
+		return newLoadBalancerState(t, elbv2Types.LoadBalancerStateEnumActive, time.Now().Add(-time.Hour))
+	}
+
+	for _, test := range []struct {
+		name            string
+		lb              func(t *testing.T) *loadBalancer
+		minLBAge        time.Duration
+		updateErr       error
+		wantProblem     bool
+		wantUpdateCalls int
+		wantDNSName     string
+	}{
+		{
+			name: "cluster-local ingress uses the cluster-local domain",
+			lb: func(t *testing.T) *loadBalancer {
+				return &loadBalancer{
+					clusterLocal: true,
+					ingresses:    map[string][]*kubernetes.Ingress{"": {{Name: "foo"}}},
+				}
+			},
+			wantUpdateCalls: 1,
+			wantDNSName:     kubernetes.DefaultClusterLocalDomain,
+		},
+		{
+			name: "nil stack skips the update",
+			lb: func(t *testing.T) *loadBalancer {
+				return &loadBalancer{
+					ingresses: map[string][]*kubernetes.Ingress{"": {{Name: "foo"}}},
+				}
+			},
+			wantUpdateCalls: 0,
+		},
+		{
+			name: "incomplete stack skips the update",
+			lb: func(t *testing.T) *loadBalancer {
+				return &loadBalancer{
+					stack:     newStackWithStatus(t, cfTypes.StackStatusUpdateInProgress),
+					ingresses: map[string][]*kubernetes.Ingress{"": {{Name: "foo"}}},
+				}
+			},
+			wantUpdateCalls: 0,
+		},
+		{
+			name: "nil load balancer state skips the update",
+			lb: func(t *testing.T) *loadBalancer {
+				return &loadBalancer{
+					stack:     completeStack(t),
+					ingresses: map[string][]*kubernetes.Ingress{"": {{Name: "foo"}}},
+				}
+			},
+			wantUpdateCalls: 0,
+		},
+		{
+			name: "inactive load balancer state skips the update",
+			lb: func(t *testing.T) *loadBalancer {
+				return &loadBalancer{
+					stack:     completeStack(t),
+					state:     newLoadBalancerState(t, elbv2Types.LoadBalancerStateEnumProvisioning, time.Now()),
+					ingresses: map[string][]*kubernetes.Ingress{"": {{Name: "foo"}}},
+				}
+			},
+			wantUpdateCalls: 0,
+		},
+		{
+			name: "load balancer younger than minLoadBalancerAge skips the update",
+			lb: func(t *testing.T) *loadBalancer {
+				return &loadBalancer{
+					stack:     completeStack(t),
+					state:     newLoadBalancerState(t, elbv2Types.LoadBalancerStateEnumActive, time.Now()),
+					ingresses: map[string][]*kubernetes.Ingress{"": {{Name: "foo"}}},
+				}
+			},
+			minLBAge:        time.Hour,
+			wantUpdateCalls: 0,
+		},
+		{
+			name: "successful update sets the lower-cased DNS name",
+			lb: func(t *testing.T) *loadBalancer {
+				return &loadBalancer{
+					stack:     completeStack(t),
+					state:     activeState(t),
+					ingresses: map[string][]*kubernetes.Ingress{"": {{Name: "foo"}}},
+				}
+			},
+			wantUpdateCalls: 1,
+			wantDNSName:     "lb-dns-name.example.com",
+		},
+		{
+			name: "ErrUpdateNotNeeded is not reported as a problem",
+			lb: func(t *testing.T) *loadBalancer {
+				return &loadBalancer{
+					stack:     completeStack(t),
+					state:     activeState(t),
+					ingresses: map[string][]*kubernetes.Ingress{"": {{Name: "foo"}}},
+				}
+			},
+			updateErr:       kubernetes.ErrUpdateNotNeeded,
+			wantUpdateCalls: 1,
+			wantDNSName:     "lb-dns-name.example.com",
+		},
+		{
+			name: "generic update error is reported as a problem",
+			lb: func(t *testing.T) *loadBalancer {
+				return &loadBalancer{
+					stack:     completeStack(t),
+					state:     activeState(t),
+					ingresses: map[string][]*kubernetes.Ingress{"": {{Name: "foo"}}},
+				}
+			},
+			updateErr:       fmt.Errorf("boom"),
+			wantProblem:     true,
+			wantUpdateCalls: 1,
+			wantDNSName:     "lb-dns-name.example.com",
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			kubeAPI := &mockKubeAPI{updateErr: test.updateErr}
+			w := &worker{
+				kubeAPI:            kubeAPI,
+				metrics:            newMetrics(),
+				minLoadBalancerAge: test.minLBAge,
+			}
+			problems := &problem.List{}
+
+			w.updateIngress(test.lb(t), problems)
+
+			if test.wantProblem {
+				assert.NotEmpty(t, problems.Errors())
+			} else {
+				assert.Empty(t, problems.Errors())
+			}
+
+			require.Len(t, kubeAPI.updateCalls, test.wantUpdateCalls)
+			if test.wantUpdateCalls > 0 {
+				assert.Equal(t, test.wantDNSName, kubeAPI.updateCalls[0])
+			}
+		})
+	}
+}
+
+func TestGetCloudWatchAlarms(t *testing.T) {
+	for _, test := range []struct {
+		name          string
+		cwAlarmConfig *kubernetes.ResourceLocation
+		getConfigMap  *kubernetes.ConfigMap
+		getConfigErr  error
+		wantErr       bool
+		wantLen       int
+	}{
+		{
+			name:          "nil config returns an empty list without calling the kube API",
+			cwAlarmConfig: nil,
+			wantLen:       0,
+		},
+		{
+			name:          "ConfigMap fetch error is propagated",
+			cwAlarmConfig: &kubernetes.ResourceLocation{Namespace: "foo-ns", Name: "foo-name"},
+			getConfigErr:  fmt.Errorf("boom"),
+			wantErr:       true,
+		},
+		{
+			name:          "ConfigMap with no alarm data returns an empty list",
+			cwAlarmConfig: &kubernetes.ResourceLocation{Namespace: "foo-ns", Name: "foo-name"},
+			getConfigMap:  &kubernetes.ConfigMap{Namespace: "foo-ns", Name: "foo-name", Data: map[string]string{}},
+			wantLen:       0,
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			kubeAPI := &mockKubeAPI{getConfigMap: test.getConfigMap, getConfigErr: test.getConfigErr}
+			w := &worker{kubeAPI: kubeAPI, cwAlarmConfig: test.cwAlarmConfig}
+
+			alarms, err := w.getCloudWatchAlarms()
+
+			if test.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			assert.Len(t, alarms, test.wantLen)
+
+			if test.cwAlarmConfig == nil {
+				assert.Empty(t, kubeAPI.updateCalls) // sanity: no update calls, no GetConfigMap needed
+			}
+		})
 	}
 }
