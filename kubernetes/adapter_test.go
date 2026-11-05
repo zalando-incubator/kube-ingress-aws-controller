@@ -698,9 +698,6 @@ func TestListResources(t *testing.T) {
 	})
 }
 
-// routeGroupErrorClient behaves like mockClient for ingress listing but
-// returns a fixed error for routegroup listing, to exercise ListResources'
-// error-classification branches.
 type routeGroupErrorClient struct {
 	err error
 }
