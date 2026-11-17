@@ -7,6 +7,29 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestResourceLocationString(t *testing.T) {
+	for _, test := range []struct {
+		name string
+		rl   *ResourceLocation
+		want string
+	}{
+		{
+			name: "nil receiver returns empty string",
+			rl:   nil,
+			want: "",
+		},
+		{
+			name: "non-nil receiver formats as namespace/name",
+			rl:   &ResourceLocation{Namespace: "foo-ns", Name: "foo-name"},
+			want: "foo-ns/foo-name",
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			assert.Equal(t, test.want, test.rl.String())
+		})
+	}
+}
+
 func TestParseResourceLocation(t *testing.T) {
 	for _, test := range []struct {
 		name          string

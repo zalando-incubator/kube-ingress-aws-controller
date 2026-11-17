@@ -19,16 +19,12 @@ func (testSuite *IfFuncTest) TestScalar(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(string(buf), Equals, inputBuf)
 
-	// String() just wraps the function; it should round-trip too.
 	buf, err = json.Marshal(f.(StringFunc).String())
 	c.Assert(err, IsNil)
 	c.Assert(string(buf), Equals, inputBuf)
 }
 
 func (testSuite *IfFuncTest) TestListViaNestedFunc(c *C) {
-	// The ValueIfTrue/ValueIfFalse branches are detected by inspecting the
-	// decoded JSON shape; a nested function call (object) is unambiguous,
-	// unlike a plain literal array (see TestListLiteralIsNotSupported).
 	inputBuf := `{"Fn::If":["IsProd",{"Fn::GetAZs":{"Ref":"AWS::Region"}},{"Fn::GetAZs":{"Ref":"AWS::Region"}}]}`
 	f, err := unmarshalFunc([]byte(inputBuf))
 	c.Assert(err, IsNil)

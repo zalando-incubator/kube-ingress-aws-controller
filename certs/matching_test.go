@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -409,6 +410,49 @@ func TestFindBestMatchingCertificate(t *testing.T) {
 		})
 	}
 
+}
+
+func TestFindBestMatchingCertificates(t *testing.T) {
+	domain := "example.org"
+	validHostnameA := "foo." + domain
+	validHostnameB := "bar." + domain
+	unmatchableHostname := "foo.invalid.org"
+
+	now := time.Now().Truncate(time.Millisecond)
+	currentTime = func() time.Time { return now }
+
+	before := now.Add(-time.Hour * 24 * 7)
+	after := now.Add(time.Hour*24*7 + 1*time.Second)
+
+	certA := createDummyCertDetail(t, "ARN-A", []string{validHostnameA}, before, after)
+	certB := createDummyCertDetail(t, "ARN-B", []string{validHostnameB}, before, after)
+	allCerts := []*CertificateSummary{certA, certB}
+
+	t.Run("matches and dedupes certificates across multiple hostnames", func(t *testing.T) {
+		matched := FindBestMatchingCertificates(allCerts, []string{validHostnameA, validHostnameB, validHostnameA})
+		require.Len(t, matched, 2)
+
+		ids := []string{matched[0].ID(), matched[1].ID()}
+		assert.ElementsMatch(t, []string{"ARN-A", "ARN-B"}, ids)
+	})
+
+	t.Run("hostnames with no matching certificate are skipped, not errored", func(t *testing.T) {
+		matched := FindBestMatchingCertificates(allCerts, []string{validHostnameA, unmatchableHostname})
+		require.Len(t, matched, 1)
+		assert.Equal(t, "ARN-A", matched[0].ID())
+	})
+
+	t.Run("no hostnames match returns an empty, non-nil slice", func(t *testing.T) {
+		matched := FindBestMatchingCertificates(allCerts, []string{unmatchableHostname})
+		assert.Empty(t, matched)
+		assert.NotNil(t, matched)
+	})
+
+	t.Run("no hostnames given returns an empty, non-nil slice", func(t *testing.T) {
+		matched := FindBestMatchingCertificates(allCerts, nil)
+		assert.Empty(t, matched)
+		assert.NotNil(t, matched)
+	})
 }
 
 func TestGlob(t *testing.T) {

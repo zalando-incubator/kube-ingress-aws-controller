@@ -1304,11 +1304,6 @@ func TestStatus(tt *testing.T) {
 			expected: delete,
 		},
 		{
-			// deletionBlocked() would be true here (ShouldDelete but still
-			// has ingresses); the stack is kept and refreshed instead of
-			// deleted. firstRun simulates the "needs an update" condition,
-			// since Stack.IsComplete() depends on an unexported field that
-			// can't be set from this package.
 			name: "stack should be deleted but still has ingresses, so it's updated instead",
 			loadBalancer: &loadBalancer{
 				ingresses: map[string][]*kubernetes.Ingress{
@@ -2730,9 +2725,6 @@ func TestStartPolling(t *testing.T) {
 		close(done)
 	}()
 
-	// doWork panics with a nil awsAdapter, which startPolling turns into a
-	// problem and logs; just verify startPolling returns once the context is
-	// cancelled, i.e. the polling loop is actually running and respects ctx.
 	cancel()
 
 	select {
@@ -2742,8 +2734,6 @@ func TestStartPolling(t *testing.T) {
 	}
 }
 
-// mockKubeAPI is a minimal kubernetes.API implementation for tests that
-// only need to observe/control UpdateIngressLoadBalancer calls.
 type mockKubeAPI struct {
 	updateErr    error
 	updateCalls  []string // "<dnsName>" per call, in order
@@ -2762,10 +2752,6 @@ func (m *mockKubeAPI) GetConfigMap(namespace, name string) (*kubernetes.ConfigMa
 	return m.getConfigMap, m.getConfigErr
 }
 
-// newStackWithStatus builds a real *aws.Stack with the given CloudFormation
-// status by round-tripping through a fake CF client and the exported
-// Adapter.GetStack method, since aws.Stack's status field is unexported and
-// worker_test.go (package main) cannot set it directly.
 func newStackWithStatus(t *testing.T, status cfTypes.StackStatus) *aws.Stack {
 	t.Helper()
 
@@ -2791,10 +2777,6 @@ func newStackWithStatus(t *testing.T, status cfTypes.StackStatus) *aws.Stack {
 	return stack
 }
 
-// newActiveLoadBalancerState builds a real *aws.LoadBalancerState with the
-// given state and created time by round-tripping through a fake ELBv2
-// client and the exported Adapter.GetStackLBStates method, since
-// aws.LoadBalancerState's fields are unexported.
 func newLoadBalancerState(t *testing.T, stateCode elbv2Types.LoadBalancerStateEnum, createdTime time.Time) *aws.LoadBalancerState {
 	t.Helper()
 
