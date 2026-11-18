@@ -1,0 +1,170 @@
+# Default values for kube-ingress-aws-controller.
+# Defaults are sourced from the controller binary (aws/adapter.go, controller.go)
+# and the reference deployment in kubernetes-on-aws.
+
+replicaCount: 1
+
+# Namespace to deploy into. Override with --set namespace=<ns> if needed.
+namespace: kube-system
+
+image:
+  repository: ghcr.io/zalando-incubator/kube-ingress-aws-controller
+  tag: "latest"
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+
+nameOverride: ""
+fullnameOverride: ""
+
+# Service account configuration.
+# Set annotations to attach an IAM role:
+#   EKS IRSA:  eks.amazonaws.com/role-arn: "arn:aws:iam::<account>:role/<role-name>"
+#   kiam/kube2iam:  iam.amazonaws.com/role: "<role-name>"
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+# RBAC configuration
+rbac:
+  # Enable routegroup (zalando.org/routegroups) permissions in the ClusterRole.
+  # Disable if your cluster does not have the RouteGroup CRD installed.
+  routegroups:
+    enabled: true
+
+# AWS-specific settings passed as environment variables
+aws:
+  # AWS region where the cluster is running. Required.
+  region: ""
+  # Custom EC2 instance filters used to discover worker nodes.
+  # Example: "tag:kubernetes.io/cluster/<cluster-name>=owned tag:node.kubernetes.io/role=worker"
+  customFilters: ""
+
+# Controller CLI flags.
+# Only flags that differ from binary defaults need to be set.
+# See: https://github.com/zalando-incubator/kube-ingress-aws-controller#options
+controller:
+  # Target access mode. Required. One of: HostPort, AWSCNI, Legacy.
+  # HostPort: target type 'instance', discovers EC2 instances via AWS API.
+  # AWSCNI:   target type 'ip', discovers pod IPs via Kubernetes API.
+  # Legacy:   same as HostPort but without explicit target type (backward compat).
+  targetAccessMode: HostPort
+
+  # Load balancer type: application (ALB) or network (NLB).
+  # Default: network (nlb_switch=exec in config-defaults.yaml)
+  loadBalancerType: network
+
+  # SSL policy for ALB HTTPS listeners.
+  # Default: ELBSecurityPolicy-TLS13-1-2-Res-2021-06
+  sslPolicy: "ELBSecurityPolicy-TLS13-1-2-Res-2021-06"
+
+  # IP address type for the load balancer: ipv4 or dualstack.
+  # Default: ipv4
+  ipAddrType: ipv4
+
+  # Cluster-local domain. Hostnames matching this domain will not trigger LB creation.
+  # Default: cluster.local
+  clusterLocalDomain: "cluster.local"
+
+  # Enable CloudFormation stack termination protection.
+  # Default: true (matches reference deployment which always enables this)
+  stackTerminationProtection: true
+
+  # Idle connection timeout for ALBs (1s–4000s).
+  # Default: 1m
+  idleConnectionTimeout: "1m"
+
+  # Deregistration delay timeout for target groups (1s–3600s).
+  # Default: 10s (from config-defaults.yaml)
+  deregistrationDelayTimeout: "10s"
+
+  # Certificate polling interval.
+  # Default: 2m (from config-defaults.yaml)
+  certPollingInterval: "2m"
+
+  # NLB: enable cross-zone load balancing.
+  # Default: true (from config-defaults.yaml)
+  nlbCrossZone: true
+
+  # NLB: zone affinity (dns_record.client_routing_policy).
+  # Default: any_availability_zone
+  nlbZoneAffinity: "any_availability_zone"
+
+  # NLB: enable HTTP (port 80).
+  # Default: true (nlb_switch=exec in config-defaults.yaml)
+  nlbHttpEnabled: true
+
+  # NLB: target port for HTTP listener (requires nlbHttpEnabled: true).
+  # Default: 9998 (from reference deployment)
+  nlbHttpTargetPort: 9998
+
+  # Deny requests whose Host header matches an internal domain.
+  # Default: true (matches reference deployment which always enables this)
+  denyInternalDomains: true
+
+  # Additional CloudFormation stack tags as key/value pairs.
+  # Defaults match the reference deployment.
+  additionalStackTags:
+    InfrastructureComponent: "true"
+    application: kube-ingress-aws-controller
+
+  # Cert filter tag — only consider ACM/IAM certificates that have this tag set.
+  # Default: "kubernetes=enabled" (from config-defaults.yaml)
+  certFilterTag: "kubernetes=enabled"
+
+  # Optional: cluster ID. Auto-discovered from EC2 metadata if not set.
+  clusterID: ""
+
+  # Optional: VPC ID. Auto-discovered from EC2 metadata if not set.
+  vpcID: ""
+
+# Pod resource requests and limits.
+# Defaults match the zalando reference deployment.
+resources:
+  limits:
+    cpu: 50m
+    memory: 4Gi
+  requests:
+    cpu: 50m
+    memory: 4Gi
+
+# Metrics / Prometheus scraping configuration.
+metrics:
+  port: 7979
+  path: /metrics
+  # When enabled, adds prometheus.io/* annotations to the pod template so that
+  # Prometheus can auto-discover and scrape the controller. Set to false to
+  # suppress these annotations entirely.
+  podAnnotations:
+    enabled: true
+
+# Additional free-form pod annotations. Merged with any metrics annotations above.
+podAnnotations: {}
+
+# Pod labels (in addition to selector labels).
+podLabels: {}
+
+# Priority class for the controller pod.
+priorityClassName: ""
+
+# DNS config for the controller pod.
+dnsConfig:
+  options:
+    - name: ndots
+      value: "1"
+
+# Node selector for the controller pod.
+nodeSelector: {}
+
+# Tolerations for the controller pod.
+tolerations: []
+
+# Affinity rules for the controller pod.
+affinity: {}
+
+# VerticalPodAutoscaler configuration.
+vpa:
+  enabled: false
+  maxAllowed:
+    memory: 4Gi
