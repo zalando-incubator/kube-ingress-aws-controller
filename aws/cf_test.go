@@ -281,6 +281,7 @@ func TestErr(t *testing.T) {
 		{stack: &Stack{status: types.StackStatusDeleteComplete}, expectedError: NONE},
 		//
 		{stack: &Stack{status: types.StackStatusUpdateRollbackComplete}, expectedError: "unexpected status UPDATE_ROLLBACK_COMPLETE"},
+		{stack: &Stack{status: types.StackStatusRollbackComplete}, expectedError: "unexpected status ROLLBACK_COMPLETE"},
 		{
 			stack: &Stack{
 				status:       types.StackStatusUpdateRollbackInProgress,
@@ -1052,6 +1053,51 @@ func TestSSLPolicyExplicitTag(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Len(t, stacks, 1)
 		assert.False(t, stacks[0].SSLPolicyIsExplicit, "SSLPolicyIsExplicit must be false when tag is absent")
+	})
+
+	t.Run("mapToManagedStack parses Subnets from the subnets parameter", func(t *testing.T) {
+		c := &fake.CFClient{Outputs: fake.CFOutputs{
+			DescribeStacks: fake.R(&cloudformation.DescribeStacksOutput{
+				Stacks: []types.Stack{
+					{
+						StackName:   aws.String("my-stack"),
+						StackStatus: types.StackStatusCreateComplete,
+						Tags: []types.Tag{
+							cfTag(kubernetesCreatorTag, DefaultControllerID),
+							cfTag(clusterIDTagPrefix+"test-cluster", resourceLifecycleOwned),
+						},
+						Parameters: []types.Parameter{
+							cfParam(parameterLoadBalancerSubnetsParameter, "subnet-1,subnet-2"),
+						},
+					},
+				},
+			}, nil),
+		}}
+		stacks, err := findManagedStacks(context.Background(), c, "test-cluster", DefaultControllerID)
+		assert.NoError(t, err)
+		assert.Len(t, stacks, 1)
+		assert.Equal(t, []string{"subnet-1", "subnet-2"}, stacks[0].Subnets)
+	})
+
+	t.Run("mapToManagedStack leaves Subnets nil when parameter absent", func(t *testing.T) {
+		c := &fake.CFClient{Outputs: fake.CFOutputs{
+			DescribeStacks: fake.R(&cloudformation.DescribeStacksOutput{
+				Stacks: []types.Stack{
+					{
+						StackName:   aws.String("my-stack"),
+						StackStatus: types.StackStatusCreateComplete,
+						Tags: []types.Tag{
+							cfTag(kubernetesCreatorTag, DefaultControllerID),
+							cfTag(clusterIDTagPrefix+"test-cluster", resourceLifecycleOwned),
+						},
+					},
+				},
+			}, nil),
+		}}
+		stacks, err := findManagedStacks(context.Background(), c, "test-cluster", DefaultControllerID)
+		assert.NoError(t, err)
+		assert.Len(t, stacks, 1)
+		assert.Nil(t, stacks[0].Subnets)
 	})
 }
 
